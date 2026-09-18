@@ -156,10 +156,10 @@ Evidence миграций/DR лежит локально в build/audit-fix-migr
 | Слой | Объём | Было 13 сентября |
 | --- | ---: | ---: |
 | internal | 35 пакетов, 393 production Go-файла | 33 пакета, 311 файлов |
-| Go-тесты internal | 243 файла | 211 файлов |
+| Go-тесты internal | 253 файла | 211 файлов |
 | HTTP API | 201 маршрут, из них 19 `/api/v2/*` | 201 маршрут |
 | Код v2 (`*_v2.go`, без тестов) | 40 файлов, ~6 600 строк | 46 файлов, ~5 600 строк |
-| extension.js | 6287 строк | 6219 строк |
+| extension.js | 5956 строк | 6219 строк |
 | ui/client/main.js | 6396 строк | 6818 строк |
 | Модулей ui/client | 47 | 44 |
 | internal/app/app.go | 666 строк | 748 строк |
@@ -183,9 +183,15 @@ production-файла длиннее 1100 строк не осталось. Кр
 | `internal/workspace/index.go` 1563 | 167 + шесть (`index_build`, `index_context`, `index_search`, `index_tokens`, `index_drift`, `index_types`) |
 | `internal/app/agent_learning.go` 1452 | 96 + пять шагов цикла учения |
 
-Тесты разрезаны по тем же границам. В вебвью из `ui/client/main.js` выделены
-`decision-views.js` и `companion-thread-views.js`, из `extension.js` —
-`point-panels.js`.
+Тесты разрезаны по тем же границам: `e2e_test.go` 1725 → 532,
+`read_tools_test.go` 1435 → 475, `service_test.go` 1398 → 617. Самый длинный
+тестовый файл теперь `master_chat_test.go` — 1317 строк.
+
+В вебвью из `ui/client/main.js` выделены `decision-views.js` и
+`companion-thread-views.js`. Из `extension.js` — `point-panels.js` и четыре
+обработчика однородных групп сообщений: `roster-controller.js`,
+`learning-controller.js`, `tooling-controller.js`, `cursor-controller.js`.
+`handleMessage` при этом сократился с 838 строк до 503.
 
 Версии core/frontend/extension — 1.2.2; Code-OSS — 1.124.2. Node для разработки рекомендуется 24; CI выбирает major 24. Локальные проверки 5, 13 и 18 сентября выполнены на Node 22.11.0 и Go 1.25.0.
 
@@ -198,7 +204,10 @@ production-файла длиннее 1100 строк не осталось. Кр
 - Live PHP URL-intake 2× PASS и фаза 6 ship URL-autonomy.
 - Isolated filtered-copy — opt-in совместимость рядом с live-write.
 - Skills помощника — шаг «Навыки» в мастере; навык вне грантов помощника нельзя отметить.
-- createHallOnboardingViews / крупный handleMessage / line budget — техдолг UI.
+- createHallOnboardingViews — 106 деструктурируемых зависимостей; фасад не сделан.
+  Остальное из прежней строки «техдолг UI» закрыто 18 сентября: `handleMessage`
+  сократился с 838 строк до 503, а запас бюджета `ui/client/main.js` вырос со
+  129 строк до 504.
 - Wails/Docker — диагностические клиенты; legacy profiles/workflows сохраняются осознанно.
 
 ## Локальная поставка и необязательный публичный выпуск

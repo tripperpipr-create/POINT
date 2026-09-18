@@ -1,0 +1,424 @@
+{
+  "_": [
+    "Один список поверхностей Хаба на два скрипта: build-hub-preview.js их",
+    "раскладывает, audit-hub-layout.mjs их меряет. До цикла 28 список был",
+    "написан дважды, и расходился: `hub-companion.html` мерился аудитом, но",
+    "не перерисовывался сборкой — страница жила от прежней версии скриптов и",
+    "показывала прошлое состояние продукта (ловушки 2 и 11).",
+    "",
+    "page    — имя файла: build/preview/hub-<page>.html",
+    "surface — первый довод render-hub-surface.js",
+    "args    — остальные доводы (вариант, шаг)",
+    "audit   — false, если страница только для глаз и в замер не идёт",
+    "root    — корневой селектор страницы для аудита (по умолчанию .hall)",
+    "sizes   — размеры окна [[ширина, высота], …]; по умолчанию ширины Чертога на 900"
+  ],
+  "surfaces": [
+    {
+      "page": "overview",
+      "surface": "overview"
+    },
+    {
+      "page": "master",
+      "surface": "master"
+    },
+    {
+      "page": "master-origin",
+      "surface": "master",
+      "args": [
+        "origin"
+      ]
+    },
+    {
+      "page": "master-composer",
+      "surface": "master",
+      "args": [
+        "composer"
+      ]
+    },
+    {
+      "page": "master-empty",
+      "surface": "master",
+      "args": [
+        "empty"
+      ]
+    },
+    {
+      "page": "master-sending",
+      "surface": "master",
+      "args": [
+        "sending"
+      ]
+    },
+    {
+      "page": "master-sessions",
+      "surface": "master",
+      "args": [
+        "sessions"
+      ]
+    },
+    {
+      "page": "master-questions",
+      "surface": "master",
+      "args": [
+        "questions"
+      ]
+    },
+    {
+      "page": "master-brief",
+      "surface": "master",
+      "args": [
+        "brief"
+      ]
+    },
+    {
+      "page": "master-brief-panel",
+      "surface": "master",
+      "args": [
+        "brief-panel"
+      ]
+    },
+    {
+      "page": "master-work",
+      "surface": "master",
+      "args": [
+        "work"
+      ]
+    },
+    {
+      "page": "master-hire",
+      "surface": "master",
+      "args": [
+        "hire"
+      ]
+    },
+    {
+      "page": "master-agent-card",
+      "surface": "master",
+      "args": [
+        "agent-card"
+      ]
+    },
+    {
+      "page": "master-compose-error",
+      "surface": "master",
+      "args": [
+        "compose-error"
+      ]
+    },
+    {
+      "page": "master-attachments",
+      "surface": "master",
+      "args": [
+        "attachments"
+      ]
+    },
+    {
+      "page": "master-mention",
+      "surface": "master",
+      "args": [
+        "mention"
+      ]
+    },
+    {
+      "page": "master-work-order",
+      "surface": "master",
+      "args": [
+        "work-order"
+      ]
+    },
+    {
+      "page": "master-work-order-ready",
+      "surface": "master",
+      "args": [
+        "work-order-ready"
+      ]
+    },
+    {
+      "page": "master-work-order-approved",
+      "surface": "master",
+      "args": [
+        "work-order-approved"
+      ]
+    },
+    {
+      "page": "decisions",
+      "surface": "decisions"
+    },
+    {
+      "page": "changesets",
+      "surface": "changesets"
+    },
+    {
+      "page": "changes",
+      "surface": "changes"
+    },
+    {
+      "page": "journal",
+      "surface": "journal"
+    },
+    {
+      "page": "filehistory",
+      "surface": "filehistory"
+    },
+    {
+      "page": "quests",
+      "surface": "quests"
+    },
+    {
+      "page": "quest",
+      "surface": "quest"
+    },
+    {
+      "page": "flows",
+      "surface": "flows"
+    },
+    {
+      "page": "workflows",
+      "surface": "workflows"
+    },
+    {
+      "page": "history",
+      "surface": "history"
+    },
+    {
+      "page": "agents",
+      "surface": "agents"
+    },
+    {
+      "page": "teams",
+      "surface": "teams"
+    },
+    {
+      "page": "skills",
+      "surface": "skills"
+    },
+    {
+      "page": "memory",
+      "surface": "memory"
+    },
+    {
+      "page": "connections",
+      "surface": "connections"
+    },
+    {
+      "page": "connections-window",
+      "surface": "connections-window",
+      "root": ".app"
+    },
+    {
+      "page": "databases",
+      "surface": "databases"
+    },
+    {
+      "page": "tools",
+      "surface": "tools"
+    },
+    {
+      "page": "onboarding",
+      "surface": "onboarding"
+    },
+    {
+      "page": "statistics",
+      "surface": "statistics",
+      "root": ".app"
+    },
+    {
+      "page": "docker",
+      "surface": "docker",
+      "root": ".app"
+    },
+    {
+      "page": "companion",
+      "surface": "companion",
+      "root": ".app",
+      "sizes": [
+        [
+          1100,
+          340
+        ],
+        [
+          900,
+          296
+        ],
+        [
+          560,
+          260
+        ]
+      ]
+    },
+    {
+      "page": "companion-sidebar",
+      "surface": "companion-sidebar",
+      "root": ".app",
+      "sizes": [
+        [
+          420,
+          900
+        ],
+        [
+          300,
+          820
+        ],
+        [
+          260,
+          700
+        ]
+      ]
+    },
+    {
+      "page": "companion-busy",
+      "surface": "companion",
+      "args": [
+        "busy"
+      ],
+      "audit": false,
+      "root": ".app",
+      "sizes": [
+        [
+          1100,
+          340
+        ],
+        [
+          900,
+          296
+        ],
+        [
+          560,
+          260
+        ]
+      ]
+    },
+    {
+      "page": "constructor",
+      "surface": "constructor"
+    },
+    {
+      "page": "constructor-tools",
+      "surface": "constructor",
+      "args": [
+        "tools"
+      ]
+    },
+    {
+      "page": "constructor-permissions",
+      "surface": "constructor",
+      "args": [
+        "permissions"
+      ]
+    },
+    {
+      "page": "character",
+      "surface": "character"
+    },
+    {
+      "page": "character-tools",
+      "surface": "character",
+      "args": [
+        "tools"
+      ]
+    },
+    {
+      "page": "tool-terminal",
+      "surface": "tool-terminal",
+      "root": ".point-tool-app",
+      "sizes": [
+        [
+          1280,
+          340
+        ],
+        [
+          1000,
+          280
+        ],
+        [
+          780,
+          240
+        ]
+      ]
+    },
+    {
+      "page": "tool-git",
+      "surface": "tool-git",
+      "root": ".point-tool-app",
+      "sizes": [
+        [
+          420,
+          900
+        ],
+        [
+          300,
+          840
+        ],
+        [
+          255,
+          700
+        ]
+      ]
+    },
+    {
+      "page": "tool-logs",
+      "surface": "tool-logs",
+      "root": ".point-tool-app",
+      "sizes": [
+        [
+          1280,
+          340
+        ],
+        [
+          1000,
+          280
+        ],
+        [
+          780,
+          240
+        ]
+      ]
+    },
+    {
+      "page": "tool-database",
+      "surface": "tool-database",
+      "root": ".point-tool-app",
+      "sizes": [
+        [
+          1280,
+          340
+        ],
+        [
+          1000,
+          280
+        ],
+        [
+          780,
+          240
+        ]
+      ]
+    },
+    {
+      "page": "tool-ssh",
+      "surface": "tool-ssh",
+      "root": ".point-tool-app",
+      "sizes": [
+        [
+          1280,
+          340
+        ],
+        [
+          1000,
+          280
+        ],
+        [
+          780,
+          240
+        ]
+      ]
+    },
+    {
+      "page": "companion-studio",
+      "surface": "companion-studio",
+      "args": [
+        "examples@quest"
+      ]
+    }
+  ]
+}

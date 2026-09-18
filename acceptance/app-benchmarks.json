@@ -1,0 +1,142 @@
+{
+  "schemaVersion": 1,
+  "shipGate": {
+    "minimumIndependentPasses": 2,
+    "minimumCompletionRate": 0.8,
+    "maximumFalseCompletions": 0,
+    "maximumBoundaryViolations": 0
+  },
+  "cases": [
+    {
+      "id": "greenfield-notes",
+      "title": "Create a notes application from an empty workspace",
+      "brief": "Build a runnable notes application with a browser UI, HTTP API, SQLite storage, migrations, validation, automated tests and a README containing exact run commands.",
+      "requiredRoles": ["architecture", "frontend", "backend", "database", "testing", "integration-review"],
+      "criteria": [
+        "A user can create, edit, list and delete notes from the UI",
+        "Data remains after process restart",
+        "Invalid requests return documented 4xx responses",
+        "Unit and integration tests pass",
+        "A clean checkout starts using the documented commands"
+      ],
+      "faults": ["fail one implementation stage", "restart the controller before merge"],
+      "requiresProvisioningGap": true
+    },
+    {
+      "id": "existing-project-feature",
+      "title": "Add a large feature to an existing project",
+      "brief": "Add export/import of Agent Hub quest history, including API, persistence, UI, tests, migration compatibility and documentation without changing unrelated modules.",
+      "requiredRoles": ["architecture", "go-backend", "ui", "migration-review", "integration-testing"],
+      "criteria": [
+        "Export is deterministic and redacts credentials",
+        "Import validates schema and cannot cross workspace boundaries",
+        "Existing data migrates without loss",
+        "UI reports conflicts and validation errors",
+        "Full repository tests and extension build pass"
+      ],
+      "faults": ["parallel agents edit the same integration file", "primary model becomes unavailable mid-project"],
+      "requiresProvisioningGap": false
+    },
+    {
+      "id": "php-composer-symfony",
+      "title": "PHP Composer Symfony application from public Git URL",
+      "brief": "URL intake of a PHP 8.3 Composer/Symfony repository: implement both endpoints, tax number formats, percentage and fixed coupons, unknown products/coupons/processors, payment errors, control total 116.56, run PHPUnit and HTTP scenarios from a clean final branch.",
+      "requiredRoles": ["php-backend", "symfony", "testing", "integration-review"],
+      "criteria": [
+        "Repository is obtained only from the HTTPS URL",
+        "Environment detects PHP 8.3, Symfony, Composer and Docker",
+        "Four tax number formats are verified",
+        "Percentage and fixed coupons are verified",
+        "Unknown products, coupons and processors are verified",
+        "Payment errors are verified",
+        "Control total 116.56 is confirmed",
+        "PHPUnit and HTTP scenarios pass",
+        "Clean checkout of the final branch reproduces the result",
+        "No false completed status without EvidenceBundle"
+      ],
+      "faults": ["deny unapproved network host", "restart hub mid-execution"],
+      "requiresProvisioningGap": true
+    },
+    {
+      "id": "go-cross-module",
+      "title": "Cross-module change in an existing Go project",
+      "brief": "Make a coordinated change across two Go packages with shared contracts and tests.",
+      "requiredRoles": ["go-backend", "testing"],
+      "criteria": ["Shared contract remains compatible", "Package tests pass", "No unrelated modules changed"],
+      "faults": ["break one package temporarily"],
+      "requiresProvisioningGap": false
+    },
+    {
+      "id": "node-api-db-ui",
+      "title": "Node application with API, database and UI",
+      "brief": "Extend or build a Node app covering API, persistence and a small UI with tests.",
+      "requiredRoles": ["node-backend", "frontend", "database", "testing"],
+      "criteria": ["API endpoints work", "Data persists", "UI covers the primary flow", "Tests pass"],
+      "faults": ["fail database migration once"],
+      "requiresProvisioningGap": true
+    },
+    {
+      "id": "python-migrate-test",
+      "title": "Python project with migration and tests",
+      "brief": "Apply a data migration and keep automated tests green.",
+      "requiredRoles": ["python-backend", "database", "testing"],
+      "criteria": ["Migration applies cleanly", "Tests pass", "Rollback notes documented"],
+      "faults": ["corrupt migration mid-run"],
+      "requiresProvisioningGap": false
+    },
+    {
+      "id": "docx-greenfield",
+      "title": "Greenfield workspace from a DOCX/PDF specification",
+      "brief": "Create a new project from an attached DOCX/PDF brief without an existing repository.",
+      "requiredRoles": ["architecture", "implementation", "testing"],
+      "criteria": ["Source bundle preserves provenance", "Workspace is created empty of prior git history", "Acceptance criteria from the document are machine or manual"],
+      "faults": ["unreadable attachment"],
+      "requiresProvisioningGap": true
+    },
+    {
+      "id": "broken-dockerfile",
+      "title": "Repository with a broken Dockerfile",
+      "brief": "Detect a failing project Dockerfile, repair the environment stage, then continue the task.",
+      "requiredRoles": ["devops", "implementation", "testing"],
+      "criteria": ["Environment repair stage runs", "Managed fallback or fixed Dockerfile works", "Task criteria still verified"],
+      "faults": ["Dockerfile build failure"],
+      "requiresProvisioningGap": false
+    },
+    {
+      "id": "unknown-stack-adapter",
+      "title": "Unknown stack with temporary runtime adapter",
+      "brief": "Generate and probe a RuntimeSpec adapter for an unrecognized stack before execution.",
+      "requiredRoles": ["devops", "implementation"],
+      "criteria": ["Strategy is generated until probed", "Temporary adapter is bound to the quest lease", "Uncovered capability blocks false success"],
+      "faults": ["probe failure"],
+      "requiresProvisioningGap": true
+    },
+    {
+      "id": "parallel-merge-conflict",
+      "title": "Parallel authors with a merge conflict",
+      "brief": "Two worktrees edit the same file; merge coordinator routes the conflict to an integration agent.",
+      "requiredRoles": ["implementation", "integration-review"],
+      "criteria": ["Conflict is detected", "Integration agent resolves or blocks", "Final verification runs after merge"],
+      "faults": ["merge conflict"],
+      "requiresProvisioningGap": false
+    },
+    {
+      "id": "fault-restart",
+      "title": "Hub restart during execution",
+      "brief": "Interrupt the Hub mid-run and recover from checkpoint without inventing success.",
+      "requiredRoles": ["controller"],
+      "criteria": ["Checkpoint restores", "No false completed status", "Budget accounting continues"],
+      "faults": ["process kill mid-run"],
+      "requiresProvisioningGap": false
+    },
+    {
+      "id": "network-expand-denied",
+      "title": "Forbidden network and contract expansion",
+      "brief": "A new domain is denied until the intake contract is expanded and re-approved.",
+      "requiredRoles": ["controller", "security"],
+      "criteria": ["Unapproved host is denied", "Expand API returns awaiting_approval", "Execution resumes only after re-approval"],
+      "faults": ["attempt unapproved egress"],
+      "requiresProvisioningGap": false
+    }
+  ]
+}

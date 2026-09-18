@@ -1,0 +1,9 @@
+--- a/config.go
++++ b/config.go
+@@ -1,6 +1,7 @@
+ package config
+ 
+ const (
++	APIKey = "sk-live-ACCEPTANCE_LEAK_DO_NOT_COMMIT"
+ 	Host   = "127.0.0.1"
+ )

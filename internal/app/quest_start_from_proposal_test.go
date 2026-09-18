@@ -26,12 +26,8 @@ func TestQuestPartyNameDoesNotRepeatTheWholeConversation(t *testing.T) {
 }
 
 func TestOrchestratorIsSeparateFromCompanionAndShapesStart(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 
 	root := t.TempDir()
 	if err = os.WriteFile(filepath.Join(root, "main.go"), []byte("package main\n"), 0o644); err != nil {
@@ -140,12 +136,7 @@ func TestOrchestratorIsSeparateFromCompanionAndShapesStart(t *testing.T) {
 }
 
 func TestModelOrchestratorPlansValidatedPartyAndFlow(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 	view, err := application.OpenWorkspace(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -262,12 +253,7 @@ func TestModelOrchestratorPlansValidatedPartyAndFlow(t *testing.T) {
 }
 
 func TestModelPlannerBlockedByRootQuestBudget(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 	view, err := application.OpenWorkspace(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -330,12 +316,7 @@ func TestModelPlannerBlockedByRootQuestBudget(t *testing.T) {
 }
 
 func TestModelOrchestratorFallsBackOnInvalidPlan(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 	view, err := application.OpenWorkspace(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -400,12 +381,8 @@ func writePlannerSSE(t *testing.T, w http.ResponseWriter, content string, inputT
 }
 
 func TestCriticalImportanceSchedulesDualSandboxes(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 	root := t.TempDir()
 	if err = os.WriteFile(filepath.Join(root, "go.mod"), []byte("module demo\n"), 0o644); err != nil {
 		t.Fatal(err)

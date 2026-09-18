@@ -13,12 +13,7 @@ import (
 )
 
 func TestBootstrapReportsTruthfulFilteredCopyBoundary(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 	boot, err := application.Bootstrap()
 	if err != nil {
 		t.Fatal(err)
@@ -32,12 +27,8 @@ func TestBootstrapReportsTruthfulFilteredCopyBoundary(t *testing.T) {
 }
 
 func TestDecideQuestProposalStartCreatesQuestFlowAndSandboxes(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 
 	root := t.TempDir()
 	if err = os.WriteFile(filepath.Join(root, "main.go"), []byte("package main\n"), 0o644); err != nil {
@@ -119,12 +110,8 @@ func TestDecideQuestProposalStartCreatesQuestFlowAndSandboxes(t *testing.T) {
 }
 
 func TestDecideQuestProposalIgnore(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 	root := t.TempDir()
 	if err = os.WriteFile(filepath.Join(root, "README.md"), []byte("# demo\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -165,12 +152,8 @@ func TestDecideQuestProposalIgnore(t *testing.T) {
 // но запрет обязан жить здесь: маршрут открыт всем клиентам, а гонку двух
 // нажатий экран не разрешает.
 func TestDecideQuestProposalStartRefusesSecondStart(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 	root := t.TempDir()
 	if err = os.WriteFile(filepath.Join(root, "main.go"), []byte("package main\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -224,12 +207,8 @@ func TestDecideQuestProposalStartRefusesSecondStart(t *testing.T) {
 }
 
 func TestQuestProposalFullEditPersistsAndUsesSelectedFlow(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 	root := t.TempDir()
 	if err = os.WriteFile(filepath.Join(root, "main.go"), []byte("package main\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -312,12 +291,8 @@ func TestQuestProposalFullEditPersistsAndUsesSelectedFlow(t *testing.T) {
 }
 
 func TestQuestProposalManualTeamSurvivesSaveBeforeLaterStart(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 
 	root := t.TempDir()
 	if err = os.WriteFile(filepath.Join(root, "main.go"), []byte("package main\n"), 0o644); err != nil {
@@ -398,12 +373,8 @@ func TestProviderCredentialRequirementUsesSelectedPreset(t *testing.T) {
 }
 
 func TestSaveProjectAgentRejectsCursorCLI(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 	root := t.TempDir()
 	if err = os.WriteFile(filepath.Join(root, "main.go"), []byte("package main\n"), 0o644); err != nil {
 		t.Fatal(err)

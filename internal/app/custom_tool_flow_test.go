@@ -152,12 +152,8 @@ func filterOut(values []string, skip string) []string {
 // и группировка окажется способом аккуратно разложить мусор: живой из них никто
 // уже не назовёт.
 func TestCustomToolNameIsUniqueAndSaveBumpsRevision(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 	if _, err = application.OpenWorkspace(t.TempDir()); err != nil {
 		t.Fatal(err)
 	}
@@ -196,12 +192,8 @@ func TestCustomToolNameIsUniqueAndSaveBumpsRevision(t *testing.T) {
 
 // Правило доверия целиком: порог, кому оно вообще положено и что его обнуляет.
 func TestCustomToolTrustAccumulatesResetsAndStaysEarned(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 	if _, err = application.OpenWorkspace(t.TempDir()); err != nil {
 		t.Fatal(err)
 	}
@@ -253,12 +245,8 @@ func TestCustomToolTrustAccumulatesResetsAndStaysEarned(t *testing.T) {
 // Доверие положено не всем: только проверяющим и только без свободных
 // параметров, значение которых выбирает модель.
 func TestCustomToolTrustIsNotForEveryTool(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 	if _, err = application.OpenWorkspace(t.TempDir()); err != nil {
 		t.Fatal(err)
 	}
@@ -294,13 +282,8 @@ func TestCustomToolTrustIsNotForEveryTool(t *testing.T) {
 
 // Счётчик растёт от события завершения инструмента, и только от успешного.
 func TestCustomToolTrustCountsOnlySuccessfulRuns(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
-	if _, err = application.OpenWorkspace(t.TempDir()); err != nil {
+	application := newTestApp(t)
+	if _, err := application.OpenWorkspace(t.TempDir()); err != nil {
 		t.Fatal(err)
 	}
 	verifier, err := application.SaveCustomTool(domain.CustomTool{
@@ -345,12 +328,7 @@ func currentCustomTool(t *testing.T, application *App, id string) domain.CustomT
 // Предложение инструмента: агент готовит черновик, создаёт человек, а прав
 // созданный инструмент не приносит никому.
 func TestCompanionToolProposalCreatesNothingUntilConfirmed(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 	view, err := application.OpenWorkspace(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

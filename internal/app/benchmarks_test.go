@@ -9,12 +9,7 @@ import (
 )
 
 func TestPersonalBenchmarkSetEvaluatesExactRunsAndComparesBeforeAfter(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 	view, err := application.OpenWorkspace(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -81,12 +76,7 @@ func TestPersonalBenchmarkSetEvaluatesExactRunsAndComparesBeforeAfter(t *testing
 }
 
 func TestBenchmarkRejectsMismatchedTaskAndLegacyAttribution(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 	view, _ := application.OpenWorkspace(t.TempDir())
 	agent, _ := application.SaveProjectAgent(domain.ProjectAgent{Name: "Agent", Provider: domain.ProviderOllama, BaseURL: "http://127.0.0.1:11434", PrimaryModel: "qwen2.5-coder:7b"})
 	set, err := application.SaveAgentBenchmarkSet(domain.AgentBenchmarkSet{ProjectAgentID: agent.ID, Name: "Strict set", Cases: []domain.AgentBenchmarkCase{{Name: "Case", Task: "Expected task"}}})

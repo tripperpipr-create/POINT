@@ -9,12 +9,8 @@ import (
 )
 
 func TestSkillCannotEscalateAgentTools(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 	if _, err = application.OpenWorkspace(t.TempDir()); err != nil {
 		t.Fatal(err)
 	}
@@ -61,12 +57,7 @@ func TestSkillCannotEscalateAgentTools(t *testing.T) {
 }
 
 func TestEquippedSkillsStayActiveWhenAnotherProjectSkillExists(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 	view, err := application.OpenWorkspace(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -116,12 +107,7 @@ func TestEquippedSkillsStayActiveWhenAnotherProjectSkillExists(t *testing.T) {
 }
 
 func TestDisabledProjectSkillIsSkippedWithoutDroppingOthers(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 	view, err := application.OpenWorkspace(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -163,12 +149,8 @@ func TestDisabledProjectSkillIsSkippedWithoutDroppingOthers(t *testing.T) {
 }
 
 func TestSkillDefaultLowRiskPolicyDoesNotBlockEquip(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 	if _, err = application.OpenWorkspace(t.TempDir()); err != nil {
 		t.Fatal(err)
 	}
@@ -196,12 +178,8 @@ func TestSkillDefaultLowRiskPolicyDoesNotBlockEquip(t *testing.T) {
 }
 
 func TestSaveSkillValidatesToolsAndRejectsDuplicates(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 	if _, err = application.OpenWorkspace(t.TempDir()); err != nil {
 		t.Fatal(err)
 	}

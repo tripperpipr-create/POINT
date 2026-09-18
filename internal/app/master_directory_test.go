@@ -14,12 +14,7 @@ import (
 // чем к нему привяжут проект, и если метод потребует мира, левая панель будет
 // пуста именно в тот момент, ради которого её писали.
 func TestMasterChatDirectoryWorksWithoutOpenWorkspace(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 
 	directory, err := application.MasterChatDirectory(context.Background())
 	if err != nil {

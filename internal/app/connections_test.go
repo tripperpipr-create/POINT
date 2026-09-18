@@ -30,12 +30,7 @@ func saveTestConnection(t *testing.T, application *App, id, preset, name string)
 // совпадение по пресету. Теперь точная ссылка решает, а неоднозначность
 // называется вслух.
 func TestResolveConnectionPrefersExplicitLinkAndRefusesToGuess(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 
 	work := saveTestConnection(t, application, "conn-work", "openai", "Рабочий ключ")
 	personal := saveTestConnection(t, application, "conn-personal", "openai", "Личный ключ")
@@ -61,12 +56,7 @@ func TestResolveConnectionPrefersExplicitLinkAndRefusesToGuess(t *testing.T) {
 }
 
 func TestResolveConnectionFallsBackToSinglePresetMatch(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 
 	only := saveTestConnection(t, application, "conn-only", "llmux", "Шлюз компании")
 
@@ -89,12 +79,7 @@ func TestResolveConnectionFallsBackToSinglePresetMatch(t *testing.T) {
 }
 
 func TestConnectionIDRoundTripsAcrossProfileBlueprintAndProjectAgentAndResolvesLiveEndpoint(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 	world := openTestWorld(t, application)
 	conn := saveTestConnection(t, application, "conn-roundtrip", "openai", "Round trip")
 	profile, err := application.SaveProfile(domain.AgentProfile{
@@ -148,12 +133,7 @@ func TestConnectionIDRoundTripsAcrossProfileBlueprintAndProjectAgentAndResolvesL
 }
 
 func TestProviderMatrixRoundTripsAndResolvesLiveTargetsForEveryActorRole(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 	world := openTestWorld(t, application)
 
 	cases := []struct {
@@ -283,12 +263,8 @@ func TestProviderMatrixRoundTripsAndResolvesLiveTargetsForEveryActorRole(t *test
 }
 
 func TestAzureConnectionRequiresExplicitAPIVersion(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 	_, err = application.SaveConnection(connections.UpsertRequest{
 		Provider: domain.ProviderAzureOpenAI, PresetID: "azure-openai", DisplayName: "Azure",
 		BaseURL: "https://point.openai.azure.com/openai/deployments/primary",
@@ -301,12 +277,8 @@ func TestAzureConnectionRequiresExplicitAPIVersion(t *testing.T) {
 // Удаление подключения, которым пользуются, ломало бы следующий квест молча:
 // профиль продолжал бы утверждать, что настроен.
 func TestDeleteConnectionRefusesWhileReferenced(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 	openTestWorld(t, application)
 
 	conn := saveTestConnection(t, application, "conn-used", "openai", "Ключ проекта")
@@ -335,12 +307,8 @@ func TestDeleteConnectionRefusesWhileReferenced(t *testing.T) {
 // Флаг «по умолчанию» обязан быть один: два таких подключения вернули бы выбор
 // к угадыванию.
 func TestSetDefaultConnectionKeepsSingleDefault(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 
 	first := saveTestConnection(t, application, "conn-a", "openai", "A")
 	second := saveTestConnection(t, application, "conn-b", "groq", "B")

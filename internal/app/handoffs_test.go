@@ -11,12 +11,8 @@ import (
 // Когда второй агент делает не то, надо различать «не понял задачу» и «ему не
 // то передали». Цепочка передач отвечает именно на это.
 func TestHandoffsShowWhatTheNextAgentReceived(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 
 	world := openTestWorld(t, application)
 	ctx := context.Background()
@@ -87,12 +83,8 @@ func TestHandoffsShowWhatTheNextAgentReceived(t *testing.T) {
 // Узел, чей предшественник ещё не закончил, обязан быть виден как ждущий:
 // пустая цепочка без объяснения читается как поломка.
 func TestHandoffsReportWaitingNodesInsteadOfSilence(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 
 	world := openTestWorld(t, application)
 	ctx := context.Background()

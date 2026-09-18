@@ -17,12 +17,8 @@ func (m *countedUsageModel) Stream(_ context.Context, _ providers.ModelRequest, 
 }
 
 func TestBudgetedModelBlocksUnknownHardCostAndReconcilesKnownUsage(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 	world := openTestWorld(t, application)
 	if _, err = application.SaveHubBudget(HubBudgetSettings{DailyCents: 100, HardStop: true}); err != nil {
 		t.Fatal(err)

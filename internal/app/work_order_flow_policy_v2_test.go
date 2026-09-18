@@ -9,12 +9,8 @@ import (
 )
 
 func TestAutoRoutingUsesOnlyCertifiedModelsAndSeparatesVerifier(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 	ctx := context.Background()
 	if _, err = application.OpenWorkspace(t.TempDir()); err != nil {
 		t.Fatal(err)
@@ -73,12 +69,8 @@ func TestAutoRoutingUsesOnlyCertifiedModelsAndSeparatesVerifier(t *testing.T) {
 }
 
 func TestAutoRoutingRejectsProbeOnlyExperimentalModel(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 	flow := domain.FlowGraph{Nodes: []domain.FlowNode{{ID: "writer", Kind: domain.FlowNodeAgent, Name: "Implement", AgentID: "agent"}}}
 	contract := &domain.WorkOrderExecutionContract{Routing: domain.ModelRoutingPolicy{
 		Mode: "auto", RouterConnectionID: "missing", RouterModel: "probe-only", CostKnown: true, Certification: "certified",

@@ -16,12 +16,8 @@ import (
 )
 
 func TestMasterBriefingExposesBoundedProjectEvidence(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 	root := t.TempDir()
 	if err = os.MkdirAll(filepath.Join(root, "cmd", "api"), 0o755); err != nil {
 		t.Fatal(err)
@@ -55,12 +51,8 @@ func TestMasterBriefingExposesBoundedProjectEvidence(t *testing.T) {
 }
 
 func TestMasterChatProposesQuestButNeverStartsIt(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 
 	world := openTestWorld(t, application)
 	ctx := context.Background()
@@ -136,12 +128,8 @@ func TestMasterChatProposesQuestButNeverStartsIt(t *testing.T) {
 }
 
 func TestMasterChatAnswersQuestionsWithoutCreatingWork(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 
 	world := openTestWorld(t, application)
 	ctx := context.Background()
@@ -180,12 +168,8 @@ func TestMasterChatAnswersQuestionsWithoutCreatingWork(t *testing.T) {
 }
 
 func TestMasterCreatesReviewableAgentAndTeamDraftsInsteadOfFakeCodingQuests(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 
 	world := openTestWorld(t, application)
 	ctx := context.Background()
@@ -274,12 +258,8 @@ func TestMasterCreatesReviewableAgentAndTeamDraftsInsteadOfFakeCodingQuests(t *t
 }
 
 func TestMasterContinuesExactTeamRequestAfterCreatingTheFirstAgent(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 
 	world := openTestWorld(t, application)
 	ctx := context.Background()
@@ -323,12 +303,8 @@ func TestMasterContinuesExactTeamRequestAfterCreatingTheFirstAgent(t *testing.T)
 // самого предложения, чипы вопросов исчезали, а на чём это основано, приходилось
 // спрашивать заново.
 func TestMasterHistoryKeepsFactsQuestionsAndProposal(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 
 	world := openTestWorld(t, application)
 	ctx := context.Background()
@@ -404,12 +380,8 @@ func TestMasterHistoryKeepsFactsQuestionsAndProposal(t *testing.T) {
 // Разговоры мастера и компаньона делят таблицу, но не диалог: чужие реплики в
 // своём окне — ровно та каша, из-за которой раздел «Мастер» открывал компаньона.
 func TestMasterAndCompanionHistoriesDoNotMix(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 
 	world := openTestWorld(t, application)
 	ctx := context.Background()
@@ -456,12 +428,7 @@ func TestMasterAndCompanionHistoriesDoNotMix(t *testing.T) {
 // не с кем — но раздел обязан открыться и объяснить, чего не хватает, а не
 // упасть с непонятной ошибкой.
 func TestMasterChatRequiresConfiguredMaster(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 
 	openTestWorld(t, application)
 	ctx := context.Background()
@@ -503,12 +470,8 @@ func TestMasterChatRequiresConfiguredMaster(t *testing.T) {
 // Иначе диспетчер собирает отряд из тех, кого форма уже признала
 // неработоспособными, и человек узнаёт об этом из провала квеста.
 func TestMasterRefusesToProposeWithAnIncapableParty(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 
 	world := openTestWorld(t, application)
 	ctx := context.Background()
@@ -562,12 +525,8 @@ func TestMasterRefusesToProposeWithAnIncapableParty(t *testing.T) {
 // агент нужен под эту задачу?» — приходила одна и та же строка «создайте
 // первого в Гильдии». Выйти из этого изнутри было нельзя.
 func TestMasterWorksWithAnEmptyRoster(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 
 	world := openTestWorld(t, application)
 	ctx := context.Background()
@@ -702,12 +661,8 @@ func TestMasterWorksWithAnEmptyRoster(t *testing.T) {
 // ростера: спросить о состоянии дел или о составе отряда было нельзя, и чат
 // выглядел как окно с единственной кнопкой.
 func TestMasterAnswersStatusRosterAndHelp(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 
 	world := openTestWorld(t, application)
 	ctx := context.Background()
@@ -781,12 +736,8 @@ func TestMasterAnswersStatusRosterAndHelp(t *testing.T) {
 // как первая вообще. Это то же различие между «этого не было» и «этого здесь не
 // показано», ради которого в остальном интерфейсе разведены пустота и незнание.
 func TestMasterHistorySaysWhenItIsOnlyTheTail(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 
 	world := openTestWorld(t, application)
 	ctx := context.Background()
@@ -864,12 +815,8 @@ func TestMasterHistorySaysWhenItIsOnlyTheTail(t *testing.T) {
 // вторую задачу, он получал второе предложение и ни слова о том, что первое
 // всё ещё ждёт: очередь росла, и заметить это можно было только по счётчику.
 func TestMasterRemembersTheProposalItJustMade(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 
 	world := openTestWorld(t, application)
 	ctx := context.Background()
@@ -947,12 +894,8 @@ func TestMasterRemembersTheProposalItJustMade(t *testing.T) {
 // заказа» — отчёт об очереди: просьба исчезала, и догадаться, каким словом ты
 // себе помешал, было нельзя.
 func TestMasterHearsTaskEvenWhenItMentionsStatusOrCommands(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 
 	world := openTestWorld(t, application)
 	ctx := context.Background()
@@ -1001,12 +944,8 @@ func TestMasterHearsTaskEvenWhenItMentionsStatusOrCommands(t *testing.T) {
 // который сам же только что назвал, — это читалось как сбой, а очередь росла
 // на ровном месте.
 func TestMasterDoesNotProposeTheSameTaskTwice(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 
 	world := openTestWorld(t, application)
 	ctx := context.Background()
@@ -1074,12 +1013,8 @@ func TestMasterDoesNotProposeTheSameTaskTwice(t *testing.T) {
 // задачу» — при том, что задача записана двумя репликами выше в этой же
 // переписке, и обещание было дано там же.
 func TestMasterReturnsToTheTaskItPromisedToResume(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 
 	world := openTestWorld(t, application)
 	ctx := context.Background()
@@ -1143,12 +1078,8 @@ func TestMasterReturnsToTheTaskItPromisedToResume(t *testing.T) {
 // отправленное в чат. В ответ приходил тот же отказ — в мире-то ничего не
 // поменялось. Чинят агента в гильдии, туда и должна вести кнопка.
 func TestMasterRefusalOffersTheGuildInsteadOfTalkingToItself(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 
 	world := openTestWorld(t, application)
 	ctx := context.Background()
@@ -1209,12 +1140,8 @@ func TestMasterRefusalOffersTheGuildInsteadOfTalkingToItself(t *testing.T) {
 // А «Что поменять в предложении?» вдобавок обещало то, чего он не умеет:
 // править предложение из разговора нечем.
 func TestMasterSuggestionsDoNotLoopBackToTheSameAnswer(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 
 	world := openTestWorld(t, application)
 	ctx := context.Background()
@@ -1265,12 +1192,8 @@ func TestMasterSuggestionsDoNotLoopBackToTheSameAnswer(t *testing.T) {
 // разрешения. Один ответ мог сказать «ждут решения: 3» и тут же подписать кнопку
 // «разобрать очередь (2)» — числа, спорящие сами с собой в двух строках подряд.
 func TestMasterAnswerUsesOneSnapshotOfTheWorld(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 
 	world := openTestWorld(t, application)
 	ctx := context.Background()
@@ -1336,12 +1259,8 @@ func TestMasterAnswerUsesOneSnapshotOfTheWorld(t *testing.T) {
 // счётчик в шапке приходит другим запросом и мог в это же время показывать
 // очередь. Спокойствие, которого никто не проверял, хуже отсутствия сводки.
 func TestMasterDoesNotPromiseCalmItCouldNotCheck(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 
 	world := openTestWorld(t, application)
 	ctx := context.Background()

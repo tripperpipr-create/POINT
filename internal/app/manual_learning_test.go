@@ -12,12 +12,7 @@ import (
 )
 
 func TestManualProjectMemoryRequiresFreshConfirmationAndRollsBackExactly(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 	view, err := application.OpenWorkspace(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -63,12 +58,7 @@ func TestManualProjectMemoryRequiresFreshConfirmationAndRollsBackExactly(t *test
 }
 
 func TestManualProfileInstructionPropagatesAndRollsBack(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 	blueprint, err := application.SaveBlueprint(domain.AgentBlueprint{Name: "QA", Provider: domain.ProviderOllama, BaseURL: "http://127.0.0.1:11434", PrimaryModel: "qwen2.5-coder:7b", Rules: []string{"Keep scope bounded."}})
 	if err != nil {
 		t.Fatal(err)
@@ -122,12 +112,7 @@ func TestManualProfileInstructionPropagatesAndRollsBack(t *testing.T) {
 }
 
 func TestManualLearningRejectsStalePreviewAndSecrets(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 	view, _ := application.OpenWorkspace(t.TempDir())
 	agent, err := application.SaveProjectAgent(domain.ProjectAgent{Name: "QA", WorkspaceID: view.Workspace.ID, Provider: domain.ProviderOllama, BaseURL: "http://127.0.0.1:11434", PrimaryModel: "qwen2.5-coder:7b"})
 	if err != nil {
@@ -152,12 +137,7 @@ func TestManualLearningRejectsStalePreviewAndSecrets(t *testing.T) {
 }
 
 func TestExperienceSearchFindsManualMemory(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 	view, _ := application.OpenWorkspace(t.TempDir())
 	agent, _ := application.SaveProjectAgent(domain.ProjectAgent{Name: "QA", WorkspaceID: view.Workspace.ID, Provider: domain.ProviderOllama, BaseURL: "http://127.0.0.1:11434", PrimaryModel: "qwen2.5-coder:7b"})
 	request := ManualLearningRequest{ProjectAgentID: agent.ID, Kind: "memory", Scope: "project", Content: "Boundary-focused adapters require contract fixtures."}

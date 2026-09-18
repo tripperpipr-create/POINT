@@ -157,12 +157,7 @@ func TestCanaryEffectImprovedVsInsufficient(t *testing.T) {
 }
 
 func TestShadowBenchmarkNoSetOneEvalDeferredTwoEvalsCompare(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 	view, err := application.OpenWorkspace(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

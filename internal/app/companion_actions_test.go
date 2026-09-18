@@ -12,12 +12,8 @@ import (
 )
 
 func TestCompanionFlowActionRequiresReviewAndIsWorkspaceScoped(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 
 	firstRoot := t.TempDir()
 	secondRoot := t.TempDir()
@@ -106,12 +102,8 @@ func TestCompanionFlowActionRequiresReviewAndIsWorkspaceScoped(t *testing.T) {
 }
 
 func TestCompanionFlowActionCanBeIgnored(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 	root := t.TempDir()
 	if err = os.WriteFile(filepath.Join(root, "main.go"), []byte("package main\n"), 0o600); err != nil {
 		t.Fatal(err)
@@ -145,12 +137,8 @@ func TestCompanionFlowActionCanBeIgnored(t *testing.T) {
 }
 
 func TestCompanionCreatesReviewedAgentAndTeamFromChat(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 	root := t.TempDir()
 	if err = os.WriteFile(filepath.Join(root, "main.go"), []byte("package main\n"), 0o600); err != nil {
 		t.Fatal(err)
@@ -246,12 +234,8 @@ func TestCompanionCreatesReviewedAgentAndTeamFromChat(t *testing.T) {
 }
 
 func TestCompanionCreatesReviewedAndEquippedSkillFromChat(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 	root := t.TempDir()
 	if err = os.WriteFile(filepath.Join(root, "main.go"), []byte("package main\n"), 0o600); err != nil {
 		t.Fatal(err)
@@ -333,12 +317,8 @@ func TestCompanionCreatesReviewedAndEquippedSkillFromChat(t *testing.T) {
 // модель, умения и пределы, человек их правил — и агент всё равно заводился с
 // тем, что придумало ядро.
 func TestCompanionAgentActionKeepsHumanRuntimeChoices(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 
 	root := t.TempDir()
 	if err = os.WriteFile(filepath.Join(root, "main.go"), []byte("package main\n"), 0o600); err != nil {
@@ -402,12 +382,8 @@ func TestCompanionAgentActionKeepsHumanRuntimeChoices(t *testing.T) {
 // Неизвестное умение отбивается на правке черновика, а не всплывает при
 // создании: человек должен узнать об ошибке там, где он её сделал.
 func TestCompanionAgentActionRejectsUnknownTool(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 
 	root := t.TempDir()
 	if err = os.WriteFile(filepath.Join(root, "main.go"), []byte("package main\n"), 0o600); err != nil {

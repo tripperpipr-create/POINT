@@ -25,12 +25,7 @@ func openTestWorld(t *testing.T, application *App) domain.Workspace {
 }
 
 func TestDecisionsOrdersByWaitingTimeAndDescribesResolution(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 
 	world := openTestWorld(t, application)
 	ctx := context.Background()
@@ -96,12 +91,8 @@ func TestDecisionsOrdersByWaitingTimeAndDescribesResolution(t *testing.T) {
 }
 
 func TestDecisionsKeepModifiedDraftsUntilTheyAreApplied(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 
 	world := openTestWorld(t, application)
 	ctx := context.Background()
@@ -139,12 +130,8 @@ func TestDecisionsKeepModifiedDraftsUntilTheyAreApplied(t *testing.T) {
 }
 
 func TestDecisionsMarksConflictsBlockingAndProposalsNot(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 
 	world := openTestWorld(t, application)
 	ctx := context.Background()
@@ -191,12 +178,8 @@ func TestDecisionsMarksConflictsBlockingAndProposalsNot(t *testing.T) {
 // Изоляция миров — контракт, который очередь обязана соблюдать так же, как
 // bootstrap: решение из соседней папки не должно всплыть в текущей.
 func TestDecisionsAreScopedToCurrentWorld(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 
 	ctx := context.Background()
 	first := openTestWorld(t, application)
@@ -229,12 +212,8 @@ func TestDecisionsAreScopedToCurrentWorld(t *testing.T) {
 // которые ждут человека. Агент стоял, а экран «всё, что ждёт вашего решения»
 // показывал пустоту: работа замирала молча.
 func TestDecisionsIncludeRunsWaitingForApproval(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 	world := openTestWorld(t, application)
 	ctx := context.Background()
 	now := time.Now().UTC()
@@ -281,12 +260,8 @@ func TestDecisionsIncludeRunsWaitingForApproval(t *testing.T) {
 // (orchestration.go) этот статус учитывает — два места расходились, и ждущий
 // флоу пропадал из очереди.
 func TestDecisionsIncludeFlowRunsWaitingForApproval(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 	world := openTestWorld(t, application)
 	ctx := context.Background()
 	now := time.Now().UTC()
@@ -323,12 +298,8 @@ func TestDecisionsIncludeFlowRunsWaitingForApproval(t *testing.T) {
 // интерфейсе, только живший в ядре: текст собирается здесь, и интерфейс его
 // уже не исправит.
 func TestDecisionsCountFilesInProperForm(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 	world := openTestWorld(t, application)
 	ctx := context.Background()
 	now := time.Now().UTC()
@@ -371,12 +342,8 @@ func TestDecisionsCountFilesInProperForm(t *testing.T) {
 // рисуется живой кнопкой, которая молча ничего не делает: человек жмёт, работа
 // стоит, и никто об этом не сообщает.
 func TestEveryDecisionCarriesAResolvePath(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 	world := openTestWorld(t, application)
 	ctx := context.Background()
 	now := time.Now().UTC()
@@ -430,12 +397,8 @@ func TestEveryDecisionCarriesAResolvePath(t *testing.T) {
 // встаёт первой, отодвигая настоящую срочную работу, а на экране показывает
 // «17532000ч». Неизвестное время — это не «ждёт дольше всех».
 func TestDecisionWithoutTimestampDoesNotHijackQueue(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 	world := openTestWorld(t, application)
 	ctx := context.Background()
 	now := time.Now().UTC()

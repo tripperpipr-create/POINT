@@ -19,12 +19,7 @@ import (
 )
 
 func TestVerifiedComplexRunsCreatePatchAndRollbackLearnedSkill(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 	view, err := application.OpenWorkspace(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -111,12 +106,7 @@ func TestVerifiedComplexRunsCreatePatchAndRollbackLearnedSkill(t *testing.T) {
 }
 
 func TestUsefulTemporarySubagentWaitsForUserBeforeParentBlueprintPromotion(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 	view, err := application.OpenWorkspace(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -164,12 +154,7 @@ func TestUsefulTemporarySubagentWaitsForUserBeforeParentBlueprintPromotion(t *te
 }
 
 func TestLearnedSkillPromotesAcrossBlueprintProjectsAndRollsBackExactly(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 	tools := []string{"project_map", "list_files", "search_code", "read_file", "search_text"}
 	blueprint, err := application.SaveBlueprint(domain.AgentBlueprint{
 		Name: "Backend", RoleDescription: "Permanent backend specialist", Provider: domain.ProviderOllama, BaseURL: "http://127.0.0.1:11434",
@@ -439,12 +424,7 @@ func contextHasSource(items []domain.RunContextItem, source string) bool {
 }
 
 func TestShortRunDoesNotCreateAutonomousImprovement(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 	view, err := application.OpenWorkspace(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -473,12 +453,7 @@ func TestShortRunDoesNotCreateAutonomousImprovement(t *testing.T) {
 }
 
 func TestOrdinaryRunMessageIsNotSentToLearningReviewer(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 	view, err := application.OpenWorkspace(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -555,12 +530,7 @@ func TestConsentedCorrectionUsesGuardedReviewerWithoutFinalOutput(t *testing.T) 
 }
 
 func TestConsentedCorrectionSkipsWhenReviewerUnavailable(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 	view, err := application.OpenWorkspace(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -648,12 +618,7 @@ func saveFeedbackLearningRun(t *testing.T, application *App, workspaceID string,
 }
 
 func TestLearningReviewerReservesAgainstRootQuestBudget(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 	view, err := application.OpenWorkspace(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

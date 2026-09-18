@@ -91,12 +91,7 @@ func TestProbeProviderReturnsModelsWithoutPersistingKey(t *testing.T) {
 }
 
 func TestBootstrapIncludesAgentStudioCatalog(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 
 	boot, err := application.Bootstrap()
 	if err != nil {
@@ -345,12 +340,8 @@ func TestAgentRunPreflightIsStableReadOnlyAndRejectsStaleLaunch(t *testing.T) {
 }
 
 func TestAgentRunPreflightSurfacesCompletionConfigurationBlocker(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 	if _, err = application.OpenWorkspace(t.TempDir()); err != nil {
 		t.Fatal(err)
 	}
@@ -380,12 +371,8 @@ func TestAgentRunPreflightSurfacesCompletionConfigurationBlocker(t *testing.T) {
 }
 
 func TestAgentRunPreflightWarnsAboutMissingPatchInspectionTools(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 	if _, err = application.OpenWorkspace(t.TempDir()); err != nil {
 		t.Fatal(err)
 	}
@@ -442,12 +429,7 @@ func TestAgentRunRejectsImmutableInputBeyondContextBudget(t *testing.T) {
 }
 
 func TestProfileLifecycleFromTemplate(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 
 	template := domain.BuiltInAgentTemplates()[1]
 	created, err := application.SaveProfile(domain.AgentProfile{
@@ -1465,12 +1447,7 @@ func waitAndApplyPendingChangeSets(t *testing.T, application *App) error {
 // не следует ни одного действия. Не запущен Ollama, не тот адрес, отклонён
 // ключ — всё выглядело одинаково.
 func TestProbeProviderExplainsFailureInsteadOfErroring(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 
 	// Порт, на котором заведомо никто не слушает.
 	result, err := application.ProbeProvider(ProviderProbeRequest{

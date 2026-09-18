@@ -13,12 +13,7 @@ import (
 )
 
 func TestRunControlPlaneRejectsEveryCrossWorkspaceMutationAndInspection(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 	first, err := application.OpenWorkspace(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -193,12 +188,7 @@ func TestEnforceHubBudgetBlocksStart(t *testing.T) {
 }
 
 func TestQuestBudgetUsesPersistedExecutionLink(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 
 	view, err := application.OpenWorkspace(t.TempDir())
 	if err != nil {
@@ -240,12 +230,7 @@ func TestQuestBudgetUsesPersistedExecutionLink(t *testing.T) {
 // квест с потолком в один токен обязан пускать бесплатный запуск и не пускать
 // платный — иначе бесплатная модель стоит без дела при нулевой цене хода.
 func TestFreeRuntimeIgnoresQuestTokenCeiling(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 
 	view, err := application.OpenWorkspace(t.TempDir())
 	if err != nil {
@@ -286,12 +271,7 @@ func TestFreeRuntimeIgnoresQuestTokenCeiling(t *testing.T) {
 }
 
 func TestUsageRecordCorrelatesAgentQuestAndModelLatency(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 
 	view, err := application.OpenWorkspace(t.TempDir())
 	if err != nil {
@@ -426,12 +406,8 @@ func TestDirectRunCreatesAndCompletesFirstClassQuest(t *testing.T) {
 // только то, что правило считает верно; проводку он не проверяет. Убери вызов
 // из StartRun — тот тест останется зелёным, а квесты пойдут сверх лимита.
 func TestStartRunRefusesWhenHardBudgetSpent(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 	world := openTestWorld(t, application)
 	ctx := context.Background()
 
@@ -479,12 +455,8 @@ func TestStartRunRefusesWhenHardBudgetSpent(t *testing.T) {
 // Месячный лимит — вторая половина того же обещания, и она не проверялась
 // вовсе: отключение месячной ветки не роняло ни один тест бюджета.
 func TestStartRunRefusesWhenMonthlyBudgetSpent(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 	world := openTestWorld(t, application)
 	ctx := context.Background()
 

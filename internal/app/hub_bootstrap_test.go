@@ -1,7 +1,6 @@
 package app
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"testing"
@@ -90,12 +89,8 @@ func TestTrimResolvedProposalsKeepsOpenAndCapsResolved(t *testing.T) {
 // личность, миссия, ограничения, навыки и проектные правила — пять шагов
 // настройки из десяти, молча.
 func TestHubBootstrapAlwaysNamesAgentCollections(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 	if _, err = application.OpenWorkspace(t.TempDir()); err != nil {
 		t.Fatal(err)
 	}
@@ -126,12 +121,8 @@ func TestHubBootstrapAlwaysNamesAgentCollections(t *testing.T) {
 }
 
 func TestCompanionDefaultIsNotHumanConfiguration(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 	if _, err = application.OpenWorkspace(t.TempDir()); err != nil {
 		t.Fatal(err)
 	}

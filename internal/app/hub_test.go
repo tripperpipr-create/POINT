@@ -190,12 +190,7 @@ func TestCompanionInterventionDismissalIsReversibleAndWorkspaceScoped(t *testing
 }
 
 func TestMemoryCRUDIsOwnerAwareAndWorkspaceScoped(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 	view, err := application.OpenWorkspace(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -238,12 +233,7 @@ func TestMemoryCRUDIsOwnerAwareAndWorkspaceScoped(t *testing.T) {
 }
 
 func TestContextInspectorShowsRuntimeLayersAndOnlyAmendsInputs(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 	view, err := application.OpenWorkspace(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -292,12 +282,8 @@ func TestContextInspectorShowsRuntimeLayersAndOnlyAmendsInputs(t *testing.T) {
 }
 
 func TestIDEObservationsAreBoundedReplaceableAndWorkspaceScoped(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 	firstRoot := t.TempDir()
 	secondRoot := t.TempDir()
 	if err = os.WriteFile(filepath.Join(firstRoot, "main.go"), []byte("package main\n"), 0o600); err != nil {
@@ -361,12 +347,8 @@ func TestIDEObservationsAreBoundedReplaceableAndWorkspaceScoped(t *testing.T) {
 }
 
 func TestBootstrapSurfacesLiveRunDiagnosticCompanionActions(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 	root := t.TempDir()
 	if err = os.WriteFile(filepath.Join(root, "main.go"), []byte("package main\n"), 0o600); err != nil {
 		t.Fatal(err)

@@ -87,12 +87,8 @@ func TestCompanionReadToolsGainSkillReaderWithEquippedSkills(t *testing.T) {
 // недоступный ему инструмент, надеть нельзя. Иначе она молча ничего не делала
 // бы, а человек считал бы её работающей.
 func TestCompanionRefusesSkillItCannotUse(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 	if _, err = application.OpenWorkspace(t.TempDir()); err != nil {
 		t.Fatal(err)
 	}
@@ -140,12 +136,7 @@ func TestCompanionRefusesSkillItCannotUse(t *testing.T) {
 // проекте или его правкой увели за пределы доступа помощника, — и обе должны
 // оставлять разговор рабочим, а не ронять его.
 func TestResolveCompanionSkillsKeepsFitAndDropsDrifted(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 	view, err := application.OpenWorkspace(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -205,12 +196,8 @@ func TestResolveCompanionSkillsKeepsFitAndDropsDrifted(t *testing.T) {
 
 // CLI-провайдеры помощника сняты: сохранение Claude Code CLI должно отвергаться.
 func TestCompanionRejectsClaudeCLI(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 	if _, err = application.OpenWorkspace(t.TempDir()); err != nil {
 		t.Fatal(err)
 	}

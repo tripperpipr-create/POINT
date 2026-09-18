@@ -120,12 +120,7 @@ func TestPreviewCompiledPromptMatchesRuntimeSystemMessage(t *testing.T) {
 }
 
 func TestBlueprintSyncRequiresCompleteInspectableDiff(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 	view, err := application.OpenWorkspace(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -187,12 +182,7 @@ func TestBlueprintSyncRequiresCompleteInspectableDiff(t *testing.T) {
 }
 
 func TestSaveProjectAgentPreservesProgressCounters(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 	view, err := application.OpenWorkspace(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -231,12 +221,7 @@ func TestSaveProjectAgentPreservesProgressCounters(t *testing.T) {
 }
 
 func TestProfileMemoryFollowsBlueprintAcrossWorkspaces(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 
 	first, err := application.OpenWorkspace(t.TempDir())
 	if err != nil {
@@ -306,12 +291,7 @@ func TestProfileMemoryFollowsBlueprintAcrossWorkspaces(t *testing.T) {
 // Живая проба показала, что ядро принимало «», «   » и имя с переводом строки
 // внутри: в ростере появлялись карточки, которые нельзя ни отличить, ни назвать.
 func TestSaveProjectAgentRequiresUsableName(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 	view, err := application.OpenWorkspace(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -353,12 +333,7 @@ func TestSaveProjectAgentRequiresUsableName(t *testing.T) {
 // ftp:// и провайдера, которого не существует. Исполняет шаги и тратит деньги
 // как раз агент, так что правило должно быть общим.
 func TestSaveProjectAgentHoldsTheSameLimitsAsCompanion(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 	view, err := application.OpenWorkspace(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -424,12 +399,7 @@ func TestSaveProjectAgentHoldsTheSameLimitsAsCompanion(t *testing.T) {
 // отказывать там, где после него осталась бы ссылка в пустоту, и называть, что
 // именно держит.
 func TestDeleteProjectAgentRefusesWhileAgentIsHeld(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 	view, err := application.OpenWorkspace(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -505,12 +475,7 @@ func TestDeleteProjectAgentRefusesWhileAgentIsHeld(t *testing.T) {
 // роспуска не было, это не бросалось в глаза; живая проба трёх кругов «создал —
 // распустил» оставила в списке найма три класса от несуществующих персонажей.
 func TestDeleteBlueprintRefusesWhileClassIsTaken(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 	view, err := application.OpenWorkspace(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -636,12 +601,7 @@ func TestMigrationCarriesLegacyProfilesIntoBlueprints(t *testing.T) {
 // три сохранения, и системное сообщение росло без предела. Чертёж хранит
 // слои-источники; собирать их — дело запуска.
 func TestSavingDerivedProfileDoesNotCompoundPrompt(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 	if _, err := application.OpenWorkspace(t.TempDir()); err != nil {
 		t.Fatal(err)
 	}
@@ -689,12 +649,7 @@ func TestSavingDerivedProfileDoesNotCompoundPrompt(t *testing.T) {
 // проверкой занятости: /api/blueprints отказывал, а /api/profiles с тем же id
 // удалял и оставлял у персонажа ссылку в пустоту.
 func TestDeleteProfileHonoursTheSameGuardAsDeleteBlueprint(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 	view, err := application.OpenWorkspace(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

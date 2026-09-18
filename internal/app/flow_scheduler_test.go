@@ -17,12 +17,7 @@ import (
 )
 
 func TestFlowCreatesOnlyAgentNodeChildQuestsAndReusesChildForRetry(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 	view, err := application.OpenWorkspace(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -102,12 +97,7 @@ func TestFlowCreatesOnlyAgentNodeChildQuestsAndReusesChildForRetry(t *testing.T)
 }
 
 func TestFlowFallbackCreatesFreshExecutionWithReadyExplicitAgent(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 	view, err := application.OpenWorkspace(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -369,12 +359,8 @@ func TestCompletedFlowAgentPersistsExecutionIDAndSeedsNextSandbox(t *testing.T) 
 }
 
 func TestSequentialExecutionSandboxAndChangeSetLineage(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 	root := t.TempDir()
 	filePath := filepath.Join(root, "state.txt")
 	if err = os.WriteFile(filePath, []byte("live"), 0o644); err != nil {
@@ -480,12 +466,8 @@ func TestSequentialExecutionSandboxAndChangeSetLineage(t *testing.T) {
 }
 
 func TestParallelSandboxMergeCreatesAggregateChangeSet(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 	root := t.TempDir()
 	for path, content := range map[string]string{"a.txt": "a-base", "b.txt": "b-base"} {
 		if err = os.WriteFile(filepath.Join(root, path), []byte(content), 0o644); err != nil {
@@ -601,12 +583,8 @@ func TestParallelSandboxMergeCreatesAggregateChangeSet(t *testing.T) {
 }
 
 func TestParallelFlowWaitsForExplicitSandboxMergeResolution(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 	root := t.TempDir()
 	if err = os.WriteFile(filepath.Join(root, "shared.txt"), []byte("base"), 0o644); err != nil {
 		t.Fatal(err)
@@ -732,12 +710,8 @@ func TestParallelFlowWaitsForExplicitSandboxMergeResolution(t *testing.T) {
 }
 
 func TestParallelRootBranchesReuseOneImmutableFlowSnapshot(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 	root := t.TempDir()
 	path := filepath.Join(root, "state.txt")
 	if err = os.WriteFile(path, []byte("flow-start"), 0o644); err != nil {
@@ -788,12 +762,7 @@ func TestParallelRootBranchesReuseOneImmutableFlowSnapshot(t *testing.T) {
 }
 
 func TestResumeActiveFlowReusesInterruptedExecution(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 	workspaceRoot := t.TempDir()
 	view, err := application.OpenWorkspace(workspaceRoot)
 	if err != nil {
@@ -849,12 +818,7 @@ func TestResumeActiveFlowReusesInterruptedExecution(t *testing.T) {
 }
 
 func TestToolFlowNodeCreatesSandboxedSingleToolExecution(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 	view, err := application.OpenWorkspace(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -897,12 +861,7 @@ func TestToolFlowNodeCreatesSandboxedSingleToolExecution(t *testing.T) {
 }
 
 func TestBoundedLoopSchedulesFreshToolExecutionPerIteration(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
 	view, err := application.OpenWorkspace(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

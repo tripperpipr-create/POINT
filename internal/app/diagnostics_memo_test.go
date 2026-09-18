@@ -11,12 +11,8 @@ import (
 // Диагностика завершённого прогона неизменяема, поэтому её не пересчитывают.
 // Диагностика идущего — меняется на каждом шаге, и кэшировать её нельзя.
 func TestRunDiagnosticsAreMemoizedOnlyForFinishedRuns(t *testing.T) {
-	t.Setenv("REDIS_ADDR", "")
-	application, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer application.Shutdown(context.Background())
+	application := newTestApp(t)
+	var err error
 
 	world := openTestWorld(t, application)
 	ctx := context.Background()

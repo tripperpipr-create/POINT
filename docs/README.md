@@ -1,0 +1,91 @@
+# Документация Point IDE
+
+Этот каталог — входная точка в документацию. Индекс и измеряемые величины
+сверялись с исходниками `1.2.2`; у каждого справочника своя дата в шапке —
+когда его утверждения последний раз сверяли с кодом. Hub URL-intake и политика
+Мастера/сети обновлены 10 сентября 2026. Контур v2 (карточка запуска → шлюз
+доказательств → расписка доставки) описан 13 сентября 2026 в
+[PROJECT-STATUS.md](PROJECT-STATUS.md), [architecture.md](architecture.md),
+[agent-hub-mvp.md](agent-hub-mvp.md) и [api.md](api.md).
+
+## С чего начать
+
+| Задача | Документ |
+| --- | --- |
+| Установить или запустить проект | [Корневой README](../README.md) |
+| Понять архитектуру и границы компонентов | [architecture.md](architecture.md) |
+| Работать с HTTP API | [api.md](api.md) |
+| Разрабатывать и проверять изменения | [CONTRIBUTING.md](../CONTRIBUTING.md) |
+| Увидеть текущее состояние и технический долг | [PROJECT-STATUS.md](PROJECT-STATUS.md) |
+| Проверить готовность IDE-сценариев | [IDE-CAPABILITY-MATRIX.md](IDE-CAPABILITY-MATRIX.md) |
+| Понять раскладку окна и окон инструментов | [IDE-DESIGN.md](IDE-DESIGN.md) |
+| Понять модель безопасности | [security.md](security.md) |
+| Проверить threat model и privacy inventory | [threat-model.md](threat-model.md) |
+| Настроить изоляцию исполняемых tools | [sandbox.md](sandbox.md) |
+| Настроить benchmarks и понять canary gates | [agent-evaluation.md](agent-evaluation.md) |
+| Проверить lifecycle legacy-слоёв и критерии удаления | [legacy-lifecycle.md](legacy-lifecycle.md) |
+| Сделать backup, migrate-copy, restore или DR drill | [operations.md](operations.md) |
+| Проверить большие проекты, историю и desktop SLO | [performance.md](performance.md) |
+| Собрать Windows-дистрибутив | [distribution/README.md](../distribution/README.md) |
+
+## Живые справочники
+
+- [AGENT-HUB-IMPLEMENTATION-2026-09-06.md](AGENT-HUB-IMPLEMENTATION-2026-09-06.md) — состояние внедрения Hub (live write с 9 сентября).
+- [AGENT-HUB-URL-INTAKE-2026-09-10.md](AGENT-HUB-URL-INTAKE-2026-09-10.md) — URL intake → EvidenceBundle; live PHP gate.
+- [AGENT-HUB-ORCHESTRATOR-NETWORK-POLICY.md](AGENT-HUB-ORCHESTRATOR-NETWORK-POLICY.md) — надзор Мастера, git/сеть, эскалация к пользователю.
+- [AGENT-HUB-ACCEPTANCE-2x10.md](AGENT-HUB-ACCEPTANCE-2x10.md) — приёмочный suite 2×10.
+- [AGENT-HUB-V2-MVP.md](AGENT-HUB-V2-MVP.md) — сокращение контура v2 до MVP:
+  что режем, работы по порядку и приёмка.
+- [tool-access-layer.md](tool-access-layer.md) — tools/grants/Skills и открытые продуктовые решения.
+- [agent-hub-mvp.md](agent-hub-mvp.md) — сущности и гарантии Agent Hub (имя файла
+  стабильно; содержание — текущая версия, не только исходный MVP).
+- [search-window.md](search-window.md) — ТЗ на своё окно поиска: вкладки,
+  источники данных, состояния, клавиши, отклик и порядок проверки.
+- [IDE-DESIGN.md](IDE-DESIGN.md) — эталон раскладки: части окна, окна инструментов,
+  вкладки нижней панели, всплывающие и клавиши окон.
+- [databases.md](databases.md) — SQLite, PostgreSQL и MySQL.
+- [ssh.md](ssh.md) — системный OpenSSH и его ограничения.
+- [RPG-DESIGN-SYSTEM.md](RPG-DESIGN-SYSTEM.md) — словарь, токены и сборка CSS.
+- [VISUAL-LOOP.md](VISUAL-LOOP.md) — воспроизводимая визуальная проверка.
+- [DEPENDENCIES.md](DEPENDENCIES.md) — политика и последний аудит зависимостей.
+
+## Исторические материалы
+
+- [AUDIT-2026-09-05.md](AUDIT-2026-09-05.md) — аудит и закрытие A01–A06 (5 сентября); evidence для quality-gate.
+- [UI-UX-LOOP.md](UI-UX-LOOP.md) — журнал выполненных UI/UX-циклов. Старые записи
+  не являются описанием текущего состояния.
+- [POINT-UI-UX-BRIEF.md](../POINT-UI-UX-BRIEF.md) — рабочий бриф, по которому шли
+  итерации. Он задаёт намерение, но не заменяет архитектуру, статус или дизайн-систему.
+- [vscode-extension/CHANGELOG.md](../vscode-extension/CHANGELOG.md) — история
+  релизов; утверждения внутри прошлых версий намеренно не переписываются.
+
+## Источники истины
+
+| Данные | Канонический источник |
+| --- | --- |
+| Версия Point | `internal/app/app.go`, `frontend/package.json`, `vscode-extension/package.json` |
+| Версия Code-OSS и хэши сборки | `distribution/version.json` |
+| HTTP-маршруты | `internal/httpapi/server.go`, `internal/httpapi/db_connections.go` |
+| Шаги онбординга | `vscode-extension/ui/client/main.js`, `ONBOARDING_STEPS` |
+| Команды и хоткеи | `vscode-extension/package.json` |
+| Цвета и шкалы | `vscode-extension/ui/tokens.css` |
+| CSS-бюджет | `vscode-extension/ui/budget.json` |
+| Performance SLO | `distribution/performance-slo.json` |
+| Сборочные и smoke-команды | `Makefile`, package scripts, `scripts/` |
+
+Не копируйте измеряемые значения в несколько документов без необходимости.
+Если число всё же важно для объяснения, указывайте дату замера и источник.
+
+## Автоматическая проверка
+
+```powershell
+node scripts/check-docs.mjs
+node scripts/check-release-contracts.mjs
+```
+
+Проверка валидирует локальные Markdown-ссылки, упомянутые скрипты, полный паритет
+таблицы API с Go-маршрутами, единую версию core/frontend/extension и число шагов
+онбординга в живых документах. Release-contract check дополнительно связывает
+production workflow с installer, migration, sandbox, security и performance
+gates. Проверки не доказывают смысл текста, поэтому после
+изменения поведения всё равно нужно обновить соответствующий справочник.

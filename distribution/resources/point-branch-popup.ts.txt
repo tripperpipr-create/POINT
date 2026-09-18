@@ -1,0 +1,530 @@
+/*---------------------------------------------------------------------------------------------
+ *  Point IDE — выпадашка жетона ветки.
+ *
+ *  Живёт вкладом, а не в заголовке окна: состояние репозитория и список веток
+ *  даёт служба SCM, а она лежит слоем выше частей рабочего стола — заголовку её
+ *  не видно. Заголовок поэтому только зовёт команду и передаёт свой жетон как
+ *  якорь, а вся работа с репозиторием — здесь.
+ *
+ *  Список повторяет виджет ветки в JetBrains и отвечает на два вопроса подряд:
+ *
+ *  1. **Что сейчас с репозиторием** — шапка: ветка и её источник, три плитки
+ *     «входящие · исходящие · изменения» и ряд действий (обновить, стянуть,
+ *     отправить, закоммитить). Прежде список отвечал только на второй вопрос,
+ *     и «есть ли что-то новое» приходилось выяснять в панели Git.
+ *  2. **Куда переключиться** — поиск по имени, разделы «локальные / удалённые
+ *     / теги» со счётчиками, у текущей ветки галочка, у каждой ссылки — стрелка
+ *     в подменю с действиями над ней.
+ *
+ *  Ветки приходят от того же поставщика истории, что рисует Летопись
+ *  (`provideHistoryItemRefs`), число входящих и исходящих — из команд строки
+ *  состояния расширения Git, число несохранённого — из групп ресурсов самого
+ *  репозитория, а действия выполняются командами расширения Git (`git.checkout`
+ *  с именем ветки и прочие). Своего разбора вывода `git` здесь нет — иначе
+ *  завелась бы вторая правда о репозитории.
+ *--------------------------------------------------------------------------------------------*/
+
+import { localize } from '../../../../nls.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import product from '../../../../platform/product/common/product.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IPointPopupHeader, IPointPopupRow, IPointPopupSection, IPointPopupStat, pointPlural, pointSyncCounts, showPointPopup } from '../../../browser/parts/titlebar/pointTitleWidgets.js';
+import { ISCMHistoryItemRef } from '../common/history.js';
+import { ISCMProvider, ISCMRepository, ISCMService, ISCMViewService } from '../common/scm.js';
+
+/**
+ * Столько веток показывается в разделе. Потолок высокий, потому что список
+ * прокручивается: при низком двенадцать веток `feature/*` вытесняли из виду
+ * `main`, и до неё приходилось идти через поиск.
+ */
+const MAX_REFS_PER_SECTION = 20;
+
+/** Столько знаков хеша стоит справа от ветки. Столько же показывает Летопись. */
+const SHORT_REVISION = 7;
+
+interface IPointBranchRefs {
+	readonly local: ISCMHistoryItemRef[];
+	readonly remote: ISCMHistoryItemRef[];
+	readonly tags: ISCMHistoryItemRef[];
+}
+
+/**
+ * Разбор по разделам идёт по идентификатору (`refs/heads/…`), а не по полю
+ * `category`: категорию поставщик пишет словами и переводит, и на другом языке
+ * интерфейса разбор бы развалился.
+ */
+function splitRefs(refs: readonly ISCMHistoryItemRef[]): IPointBranchRefs {
+	const local: ISCMHistoryItemRef[] = [];
+	const remote: ISCMHistoryItemRef[] = [];
+	const tags: ISCMHistoryItemRef[] = [];
+	for (const ref of refs) {
+		if (ref.id.startsWith('refs/remotes/')) {
+			remote.push(ref);
+		} else if (ref.id.startsWith('refs/tags/')) {
+			tags.push(ref);
+		} else {
+			local.push(ref);
+		}
+	}
+	return { local, remote, tags };
+}
+
+/**
+ * Тот же репозиторий, что показывает жетон. Имя ветки на жетоне приходит из
+ * контекстного ключа, который ставит вклад SCM по своему активному
+ * репозиторию, — значит и список веток должен браться оттуда же. Иначе в
+ * проекте с двумя репозиториями жетон покажет ветку одного, а список раскроет
+ * ветки другого, и никакой ошибки при этом не случится: просто чужие ветки.
+ */
+function activeRepository(accessor: ServicesAccessor): ISCMRepository | undefined {
+	const active = accessor.get(ISCMViewService).activeRepository.get()?.repository;
+	if (active) {
+		return active;
+	}
+	const repositories = [...accessor.get(ISCMService).repositories];
+	return repositories.find(repository => !!repository.provider.historyProvider.get()) ?? repositories[0];
+}
+
+/** Несохранённое в рабочей копии, разложенное по группам панели Git. */
+interface IPointWorkingCopy {
+	readonly staged: number;
+	readonly changed: number;
+	readonly untracked: number;
+	readonly conflicts: number;
+	readonly total: number;
+}
+
+/**
+ * Группы берутся по идентификатору, а не по подписи: подпись расширение Git
+ * переводит, и на другом языке интерфейса разбор бы развалился. Считаются все
+ * четыре, включая неотслеживаемые: «не закоммичено» — это про работу, которая
+ * пропадёт при переключении ветки, а новый файл пропадёт так же, как правка.
+ */
+function workingCopy(provider: ISCMProvider): IPointWorkingCopy {
+	const size = (id: string) => provider.groups.find(group => group.id === id)?.resources.length ?? 0;
+	const staged = size('index');
+	const changed = size('workingTree');
+	const untracked = size('untracked');
+	const conflicts = size('merge');
+	return { staged, changed, untracked, conflicts, total: staged + changed + untracked + conflicts };
+}
+
+/** «5 изменений», «1 коммит» — число со словом в нужном падеже. */
+function commits(count: number): string {
+	return `${count} ${pointPlural(count, "коммит", "коммита", "коммитов")}`;
+}
+
+function changes(count: number): string {
+	return `${count} ${pointPlural(count, "изменение", "изменения", "изменений")}`;
+}
+
+/**
+ * Первым доводом команде Git идёт корень репозитория: расширение по нему
+ * находит свой `Repository`, а без довода спросило бы, какой из них имеется в
+ * виду, — и на одном репозитории тоже.
+ */
+function gitCommand(commandService: ICommandService, root: URI | undefined, command: string, ...args: unknown[]): void {
+	void commandService.executeCommand(command, root, ...args);
+}
+
+/**
+ * Команды самого Point — тянуть, отправлять, коммитить. Звать вместо них голые
+ * `git.*` было ошибкой: `git.commit` при пустом индексе не делает ничего
+ * видимого (поле сообщения он открывает во встроенной панели SCM, а у Point
+ * своя), а `git.pull` на ветке без источника отвечает своей ошибкой вместо
+ * понятной подсказки. Обёртки Point делают ровно это — и ими же пользуется
+ * меню «Git» в строке меню, так что строка и жетон не расходятся.
+ */
+function pointCommand(commandService: ICommandService, command: string): void {
+	void commandService.executeCommand(command);
+}
+
+/** Вид ссылки: от него зависит и набор действий, и что делает сама строка. */
+type PointRefKind = 'current' | 'local' | 'remote' | 'tag';
+
+/**
+ * Локальная ветка, которую отслеживает удалённая: `origin/feature/x` →
+ * `feature/x`. Нужна, чтобы переключение на удалённую ветку вело на её местную
+ * копию, а не в отсоединённый HEAD.
+ */
+function localTwin(ref: ISCMHistoryItemRef, local: readonly ISCMHistoryItemRef[]): ISCMHistoryItemRef | undefined {
+	const slash = ref.name.indexOf('/');
+	if (slash < 0) {
+		return undefined;
+	}
+	const shortName = ref.name.slice(slash + 1);
+	return local.find(candidate => candidate.name === shortName);
+}
+
+/**
+ * Переключение на удалённую ветку. `git.checkout` с именем `origin/x` уводит в
+ * отсоединённый HEAD — так делает сам git, и это почти никогда не то, чего
+ * хотели. Поэтому: есть местная копия — переключаемся на неё; нет — открываем
+ * выбор ветки, где расширение Git заведёт отслеживающую ветку само.
+ */
+function checkoutRemote(commandService: ICommandService, root: URI | undefined, ref: ISCMHistoryItemRef, local: readonly ISCMHistoryItemRef[]): void {
+	const twin = localTwin(ref, local);
+	if (twin) {
+		gitCommand(commandService, root, 'git.checkout', twin.name);
+	} else {
+		gitCommand(commandService, root, 'git.checkout');
+	}
+}
+
+/**
+ * Шапка списка: состояние репозитория и то, что с ним делают чаще всего.
+ *
+ * Плитки нажимаются и ведут туда, где о числе рассказывают подробно: коммиты —
+ * в Летопись, изменения — в панель Git. Число без пути к нему заставляет искать
+ * это место самому, а оно у Point не там, где у Code-OSS.
+ *
+ * Неприменимое остаётся видимым, но выключенным, и подсказка говорит почему:
+ * пропадающая кнопка заставляет искать, куда делся пункт, который был в прошлый
+ * раз. Отдельный случай — неопубликованная ветка: «Отправить» тогда не выключено,
+ * а заменено на «Опубликовать», потому что действие есть, просто другое.
+ */
+function popupHeader(
+	commandService: ICommandService,
+	root: URI | undefined,
+	current: ISCMHistoryItemRef | undefined,
+	upstream: ISCMHistoryItemRef | undefined,
+	copy: IPointWorkingCopy,
+	behind: number,
+	ahead: number,
+): IPointPopupHeader {
+	const onBranch = !!current?.id.startsWith('refs/heads/');
+	const tracked = !!upstream;
+	// Оговорка про давность стоит у каждого упоминания входящих: git на сервер
+	// сам не ходит, и «ноль новых» значит «ноль на момент последнего
+	// обновления», а не «на сервере ничего нет».
+	const asOfFetch = localize('point.branch.asOfFetch', "по данным последнего обновления");
+
+	const incoming: IPointPopupStat = {
+		icon: 'codicon-arrow-down',
+		value: tracked ? String(behind) : '—',
+		label: localize('point.branch.incoming', "Входящие"),
+		tone: behind > 0 ? 'attention' : 'idle',
+		tooltip: !tracked
+			? localize('point.branch.incomingNoUpstream', "У ветки нет ветки-источника — забирать неоткуда")
+			: behind > 0
+				? localize('point.branch.incomingSome', "На сервере новых: {0} ({1}). Нажмите — Летопись", commits(behind), asOfFetch)
+				: localize('point.branch.incomingNone', "Новых коммитов на сервере нет ({0}). Нажмите — Летопись", asOfFetch),
+		run: () => pointCommand(commandService, 'localAgent.openChronicle'),
+	};
+	const outgoing: IPointPopupStat = {
+		icon: 'codicon-arrow-up',
+		value: tracked ? String(ahead) : '—',
+		label: localize('point.branch.outgoing', "Исходящие"),
+		tone: ahead > 0 ? 'attention' : 'idle',
+		tooltip: !tracked
+			? localize('point.branch.outgoingNoUpstream', "Ветки нет на сервере — отправлять некуда, пока не опубликована")
+			: ahead > 0
+				? localize('point.branch.outgoingSome', "Не отправлено: {0}. Нажмите — Летопись", commits(ahead))
+				: localize('point.branch.outgoingNone', "Всё отправлено в {0}. Нажмите — Летопись", upstream!.name),
+		run: () => pointCommand(commandService, 'localAgent.openChronicle'),
+	};
+	// Разбор по группам — в подсказке, а не в плитке: на жетоне нужен ответ
+	// «есть ли несохранённое», а из чего оно состоит, спрашивают следующим
+	// вопросом и уже в панели Git.
+	const parts: string[] = [];
+	if (copy.staged) { parts.push(localize('point.branch.staged', "{0} в индексе", copy.staged)); }
+	if (copy.changed) { parts.push(localize('point.branch.changed', "{0} изменено", copy.changed)); }
+	if (copy.untracked) { parts.push(localize('point.branch.untracked', "{0} не отслеживается", copy.untracked)); }
+	if (copy.conflicts) { parts.push(localize('point.branch.conflicting', "{0} в конфликте", copy.conflicts)); }
+	const working: IPointPopupStat = {
+		icon: 'codicon-diff',
+		value: String(copy.total),
+		label: localize('point.branch.working', "Изменения"),
+		tone: copy.total > 0 ? 'attention' : 'idle',
+		tooltip: copy.total > 0
+			? localize('point.branch.workingSome', "Не закоммичено: {0} — {1}. Нажмите — панель Git", changes(copy.total), parts.join(', '))
+			: localize('point.branch.workingNone', "Всё закоммичено. Нажмите — панель Git"),
+		run: () => pointCommand(commandService, 'localAgent.vcsChanges'),
+	};
+
+	const action = (icon: string, label: string, enabled: boolean, run: () => void, tooltip: string): IPointPopupRow =>
+		({ icon, label, enabled, run, tooltip });
+	const noUpstream = localize('point.branch.head.noUpstream', "У ветки нет ветки-источника на сервере");
+
+	const actions: IPointPopupRow[] = [
+		action('codicon-refresh', localize('point.branch.fetch', "Обновить"), true,
+			() => gitCommand(commandService, root, 'git.fetchAll'),
+			localize('point.branch.fetchHint', "Спросить сервер о новых коммитах во всех ветках. Ничего не сольёт и рабочую копию не тронет")),
+		action('codicon-arrow-down', localize('point.branch.head.pull', "Стянуть"), tracked,
+			() => pointCommand(commandService, 'localAgent.vcsPull'),
+			tracked ? localize('point.branch.head.pullFrom', "Забрать и слить изменения из {0}", upstream!.name) : noUpstream),
+		tracked
+			? action('codicon-arrow-up', localize('point.branch.head.push', "Отправить"), true,
+				() => pointCommand(commandService, 'localAgent.vcsPush'),
+				ahead > 0
+					? localize('point.branch.pushSome', "Отправить {0} в {1}", commits(ahead), upstream!.name)
+					: localize('point.branch.pushNone', "Отправлять нечего: всё уже в {0}", upstream!.name))
+			: action('codicon-cloud-upload', localize('point.branch.publish', "Опубликовать"), onBranch,
+				() => gitCommand(commandService, root, 'git.publish'),
+				onBranch ? localize('point.branch.publishHint', "Создать ветку на сервере и отправить её коммиты") : noUpstream),
+		action('codicon-git-commit', localize('point.branch.commit', "Закоммитить"), copy.total > 0,
+			() => pointCommand(commandService, 'localAgent.vcsCommit'),
+			copy.total > 0
+				? localize('point.branch.head.commitHint', "Откроется панель Git с полем сообщения")
+				: localize('point.branch.commitNothing', "Коммитить нечего: всё сохранено")),
+	];
+
+	const title = current?.name ?? localize('point.branch.headless', "Ветка не выбрана");
+	const subtitle = tracked
+		? localize('point.branch.tracks', "отслеживает {0}", upstream!.name)
+		: onBranch
+			? localize('point.branch.notPublished', "нет ветки-источника — ветку ещё не публиковали")
+			: localize('point.branch.detachedSub', "вне веток");
+
+	return {
+		icon: onBranch ? 'codicon-git-branch' : 'codicon-git-commit',
+		title,
+		titleTooltip: current?.revision
+			? localize('point.branch.headRevision', "{0} · {1}", title, current.revision.slice(0, SHORT_REVISION))
+			: title,
+		subtitle,
+		subtitleIcon: tracked ? 'codicon-cloud' : 'codicon-cloud-upload',
+		// Незавершённое слияние важнее всего, что стоит рядом: пока конфликты не
+		// разрешены, ни коммит, ни переключение ветки не сработают так, как ждут.
+		note: copy.conflicts > 0
+			? {
+				icon: 'codicon-warning',
+				tone: 'wound',
+				text: localize('point.branch.mergeInProgress', "Слияние не завершено: {0} с конфликтами", changes(copy.conflicts)),
+			}
+			: !onBranch && current
+				? {
+					icon: 'codicon-info',
+					tone: 'caution',
+					text: localize('point.branch.detached', "HEAD отсоединён: новые коммиты не попадут ни в одну ветку"),
+				}
+				: undefined,
+		stats: [incoming, outgoing, working],
+		actions,
+	};
+}
+
+/**
+ * Подменю ссылки: действия над ней, а не над репозиторием вообще. Раскрывается
+ * сбоку от списка своей же разметкой — контекстное меню сюда не годится, оно
+ * показывается тем же слоем вида, что и сам список, и снимало бы его.
+ *
+ * Наборы разные, потому что и ссылки разные: у текущей ветки можно стянуть и
+ * отправить, у чужой локальной — переключиться и слить, у удалённой — то же
+ * плюс удаление на сервере, у тега — переход и удаление тега. Неприменимое
+ * остаётся видимым, но выключенным: пропадающие строки заставляют искать, куда
+ * делся пункт, который был в прошлый раз.
+ */
+function branchSections(
+	commandService: ICommandService,
+	root: URI | undefined,
+	ref: ISCMHistoryItemRef,
+	kind: PointRefKind,
+	local: readonly ISCMHistoryItemRef[],
+	upstream: ISCMHistoryItemRef | undefined,
+): IPointPopupSection[] {
+	const row = (icon: string, label: string, enabled: boolean, run: () => void, tooltip?: string): IPointPopupRow =>
+		({ icon, label, enabled, run, tooltip: tooltip ?? label });
+	const history = row('codicon-history', localize('point.branch.history', "История ветки"), true,
+		() => pointCommand(commandService, 'localAgent.openChronicle'));
+
+	if (kind === 'current') {
+		// Без ветки-источника `git pull` не отвечает ничем, кроме ошибки «нет
+		// сведений об отслеживании», а `git push` спрашивает, публиковать ли
+		// ветку. Поэтому: тянуть нечего — пункт выключен и говорит почему, а
+		// вместо отправки предлагается публикация.
+		const tracked = !!upstream;
+		const noUpstream = localize('point.branch.noUpstream', "У ветки нет ветки-источника на сервере");
+		return [
+			{
+				title: ref.name,
+				rows: [
+					row('codicon-arrow-down', localize('point.branch.pull', "Стянуть"), tracked,
+						() => pointCommand(commandService, 'localAgent.vcsPull'),
+						tracked ? localize('point.branch.pullFrom', "Забрать и слить изменения из {0}", upstream!.name) : noUpstream),
+					tracked
+						? row('codicon-arrow-up', localize('point.branch.push', "Отправить"), true,
+							() => pointCommand(commandService, 'localAgent.vcsPush'),
+							localize('point.branch.pushTo', "Отправить в {0}", upstream!.name))
+						: row('codicon-cloud-upload', localize('point.branch.publishRow', "Опубликовать ветку…"), true,
+							() => gitCommand(commandService, root, 'git.publish'),
+							noUpstream),
+					row('codicon-git-commit', localize('point.branch.commitRow', "Закоммитить…"), true,
+						() => pointCommand(commandService, 'localAgent.vcsCommit'),
+						localize('point.branch.commitHint', "Откроется панель Git с полем сообщения")),
+				]
+			},
+			{ rows: [history] },
+			{
+				rows: [
+					row('codicon-edit', localize('point.branch.rename', "Переименовать…"), true,
+						() => gitCommand(commandService, root, 'git.renameBranch')),
+				]
+			},
+		];
+	}
+
+	if (kind === 'tag') {
+		return [
+			{
+				title: ref.name,
+				rows: [
+					row('codicon-arrow-swap', localize('point.branch.checkoutTag', "Перейти к тегу"), true,
+						() => gitCommand(commandService, root, 'git.checkout', ref.name),
+						localize('point.branch.checkoutTagHint', "Рабочая копия встанет на тег, вне веток")),
+				]
+			},
+			{ rows: [history] },
+			{
+				rows: [
+					row('codicon-trash', localize('point.branch.deleteTag', "Удалить тег…"), true,
+						() => gitCommand(commandService, root, 'git.deleteTag')),
+					row('codicon-cloud', localize('point.branch.deleteRemoteTag', "Удалить тег на сервере…"), true,
+						() => gitCommand(commandService, root, 'git.deleteRemoteTag')),
+				]
+			},
+		];
+	}
+
+	const isRemote = kind === 'remote';
+	const twin = isRemote ? localTwin(ref, local) : undefined;
+	return [
+		{
+			title: ref.name,
+			rows: [
+				row('codicon-arrow-swap', localize('point.branch.checkout', "Переключиться"), true,
+					() => isRemote
+						? checkoutRemote(commandService, root, ref, local)
+						: gitCommand(commandService, root, 'git.checkout', ref.name),
+					isRemote && !twin
+						? localize('point.branch.checkoutTracking', "Местной копии нет — откроется выбор ветки")
+						: localize('point.branch.checkoutTo', "Переключиться на {0}", twin?.name ?? ref.name)),
+				row('codicon-git-merge', localize('point.branch.merge', "Слить сюда…"), true,
+					() => gitCommand(commandService, root, 'git.merge')),
+				row('codicon-git-pull-request', localize('point.branch.rebase', "Перебазировать…"), true,
+					() => gitCommand(commandService, root, 'git.rebase')),
+			]
+		},
+		{ rows: [history] },
+		{
+			rows: [
+				isRemote
+					? row('codicon-cloud', localize('point.branch.deleteRemote', "Удалить на сервере…"), true,
+						() => gitCommand(commandService, root, 'git.deleteRemoteBranch'))
+					: row('codicon-trash', localize('point.branch.delete', "Удалить ветку"), true,
+						() => gitCommand(commandService, root, 'git.deleteBranch', ref.name)),
+			]
+		},
+	];
+}
+
+CommandsRegistry.registerCommand('point.showBranchPopup', async (accessor: ServicesAccessor, anchor?: unknown) => {
+	if (product.applicationName !== 'point' || !(anchor instanceof HTMLElement)) {
+		return;
+	}
+	// Службы берутся до ожидания: доступ к ним живёт только внутри
+	// синхронной части вызова, а список веток приходит асинхронно.
+	const commandService = accessor.get(ICommandService);
+	const contextViewService = accessor.get(IContextViewService);
+	const notificationService = accessor.get(INotificationService);
+
+	const repository = activeRepository(accessor);
+	const historyProvider = repository?.provider.historyProvider.get();
+	if (!repository || !historyProvider) {
+		notificationService.info(localize('point.branch.noRepository', "Репозиторий Git не найден."));
+		return;
+	}
+
+	const provider = repository.provider;
+	const root = provider.rootUri;
+	const current = historyProvider.historyItemRef.get();
+	// Ветка-источник текущей ветки: по ней видно, есть ли куда тянуть и
+	// отправлять. Поставщик отдаёт её тем же наблюдаемым значением, что и саму
+	// ветку, — второго источника правды не заводится.
+	const upstream = historyProvider.historyItemRemoteRef.get();
+	// Состояние снимается до ожидания и по тому же репозиторию, чьи ветки
+	// покажет список: спрашивать его после — значит показать шапку одного
+	// мгновения и список другого.
+	const copy = workingCopy(provider);
+	const { behind, ahead } = pointSyncCounts(provider.statusBarCommands.get());
+
+	let refs: readonly ISCMHistoryItemRef[] = [];
+	try {
+		refs = await historyProvider.provideHistoryItemRefs() ?? [];
+	} catch (error) {
+		notificationService.error(error as Error);
+		return;
+	}
+	const { local, remote, tags } = splitRefs(refs);
+
+	// Список собирается заново на каждый ввод в поиске: `showPointPopup` зовёт
+	// эту функцию, а не хранит готовые строки.
+	const sections = (query: string): IPointPopupSection[] => {
+		const needle = query.toLowerCase();
+		const matches = (ref: ISCMHistoryItemRef) => !needle || ref.name.toLowerCase().includes(needle) || (ref.revision ?? '').startsWith(needle);
+		const section = (title: string, refs: ISCMHistoryItemRef[], icon: string, kind: PointRefKind): IPointPopupSection => {
+			const found = refs.filter(matches);
+			const shown: IPointPopupRow[] = found
+				.slice(0, MAX_REFS_PER_SECTION)
+				.map(ref => {
+					const isCurrent = !!current && ref.id === current.id;
+					const rowKind: PointRefKind = kind === 'local' && isCurrent ? 'current' : kind;
+					return {
+						icon,
+						label: ref.name,
+						current: isCurrent,
+						// Хеш справа — единственное, что отличает одноимённые
+						// ссылки: по нему видно, что `origin/main` и `main`
+						// стоят на одном коммите, то есть отправлять нечего.
+						meta: ref.revision?.slice(0, SHORT_REVISION),
+						tooltip: ref.revision ? `${ref.name} · ${ref.revision.slice(0, SHORT_REVISION)}` : ref.name,
+						run: () => {
+							if (rowKind === 'current') {
+								return;
+							}
+							if (rowKind === 'remote') {
+								checkoutRemote(commandService, root, ref, local);
+							} else {
+								gitCommand(commandService, root, 'git.checkout', ref.name);
+							}
+						},
+						// Подменю у каждой ссылки, а не только у локальных веток:
+						// удалённую тоже сливают и удаляют, а тег — открывают.
+						submenu: () => branchSections(commandService, root, ref, rowKind, local, upstream),
+					} satisfies IPointPopupRow;
+				});
+			// Обрезанный раздел говорит, что он обрезан. Молчаливый потолок —
+			// это список, который врёт о полноте: ветка есть, а её не видно, и
+			// понять это можно только по памяти о собственном репозитории.
+			if (found.length > shown.length) {
+				shown.push({
+					icon: 'codicon-ellipsis',
+					label: localize('point.branch.more', "Ещё {0} — показать все…", found.length - shown.length),
+					run: () => gitCommand(commandService, root, 'git.checkout'),
+				});
+			}
+			return { title, count: found.length, rows: shown };
+		};
+
+		return [
+			section(localize('point.branch.local', "Локальные ветки"), local, 'codicon-git-branch', 'local'),
+			section(localize('point.branch.remote', "Удалённые"), remote, 'codicon-cloud', 'remote'),
+			section(localize('point.branch.tags', "Теги"), tags, 'codicon-tag', 'tag'),
+		];
+	};
+
+	showPointPopup(contextViewService, anchor, {
+		modifier: '.point-branch-popup',
+		search: localize('point.branch.search', "Ветка, тег или хеш"),
+		header: popupHeader(commandService, root, current, upstream, copy, behind, ahead),
+		foot: {
+			icon: 'codicon-add',
+			label: localize('point.branch.new', "Новая ветка…"),
+			run: () => gitCommand(commandService, root, 'git.branch'),
+		},
+		sections,
+	});
+});

@@ -1,0 +1,325 @@
+/* Point activity rail: ~44px icon-only tactical navigation (design sheets). */
+/* Токены здесь не объявляются: рейка — потомок `.monaco-workbench:has(.point-activitybar)`,
+   на котором они уже заданы в point-workbench.css, и приходят наследованием.
+   Вторая копия тех же девяти значений жила здесь без всякой связи с первой —
+   разошлись бы они на первой же правке, и заметить это было бы нечем. */
+.monaco-workbench .part.activitybar.point-activitybar {
+	/* Плоская ступень грунта. Янтарный подпал сверху был украшением: он ничего
+	   не сообщал, но делал рейку не такой, как заголовок, с которым она стоит
+	   встык. Акцент в регистре оболочки несёт смысл, а не красит поверхность. */
+	background: var(--point-rail) !important;
+	border-right: 1px solid var(--point-border) !important;
+	box-shadow: none;
+}
+
+.monaco-workbench .part.activitybar.point-activitybar > .content {
+	box-sizing: border-box;
+	padding: 6px 4px 6px;
+}
+
+.monaco-workbench .part.activitybar.point-activitybar > .content::before {
+	content: none;
+	display: none;
+}
+
+.monaco-workbench .part.activitybar.point-activitybar > .content > .composite-bar {
+	border-top: 1px solid var(--point-border);
+	margin-top: 2px;
+	padding-top: 4px;
+}
+
+.monaco-workbench .part.activitybar.point-activitybar .composite-bar .monaco-action-bar {
+	align-items: center;
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+}
+.monaco-workbench .part.activitybar.point-activitybar .composite-bar .action-item {
+	border: 1px solid transparent;
+	border-radius: 2px;
+	box-sizing: border-box;
+	margin: 1px auto;
+	overflow: hidden;
+	position: relative;
+	transition: background-color 90ms ease, border-color 90ms ease;
+	width: 36px;
+}
+
+.monaco-workbench .part.activitybar.point-activitybar .composite-bar .action-item:hover {
+	background: var(--point-raised);
+	border-color: var(--point-border);
+}
+
+.monaco-workbench .part.activitybar.point-activitybar .composite-bar .action-item.checked {
+	background: var(--point-selected);
+	border-color: var(--point-border);
+	box-shadow: inset 2px 0 0 var(--point-ember);
+}
+.monaco-workbench .part.activitybar.point-activitybar .composite-bar .action-item.checked:has(.uri-icon) {
+	box-shadow: inset 2px 0 0 var(--point-mana);
+}
+
+.monaco-workbench .part.activitybar.point-activitybar .composite-bar .action-label {
+	align-items: center !important;
+	box-sizing: border-box;
+	display: flex !important;
+	height: 36px !important;
+	justify-content: center !important;
+	padding: 0 !important;
+	width: 36px !important;
+}
+
+.monaco-workbench .part.activitybar.point-activitybar .composite-bar .action-label.codicon::before {
+	font-size: 16px !important;
+	line-height: 16px !important;
+}
+
+/* Icon-only rail: Russian RPG names stay on native titles/tooltips. */
+.monaco-workbench .part.activitybar.point-activitybar .composite-bar .action-label::after {
+	content: none !important;
+	display: none !important;
+}
+
+.monaco-workbench .part.activitybar.point-activitybar .composite-bar .action-item.checked .action-label::before {
+	color: var(--point-primary);
+}
+
+.monaco-workbench .part.activitybar.point-activitybar .composite-bar .action-label.uri-icon {
+	-webkit-mask: none !important;
+	background-color: transparent !important;
+	padding-left: 0 !important;
+}
+
+.monaco-workbench .part.activitybar.point-activitybar .composite-bar .action-label.uri-icon::before {
+	background: url('./point-agent.svg') center / 16px 16px no-repeat;
+	content: '';
+	filter: none;
+	height: 16px;
+	width: 16px;
+}
+
+/* Git-вход на рейке один, и это панель Point: она сама показывает изменения
+   папками, отметки для коммита и отдельную группу файлов вне репозитория.
+   Штатный Source Control ("Летопись") говорил бы о том же другими словами —
+   через индекс и «подготовку», — и рядом это читалось бы как два разных Git.
+   Скрыт значок, а не сама часть: `workbench.view.scm` по Ctrl+Shift+G
+   по-прежнему открывается, если штатный список кому-то понадобится.
+   `codicon-source-control-view-icon` — значок именно штатного контейнера;
+   контейнер Point берёт `$(source-control)`, то есть класс без `-view-icon`,
+   и под это правило не попадает. */
+.monaco-workbench .part.activitybar.point-activitybar .composite-bar .action-item:has(.codicon-search-view-icon),
+.monaco-workbench .part.activitybar.point-activitybar .composite-bar .action-item:has(.codicon-source-control-view-icon),
+.monaco-workbench .part.activitybar.point-activitybar .composite-bar .action-item:has(.codicon-run-view-icon),
+.monaco-workbench .part.activitybar.point-activitybar .composite-bar .action-item:has(.codicon-extensions-view-icon) { display: none !important; }
+.monaco-workbench .part.activitybar.point-activitybar .composite-bar .active-item-indicator { display: none !important; }
+.monaco-workbench .part.activitybar.point-activitybar .composite-bar .badge .badge-content {
+	background: var(--point-wound, #ee6873);
+	border-radius: 2px;
+	color: var(--point-void, #171717);
+	font: 700 9px/1 "JetBrains Mono", Consolas, monospace;
+	min-width: 14px;
+	padding: 2px 4px;
+	right: 1px;
+	top: 1px;
+}
+.monaco-workbench .part.activitybar.point-activitybar > .content > *:not(.composite-bar):not(.point-panel-strip):not(.menubar) {
+	border-top: 1px solid var(--point-border, #2b2b2b);
+	padding-top: 4px;
+}
+.monaco-workbench .part.activitybar.point-activitybar > .content > *:not(.composite-bar):not(.point-panel-strip):not(.menubar) .action-item {
+	border: 1px solid transparent;
+	border-radius: 2px;
+	margin: 1px auto;
+	transition: background-color 90ms ease, border-color 90ms ease;
+	width: 36px;
+}
+.monaco-workbench .part.activitybar.point-activitybar > .content > *:not(.composite-bar):not(.point-panel-strip):not(.menubar) .action-item:hover {
+	background: var(--point-raised, #202020);
+	border-color: var(--point-border, #2b2b2b);
+}
+.monaco-workbench .part.activitybar.point-activitybar > .content > *:not(.composite-bar):not(.point-panel-strip):not(.menubar) .action-label {
+	height: 36px !important;
+	width: 36px !important;
+}
+
+/* Point owns the agent entry point; upstream account/agent/Copilot chrome is not part of the product. */
+.monaco-workbench .part.titlebar .agent-status-container,
+.monaco-workbench .part.titlebar .open-in-agents-titlebar-widget,
+.monaco-workbench .part.titlebar .chat-titlebar,
+.monaco-workbench .part.titlebar .action-item[aria-label='Войти'],
+.monaco-workbench .part.titlebar .action-item[aria-label='Sign in'],
+.monaco-workbench .part.titlebar .action-item[aria-label*='Copilot'],
+.monaco-workbench .part.titlebar .action-item[aria-label*='GitHub Copilot'] { display: none !important; }
+
+/* Tab-strip tools stay visible (split / more) — JetBrains keeps actions on the editor header. */
+
+/* Quiet global-activity hover + reduced motion */
+.monaco-workbench .part.activitybar.point-activitybar > .content > *:not(.composite-bar):not(.point-panel-strip):not(.menubar) .action-item .action-label {
+	align-items: center !important;
+	display: flex !important;
+	justify-content: center !important;
+}
+.monaco-workbench .part.activitybar.point-activitybar .composite-bar .action-item.checked .action-label {
+	color: var(--point-primary);
+}
+.monaco-workbench .part.activitybar.point-activitybar .composite-bar .action-item:not(.checked) .action-label {
+	color: var(--point-muted);
+	opacity: .92;
+}
+.monaco-workbench .part.activitybar.point-activitybar .composite-bar .action-item:hover .action-label {
+	color: var(--point-primary);
+	opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+	.monaco-workbench .part.activitybar.point-activitybar .composite-bar .action-item,
+	.monaco-workbench .part.activitybar.point-activitybar > .content > *:not(.composite-bar):not(.point-panel-strip):not(.menubar) .action-item {
+		transition: none;
+	}
+}
+
+/* Рейки: 46 пикселей, значок 18, активная вкладка — акцентная полоса слева и
+   акцентная подложка. Полосу макет показывает, а прежний слой её прятал. */
+.monaco-workbench .part.activitybar.point-activitybar { width: var(--point-rail-w) !important; }
+.monaco-workbench .part.activitybar.point-activitybar .composite-bar .action-item { height: var(--point-rail-item) !important; }
+.monaco-workbench .part.activitybar.point-activitybar .composite-bar .action-label.codicon::before {
+	font-size: 18px !important;
+	line-height: 18px !important;
+}
+.monaco-workbench .part.activitybar.point-activitybar .composite-bar .action-item.checked {
+	background: color-mix(in srgb, var(--point-ember) 12%, transparent) !important;
+	box-shadow: inset 2px 0 0 var(--point-ember) !important;
+}
+.monaco-workbench .part.activitybar.point-activitybar .composite-bar .active-item-indicator { display: none !important; }
+.monaco-workbench:has(.point-activitybar) .part.auxiliarybar > .title .composite-bar-container .action-item { height: var(--point-rail-item) !important; }
+.monaco-workbench:has(.point-activitybar) .part.auxiliarybar > .title .composite-bar-container .action-label.codicon::before {
+	font-size: 18px !important;
+	line-height: 18px !important;
+}
+.monaco-workbench:has(.point-activitybar) .part.auxiliarybar > .title .composite-bar-container .action-item.checked {
+	background: color-mix(in srgb, var(--point-ember) 12%, transparent) !important;
+	box-shadow: inset -2px 0 0 var(--point-ember) !important;
+}
+
+/* ════ Полоса окон нижней панели ═════════════════════════════════════════════
+   Нижняя группа рейки: ярлыки окон нижней панели. Панель закрывается, а окна
+   обязаны оставаться на виду — иначе о них напоминает только память на Alt+N.
+
+   `.content` апстрима расталкивает детей по краям (`space-between`); с тремя
+   группами это увело бы полосу ровно в середину рейки. Порядок задан явно, а
+   шестерёнка прижата книзу своим полем. */
+.monaco-workbench .part.activitybar.point-activitybar > .content { justify-content: flex-start; }
+.monaco-workbench .part.activitybar.point-activitybar > .content > .composite-bar { order: 1; }
+.monaco-workbench .part.activitybar.point-activitybar > .content > .point-panel-strip { order: 2; }
+/* Ряд общих действий (шестерёнка) Code-OSS создаёт безымянным блоком, поэтому
+   он опознаётся «всё, что не рейка, не полоса и не меню». Он прижат книзу
+   своим полем: у полосы высота переменная, и space-between увёл бы её в
+   середину. */
+.monaco-workbench .part.activitybar.point-activitybar > .content > *:not(.composite-bar):not(.point-panel-strip):not(.menubar) {
+	margin-top: auto;
+	order: 3;
+}
+
+/* Полоса прокручивается, а не сворачивается в «Ещё…»: восьми окон мало для
+   второго уровня выбора, а прокрутка не прячет ни одного. При низком окне
+   уезжает она, а не шестерёнка, — та стоит вне полосы. */
+.monaco-workbench .part.activitybar.point-activitybar > .content > .point-panel-strip {
+	border-top: 1px solid var(--point-border);
+	display: flex;
+	flex-direction: column;
+	margin-top: 4px;
+	min-height: 0;
+	overflow-x: hidden;
+	overflow-y: auto;
+	padding-top: 4px;
+	scrollbar-width: none;
+}
+.monaco-workbench .part.activitybar.point-activitybar > .content > .point-panel-strip::-webkit-scrollbar { display: none; }
+/* Ни одного окна внизу — ни черты, ни отбивки: пустая полоса читалась бы как
+   сломанная группа. */
+.monaco-workbench .part.activitybar.point-activitybar > .content > .point-panel-strip.empty {
+	border-top: 0;
+	margin-top: 0;
+	padding-top: 0;
+}
+
+.monaco-workbench .part.activitybar.point-activitybar .point-strip-item {
+	align-items: center;
+	border: 1px solid transparent;
+	border-radius: 2px;
+	box-sizing: border-box;
+	cursor: pointer;
+	display: flex;
+	flex: 0 0 var(--point-rail-item);
+	height: var(--point-rail-item);
+	justify-content: center;
+	margin: 1px auto;
+	position: relative;
+	transition: background-color 90ms ease, border-color 90ms ease;
+	width: 36px;
+}
+.monaco-workbench .part.activitybar.point-activitybar .point-strip-item:hover {
+	background: var(--point-raised);
+	border-color: var(--point-border);
+}
+.monaco-workbench .part.activitybar.point-activitybar .point-strip-item:focus-visible {
+	outline: 1px solid var(--point-ember);
+	outline-offset: -1px;
+}
+/* Активное окно помечено так же, как в верхней группе: подложка и кромка
+   слева. Две разные пометки в одной рейке читались бы как два разных смысла. */
+.monaco-workbench .part.activitybar.point-activitybar .point-strip-item.checked {
+	background: color-mix(in srgb, var(--point-ember) 12%, transparent);
+	box-shadow: inset 2px 0 0 var(--point-ember);
+}
+
+.monaco-workbench .part.activitybar.point-activitybar .point-strip-icon {
+	align-items: center;
+	color: var(--point-muted);
+	display: flex;
+	height: 18px;
+	justify-content: center;
+	opacity: .92;
+	width: 18px;
+}
+.monaco-workbench .part.activitybar.point-activitybar .point-strip-icon.codicon::before {
+	font-size: 18px;
+	line-height: 18px;
+}
+/* Значок расширения приходит файлом и вырезается маской из заливки: так он
+   берёт цвет текста и гаснет вместе с ним, как соседние глифы шрифта. */
+.monaco-workbench .part.activitybar.point-activitybar .point-strip-icon.uri-icon { background: currentColor; }
+.monaco-workbench .part.activitybar.point-activitybar .point-strip-item:hover .point-strip-icon,
+.monaco-workbench .part.activitybar.point-activitybar .point-strip-item.checked .point-strip-icon {
+	color: var(--point-primary);
+	opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+	.monaco-workbench .part.activitybar.point-activitybar .point-strip-item { transition: none; }
+}
+
+/* Счётчик на ярлыке — та же цифра, что на вкладке: жетон девятого кегля на
+   подложке раны, прижатый к правому верхнему углу значка. Метка без числа
+   (ход, значок) сжимается в точку: место в рейке дороже повтора подписи. */
+.monaco-workbench .part.activitybar.point-activitybar .point-strip-badge {
+	background: var(--point-wound);
+	border-radius: 2px;
+	color: var(--point-void);
+	font: 700 9px/1 var(--point-mono);
+	font-style: normal;
+	min-width: 14px;
+	padding: 2px 4px;
+	position: absolute;
+	right: 1px;
+	text-align: center;
+	top: 1px;
+}
+.monaco-workbench .part.activitybar.point-activitybar .point-strip-badge.dot {
+	background: var(--point-ember);
+	border-radius: 999px;
+	height: 6px;
+	min-width: 0;
+	padding: 0;
+	right: 4px;
+	top: 4px;
+	width: 6px;
+}

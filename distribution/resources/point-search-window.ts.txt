@@ -1,0 +1,723 @@
+/*---------------------------------------------------------------------------------------------
+ *  Point IDE — своё окно поиска.
+ *
+ *  У JetBrains поиск один на вид и несколько по существу: «Найти всё» ищет файл
+ *  по имени и символ по имени, «Найти в файлах» — строку в содержимом. Палитра
+ *  Code-OSS даёт первое и не даёт второго: `workbench.action.findInFiles`
+ *  открывает панель поиска сбоку, то есть уводит из окна вместо того, чтобы
+ *  ответить в нём.
+ *
+ *  Отсюда своё окно с вкладками. Данные берутся у самой оболочки:
+ *  `ISearchService` — тот же поставщик, на котором работает встроенный поиск,
+ *  `getWorkspaceSymbols` — тот же, на котором работает переход к символу,
+ *  `IHistoryService` — та же история, что у переключателя вкладок. Второй
+ *  правды о проекте здесь не заводится, и ядро Point не участвует: поиск не
+ *  зависит от того, поднято ли оно.
+ *
+ *  Клавиатура — как в списке: стрелки ходят по строкам, Enter открывает,
+ *  Shift+Enter — в соседней колонке, Esc закрывает, Tab переключает вкладку.
+ *  Двойной Shift открывает поиск по файлам, Ctrl+Shift+F — по тексту,
+ *  Ctrl+Alt+Shift+N — по символам: привычки принесены из JetBrains целиком.
+ *--------------------------------------------------------------------------------------------*/
+
+import { $, addDisposableListener, append, EventType, getActiveWindow } from '../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { IMatch } from '../../../../base/common/filters.js';
+import { IPreparedQuery, prepareQuery, scoreFuzzy2 } from '../../../../base/common/fuzzyScorer.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
+import { getIconClasses } from '../../../../editor/common/services/getIconClasses.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { EditorsOrder } from '../../../common/editor.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
+import { IHistoryService } from '../../../services/history/common/history.js';
+import { QueryBuilder } from '../../../services/search/common/queryBuilder.js';
+import { IFileMatch, ISearchService, ITextSearchMatch, resultIsMatch } from '../../../services/search/common/search.js';
+import { getWorkspaceSymbols, WorkspaceSymbolProviderRegistry } from '../common/search.js';
+
+/** Вкладка окна. Порядок здесь — порядок в полосе и в обходе клавишей Tab. */
+const enum PointSearchMode {
+	Files = 'files',
+	Symbols = 'symbols',
+	Text = 'text',
+}
+
+const MODES: readonly PointSearchMode[] = [PointSearchMode.Files, PointSearchMode.Symbols, PointSearchMode.Text];
+
+/**
+ * Сколько строк показывается. Больше полусотни не нужно: до пятидесятой строки
+ * не доходят ни стрелками, ни глазами — уточняют запрос. Ограничение снимает и
+ * вопрос о виртуализации списка: полсотни строк рисуются целиком.
+ */
+const MAX_ROWS = 50;
+
+/** Недавних файлов на пустом запросе — экран, а не вся история. */
+const MAX_RECENT = 20;
+
+/**
+ * Совпадений на файл в текстовом поиске. Один файл с сотней совпадений иначе
+ * вытесняет из выдачи все остальные, а список перестаёт отвечать на вопрос
+ * «где ещё это встречается».
+ */
+const MAX_MATCHES_PER_FILE = 4;
+
+/**
+ * Паузы перед запросом. Поиск по именам идёт по прогретому списку файлов и
+ * отвечает мгновенно — ему хватает короткой. Поиск по содержимому — работа по
+ * диску: без паузы каждая буква запускала свой обход, и первые буквы длинного
+ * слова успевали поднять пять поисков подряд. Символы спрашивают у языковых
+ * служб, и там пауза посередине.
+ */
+const TYPING_DELAY_FILES = 80;
+const TYPING_DELAY_SYMBOLS = 150;
+const TYPING_DELAY_TEXT = 220;
+
+/**
+ * Короче двух знаков поиск по содержимому не запускается: одна буква находится
+ * в каждом втором файле проекта, обход по диску стоит секунды, а ответ на такой
+ * запрос всё равно бесполезен.
+ */
+const MIN_TEXT_QUERY = 2;
+
+/**
+ * Окно двойного Shift. У JetBrains оно около трети секунды; меньше — не успевает
+ * рука, больше — окно открывается на обычной прописной букве через паузу.
+ */
+const DOUBLE_SHIFT_WINDOW = 350;
+
+interface IPointSearchRow {
+	/** Главная надпись: имя файла, имя символа или строка с совпадением. */
+	readonly label: string;
+	/** Приглушённая надпись: путь до файла, у символа — ещё и его владелец. */
+	readonly detail: string;
+	/** Полный путь от корня проекта — его показывает подвал у выбранной строки. */
+	readonly full: string;
+	readonly resource: URI;
+	/** Строка и колонка — у символов и у текстового поиска. */
+	readonly line?: number;
+	readonly column?: number;
+	/** Куски `label`, попавшие под запрос. */
+	readonly highlight?: readonly IMatch[];
+}
+
+/** Подсветка совпадений в имени: те же куски, что подсвечивает палитра. */
+function matchesOf(target: string, prepared: IPreparedQuery | undefined): readonly IMatch[] | undefined {
+	if (!prepared?.normalized) { return undefined; }
+	const [score, matches] = scoreFuzzy2(target, prepared);
+	return score === undefined ? undefined : matches;
+}
+
+class PointSearchWindow {
+
+	private static instance: PointSearchWindow | undefined;
+
+	private readonly store = new DisposableStore();
+	private readonly rowStore = this.store.add(new DisposableStore());
+	private readonly previousFocus = getActiveWindow().document.activeElement as HTMLElement | null;
+	private readonly scrim: HTMLElement;
+	private readonly window: HTMLElement;
+	private readonly input: HTMLInputElement;
+	private readonly list: HTMLElement;
+	private readonly count: HTMLElement;
+	private readonly path: HTMLElement;
+	private readonly tabs = new Map<PointSearchMode, HTMLElement>();
+
+	private mode: PointSearchMode;
+	private rows: IPointSearchRow[] = [];
+	private active = 0;
+	private search: CancellationTokenSource | undefined;
+	private timer: number | undefined;
+	private queryId = 0;
+	/**
+	 * Ключ кэша списка файлов. Без него каждое нажатие клавиши заново обходило
+	 * проект: на большом репозитории это секунды на букву. С ключом обход
+	 * происходит один раз при открытии окна, а запросы отбираются из готового
+	 * списка — так же устроен быстрый переход к файлу в самой оболочке.
+	 */
+	private readonly cacheKey = `point.searchWindow.${Date.now()}`;
+	private warmed = false;
+
+	static show(accessor: ServicesAccessor, mode: PointSearchMode): void {
+		// Повторный вызов не открывает второе окно: он переводит открытое на
+		// нужную вкладку и возвращает в него фокус.
+		const open = PointSearchWindow.instance;
+		if (open) {
+			open.setMode(mode);
+			open.input.focus();
+			open.input.select();
+			return;
+		}
+		PointSearchWindow.instance = new PointSearchWindow(
+			mode,
+			accessor.get(IInstantiationService),
+			accessor.get(ISearchService),
+			accessor.get(IWorkspaceContextService),
+			accessor.get(IEditorService),
+			accessor.get(ILabelService),
+			accessor.get(IModelService),
+			accessor.get(ILanguageService),
+			accessor.get(IHistoryService),
+		);
+	}
+
+	private constructor(
+		mode: PointSearchMode,
+		private readonly instantiationService: IInstantiationService,
+		private readonly searchService: ISearchService,
+		private readonly contextService: IWorkspaceContextService,
+		private readonly editorService: IEditorService,
+		private readonly labelService: ILabelService,
+		private readonly modelService: IModelService,
+		private readonly languageService: ILanguageService,
+		private readonly historyService: IHistoryService,
+	) {
+		this.mode = mode;
+		// Окно живёт внутри .monaco-workbench, а не в body: токены Point (--point-*)
+		// объявлены на нём, и в body они не наследуются — снаружи каждое правило с
+		// var() отваливается целиком, вплоть до шрифта. `show-file-icons` нужен
+		// значкам файлов: тема значков вешает рисунок на `::before` элемента с
+		// классом `file-icon` и только под этим предком.
+		const root = getActiveWindow().document;
+		const target = root.querySelector<HTMLElement>(`.monaco-workbench`) ?? root.body;
+
+		// Затемнение — не украшение: оно ловит щелчок мимо окна и снимает его,
+		// как это делает любое модальное окно IDE.
+		this.scrim = append(target, $('div.point-search-scrim.show-file-icons'));
+		this.window = append(this.scrim, $('div.point-search'));
+		this.window.setAttribute('role', 'dialog');
+		this.window.setAttribute('aria-modal', 'true');
+		this.window.setAttribute('aria-label', localize('point.search.window', "Поиск Point"));
+
+		const tabRow = append(this.window, $('div.point-search-tabs'));
+		tabRow.setAttribute('role', 'tablist');
+		for (const [value, label, hint] of [
+			[PointSearchMode.Files, localize('point.search.tab.files', "Файлы"), localize('point.search.tab.files.key', "Shift Shift")],
+			[PointSearchMode.Symbols, localize('point.search.tab.symbols', "Символы"), localize('point.search.tab.symbols.key', "Ctrl+Alt+Shift+N")],
+			[PointSearchMode.Text, localize('point.search.tab.text', "Текст"), localize('point.search.tab.text.key', "Ctrl+Shift+F")],
+		] as [PointSearchMode, string, string][]) {
+			const tab = append(tabRow, $('button.point-search-tab', { type: 'button', role: 'tab' }));
+			append(tab, $('span', undefined, label));
+			append(tab, $('em.point-search-tab-key', undefined, hint));
+			this.store.add(addDisposableListener(tab, EventType.CLICK, () => this.setMode(value)));
+			this.tabs.set(value, tab);
+		}
+		append(tabRow, $('span.point-search-hint', undefined, localize('point.search.hint', "Tab — другая вкладка")));
+
+		const field = append(this.window, $('div.point-search-field'));
+		append(field, $('span.codicon.codicon-search', { 'aria-hidden': 'true' }));
+		this.input = append(field, $('input.point-search-input', { type: 'text', spellcheck: 'false', autocomplete: 'off' })) as HTMLInputElement;
+
+		this.list = append(this.window, $('div.point-search-list'));
+		this.list.setAttribute('role', 'listbox');
+
+		// Подвал повторяет JetBrains: слева полный путь выбранной строки, справа
+		// счётчик. Подсказки клавиш убраны — в списке из полусотни строк важнее
+		// видеть, куда именно ведёт выбранная.
+		const foot = append(this.window, $('div.point-search-foot'));
+		this.path = append(foot, $('span.point-search-path'));
+		this.count = append(foot, $('span.point-search-count'));
+
+		this.store.add(addDisposableListener(this.input, EventType.INPUT, () => this.schedule()));
+		this.store.add(addDisposableListener(this.window, EventType.KEY_DOWN, event => this.onKeyDown(event)));
+		this.store.add(addDisposableListener(this.scrim, EventType.MOUSE_DOWN, event => {
+			if (event.target === this.scrim) { this.dispose(); }
+		}));
+
+		this.applyMode();
+		this.warmFileCache();
+		// Выделение в редакторе — почти всегда и есть запрос: в JetBrains
+		// «Найти в файлах» открывается уже заполненным.
+		const selected = this.selectionText();
+		if (selected) { this.input.value = selected; }
+		this.input.focus();
+		this.input.select();
+		this.update();
+	}
+
+	/**
+	 * Прогрев: один обход проекта без образца, результат остаётся в кэше службы
+	 * поиска под нашим ключом. Ошибка здесь не важна — следующий запрос просто
+	 * пойдёт по диску, как раньше.
+	 */
+	private warmFileCache(): void {
+		if (this.warmed) { return; }
+		this.warmed = true;
+		const folders = this.contextService.getWorkspace().folders;
+		if (!folders.length) { return; }
+		const builder = this.instantiationService.createInstance(QueryBuilder);
+		void this.searchService.fileSearch(builder.file(folders.map(folder => folder.uri), { cacheKey: this.cacheKey })).catch(() => undefined);
+	}
+
+	private selectionText(): string {
+		const control = this.editorService.activeTextEditorControl as { getModel?(): unknown; getSelection?(): unknown } | undefined;
+		const model = control?.getModel?.() as { getValueInRange?(range: unknown): string } | undefined;
+		const selection = control?.getSelection?.() as { isEmpty?(): boolean } | undefined;
+		if (!model?.getValueInRange || !selection || selection.isEmpty?.()) { return ''; }
+		const value = model.getValueInRange(selection);
+		// Многострочное выделение запросом не бывает — им открывают окно, а не
+		// ищут: подставленный кусок кода пришлось бы сразу стирать.
+		return value.includes('\n') ? '' : value.trim();
+	}
+
+	private setMode(mode: PointSearchMode): void {
+		if (this.mode === mode) { return; }
+		this.mode = mode;
+		this.applyMode();
+		this.input.focus();
+		this.update();
+	}
+
+	private cycleMode(step: number): void {
+		const index = MODES.indexOf(this.mode);
+		this.setMode(MODES[(index + step + MODES.length) % MODES.length]);
+	}
+
+	private applyMode(): void {
+		for (const [value, tab] of this.tabs) {
+			tab.classList.toggle('is-active', value === this.mode);
+			tab.setAttribute('aria-selected', String(value === this.mode));
+		}
+		this.window.classList.toggle('is-text', this.mode === PointSearchMode.Text);
+		this.input.placeholder = this.mode === PointSearchMode.Files
+			? localize('point.search.placeholder.files', "Имя файла")
+			: this.mode === PointSearchMode.Symbols
+				? localize('point.search.placeholder.symbols', "Имя символа")
+				: localize('point.search.placeholder.text', "Строка в файлах проекта");
+		this.input.setAttribute('aria-label', this.input.placeholder);
+		this.input.setAttribute('role', 'combobox');
+		this.input.setAttribute('aria-expanded', 'true');
+		this.input.setAttribute('aria-controls', 'point-search-results');
+		this.list.id = 'point-search-results';
+	}
+
+	private schedule(): void {
+		if (this.timer !== undefined) { getActiveWindow().clearTimeout(this.timer); }
+		const delay = this.mode === PointSearchMode.Files
+			? TYPING_DELAY_FILES
+			: this.mode === PointSearchMode.Symbols ? TYPING_DELAY_SYMBOLS : TYPING_DELAY_TEXT;
+		this.timer = getActiveWindow().setTimeout(() => this.update(), delay);
+	}
+
+	private async update(): Promise<void> {
+		const query = this.input.value.trim();
+		const id = ++this.queryId;
+		this.search?.cancel();
+		this.search?.dispose();
+		this.search = undefined;
+
+		if (!query) {
+			// Пустой запрос — не пустой экран: у файлов это недавние, как в
+			// JetBrains сразу после двойного Shift.
+			this.rows = this.mode === PointSearchMode.Files ? this.recentRows() : [];
+			this.render(this.mode === PointSearchMode.Files
+				? localize('point.search.empty.recent', "История пуста")
+				: localize('point.search.empty.query', "Введите запрос"), true);
+			return;
+		}
+
+		if (this.mode === PointSearchMode.Text && query.length < MIN_TEXT_QUERY) {
+			this.rows = [];
+			this.render(localize('point.search.empty.short', "Нужно хотя бы два знака"));
+			return;
+		}
+
+		const folders = this.contextService.getWorkspace().folders;
+		if (!folders.length) {
+			this.rows = [];
+			this.render(localize('point.search.empty.workspace', "Проект не открыт"));
+			return;
+		}
+
+		const source = new CancellationTokenSource();
+		this.search = source;
+		this.window.classList.add('is-busy');
+		const builder = this.instantiationService.createInstance(QueryBuilder);
+		try {
+			const folderUris = folders.map(folder => folder.uri);
+			if (this.mode === PointSearchMode.Symbols && WorkspaceSymbolProviderRegistry.all().length === 0) {
+				this.rows = [];
+				// Ни одной языковой службы — это не «ничего не найдено». Пустая
+				// выдача здесь соврала бы про проект: символы никто не считает.
+				this.render(localize('point.search.empty.noSymbols', "Языковая служба не подключена — символы искать нечем"));
+				return;
+			}
+			const rows = this.mode === PointSearchMode.Files
+				? await this.searchFiles(builder, folderUris, query, source)
+				: this.mode === PointSearchMode.Symbols
+					? await this.searchSymbols(query, source)
+					: await this.searchText(builder, folderUris, query, source);
+			if (id !== this.queryId) { return; }
+			this.rows = rows;
+			this.render(localize('point.search.empty.result', "Ничего не найдено"));
+		} catch (error) {
+			if (id !== this.queryId) { return; }
+			this.rows = [];
+			// Отказ поиска — состояние, а не пустая выдача: «ничего не найдено»
+			// на упавшем запросе врёт про содержимое проекта.
+			this.render(localize('point.search.failed', "Поиск не удался: {0}", String((error as Error)?.message || error)));
+		} finally {
+			if (id === this.queryId) { this.window.classList.remove('is-busy'); }
+		}
+	}
+
+	/**
+	 * Недавние файлы берутся у той же истории, что кормит переход «назад» и
+	 * список недавно открытых: своя история разошлась бы с ними на первом же
+	 * закрытом редакторе.
+	 */
+	private recentRows(): IPointSearchRow[] {
+		const rows: IPointSearchRow[] = [];
+		const seen = new Set<string>();
+		const take = (resource: URI | undefined): void => {
+			if (!resource || resource.scheme !== 'file') { return; }
+			const key = resource.toString();
+			if (seen.has(key) || rows.length >= MAX_RECENT) { return; }
+			seen.add(key);
+			rows.push(this.fileRow(resource));
+		};
+		// Сначала открытые вкладки по давности обращения: в свежем окне история
+		// ещё пуста, а вкладки уже есть, и «недавние» без них выглядели бы
+		// сломанными. Потом история — она помнит и закрытое.
+		for (const editor of this.editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
+			take(editor.editor.resource);
+		}
+		for (const entry of this.historyService.getHistory()) {
+			take((entry as { resource?: URI }).resource);
+		}
+		return rows;
+	}
+
+	private async searchFiles(builder: QueryBuilder, folders: URI[], query: string, source: CancellationTokenSource): Promise<IPointSearchRow[]> {
+		const complete = await this.searchService.fileSearch(builder.file(folders, {
+			cacheKey: this.cacheKey,
+			filePattern: query,
+			maxResults: MAX_ROWS,
+			sortByScore: true,
+		}), source.token);
+		const prepared = prepareQuery(query);
+		return complete.results.map(match => this.fileRow(match.resource, prepared));
+	}
+
+	private async searchSymbols(query: string, source: CancellationTokenSource): Promise<IPointSearchRow[]> {
+		const items = await getWorkspaceSymbols(query, source.token);
+		const prepared = prepareQuery(query);
+		const rows: IPointSearchRow[] = [];
+		for (const { symbol } of items) {
+			if (rows.length >= MAX_ROWS) { break; }
+			const resource = symbol.location.uri;
+			const relative = this.labelService.getUriLabel(resource, { relative: true });
+			const line = symbol.location.range?.startLineNumber ?? 1;
+			rows.push({
+				label: symbol.name,
+				detail: symbol.containerName ? `${symbol.containerName} · ${relative}` : relative,
+				full: `${relative}:${line}`,
+				resource,
+				line,
+				column: symbol.location.range?.startColumn ?? 1,
+				highlight: matchesOf(symbol.name, prepared),
+			});
+		}
+		return rows;
+	}
+
+	private async searchText(builder: QueryBuilder, folders: URI[], query: string, source: CancellationTokenSource): Promise<IPointSearchRow[]> {
+		const complete = await this.searchService.textSearch(builder.text({
+			pattern: query,
+			isRegExp: false,
+			isCaseSensitive: false,
+			isWordMatch: false,
+		}, folders, {
+			maxResults: MAX_ROWS + MAX_ROWS,
+			previewOptions: { matchLines: 1, charsPerLine: 250 },
+		}), source.token);
+		const rows: IPointSearchRow[] = [];
+		for (const file of complete.results as IFileMatch[]) {
+			let taken = 0;
+			for (const result of file.results ?? []) {
+				if (!resultIsMatch(result)) { continue; }
+				if (taken >= MAX_MATCHES_PER_FILE || rows.length >= MAX_ROWS) { break; }
+				rows.push(this.textRow(file.resource, result));
+				taken++;
+			}
+			if (rows.length >= MAX_ROWS) { break; }
+		}
+		return rows;
+	}
+
+	private fileRow(resource: URI, prepared?: IPreparedQuery): IPointSearchRow {
+		const relative = this.labelService.getUriLabel(resource, { relative: true });
+		const slash = Math.max(relative.lastIndexOf('/'), relative.lastIndexOf('\\'));
+		const name = slash >= 0 ? relative.slice(slash + 1) : relative;
+		return {
+			label: name,
+			detail: slash >= 0 ? relative.slice(0, slash) : '',
+			full: relative,
+			resource,
+			highlight: matchesOf(name, prepared),
+		};
+	}
+
+	private textRow(resource: URI, match: ITextSearchMatch): IPointSearchRow {
+		const pairing = match.rangeLocations[0];
+		const preview = match.previewText.split('\n')[0] ?? '';
+		// Строка кода отбивается слева пробелами; в узкой строке списка этот
+		// отступ съедает место, ради которого строку и показывают.
+		const trimmed = preview.replace(/^\s+/, '');
+		const shift = preview.length - trimmed.length;
+		const start = Math.max(0, (pairing?.preview.startColumn ?? 1) - 1 - shift);
+		const end = Math.max(start, (pairing?.preview.endColumn ?? 1) - 1 - shift);
+		const relative = this.labelService.getUriLabel(resource, { relative: true });
+		const line = (pairing?.source.startLineNumber ?? 1);
+		return {
+			label: trimmed,
+			detail: `${relative}:${line}`,
+			full: `${relative}:${line}`,
+			resource,
+			line,
+			column: pairing?.source.startColumn ?? 1,
+			highlight: [{ start, end }],
+		};
+	}
+
+	/** Имя с подсвеченными кусками запроса — по образцу палитры. */
+	private appendLabel(host: HTMLElement, row: IPointSearchRow): void {
+		const matches = (row.highlight ?? []).filter(match => match.end > match.start);
+		if (!matches.length) {
+			host.textContent = row.label;
+			return;
+		}
+		let cursor = 0;
+		for (const match of matches) {
+			const start = Math.max(cursor, Math.min(match.start, row.label.length));
+			const end = Math.max(start, Math.min(match.end, row.label.length));
+			if (start > cursor) { append(host, $('span', undefined, row.label.slice(cursor, start))); }
+			if (end > start) { append(host, $('mark', undefined, row.label.slice(start, end))); }
+			cursor = end;
+		}
+		if (cursor < row.label.length) { append(host, $('span', undefined, row.label.slice(cursor))); }
+	}
+
+	private render(emptyMessage: string, recent = false): void {
+		this.rowStore.clear();
+		this.input.removeAttribute('aria-activedescendant');
+		this.list.textContent = '';
+		this.active = 0;
+		if (!this.rows.length) {
+			append(this.list, $('div.point-search-empty', undefined, emptyMessage));
+			this.count.textContent = '';
+			this.path.textContent = '';
+			return;
+		}
+		this.count.textContent = recent
+			? localize('point.search.count.recent', "недавние: {0}", this.rows.length)
+			: this.mode === PointSearchMode.Files
+				? localize('point.search.count.files', "файлов: {0}", this.rows.length)
+				: this.mode === PointSearchMode.Symbols
+					? localize('point.search.count.symbols', "символов: {0}", this.rows.length)
+					: localize('point.search.count.text', "совпадений: {0}", this.rows.length);
+		this.rows.forEach((row, index) => {
+			const element = append(this.list, $('div.point-search-row'));
+			element.id = `point-search-result-${index}`;
+			element.setAttribute('role', 'option');
+			// Значок берётся у темы значков — того же источника, что рисует
+			// Инвентарь: своя таблица расширений разошлась бы с ним на первом
+			// же новом языке.
+			const icon = append(element, $('span.point-search-row-icon'));
+			icon.classList.add(...getIconClasses(this.modelService, this.languageService, row.resource));
+			const main = append(element, $('span.point-search-row-label'));
+			this.appendLabel(main, row);
+			// У вкладок файлов и символов путь стоит сразу за именем и
+			// обрезается с начала: хвост пути отвечает на вопрос «который из
+			// одноимённых», а начало у всех совпадает. У текста путь остаётся
+			// справа: строка кода — само содержимое строки, и путь после неё был
+			// бы за краем окна.
+			if (row.detail) {
+				const detail = this.mode === PointSearchMode.Text ? 'span.point-search-row-detail' : 'span.point-search-row-path';
+				append(element, $(detail, undefined, row.detail));
+			}
+			this.rowStore.add(addDisposableListener(element, EventType.MOUSE_DOWN, event => {
+				event.preventDefault();
+				this.active = index;
+				this.open(event.shiftKey);
+			}));
+		});
+		this.markActive();
+	}
+
+	private markActive(): void {
+		const children = Array.from(this.list.children) as HTMLElement[];
+		children.forEach((element, index) => {
+			element.classList.toggle('is-active', index === this.active);
+			element.setAttribute('aria-selected', String(index === this.active));
+		});
+		children[this.active]?.scrollIntoView({ block: 'nearest' });
+		if (children[this.active]) { this.input.setAttribute('aria-activedescendant', children[this.active].id); }
+		else { this.input.removeAttribute('aria-activedescendant'); }
+		this.path.textContent = this.rows[this.active]?.full ?? '';
+	}
+
+	private move(delta: number): void {
+		if (!this.rows.length) { return; }
+		this.active = (this.active + delta + this.rows.length) % this.rows.length;
+		this.markActive();
+	}
+
+	private open(toSide = false): void {
+		const row = this.rows[this.active];
+		if (!row) { return; }
+		const selection = row.line ? { startLineNumber: row.line, startColumn: row.column ?? 1, endLineNumber: row.line, endColumn: row.column ?? 1 } : undefined;
+		this.dispose();
+		void this.editorService.openEditor(
+			{ resource: row.resource, options: { selection, preserveFocus: false, pinned: true } },
+			toSide ? SIDE_GROUP : undefined,
+		);
+	}
+
+	private onKeyDown(event: KeyboardEvent): void {
+		const keyboard = new StandardKeyboardEvent(event);
+		switch (keyboard.keyCode) {
+			case KeyCode.Escape:
+				keyboard.stopPropagation();
+				this.dispose();
+				return;
+			case KeyCode.Enter:
+				keyboard.stopPropagation();
+				keyboard.preventDefault();
+				// Shift+Enter — в соседнюю колонку, как «Open In Right Split».
+				this.open(keyboard.shiftKey);
+				return;
+			case KeyCode.UpArrow:
+				keyboard.preventDefault();
+				this.move(-1);
+				return;
+			case KeyCode.DownArrow:
+				keyboard.preventDefault();
+				this.move(1);
+				return;
+			case KeyCode.PageUp:
+				keyboard.preventDefault();
+				this.move(-10);
+				return;
+			case KeyCode.PageDown:
+				keyboard.preventDefault();
+				this.move(10);
+				return;
+			case KeyCode.Tab:
+				keyboard.preventDefault();
+				this.cycleMode(keyboard.shiftKey ? -1 : 1);
+				return;
+			default:
+				return;
+		}
+	}
+
+	dispose(): void {
+		if (PointSearchWindow.instance === this) { PointSearchWindow.instance = undefined; }
+		if (this.timer !== undefined) { getActiveWindow().clearTimeout(this.timer); }
+		this.search?.cancel();
+		this.search?.dispose();
+		void this.searchService.clearCache(this.cacheKey);
+		this.store.dispose();
+		this.scrim.remove();
+		if (this.previousFocus?.isConnected) { this.previousFocus.focus(); }
+	}
+}
+
+/**
+ * Двойной Shift — привычка из JetBrains, и выразить её раскладкой нельзя:
+ * сочетание там всегда «модификаторы плюс клавиша». Поэтому счёт нажатий свой.
+ *
+ * Считается только чистое нажатие: Shift нажали и отпустили, ничего между ними
+ * не нажимая и не удерживая других модификаторов. Прописная буква — это Shift с
+ * другой клавишей внутри, и в счёт она не идёт.
+ */
+class PointDoubleShift extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'point.searchWindow.doubleShift';
+
+	private lastRelease = 0;
+	private clean = false;
+
+	constructor(@ICommandService commandService: ICommandService) {
+		super();
+		// Слушается главное окно: вспомогательные окна Point открывает под свои
+		// задачи (Хаб, статистика), и поиск проекта в них не живёт.
+		this._register(addDisposableListener(mainWindow, EventType.KEY_DOWN, (event: KeyboardEvent) => {
+			const shiftOnly = event.key === 'Shift' && !event.ctrlKey && !event.altKey && !event.metaKey && !event.repeat;
+			if (!shiftOnly) {
+				this.clean = false;
+				this.lastRelease = 0;
+				return;
+			}
+			this.clean = true;
+		}, true));
+		this._register(addDisposableListener(mainWindow, EventType.KEY_UP, (event: KeyboardEvent) => {
+			if (event.key !== 'Shift') { return; }
+			const wasClean = this.clean;
+			this.clean = false;
+			if (!wasClean) { this.lastRelease = 0; return; }
+			const now = Date.now();
+			if (now - this.lastRelease <= DOUBLE_SHIFT_WINDOW) {
+				this.lastRelease = 0;
+				void commandService.executeCommand('point.searchWindow');
+				return;
+			}
+			this.lastRelease = now;
+		}, true));
+	}
+}
+
+CommandsRegistry.registerCommand('point.searchWindow', (accessor: ServicesAccessor) => {
+	PointSearchWindow.show(accessor, PointSearchMode.Files);
+});
+CommandsRegistry.registerCommand('point.searchWindowSymbols', (accessor: ServicesAccessor) => {
+	PointSearchWindow.show(accessor, PointSearchMode.Symbols);
+});
+CommandsRegistry.registerCommand('point.searchWindowText', (accessor: ServicesAccessor) => {
+	PointSearchWindow.show(accessor, PointSearchMode.Text);
+});
+
+/**
+ * Вес раскладки окна. Те же три сочетания объявляет расширение Point для
+ * прежнего поиска палитрой, и перевес нужен от него, а не от вклада оболочки:
+ * объявление расширения весит `BuiltinExtension` (300) во встроенной поставке и
+ * `ExternalExtension` (400) в установленной. Прежние `WorkbenchContrib + 50`
+ * (250) проигрывали обоим — замер живого окна показал, что Ctrl+N открывал
+ * квик-пик «Поиск везде», Ctrl+Shift+F — Quick Search, а Ctrl+Alt+Shift+N —
+ * «Перейти к классу»; окно не открывалось ни на одном из трёх.
+ *
+ * Пользовательскую раскладку перевес не трогает: `keybindings.json` разбирается
+ * отдельной ступенью и выигрывает у любого веса по умолчанию.
+ */
+const KEYBINDING_WEIGHT = KeybindingWeight.ExternalExtension + 50;
+
+KeybindingsRegistry.registerKeybindingRule({
+	id: 'point.searchWindow',
+	weight: KEYBINDING_WEIGHT,
+	primary: KeyMod.CtrlCmd | KeyCode.KeyN,
+});
+KeybindingsRegistry.registerKeybindingRule({
+	id: 'point.searchWindowSymbols',
+	weight: KEYBINDING_WEIGHT,
+	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.KeyN,
+});
+KeybindingsRegistry.registerKeybindingRule({
+	id: 'point.searchWindowText',
+	weight: KEYBINDING_WEIGHT,
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyF,
+});
+
+registerWorkbenchContribution2(PointDoubleShift.ID, PointDoubleShift, WorkbenchPhase.AfterRestored);
+
+export const pointSearchWindowContribution: IDisposable = { dispose: () => { /* модуль живёт со сборкой */ } };

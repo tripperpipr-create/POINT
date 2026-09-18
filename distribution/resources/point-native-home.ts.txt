@@ -1,0 +1,99 @@
+	private buildPointHome(): void {
+		this.container.classList.add('point-native-home');
+		this.currentWalkthrough = undefined;
+
+		const workspaceFolder = this.workspaceContextService.getWorkspace().folders[0];
+		const projectName = workspaceFolder?.name ?? localize('point.noProject', "Проект не открыт");
+		const projectDetail = workspaceFolder
+			? this.labelService.getWorkspaceLabel(workspaceFolder.uri, { verbose: Verbosity.LONG })
+			: localize('point.chooseFolder', "Выберите локальную папку — это станет миром для компаньона и гильдии");
+
+		const openProject = $('button.point-native-button.primary', { 'x-dispatch': 'openFolder' },
+			$('span', {}, workspaceFolder ? localize('point.openAnotherProject', "Открыть другой проект") : localize('point.openProject', "Открыть проект")),
+			$('span.point-native-arrow', {}, '→'));
+		const switchProject = $('button.point-native-button', { 'x-dispatch': 'showMoreRecents' },
+			$('span', {}, localize('point.switchProject', "Переключить проект")),
+			$('kbd', {}, 'Ctrl Alt P'));
+
+		const companionButton = $('button.point-native-small-button.companion', {
+			'x-dispatch': 'pointCommand:localAgent.askCompanion',
+			disabled: workspaceFolder ? undefined : true,
+		}, localize('point.companion', "Компаньон"));
+		const agentButton = $('button.point-native-small-button.accent', {
+			'x-dispatch': 'pointCommand:localAgent.open',
+			disabled: workspaceFolder ? undefined : true,
+		}, localize('point.agent', "Гильдия"));
+		const terminalButton = $('button.point-native-small-button', {
+			'x-dispatch': 'pointCommand:workbench.action.terminal.toggleTerminal',
+			disabled: workspaceFolder ? undefined : true,
+		}, localize('point.terminal', "Консоль"));
+		const projectActions = workspaceFolder
+			? $('.point-native-project-actions', {}, companionButton, agentButton, terminalButton)
+			: $('.point-native-project-hint', {},
+				$('span.codicon.codicon-folder-opened', { 'aria-hidden': 'true' }),
+				$('p', {}, localize('point.projectToolsHint', "Откройте папку — компаньон, гильдия и консоль оживут.")));
+
+		const recentList = this.buildRecentlyOpenedList();
+		recentList.setLimit(4);
+
+		const systemDisabled = workspaceFolder ? undefined : true;
+		const systemStrip = $('.point-native-system', {},
+			$('button.point-native-system-card.companion', {
+				'x-dispatch': 'pointCommand:localAgent.askCompanion',
+				disabled: systemDisabled,
+			},
+				$('small', {}, localize('point.companionRole', "СОПРОВОЖДЕНИЕ")),
+				$('strong', {}, localize('point.companionName', "Компаньон")),
+				$('p', {}, localize('point.companionHint', "Смотрит на код, логи и квесты. Только рекомендует.")),
+				$('kbd', {}, 'Ctrl+Alt+;')),
+			$('button.point-native-system-card.guild', {
+				'x-dispatch': 'pointCommand:localAgent.open',
+				disabled: systemDisabled,
+			},
+				$('small', {}, localize('point.guildRole', "ОТРЯД И КВЕСТЫ")),
+				$('strong', {}, localize('point.guildName', "Гильдия")),
+				$('p', {}, localize('point.guildHint', "Агенты, мастер и журнал изменений.")),
+				$('kbd', {}, 'Ctrl+Alt+I')),
+			$('button.point-native-system-card.search', {
+				'x-dispatch': 'pointCommand:localAgent.searchEverywhere',
+				disabled: systemDisabled,
+			},
+				$('small', {}, localize('point.searchRole', "НАВИГАЦИЯ")),
+				$('strong', {}, localize('point.searchName', "Поиск везде")),
+				$('p', {}, localize('point.searchHint', "Файлы, символы, команды и действия IDE.")),
+				$('kbd', {}, 'Ctrl+N')));
+
+		const page = $('.point-native-page', {},
+			$('.point-native-header', {},
+				$('.point-native-brand', {},
+					$('span.point-native-mark', { 'aria-hidden': 'true' }),
+					$('span', {}, $('strong', {}, 'POINT'), $('small', {}, localize('point.tagline', "AI-FIRST RPG CODE EDITOR")))),
+				$('span.point-native-ready', {}, $('i'), localize('point.ready', "МИР ДОСТУПЕН"))),
+			$('.point-native-hero', {},
+				$('.point-native-copy', {},
+					$('p.point-native-eyebrow', {}, localize('point.tools', "НОВАЯ ГЛАВА")),
+					$('h1', {}, localize('point.focusPrefix', "Куйте код. "), $('em', {}, localize('point.focus', "Меняйте мир."))),
+					$('p.point-native-lead', {}, localize('point.lead', "Компаньон идёт рядом и только советует. Мастер раздаёт задачи отряду. Проект — мир, задача — квест.")),
+					$('.point-native-actions', {}, openProject, switchProject),
+					$('.point-native-keys', {},
+						$('span', {}, $('kbd', {}, 'Ctrl+P'), localize('point.keyFile', "файл")),
+						$('span', {}, $('kbd', {}, 'Ctrl+Shift+P'), localize('point.keyCommand', "команда")),
+						$('span', {}, $('kbd', {}, 'Ctrl+`'), localize('point.keyTerm', "консоль")))),
+				$('.point-native-project', {},
+					$('small', {}, localize('point.currentProject', "АКТИВНЫЙ МИР")),
+					$('strong', {}, projectName),
+					$('p', {}, projectDetail),
+					projectActions)),
+			systemStrip,
+			$('.point-native-bottom', {},
+				$('.point-native-recent', {}, recentList.getDomElement()),
+				$('.point-native-basics', {},
+					$('small', {}, localize('point.minimum', "ЛЕГЕНДА МИРА")),
+					$('strong', {}, localize('point.minimumTitle', "Два системных агента, один мир")),
+					$('p', {}, localize('point.minimumText', "Инвентарь — файлы, Летопись — Git. Компаньон сопровождает всю IDE. Гильдия держит агентов, мастера и журнал изменений.")))));
+
+		reset(this.categoriesSlide, page);
+		this.categoriesPageScrollbar?.scanDomNode();
+		this.registerDispatchListeners();
+		this.setSlide('categories');
+	}

@@ -1,0 +1,39 @@
+{
+  "_": [
+    "Трещотка шкал оболочки: node scripts/check-shell-scales.mjs",
+    "Перезапись после уменьшения долга: node scripts/check-shell-scales.mjs --write",
+    "",
+    "total — сколько значений вне шкал канона остаётся в distribution/resources/point-*.css.",
+    "Затвор падает, когда их становится больше. Ноль означает, что каждое отступление",
+    "названо ниже с причиной, а не просто накопилось.",
+    "",
+    "accepted — отступления, разобранные и принятые. Поля: kind (type | radius | space |",
+    "hex | gradient | fallback), file, value, selector (подстрока), why (почему это не",
+    "дефект). Запись без находки аудит называет отдельно: её пора убрать."
+  ],
+  "total": 0,
+  "counts": {},
+  "accepted": [
+    {
+      "kind": "gradient",
+      "file": "point-workbench.css",
+      "value": "gradient",
+      "selector": "statusbar.point-busy",
+      "why": "полоса занятости: градиент здесь рабочий, им гаснут концы бегущей черты. Запрет документа — на декоративные градиенты поверхностей, а не на способ нарисовать индикатор."
+    },
+    {
+      "kind": "space",
+      "file": "point-workbench.css",
+      "value": "44px",
+      "selector": "quick-input-header",
+      "why": "не ступень ритма, а положение: строка ввода палитры выровнена по значку слева (16 отступ + 16 значок + 12 просвет). Округление до 40 или 48 сдвинуло бы текст относительно значка."
+    },
+    {
+      "kind": "type",
+      "file": "point-workbench.css",
+      "value": "14px",
+      "selector": "point-search-input",
+      "why": "кегль строки ввода окна поиска задан ТЗ (docs/search-window.md, «высота строки ввода 38 px, кегль 14») и проверяется зондом scripts/probe-point-search-window.mjs. Правка сюда ломает проверенный пункт ТЗ."
+    }
+  ]
+}

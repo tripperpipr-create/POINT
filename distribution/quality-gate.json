@@ -1,0 +1,115 @@
+{
+  "schemaVersion": 1,
+  "productVersion": "1.2.2",
+  "reviewedAt": "2026-09-05",
+  "severityPolicy": {
+    "P0": "Data loss, secret disclosure, sandbox escape, arbitrary unauthorized execution, or product-wide outage.",
+    "P1": "A primary daily workflow is unusable, isolation or rollback is materially weakened, or no safe workaround exists.",
+    "P2": "Material defect with a safe workaround or an explicitly accepted bounded residual risk.",
+    "P3": "Minor defect without meaningful safety, data-integrity, or daily-workflow impact."
+  },
+  "reviewedAreas": [
+    "sandbox",
+    "controlled-egress",
+    "supply-chain-evidence",
+    "agent-skill-evaluation",
+    "module-boundaries",
+    "legacy-lifecycle",
+    "release-recovery",
+    "client-surfaces",
+    "performance-slo",
+    "security-privacy",
+    "documentation-contracts"
+  ],
+  "reviewedThreats": [
+    "T01",
+    "T02",
+    "T03",
+    "T04",
+    "T05",
+    "T06",
+    "T07",
+    "T08",
+    "T09",
+    "T10",
+    "T11",
+    "T12",
+    "T13",
+    "T14",
+    "T15"
+  ],
+  "acceptedResidualRisks": [
+    "R1",
+    "R2",
+    "R3",
+    "R4",
+    "R5"
+  ],
+  "defects": [
+    {
+      "id": "SANDBOX_IMAGE_CVE_001",
+      "severity": "P1",
+      "status": "closed",
+      "title": "Sandbox execution image HIGH/CRITICAL vulnerability gate remediated",
+      "evidence": "distribution/sandbox-image-security.json"
+    },
+    {
+      "id": "AUDIT_SQL_READ_ONLY",
+      "severity": "P1",
+      "status": "closed",
+      "title": "Read-only SQL enforced by transactions and connection configuration",
+      "evidence": "docs/AUDIT-2026-09-05.md"
+    },
+    {
+      "id": "AUDIT_EDITOR_DRAFT",
+      "severity": "P1",
+      "status": "closed",
+      "title": "In-flight save and workspace changes preserve editor drafts",
+      "evidence": "docs/AUDIT-2026-09-05.md"
+    },
+    {
+      "id": "AUDIT_CORE_PRECHECK",
+      "severity": "P1",
+      "status": "closed",
+      "title": "Fresh core built before integration checks",
+      "evidence": "docs/AUDIT-2026-09-05.md"
+    },
+    {
+      "id": "AUDIT_NAVIGATION_SOURCE",
+      "severity": "P2",
+      "status": "closed",
+      "title": "Navigation check follows extracted language catalog",
+      "evidence": "docs/AUDIT-2026-09-05.md"
+    },
+    {
+      "id": "AUDIT_LOCAL_ARTIFACTS",
+      "severity": "P2",
+      "status": "closed",
+      "title": "Local core and UI synchronized with verified backups",
+      "evidence": "docs/AUDIT-2026-09-05.md"
+    },
+    {
+      "id": "AUDIT_WEB_PICKER",
+      "severity": "P2",
+      "status": "closed",
+      "title": "Web client no longer offers an unavailable desktop picker",
+      "evidence": "docs/AUDIT-2026-09-05.md"
+    }
+  ],
+  "evidence": [
+    ".github/workflows/production-release.yml",
+    "distribution/sandbox-image-security.json",
+    "distribution/sandbox-trivy.json",
+    "distribution/sandbox-sbom.cdx.json",
+    "distribution/sandbox-packages.json",
+    "distribution/sandbox-build-provenance.json",
+    "docs/PROJECT-STATUS.md",
+    "docs/threat-model.md",
+    "scripts/check-docs.mjs",
+    "scripts/check-release-contracts.mjs",
+    "scripts/test-point-database-dr.ps1",
+    "scripts/test-point-installer-lifecycle.ps1",
+    "scripts/test-point-performance-slo.ps1",
+    "docs/AUDIT-2026-09-05.md"
+  ]
+}

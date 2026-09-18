@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "minimumProjects": 5,
+  "minimumStackFamilies": 3,
+  "minimumRuns": 200,
+  "minimumReleaseWindows": 2,
+  "allowedStackFamilies": [
+    "go",
+    "node",
+    "python",
+    "java",
+    "dotnet",
+    "rust",
+    "mobile",
+    "mixed"
+  ],
+  "requiredLifecycleChecks": [
+    "upgradeFromPreviousVersion",
+    "backupRestore",
+    "legacyProfilesVisible",
+    "legacyWorkflowsVisible",
+    "legacyRunHistoryVisible",
+    "canonicalRunCompleted",
+    "rollbackToPreviousVersion",
+    "noDataLoss"
+  ],
+  "requiredCompatibilityFeatures": [
+    "legacy_profile_save",
+    "legacy_profile_delete",
+    "legacy_profile_run_fallback",
+    "legacy_workflow_save",
+    "legacy_workflow_delete",
+    "legacy_workflow_run",
+    "legacy_custom_command_save",
+    "legacy_custom_command_execute",
+    "legacy_run_snapshot_read"
+  ]
+}

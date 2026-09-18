@@ -1,0 +1,451 @@
+/* Point native start surface — RPG design system (ember / mana / void). */
+/* Третья рукописная копия тех же десяти значений жила здесь. Токены заданы на
+   `.monaco-workbench:has(.point-activitybar)` в point-workbench.css, а этот
+   контейнер — потомок того же workbench, так что они приходят наследованием;
+   проверено замером на живом окне. */
+.monaco-workbench .part.editor > .content .gettingStartedContainer.point-native-home {
+	background: var(--point-void);
+	color: var(--point-primary);
+	overflow: auto;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer.point-native-home .gettingStarted,
+.monaco-workbench .part.editor > .content .gettingStartedContainer.point-native-home .gettingStartedSlide,
+.monaco-workbench .part.editor > .content .gettingStartedContainer.point-native-home .categoriesScrollbar {
+	height: 100%;
+	width: 100%;
+}
+
+.point-native-page {
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	margin: 0 auto;
+	max-width: 1320px;
+	min-height: 100%;
+	padding: 12px 16px 16px;
+}
+.point-native-header,
+.point-native-brand,
+.point-native-actions,
+.point-native-project-actions,
+.point-native-project-hint,
+.point-native-ready { display: flex; align-items: center; }
+.point-native-header {
+	justify-content: space-between;
+	border-bottom: 1px solid var(--point-border, #2b2b2b);
+	gap: 12px;
+	min-height: 40px;
+	min-width: 0;
+	padding: 0 4px 10px;
+}
+.point-native-brand { gap: 10px; min-width: 0; }
+.point-native-brand > span:last-child { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.point-native-brand strong {
+	color: var(--point-primary, #e9e9e9);
+	font: 650 18px/1 "JetBrains Mono", Consolas, monospace;
+	letter-spacing: .12em;
+}
+.point-native-brand small,
+.point-native-project small,
+.point-native-basics small {
+	color: var(--point-ember, #ff8a4c);
+	font: 650 10px/1.2 "JetBrains Mono", Consolas, monospace;
+	letter-spacing: .11em;
+}
+.point-native-mark {
+	background: url('../../../../browser/media/code-icon.svg') center / contain no-repeat;
+	display: block;
+	filter: none;
+	height: 30px;
+	width: 30px;
+}
+.point-native-ready {
+	background: var(--point-panel, #191919);
+	border: 1px solid var(--point-border, #2b2b2b);
+	border-radius: 2px;
+	color: var(--point-vital, #5bcb8a);
+	flex-shrink: 0;
+	font: 650 9px/1 "JetBrains Mono", Consolas, monospace;
+	gap: 8px;
+	letter-spacing: .06em;
+	padding: 4px 8px;
+	white-space: nowrap;
+}
+.point-native-ready i {
+	background: var(--point-vital, #5bcb8a);
+	border-radius: 0;
+	box-shadow: none;
+	height: 5px;
+	transform: rotate(45deg);
+	width: 5px;
+}
+.point-native-hero {
+	align-items: stretch;
+	display: grid;
+	gap: 10px;
+	grid-template-columns: minmax(0, 1.38fr) minmax(280px, 0.62fr);
+}
+.point-native-copy,
+.point-native-project,
+.point-native-basics,
+.point-native-recent {
+	background: var(--point-panel, #191919);
+	border: 1px solid var(--point-border, #2b2b2b);
+	border-radius: 2px;
+	box-shadow: none;
+	box-sizing: border-box;
+	min-width: 0;
+	overflow: hidden;
+}
+.point-native-copy {
+	align-items: flex-start;
+	border-left: 2px solid var(--point-ember, #ff8a4c);
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	min-height: 0;
+	padding: 16px;
+}
+.point-native-eyebrow {
+	color: var(--point-ember, #ff8a4c);
+	font: 750 10px/1.3 "JetBrains Mono", Consolas, monospace;
+	letter-spacing: .14em;
+	margin: 0 0 8px;
+}
+.point-native-copy h1 {
+	color: var(--point-primary, #e9e9e9);
+	font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+	/* Концы шкалы канона: 22 — --t-display, 28 — --t-numeral-sm. Прежние
+	   26…40 были и мимо шкалы, и крупнее, чем нужно приветствию IDE. */
+	font-size: clamp(22px, 3vw, 28px);
+	font-weight: 650;
+	letter-spacing: -.02em;
+	line-height: 1.1;
+	margin: 0;
+	max-width: 720px;
+	overflow-wrap: anywhere;
+	text-wrap: balance;
+}
+.point-native-copy h1 em {
+	background: none;
+	color: var(--point-ember, #ff8a4c);
+	font-style: normal;
+}
+.point-native-lead {
+	color: var(--point-muted, #989898);
+	font-size: 13px;
+	line-height: 1.45;
+	margin: 10px 0 12px;
+	max-width: 620px;
+}
+.point-native-actions { flex-wrap: wrap; gap: 8px; }
+.point-native-button,
+.point-native-small-button {
+	background: var(--point-raised, #202020);
+	border: 1px solid var(--point-border, #2b2b2b);
+	border-radius: 2px;
+	color: var(--point-primary, #e9e9e9);
+	cursor: pointer;
+	font: inherit;
+	transform: none !important;
+	transition: background-color 90ms ease, border-color 90ms ease;
+}
+.point-native-button {
+	align-items: center;
+	display: flex;
+	gap: 16px;
+	justify-content: space-between;
+	max-width: 100%;
+	min-height: 34px;
+	min-width: 0;
+	padding: 0 12px;
+}
+.point-native-button > span:first-child {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+/* Главное действие стартового экрана. Правило апстрима
+   `.monaco-workbench .part.editor > .content .gettingStartedContainer button`
+   ставит кнопке `color: inherit` и специфичностью (0,5,1) побеждало здешние
+   (0,2,0): текст наследовался светлый и ложился на ember-заливку с контрастом
+   **2.14** при пороге 4.5 — главная кнопка первого экрана продукта читалась
+   хуже всего на нём. Заливку автор отбил `!important`, а цвет остался.
+   Префикс контейнера даёт (0,8,0) и снимает войну без принуждения: `important`
+   здесь больше не нужен ни для фона, ни для текста. */
+.monaco-workbench .part.editor > .content .gettingStartedContainer.point-native-home .point-native-button.primary {
+	background: var(--point-ember, #ff8a4c);
+	border-color: var(--point-ember, #ff8a4c);
+	color: var(--point-void, #171717);
+	font-weight: 700;
+}
+.point-native-button:hover,
+.point-native-small-button:hover {
+	background-color: var(--point-selected, #262626);
+	border-color: var(--point-border-soft, #424242);
+	color: var(--point-primary, #e9e9e9);
+}
+/* Наведение тем же префиксом: иначе оно осталось бы единственным местом, где
+   принуждение ещё нужно, и правило пары разъехалось бы по способу победы. */
+.monaco-workbench .part.editor > .content .gettingStartedContainer.point-native-home .point-native-button.primary:hover {
+	background: var(--point-ember-hover, #FF9A63);
+	border-color: var(--point-ember-hover, #FF9A63);
+}
+.point-native-button kbd {
+	background: var(--point-void, #171717);
+	border: 1px solid var(--point-border, #2b2b2b);
+	border-radius: 2px;
+	color: var(--point-muted, #989898);
+	flex-shrink: 0;
+	font-family: "JetBrains Mono", Consolas, monospace;
+	font-size: 11px;
+	padding: 4px 8px;
+}
+.point-native-arrow { font-size: var(--point-icon-lg, 18px); }
+.point-native-project {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+	padding: 16px;
+	border-top: 2px solid var(--point-ember, #ff8a4c);
+}
+.point-native-project strong {
+	color: var(--point-primary, #e9e9e9);
+	font-size: 18px;
+	line-height: 1.1;
+	margin-top: 12px;
+}
+.point-native-project p,
+.point-native-basics p {
+	color: var(--point-muted, #989898);
+	line-height: 1.5;
+}
+.point-native-project p { min-height: 0; overflow-wrap: anywhere; }
+.point-native-project-actions { flex-wrap: wrap; gap: 8px; margin-top: auto; }
+.point-native-project-hint {
+	background: var(--point-void, #171717);
+	border: 1px solid var(--point-border, #2b2b2b);
+	border-radius: 2px;
+	color: var(--point-muted, #989898);
+	gap: 10px;
+	margin-top: auto;
+	min-height: 40px;
+	min-width: 0;
+	padding: 0 12px;
+}
+.point-native-project-hint .codicon { color: var(--point-ember, #ff8a4c); flex-shrink: 0; font-size: var(--point-icon-lg, 18px); }
+.point-native-project-hint p { font-size: 12px; line-height: 1.4; margin: 0; min-height: 0; min-width: 0; }
+.point-native-small-button { min-height: 32px; padding: 0 12px; }
+.point-native-small-button.accent {
+	background: color-mix(in srgb, var(--point-ember, #ff8a4c) 12%, transparent);
+	border-color: color-mix(in srgb, var(--point-ember, #ff8a4c) 48%, transparent);
+	color: var(--point-ember, #ff8a4c);
+}
+.point-native-small-button.accent:hover {
+	background: color-mix(in srgb, var(--point-ember, #ff8a4c) 20%, transparent);
+	border-color: var(--point-ember, #ff8a4c);
+	color: var(--point-primary, #e9e9e9);
+}
+.point-native-small-button:disabled { cursor: default; opacity: 0.45; }
+.point-native-bottom {
+	display: grid;
+	gap: 10px;
+	grid-template-columns: minmax(0, 1.38fr) minmax(280px, 0.62fr);
+}
+.point-native-recent { min-height: 0; padding: 12px; }
+.point-native-recent .index-list { margin: 0; }
+.point-native-recent .index-list h2 {
+	color: var(--point-primary, #e9e9e9);
+	font: 600 12px/1.3 "JetBrains Mono", Consolas, monospace;
+	letter-spacing: .06em;
+	margin: 0 0 10px;
+	text-transform: uppercase;
+}
+.point-native-recent .index-list ul {
+	display: grid;
+	gap: 8px;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.point-native-recent .index-list li {
+	background: var(--point-void, #171717);
+	border: 1px solid var(--point-border, #2b2b2b);
+	border-radius: 2px;
+	box-sizing: border-box;
+	color: var(--point-primary, #e9e9e9);
+	min-height: 40px;
+	min-width: 0;
+	overflow: hidden;
+	padding: 4px 8px;
+	transition: background-color 90ms ease, border-color 90ms ease;
+}
+.point-native-recent .index-list li:hover {
+	background: var(--point-raised, #202020);
+	border-color: var(--point-ember, #ff8a4c);
+}
+.point-native-recent .index-list li:focus-visible {
+	outline: 1px solid var(--point-ember, #ff8a4c);
+	outline-offset: 0;
+}
+.point-native-basics {
+	border-top: 2px solid var(--point-mana, #46d8e8);
+	min-height: 0;
+	padding: 12px;
+}
+.point-native-basics strong {
+	color: var(--point-primary, #e9e9e9);
+	display: block;
+	font-size: 15px;
+	line-height: 1.35;
+	margin-top: 10px;
+}
+.point-native-basics p { font-size: 13px; margin-bottom: 0; }
+.point-native-keys {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px 16px;
+	margin-top: 12px;
+}
+.point-native-keys span {
+	align-items: center;
+	color: var(--point-muted, #989898);
+	display: inline-flex;
+	font: 500 11px/1 "JetBrains Mono", Consolas, monospace;
+	gap: 8px;
+}
+.point-native-keys kbd {
+	background: var(--point-void, #171717);
+	border: 1px solid var(--point-border, #2b2b2b);
+	border-radius: 2px;
+	color: var(--point-primary, #e9e9e9);
+	font: 650 10px/1 "JetBrains Mono", Consolas, monospace;
+	padding: 4px 6px;
+}
+.point-native-small-button.companion {
+	background: color-mix(in srgb, var(--point-mana, #46d8e8) 12%, transparent);
+	border-color: color-mix(in srgb, var(--point-mana, #46d8e8) 42%, transparent);
+	color: var(--point-mana, #46d8e8);
+}
+.point-native-small-button.companion:hover {
+	background: color-mix(in srgb, var(--point-mana, #46d8e8) 20%, transparent);
+	border-color: var(--point-mana, #46d8e8);
+	color: var(--point-primary, #e9e9e9);
+}
+.point-native-system {
+	display: grid;
+	gap: 10px;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.point-native-system-card {
+	align-items: flex-start;
+	background: var(--point-panel, #191919);
+	border: 1px solid var(--point-border, #2b2b2b);
+	border-radius: 2px;
+	color: inherit;
+	cursor: pointer;
+	display: flex;
+	flex-direction: column;
+	font: inherit;
+	gap: 6px;
+	min-height: 124px;
+	min-width: 0;
+	padding: 12px;
+	text-align: left;
+	transition: background-color 90ms ease, border-color 90ms ease;
+}
+.point-native-system-card.companion { border-top: 2px solid var(--point-mana, #46d8e8); }
+.point-native-system-card.guild { border-top: 2px solid var(--point-mana, #46d8e8); }
+.point-native-system-card.search { border-top: 2px solid var(--point-ember, #ff8a4c); }
+.point-native-system-card:hover:not(:disabled) {
+	background: var(--point-raised, #202020);
+	border-color: var(--point-border-soft, #424242);
+}
+.point-native-system-card:disabled { cursor: default; opacity: .48; }
+.point-native-system-card small {
+	color: var(--point-muted, #989898);
+	font: 650 10px/1 "JetBrains Mono", Consolas, monospace;
+	letter-spacing: .11em;
+}
+.point-native-system-card strong {
+	color: var(--point-primary, #e9e9e9);
+	font: 650 15px/1.2 "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+}
+.point-native-system-card p {
+	color: var(--point-muted, #989898);
+	flex: 1;
+	font-size: 12px;
+	line-height: 1.45;
+	margin: 0;
+	overflow-wrap: anywhere;
+}
+.point-native-system-card kbd {
+	align-self: flex-start;
+	background: var(--point-void, #171717);
+	border: 1px solid var(--point-border, #2b2b2b);
+	border-radius: 2px;
+	color: var(--point-muted, #989898);
+	font: 650 10px/1 "JetBrains Mono", Consolas, monospace;
+	padding: 4px 6px;
+}
+.point-native-recent .empty-recent {
+	align-items: center;
+	background: var(--point-void, #171717);
+	border: 1px dashed var(--point-border, #2b2b2b);
+	border-radius: 2px;
+	color: var(--point-muted, #989898);
+	display: flex;
+	flex-wrap: wrap;
+	font-size: 13px;
+	gap: 6px;
+	min-height: 72px;
+	padding: 12px;
+}
+.point-native-recent .empty-recent .button-link,
+.point-native-recent .more .button-link {
+	background: none;
+	border: 0;
+	color: var(--point-ember, #ff8a4c);
+	cursor: pointer;
+	font: 650 13px/1.3 inherit;
+	padding: 0;
+}
+.point-native-recent .more { margin-top: 10px; }
+/* Строки недавних проектов и «Подробнее…» — самостоятельные действия, а не
+	 ссылки внутри предложения, и открывают их с первого экрана чаще всего.
+	 Высота у них была 18–19px при пороге 24. `align-content` центрирует текст,
+	 не меняя `display`: у строк он блочный, у «Подробнее…» строчно-блочный, и
+	 переход на flex развалил бы одну из двух раскладок. */
+.point-native-home .button-link {
+	box-sizing: border-box;
+	min-height: var(--point-hit);
+	align-content: center;
+}
+
+.point-native-home.width-semi-constrained .point-native-page { padding: 16px; }
+.point-native-home.width-semi-constrained .point-native-hero { grid-template-columns: minmax(0, 1.15fr) minmax(240px, 0.85fr); }
+.point-native-home.width-semi-constrained .point-native-copy { padding: 16px; }
+.point-native-home.width-semi-constrained .point-native-copy h1 { font-size: 22px; }
+.point-native-home.width-semi-constrained .point-native-copy h1 em { display: block; }
+.point-native-home.width-semi-constrained .point-native-project { padding: 16px; }
+.point-native-home.width-semi-constrained .point-native-bottom { grid-template-columns: minmax(0, 1.15fr) minmax(230px, 0.85fr); }
+.point-native-home.width-semi-constrained .point-native-system { grid-template-columns: 1fr; }
+
+@media (max-width: 860px) {
+	.point-native-page { padding: 12px; }
+	.point-native-header { flex-wrap: wrap; }
+	.point-native-hero,
+	.point-native-bottom,
+	.point-native-system { grid-template-columns: 1fr; }
+	.point-native-copy h1 { font-size: 22px; }
+	.point-native-recent .index-list ul { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+	.point-native-button,
+	.point-native-small-button,
+	.point-native-recent .index-list li,
+	.point-native-system-card {
+		transition: none;
+	}
+}

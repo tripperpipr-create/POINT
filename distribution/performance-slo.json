@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "core": {
+    "fixtureFiles": 50000,
+    "indexBuildMs": 60000,
+    "indexSearchP95Ms": 25,
+    "indexHeapDeltaMB": 768,
+    "sqliteEvents": 100000,
+    "sqliteMaxBytes": 134217728,
+    "sqliteBytesPerEvent": 512,
+    "flowRuns": 2000,
+    "reopenAndFlowListMs": 5000,
+    "parallelExecutionWrites": 32,
+    "parallelExecutionWriteMs": 3000
+  },
+  "desktop": {
+    "samples": 5,
+    "workbenchVisibleMs": 3000,
+    "agentUsableAfterClickMs": 6500,
+    "twoFrameLatencyMs": 60,
+    "idlePrivateMB": 1100,
+    "agentPrivateMB": 1450,
+    "processCount": 18,
+    "hubOpenCloseCycles": 50,
+    "hubCyclePrivateGrowthPercent": 5,
+    "idleExtensionHosts": 1,
+    "agentExtensionHosts": 1,
+    "projectSwitchWarmMs": 700,
+    "projectSwitchColdMs": 2500
+  }
+}

@@ -1,0 +1,2811 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   Оболочка Point.
+
+   Файл собран заново от токенов. Правило здесь одно: **одна поверхность — один
+   блок**. До этого стиль рос слоями, и одну и ту же вкладку красили три правила
+   из разных лет; побеждало то, что ниже, а узнать это можно было только
+   замером в живом окне.
+
+   Материал взят из системы макета (Nocturne): плотность 0.7, радиусы 4 и 8,
+   линейки гаснут к концам, наведение и нажатие — из акцентной шкалы, акцент
+   работает линией и подсветкой, а не заливкой. Цвета свои: земля макета,
+   янтарь Point.
+
+   `!important` стоит там, где Code-OSS задаёт то же свойство инлайном из
+   раскладки или правилом с более длинной цепочкой. Каждый такой случай
+   объяснён рядом: важность без объяснения — шум, который потом никто не
+   решается снять.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.monaco-workbench:has(.point-activitybar) {
+	/* Шрифт вшит наложением в point-fonts.css. Важность нужна: Code-OSS задаёт
+	   шрифт правилом `.monaco-workbench.windows` того же веса, и оно стоит
+	   позже — без неё оболочка молча остаётся на системном Segoe. */
+	--point-font: "Inter", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+	--point-mono: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
+
+	/* Лестница грунтов: редактор глубже всего, рейки и строка состояния —
+	   ступень выше, шапки панелей ещё выше, всплывающее — поверхность. */
+	--point-void: #171717;
+	--point-panel: #191919;
+	--point-strip: #202020;
+	--point-rail: #242424;
+	--point-raised: #202020;
+	--point-selected: #262626;
+	--point-border: #2b2b2b;
+	--point-border-soft: #424242;
+
+	/* Текст: основной для выбранного и заголовков, обычный для содержимого
+	   списков, приглушённый для служебного. */
+	--point-primary: #e9e9e9;
+	--point-body: #d4d4d4;
+	--point-muted: #989898;
+	--point-faint: #7a7a7a;
+
+	/* Смысловые. Янтарь — единственная опознавательная краска продукта. */
+	--point-ember: #FF8A4C;
+	--point-ember-hover: #FF9A63;
+	--point-ember-pressed: #FF7626;
+	--point-mana: #46D8E8;
+	--point-vital: #5BCB8A;
+	--point-wound: #EE6873;
+	--point-caution: #E0A24A;
+
+	/* Состояния. Подсветка нейтральная: янтарь в оболочке сообщает смысл, а
+	   наведение смысла не несёт — под курсором может оказаться что угодно.
+	   Прежде обе ступени были янтарными, и продукт красил акцентом каждую
+	   строку дерева, каждую вкладку и каждый пункт меню под указателем.
+	   Взяты подмесом текста, а не сплошной ступенью грунта: рейка (#1d1d1d),
+	   панель (#191919) и редактор (#171717) — три разных фона, и одна сплошная
+	   заливка на одном из них видна, а на другом пропадает.
+	   Три ступени, «выбрано» светлее «под курсором»: иначе выбранная строка
+	   теряется, когда указатель проходит мимо. */
+	--point-tint: color-mix(in srgb, var(--point-primary) 7%, transparent);
+	--point-tint-strong: color-mix(in srgb, var(--point-primary) 11%, transparent);
+	--point-tint-selected: color-mix(in srgb, var(--point-primary) 15%, transparent);
+	--point-edge: color-mix(in srgb, var(--point-ember) 45%, transparent);
+	/* Янтарная подложка осталась там, где она и есть смысл: подсветка
+	   найденного. Её нельзя гасить вместе с наведением — совпадение обязано
+	   быть видно первым. */
+	--point-match: color-mix(in srgb, var(--point-ember) 26%, transparent);
+
+	/* Геометрия. Нижняя граница цели указателя — 24: до неё оболочка ставила
+	   размеры числами и уезжала под порог незаметно (значки шапок были 20×20,
+	   плашка поиска рисовалась на 24, а кликабельный элемент внутри — 16). */
+	--point-rail-w: 46px;
+	--point-rail-item: 38px;
+	--point-sub-h: 40px;
+	--point-pane-h: 24px;
+	--point-status-h: 26px;
+	--point-tab-h: 32px;
+	--point-hit: 24px;
+	/* Лесенка значков. Глиф — не текст: типографическая шкала на него не
+	   распространяется, но и литералом он расползался (14 · 15 · 16 · 18
+	   вперемешку). Три ступени: рядовой, крупный, кнопочный. */
+	--point-icon-sm: 14px;
+	--point-icon-md: 16px;
+	--point-icon-lg: 18px;
+	/* Controls use a restrained 4px corner; floating windows use 8px. */
+	--point-r: 4px;
+
+	/* Движение оболочки — две ступени, как в Хабе. Литеральная длительность
+	   выглядит так же, но обнуления при prefers-reduced-motion не видит:
+	   просьбу убрать движение она молча игнорирует. */
+	--point-motion-fast: 90ms;
+	--point-motion-base: 140ms;
+	--point-r-lg: 8px;
+
+	font-family: var(--point-font) !important;
+}
+
+/* ════ Основа ════════════════════════════════════════════════════════════════ */
+
+/* Границы частей — сплошной волосок в тон границы. В системе макета гаснут к
+   концам свободно стоящие линейки, а не края частей: у самого макета низ
+   заголовка, полосы вкладок и верх строки состояния прочерчены насквозь.
+   Сами границы объявлены в блоках своих частей — здесь их держать негде. */
+
+.monaco-workbench:has(.point-activitybar) ::selection { background: color-mix(in srgb, var(--point-ember) 30%, transparent); }
+
+/* Кольцо фокуса везде акцентное: у Code-OSS оно синее и остаётся таким в
+   десятке виджетов, если не сказать иначе. */
+.monaco-workbench:has(.point-activitybar) :focus { outline-color: var(--point-ember) !important; }
+.monaco-workbench:has(.point-activitybar) :focus-visible {
+	outline: 1px solid var(--point-ember) !important;
+	outline-offset: -1px;
+}
+.monaco-workbench:has(.point-activitybar) .monaco-list:focus::before,
+.monaco-workbench:has(.point-activitybar) .monaco-list.element-focused:focus::before,
+.monaco-workbench:has(.point-activitybar) .monaco-tl-row:focus,
+.monaco-workbench:has(.point-activitybar) .monaco-custom-toggle:focus,
+.monaco-workbench:has(.point-activitybar) a.monaco-link:focus { outline-color: var(--point-ember) !important; }
+.monaco-workbench:has(.point-activitybar) input:focus,
+.monaco-workbench:has(.point-activitybar) textarea:focus,
+.monaco-workbench:has(.point-activitybar) select:focus {
+	border-color: var(--point-ember) !important;
+	box-shadow: none !important;
+	outline: 1px solid var(--point-ember) !important;
+	outline-offset: 0;
+}
+/* Выбранная строка списка уже помечена подложкой и полосой — кольцо поверх
+   неё только дребезжит. */
+.monaco-workbench:has(.point-activitybar) .monaco-list-row.focused:focus-visible,
+.monaco-workbench:has(.point-activitybar) .monaco-list-row.selected:focus-visible { outline: none !important; }
+
+/* Счётчик-жетон («Результаты: 826» в палитре, счёт совпадений в дереве). Цвет
+   ему давала тема Code-OSS: белый текст 11px на своей подложке — 3.73 при
+   пороге 4.5, найдено замером живого окна в сценарии палитры. Жетон здесь не
+   акцент, а число: тихая ступень грунта и обычный текст. */
+.monaco-workbench:has(.point-activitybar) .monaco-count-badge {
+	background: var(--point-selected) !important;
+	border-radius: var(--point-r) !important;
+	color: var(--point-primary) !important;
+	font: 500 11px/1 var(--point-font) !important;
+	padding: 4px 6px !important;
+}
+
+/* Ползунок 5 в жёлобе 9, скруглён целиком: при ширине 6 и радиусе 2 полоса
+   читалась как обрубок. */
+.monaco-workbench:has(.point-activitybar) .monaco-scrollable-element > .scrollbar.vertical { width: 9px !important; }
+.monaco-workbench:has(.point-activitybar) .monaco-scrollable-element > .scrollbar.horizontal { height: 9px !important; }
+.monaco-workbench:has(.point-activitybar) .monaco-scrollable-element > .scrollbar > .slider {
+	background: var(--point-border-soft) !important;
+	border-radius: var(--point-r-lg) !important;
+	width: 5px !important;
+}
+.monaco-workbench:has(.point-activitybar) .monaco-scrollable-element > .scrollbar.horizontal > .slider {
+	height: 5px !important;
+	width: auto !important;
+}
+.monaco-workbench:has(.point-activitybar) .monaco-scrollable-element > .scrollbar > .slider:hover { background: var(--point-faint) !important; }
+
+/* Сашь: тонкая акцентная линия вместо синей полосы. */
+.monaco-workbench:has(.point-activitybar) .monaco-sash:hover,
+.monaco-workbench:has(.point-activitybar) .monaco-sash.active { background: transparent !important; }
+.monaco-workbench:has(.point-activitybar) .monaco-sash.vertical::before,
+.monaco-workbench:has(.point-activitybar) .monaco-sash.horizontal::before {
+	background: transparent;
+	transition: background-color var(--point-motion-fast) ease;
+}
+.monaco-workbench:has(.point-activitybar) .monaco-sash:hover::before,
+.monaco-workbench:has(.point-activitybar) .monaco-sash.active::before { background: var(--point-ember) !important; }
+.monaco-workbench:has(.point-activitybar) .monaco-sash.vertical.active::before { width: 2px !important; }
+.monaco-workbench:has(.point-activitybar) .monaco-sash.horizontal.active::before { height: 2px !important; }
+
+.monaco-workbench:has(.point-activitybar) .monaco-keybinding > .monaco-keybinding-key {
+	background: var(--point-raised) !important;
+	border: 1px solid var(--point-border) !important;
+	border-radius: var(--point-r) !important;
+	box-shadow: none !important;
+	color: var(--point-muted) !important;
+	font: 400 10px/1 var(--point-mono) !important;
+	padding: 2px 4px;
+}
+
+.monaco-workbench:has(.point-activitybar) .monaco-progress-container .progress-bit,
+.monaco-workbench:has(.point-activitybar) .part.editor .editor-progress-container .progress-bit,
+.monaco-workbench:has(.point-activitybar) .part.panel .monaco-progress-container .progress-bit { background: var(--point-ember) !important; }
+
+.monaco-workbench:has(.point-activitybar) .badge .badge-content {
+	border-radius: var(--point-r) !important;
+	font: 500 10px/1 var(--point-font) !important;
+	min-width: 14px;
+	padding: 2px 4px !important;
+}
+
+/* Мелкий хром — кнопки-иконки панелей действий: глиф 16, цель 24, разница
+   уходит в отбивку. box-sizing обязателен: элементы считаются по content-box,
+   и без него высота ушла бы в 30 и разорвала шапку. */
+.monaco-workbench:has(.point-activitybar) .monaco-action-bar .action-label {
+	border-radius: var(--point-r);
+	color: var(--point-muted);
+}
+.monaco-workbench:has(.point-activitybar) .monaco-action-bar .action-item:hover .action-label {
+	background: var(--point-tint);
+	color: var(--point-primary);
+}
+.monaco-workbench:has(.point-activitybar) .part.sidebar .title .title-actions .action-label,
+.monaco-workbench:has(.point-activitybar) .part.auxiliarybar .title .title-actions .action-label,
+.monaco-workbench:has(.point-activitybar) .part.panel .title .title-actions .action-label,
+.monaco-workbench:has(.point-activitybar) .part.panel .global-actions .action-label,
+.monaco-workbench:has(.point-activitybar) .part.sidebar .pane-header .actions .action-label,
+.monaco-workbench:has(.point-activitybar) .part.auxiliarybar .pane-header .actions .action-label,
+.monaco-workbench:has(.point-activitybar) .quick-input-widget .quick-input-list-entry-action-bar .action-label {
+	box-sizing: border-box;
+	height: var(--point-hit);
+	width: var(--point-hit);
+}
+
+.monaco-workbench:has(.point-activitybar) .monaco-inputbox {
+	background: var(--point-void) !important;
+	border: 1px solid var(--point-border) !important;
+	border-radius: var(--point-r) !important;
+	color: var(--point-primary);
+}
+.monaco-workbench:has(.point-activitybar) .monaco-inputbox.synthetic-focus,
+.monaco-workbench:has(.point-activitybar) .monaco-inputbox:focus-within { border-color: var(--point-ember) !important; }
+.monaco-workbench:has(.point-activitybar) .monaco-button,
+.monaco-workbench:has(.point-activitybar) .monaco-text-button {
+	border-radius: var(--point-r) !important;
+	font: 500 12px/1 var(--point-font);
+}
+
+.monaco-workbench:has(.point-activitybar) .part.banner {
+	background: var(--point-raised) !important;
+	border-bottom: 1px solid var(--point-border) !important;
+	color: var(--point-primary);
+	font: 400 12px/1.4 var(--point-font);
+}
+
+/* ════ Заголовок окна ════════════════════════════════════════════════════════
+   Полоса чипов: слева меню и опознание проекта, по центру поиск, справа
+   запуск. Чипы без рамок — рамка только у поля поиска и у кнопки запуска. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar {
+	/* Плоская ступень грунта, та же, что у левой рейки: заголовок и рейка
+	   образуют один угол хрома, и градиент делал из него две разные вещи.
+	   Декоративные градиенты регистр оболочки не использует (§ «Геометрия и
+	   типографика» в docs/RPG-DESIGN-SYSTEM.md). */
+	background: var(--point-rail) !important;
+	border-bottom: 1px solid var(--point-border) !important;
+	box-shadow: none;
+	gap: 8px;
+	min-height: 30px;
+	overflow: hidden;
+	padding: 0 12px;
+}
+.monaco-workbench:has(.point-activitybar) .part.titlebar .titlebar-left,
+.monaco-workbench:has(.point-activitybar) .part.titlebar .titlebar-center,
+.monaco-workbench:has(.point-activitybar) .part.titlebar .titlebar-right {
+	min-width: 0;
+	overflow: hidden;
+}
+/* Project and run controls keep their intrinsic width. Search is centered in
+   the remaining space and may shrink as the window becomes narrower. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .titlebar-left {
+	/* Ширина 20% от `has-center` держала левую часть шире содержимого, и между
+	   клоном и поиском оставалась дыра в четверть экрана. */
+	flex: 0 0 auto !important;
+	/* Тот же просвет, что внутри рядов действий: у запуска с отладкой 4px, а
+	   значок окна, гамбургер и жетон проекта стояли встык — на наведении их
+	   подложки слипались в один сегментированный переключатель. Между группами
+	   остаётся 8px (отступ центральной области). */
+	column-gap: 4px;
+	width: auto !important;
+}
+.monaco-workbench:has(.point-activitybar) .part.titlebar .titlebar-center {
+	flex: 1 1 auto !important;
+	justify-content: center;
+	margin: 0 0 0 8px !important;
+	max-width: none !important;
+	width: auto !important;
+}
+.monaco-workbench:has(.point-activitybar) .part.titlebar .titlebar-right {
+	flex: 0 0 auto !important;
+	width: auto !important;
+}
+
+/* Неактивное окно. Code-OSS гасит содержимое заголовка до 60%, и на этом
+   имя проекта, ветка и конфигурация запуска перестают проходить порог
+   контраста: замер живого окна в сценарии file дал 3.03 у подписи поиска и
+   3.47 у метки проекта при пороге 4.5 — притом что в активном окне у них 6.1 и
+   7.7. Признак «окно не в фокусе» нужен, но он не обязан стоить читаемости:
+   85% сохраняет разницу и держит обе надписи выше порога (5.1 и 5.4).
+   Заодно это снимает зависимость замера от фокуса: до правки один и тот же
+   код давал разные находки в зависимости от того, активно ли окно стенда. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar.inactive > * { opacity: .85; }
+
+/* Порядок в полосе задан флексом. Важность у значка окна нужна: Code-OSS
+   задаёт ему порядок цепочкой от контейнера, она длиннее здешней, и без неё
+   гамбургер уезжал левее логотипа. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .window-appicon {
+	background-size: 22px 22px !important;
+	margin-left: 8px;
+	order: 0 !important;
+	width: 29px;
+}
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-title-actions {
+	align-items: center;
+	-webkit-app-region: no-drag;
+	display: flex;
+	gap: 4px;
+	height: 100%;
+	order: 2;
+	position: relative;
+	z-index: 2500;
+}
+/* Гамбургер у левого края, запуск и отладка — в правой части. Оба ряда несут
+   класс `point-title-actions`, поэтому их порядок объявлен ПОСЛЕ общего: при
+   равном весе побеждает то правило, что ниже. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-lead-actions { order: 0; }
+/* Правая часть шире содержимого. Автоотступ есть и у контейнера действий
+   Code-OSS, поэтому свободное место делилось между ним и нашим рядом — на
+   широком окне это две дыры по трети полосы. Отступ снимаем, выравнивание
+   области по правому краю прижимает всё в один угол. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-run-actions {
+	margin-right: 8px;
+	order: 0;
+}
+.monaco-workbench:has(.point-activitybar) .part.titlebar .titlebar-right > .action-toolbar-container { margin-left: 0 !important; }
+/* Кнопки раскладки и стрелки навигации — из Code-OSS, и он даёт им 22×22 при
+   пороге цели 24. Замер живого окна находил их во всех четырёх сценариях, но
+   считать это отступлением статус-бара было нельзя: рядом стоят собственные
+   кнопки Point ростом 28, и разнобой видно глазом. Ставим тот же рост, а не
+   минимальный проходной: одна полоса — одна геометрия.
+   Важность нужна: размер этим кнопкам Code-OSS задаёт цепочкой от
+   `.monaco-action-bar`, и она длиннее здешней. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .monaco-action-bar .action-item > .action-label.codicon {
+	align-items: center;
+	border-radius: var(--point-r);
+	display: flex !important;
+	height: 28px !important;
+	justify-content: center;
+	min-width: 28px;
+	width: 28px !important;
+}
+
+/* ── Одна геометрия на всю полосу ───────────────────────────────────────────
+   Чипы, кнопки и пункты меню — один рост 28, один радиус, одно наведение:
+   мягкая подложка без рамки. Рамка на наведении обводила каждую мелочь
+   янтарной ниткой, и полоса из шести таких обводок читалась как мозаика.
+   Рамку носит только запуск — единственное, что и должно выделяться. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-project-switcher,
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-branch-chip {
+	align-items: center;
+	-webkit-app-region: no-drag;
+	background: transparent;
+	border: 1px solid transparent;
+	border-radius: var(--point-r);
+	color: var(--point-primary);
+	cursor: pointer;
+	display: flex;
+	gap: 8px;
+	height: 28px;
+	order: 1;
+	padding: 0 8px;
+	position: relative;
+	transition: background-color var(--point-motion-fast) ease, color var(--point-motion-fast) ease;
+	z-index: 2500;
+}
+/* Раскрытый жетон держит подсветку наведения, пока висит его список: указатель
+   к этому времени уже на списке, и без этого выпадашка выглядит прилетевшей
+   ниоткуда. Тот же приём, что у развёрнутого пункта строки меню. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-project-switcher:hover,
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-project-switcher.point-widget-open,
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-branch-chip:hover,
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-branch-chip.point-widget-open { background: var(--point-tint-strong); }
+/* Раскрытый жетон переворачивает стрелку: список открыт — стрелка смотрит на
+   него, а не вниз. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-widget-open .codicon-chevron-down { transform: rotate(180deg); }
+/* Строка в 13 пикселей при `line-height: 1` даёт коробку ровно в кегль, а
+   `overflow: hidden` для многоточия срезает по ней: у «go-health-git» пропадали
+   хвосты «g». Полтора интерлиньяжа коробку отпускают, высоту жетона держит его
+   собственные 28. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-project-switcher-label {
+	font: 500 13px/1.45 var(--point-font);
+	max-width: 118px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+/* Метка проекта — квадрат с буквой: рядом с именем папки значок папки ничего
+   не добавляет, а буква работает как герб проекта. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-project-mark {
+	align-items: center;
+	/* Заливкой, а не обводкой: рядом с чипом, у которого рамки нет, обведённый
+	   квадрат читался вторым элементом управления.
+	   Заливка сплошная, буква тёмная. Янтарная буква на янтарной подложке
+	   давала контраст 2.97 при пороге 4.5 — замер живого окна нашёл это в
+	   каждом сценарии, где открыт проект. Теперь 8.9. */
+	background: var(--point-ember);
+	border-radius: var(--point-r);
+	color: var(--point-void);
+	display: flex;
+	flex: none;
+	font: 600 11px/1 var(--point-font);
+	height: 20px;
+	justify-content: center;
+	width: 20px;
+}
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-project-switcher .codicon-chevron-down { color: var(--point-faint); font-size: var(--point-icon-sm); }
+/* Ветка — свойство проекта, а не действие, и набрана обычным текстом. Прежде
+   она шла светлой ступенью акцента, и в полосе заголовка получалось два
+   янтарных пятна подряд: метка проекта и имя ветки. Опознаёт ветку значок. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-branch-chip { color: var(--point-body); }
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-branch-chip .codicon { font-size: var(--point-icon-sm); }
+/* Стрелка у ветки — той же светлоты и размера, что у проекта и конфигурации
+   запуска: три жетона панели раскрывают списки и должны обещать это одинаково. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-branch-chip .codicon-chevron-down { color: var(--point-faint); font-size: var(--point-icon-sm); }
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-branch-chip-label {
+	font: 400 12px/1.45 var(--point-font);
+	max-width: 180px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+/* Пометки жетона — точка несохранённого и счётчики обмена с сервером — живут
+   своей обёрткой между именем и стрелкой. Не в одной коробке с именем: имя
+   обрезается многоточием, и счётчики обрезались бы вместе с ним, то есть
+   пропадали бы ровно у длинных имён веток — там, где и без того тесно. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-branch-chip-marks {
+	align-items: center;
+	display: flex;
+	flex: none;
+	gap: 4px;
+}
+/* Точка несохранённого — та же, что у изменённой вкладки редактора: один знак
+   на продукт для «есть работа, которой нет в истории». */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-branch-chip-dot {
+	background: var(--point-ember);
+	border-radius: 50%;
+	height: 6px;
+	width: 6px;
+}
+/* Счётчики — цифра на подложке, а не текст в строку: рядом с именем ветки
+   голое число читается продолжением имени. Краска нейтральная: янтарь у Point
+   опознаёт продукт, и красить им каждое число значило бы его растратить. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-branch-chip-count {
+	background: var(--point-tint);
+	border-radius: var(--point-r);
+	color: var(--point-muted);
+	font: 500 10px/1.45 var(--point-mono);
+	padding: 0 4px;
+}
+/* Неопубликованная ветка — не «ноль исходящих», а другое состояние: отправлять
+   некуда вовсе. Числом это не сказать, поэтому значок. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-branch-chip-unpublished {
+	color: var(--point-muted);
+	font-size: var(--point-icon-sm);
+}
+/* Репозитория нет — чипа нет вовсе. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-branch-chip-idle { display: none; }
+
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-title-action {
+	align-items: center;
+	background: transparent;
+	border: 1px solid transparent;
+	border-radius: var(--point-r);
+	color: var(--point-muted);
+	cursor: pointer;
+	display: flex;
+	height: 28px;
+	justify-content: center;
+	padding: 0;
+	transition: background-color var(--point-motion-fast) ease, color var(--point-motion-fast) ease;
+	width: 28px;
+}
+/* Значок 18 в кнопке 28: до этого 16 в 26 — иконка тонула в подложке и с
+   расстояния читалась пятном, а не действием. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-title-action .codicon { font-size: var(--point-icon-lg); }
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-title-action:hover {
+	background: var(--point-tint-strong);
+	color: var(--point-primary);
+}
+/* Чип конфигурации запуска: точка, имя, галочка. Точка нейтральная — она
+   опознаёт конфигурацию, а не сообщает, что прогон идёт; врать про состояние
+   хуже, чем не показывать его. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-run-chip {
+	align-items: center;
+	-webkit-app-region: no-drag;
+	background: transparent;
+	border: 1px solid transparent;
+	border-radius: var(--point-r);
+	color: var(--point-body);
+	cursor: pointer;
+	display: flex;
+	font: 400 12px/1 var(--point-font);
+	gap: 8px;
+	height: 28px;
+	max-width: 190px;
+	padding: 0 8px;
+	transition: background-color var(--point-motion-fast) ease;
+}
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-run-chip:hover,
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-run-chip.point-widget-open { background: var(--point-tint-strong); }
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-run-chip-dot {
+	background: var(--point-faint);
+	border-radius: 50%;
+	flex: none;
+	height: 6px;
+	width: 6px;
+}
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-run-chip-label {
+	line-height: 1.45;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-run-chip .codicon-chevron-down { color: var(--point-faint); font-size: 13px; }
+/* Конфигурации нет — чипа нет. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-run-chip-idle { display: none; }
+
+/* Запуск — единственная кнопка заголовка с рамкой и подложкой. В макете она
+   выделена акцентом; у Point акцент запуска зелёный, как во всём продукте. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-title-action-run {
+	background: color-mix(in srgb, var(--point-vital) 12%, transparent);
+	border-color: color-mix(in srgb, var(--point-vital) 55%, transparent);
+	color: var(--point-vital);
+}
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-title-action-run:hover {
+	background: color-mix(in srgb, var(--point-vital) 20%, transparent);
+	border-color: var(--point-vital);
+	color: var(--point-vital);
+}
+
+/* ── Развёрнутый ряд меню ────────────────────────────────────────────────────
+   Второй слой заголовка: гамбургер меняет чипы на меню и обратно. Меню тут
+   настоящее — то, что собирает Code-OSS; полоса лишь показывает его вместо
+   чипов, как в макете, и подсвечивает себя акцентной кромкой снизу.
+
+   Ряд ведёт себя как в JetBrains: список раскрывается наведением, а уход с
+   панели закрывает и список, и сам ряд (заплаты `point-menubar-hover` и
+   `point-menu-hover-close`). Раз указатель тут не выбирает, а сразу
+   открывает, — состояние под ним обязано читаться мгновенно: наведённый пункт
+   получает подложку, раскрытый ещё и акцент. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .menubar {
+	flex: 1 1 auto;
+	gap: 1px;
+	/* Code-OSS центрует ряд меню, когда в заголовке есть центральная область;
+	   в макете он начинается сразу за крестиком. */
+	justify-content: flex-start;
+	min-width: 0;
+	opacity: 0;
+	order: 1;
+	pointer-events: none;
+	position: absolute;
+	transform: translateY(6px);
+	transition: opacity var(--point-motion-base) ease, transform var(--point-motion-base) ease;
+}
+.monaco-workbench:has(.point-activitybar) .part.titlebar .titlebar-container.point-menu .menubar {
+	opacity: 1;
+	pointer-events: auto;
+	position: static;
+	transform: none;
+}
+/* Ряду меню нужна вся полоса. Левая область при центральном командном центре
+   зажата в 20% ширины, и меню обрывалось на третьем пункте; на время разворота
+   центр убирается совсем, а левая область забирает освободившееся место. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .titlebar-container.point-menu .titlebar-left {
+	flex: 1 1 auto;
+	position: relative;
+	width: auto !important;
+}
+.monaco-workbench:has(.point-activitybar) .part.titlebar .titlebar-container.point-menu .titlebar-center { display: none; }
+
+/* Чипы уходят наверх и гаснут — второй слой занимает их место. В макете
+   развёрнутая полоса оставляет только крестик и меню, поэтому запуск и
+   отладка уходят вместе с чипами. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .titlebar-container.point-menu .point-project-switcher,
+.monaco-workbench:has(.point-activitybar) .part.titlebar .titlebar-container.point-menu .point-branch-chip,
+.monaco-workbench:has(.point-activitybar) .part.titlebar .titlebar-container.point-menu .point-title-actions:not(.point-lead-actions) {
+	opacity: 0;
+	pointer-events: none;
+	/* Не `display: none`: погашенные чипы обязаны уйти из потока, иначе ряд
+	   меню начинается там, где кончались невидимые чипы — но остаться в DOM,
+	   чтобы гаснуть плавно. Абсолютное положение без смещений оставляет их на
+	   своём месте и вынимает из строки. */
+	position: absolute;
+	transform: translateY(-6px);
+	transition: opacity var(--point-motion-base) ease, transform var(--point-motion-base) ease;
+}
+.monaco-workbench:has(.point-activitybar) .part.titlebar:has(.titlebar-container.point-menu) {
+	/* Развёрнутый ряд меню — ступень выше рейки, плоская: слой открыт, и это
+	   сказано светлотой, а не градиентом. */
+	background: var(--point-raised) !important;
+	border-bottom-color: transparent !important;
+	box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--point-ember) 40%, transparent);
+}
+/* Крестик вместо гамбургера, пока ряд развёрнут. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .titlebar-container.point-menu .point-menu-toggle {
+	background: var(--point-tint-strong);
+	color: var(--point-ember);
+}
+.monaco-workbench:has(.point-activitybar) .part.titlebar .titlebar-container.point-menu .point-menu-toggle .codicon::before { content: '\ea76'; }
+/* Гамбургер и ряд — разные вещи: первый переключает слой, второй ведёт по нему.
+   Линейка между ними это и говорит, а заодно отбивает пункты от кнопки, чтобы
+   «Файл» не читался четвёртой иконкой. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .titlebar-container.point-menu .point-lead-actions::after {
+	background: var(--point-border-soft);
+	content: '';
+	height: 16px;
+	margin: 0 4px 0 8px;
+	width: 1px;
+}
+.monaco-workbench:has(.point-activitybar) .part.titlebar .menubar-menu-button {
+	background: none !important;
+	color: var(--point-body);
+	font: 400 12px/1 var(--point-font);
+	/* Пункт занимает всю высоту полосы, а не только свою таблетку. Дело не в
+	   цели указателя (она и так велика), а в том, где раскрывается список:
+	   Code-OSS ставит его по нижней кромке **надписи**, и укоротить её значило
+	   бы въехать списком в полосу — при высоте 26 он начинался на три пикселя
+	   выше низа пункта и накрывал акцентную кромку панели. */
+	height: 100%;
+	/* Свои поля кнопке не нужны: Code-OSS держит их на надписи внутри, и два
+	   набора складывались — пункты расползались вдвое против макета. */
+	padding: 0;
+	transition: color var(--point-motion-fast) ease;
+}
+.monaco-workbench:has(.point-activitybar) .part.titlebar .menubar-menu-title {
+	/* Наведение и раскрытие Code-OSS красит сам: `menubarControl.css` кладёт на
+	   надпись заливку `menubar.selectionBackground` во всю её высоту и обводку
+	   `menubar.selectionBorder` — на наведении пунктирную. Заливка от верха до
+	   низа полосы и есть та кривизна, за которую ряд ругали: серый прямоугольник
+	   вместо таблетки, да ещё и поверх нашей подложки. Важность нужна: цепочка
+	   там своя, длиной с нашу, и порядок файлов её не решает. */
+	background: none !important;
+	height: 100%;
+	outline: none !important;
+	/* Надпись центрируется межстрочным, а не флексом: во флексе буква мнемоники
+	   («Ф» в «Файле») — отдельный элемент, и он становится отдельной колонкой,
+	   отрываясь от остального слова. */
+	line-height: 44px;
+	/* Своя область наложения: подложка лежит слоем ниже надписи и не может
+	   уехать за спину панели. */
+	isolation: isolate;
+	padding: 0 8px;
+	position: relative;
+}
+/* Подложка — таблетка 28 внутри полосы 44 (заплата «Point title bar height»):
+   отступ сверху и снизу по (44 − 28) / 2. Рост тот же, что у чипов и кнопок
+   полосы. Высота полосы и таблетки меняются вместе — иначе подложка съедет. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .menubar-menu-title::before {
+	border-radius: var(--point-r);
+	content: '';
+	inset: 8px 0;
+	position: absolute;
+	transition: background-color var(--point-motion-fast) ease;
+	z-index: -1;
+}
+/* Клавиатурный фокус рисуется по таблетке, а не по надписи во всю высоту.
+   `:focus-visible`, а не `:focus`: список открывается наведением, и кольцо на
+   каждом пройденном пункте — шум. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .menubar-menu-button:focus-visible .menubar-menu-title::before {
+	outline: 1px solid var(--point-ember);
+	outline-offset: 1px;
+}
+.monaco-workbench:has(.point-activitybar) .part.titlebar .menubar-menu-button:hover { color: var(--point-primary); }
+.monaco-workbench:has(.point-activitybar) .part.titlebar .menubar-menu-button:hover .menubar-menu-title::before { background: var(--point-tint); }
+.monaco-workbench:has(.point-activitybar) .part.titlebar .menubar-menu-button.open { color: var(--point-primary); }
+.monaco-workbench:has(.point-activitybar) .part.titlebar .menubar-menu-button.open .menubar-menu-title::before { background: var(--point-tint-strong); }
+/* Список пункта висит под своим пунктом и остаётся внутри панели
+   (`position: fixed` в потомке кнопки) — общая заплата всплывающего бьёт по
+   `.context-view` и сюда не достаёт. Важность нужна: `menubar.css` снимает
+   рамку у `.monaco-menu-container` цепочкой той же длины, но объявленной
+   позже нашей. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .menubar-menu-items-holder {
+	background: var(--point-selected);
+	border: 1px solid var(--point-border) !important;
+	border-radius: var(--point-r-lg);
+	box-shadow: 0 16px 40px rgba(0, 0, 0, .55);
+	/* Отступ от полосы: список не приклеен к пункту, а висит под ним — так
+	   видно, что это отдельный слой, а не продолжение панели. */
+	margin-top: 4px;
+}
+/* Подменю («Открыть последние ▸») живёт внутри своего пункта абсолютным блоком,
+   а считается от ближайшего позиционированного предка — самого списка. Обрезка
+   по его краю срезала бы подменю целиком, поэтому её тут нет; углы держат
+   внутренние поверхности, а подсветка пунктов и так отбита от краёв. */
+.monaco-workbench:has(.point-activitybar) .context-view .monaco-menu-container,
+.monaco-workbench:has(.point-activitybar) .context-view.monaco-menu-container,
+.monaco-workbench:has(.point-activitybar) .part.titlebar .menubar-menu-items-holder { overflow: visible !important; }
+.monaco-workbench:has(.point-activitybar) .monaco-menu,
+.monaco-workbench:has(.point-activitybar) .monaco-menu > .monaco-scrollable-element { border-radius: inherit; }
+/* Список раскрывается наведением, и Code-OSS ставит фокус на ряд действий
+   внутри него — общее правило фокуса обводило янтарной ниткой **весь** список.
+   Внутри меню фокус виден подсветкой пункта; рамка вокруг всего списка только
+   спорит с его рамкой и углами. Важность: правило фокуса общее и адресует
+   элемент по `[tabindex]`, здешняя цепочка его не перебивает. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .menubar-menu-items-holder :focus { outline: 0 !important; }
+
+/* Командный центр — поле поиска на всю центральную часть. Ширину держат
+   вложенные обёртки панели действий: без них поле сжимается по тексту.
+   Ряд и сам элемент растянуты на всю плашку: раньше она рисовалась на 24, а
+   щёлкали по вложенному элементу высотой 16 — четыре пикселя сверху и снизу
+   видимой цели не отвечали, а «Поиск везде» вызывают часто. */
+/* Центр заголовка пуст, как в JetBrains. Командный центр выключен, и на его
+   месте Code-OSS печатает заголовок окна — «main_test.go — go-health — Point»,
+   где имя файла уже стоит во вкладке, имя проекта в переключателе слева и в
+   статус-баре, а имя продукта — это само окно. Находка цикла 24 снимается
+   вместе с ним. Сам `window.title` не тронут: он нужен панели задач ОС. */
+/* Заголовок окна прячется, но не вместе с полем поиска: Code-OSS кладёт
+   командный центр **внутрь** `.window-title`, и `display: none` на нём убирал
+   из полосы и поиск. Замер показал ровно это — поле было в разметке, но 0×0 и
+   без предка раскладки, а все заплаты, красившие его под «Поиск по проекту»,
+   не работали ни разу. Прячем только заголовок без поля. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .window-title:not(:has(.command-center)) { display: none; }
+.monaco-workbench:has(.point-activitybar) .part.titlebar .window-title {
+	align-items: center;
+	display: flex;
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+/* Ширина полю задаётся своя, а не в процентах: центр полосы у Point шириной по
+   содержимому, и `width: 100%` считался бы от него самого — круг, который
+   браузер разрешает нулём. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .command-center {
+	flex: 0 1 auto;
+	width: clamp(140px, 24vw, 380px);
+}
+.monaco-workbench:has(.point-activitybar) .part.titlebar .command-center .actions-container { align-items: stretch; }
+.monaco-workbench:has(.point-activitybar) .part.titlebar .command-center-center .monaco-toolbar,
+.monaco-workbench:has(.point-activitybar) .part.titlebar .command-center-center .monaco-action-bar,
+.monaco-workbench:has(.point-activitybar) .part.titlebar .command-center-center .actions-container { width: 100% !important; }
+.monaco-workbench:has(.point-activitybar) .part.titlebar .command-center-quick-pick {
+	align-items: center;
+	background: var(--point-void) !important;
+	border: 1px solid var(--point-border) !important;
+	border-radius: var(--point-r) !important;
+	display: flex;
+	gap: 8px !important;
+	height: 28px !important;
+	justify-content: flex-start !important;
+	max-width: min(900px, 40vw) !important;
+	min-height: var(--point-hit);
+	padding: 0 10px !important;
+	width: 100% !important;
+}
+.monaco-workbench:has(.point-activitybar) .part.titlebar .command-center-quick-pick:hover { border-color: var(--point-border-soft) !important; }
+.monaco-workbench:has(.point-activitybar) .part.titlebar .command-center-quick-pick .search-icon { color: var(--point-faint) !important; font-size: 13px !important; }
+.monaco-workbench:has(.point-activitybar) .part.titlebar .command-center-quick-pick .search-label {
+	color: var(--point-muted) !important;
+	flex: 1;
+	font: 400 12px/1 var(--point-font) !important;
+	max-width: 100%;
+	overflow: hidden;
+	text-align: left;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+/* Поле обязано называть свою клавишу, иначе им пользуются только мышью.
+   Ctrl+N — «Поиск везде» в раскладке Point. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .command-center-quick-pick::after {
+	border: 1px solid var(--point-border);
+	border-radius: var(--point-r);
+	color: var(--point-faint);
+	content: "Shift Shift";
+	flex: none;
+	font: 400 10px/1 var(--point-mono);
+	padding: 2px 4px;
+}
+.monaco-workbench:has(.point-activitybar) .part.titlebar .window-controls-container .window-icon { border-radius: 0; }
+
+/* ════ Правая рейка ══════════════════════════════════════════════════════════
+   У левой панели рейка и содержимое — разные части; у правой рейка живёт
+   ВНУТРИ части. Поэтому её вынимают из потока и кладут по правому краю, а
+   содержимому оставляют остальную ширину. */
+.monaco-workbench:has(.point-activitybar) .part.auxiliarybar {
+	background: var(--point-panel) !important;
+	border-left: 1px solid var(--point-border) !important;
+	box-shadow: none;
+	height: 100% !important;
+}
+.monaco-workbench:has(.point-activitybar) .part.auxiliarybar > .title {
+	background: var(--point-rail);
+	border-bottom: 0;
+	border-left: 1px solid var(--point-border);
+	bottom: 0;
+	display: flex;
+	flex-direction: column;
+	height: auto !important;
+	left: auto;
+	padding: 6px 0 !important;
+	position: absolute;
+	right: 0;
+	top: 0;
+	width: var(--point-rail-w);
+	z-index: 3;
+}
+.monaco-workbench:has(.point-activitybar) .part.auxiliarybar > .content {
+	height: 100% !important;
+	width: calc(100% - var(--point-rail-w)) !important;
+}
+.monaco-workbench:has(.point-activitybar) .part.auxiliarybar > .title > .title-label { display: none !important; }
+.monaco-workbench:has(.point-activitybar) .part.auxiliarybar > .title > .composite-bar-container {
+	flex: 1 1 auto;
+	height: auto !important;
+	min-height: 0;
+	width: var(--point-rail-w) !important;
+}
+.monaco-workbench:has(.point-activitybar) .part.auxiliarybar > .title .composite-bar,
+.monaco-workbench:has(.point-activitybar) .part.auxiliarybar > .title .monaco-action-bar,
+.monaco-workbench:has(.point-activitybar) .part.auxiliarybar > .title .actions-container {
+	align-items: center;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	height: auto;
+	width: var(--point-rail-w);
+}
+.monaco-workbench:has(.point-activitybar) .part.auxiliarybar > .title .composite-bar .action-item {
+	border: 0;
+	border-radius: 0;
+	box-sizing: border-box;
+	flex: 0 0 var(--point-rail-item);
+	height: var(--point-rail-item);
+	margin: 0 !important;
+	position: relative;
+	width: var(--point-rail-w);
+}
+.monaco-workbench:has(.point-activitybar) .part.auxiliarybar > .title .composite-bar .action-label {
+	align-items: center;
+	box-sizing: border-box;
+	color: var(--point-muted) !important;
+	display: flex;
+	font-size: 0 !important;
+	height: var(--point-rail-item) !important;
+	justify-content: center;
+	padding: 0 !important;
+	width: var(--point-rail-w) !important;
+}
+/* Апстрим ставит глиф абсолютно и слева — в вертикальной рейке он уезжает. */
+.monaco-workbench:has(.point-activitybar) .part.auxiliarybar > .title .composite-bar .action-label::before {
+	font-size: 18px !important;
+	left: auto !important;
+	line-height: 18px !important;
+	position: static !important;
+}
+.monaco-workbench:has(.point-activitybar) .part.auxiliarybar > .title .composite-bar .action-item:hover { background: var(--point-tint); }
+.monaco-workbench:has(.point-activitybar) .part.auxiliarybar > .title .composite-bar .action-item.checked {
+	background: var(--point-tint-selected);
+	box-shadow: inset -2px 0 0 var(--point-ember);
+}
+.monaco-workbench:has(.point-activitybar) .part.auxiliarybar > .title .composite-bar .action-item.checked .action-label { color: var(--point-primary) !important; }
+.monaco-workbench:has(.point-activitybar) .part.auxiliarybar > .title .title-actions {
+	flex: 0 0 auto !important;
+	margin-top: auto;
+	width: var(--point-rail-w);
+}
+.monaco-workbench:has(.point-activitybar) .part.auxiliarybar > .title .title-actions .action-item { margin: 0 !important; }
+.monaco-workbench:has(.point-activitybar) .part.auxiliarybar > .title .title-actions .action-label {
+	height: 32px !important;
+	width: var(--point-rail-w) !important;
+}
+.monaco-workbench:has(.point-activitybar) .part.auxiliarybar .pane-header {
+	background: var(--point-raised) !important;
+	border-top: 1px solid var(--point-border) !important;
+	height: var(--point-pane-h) !important;
+}
+
+/* ════ Боковая панель ════════════════════════════════════════════════════════
+   Шапка раздела: 40 пикселей, значок папки акцентом, имя обычным кеглем — в
+   макете это строка продукта, а не служебная надпись капслоком. */
+.monaco-workbench:has(.point-activitybar) .part.sidebar {
+	background: var(--point-panel) !important;
+	border-right: 1px solid var(--point-border) !important;
+	box-shadow: none;
+}
+.monaco-workbench:has(.point-activitybar) .part.sidebar > .composite.title {
+	background: var(--point-raised);
+	border-bottom: 1px solid var(--point-border) !important;
+	height: var(--point-sub-h) !important;
+	padding: 0 8px 0 12px !important;
+}
+.monaco-workbench:has(.point-activitybar) .part.sidebar > .composite.title h2 {
+	color: var(--point-primary);
+	font: 500 12px/1 var(--point-font);
+	letter-spacing: 0.02em;
+	text-transform: none;
+}
+.monaco-workbench:has(.point-activitybar) .part.sidebar > .composite.title h2::before {
+	color: var(--point-muted);
+	content: '\ea83';
+	font: normal normal normal 15px/1 codicon;
+	margin-right: 8px;
+	vertical-align: -2px;
+}
+.monaco-workbench:has(.point-activitybar) .part.sidebar > .title .composite-bar .action-item {
+	border-radius: var(--point-r);
+	margin: 2px 1px;
+}
+.monaco-workbench:has(.point-activitybar) .part.sidebar > .title .composite-bar .action-item.checked {
+	background: var(--point-tint-selected);
+	box-shadow: inset 0 -2px 0 var(--point-ember);
+}
+.monaco-workbench:has(.point-activitybar) .part.sidebar .pane-header {
+	background: transparent !important;
+	border-top: 1px solid var(--point-border) !important;
+	height: var(--point-pane-h) !important;
+	padding: 0 6px 0 8px !important;
+}
+.monaco-workbench:has(.point-activitybar) .part.sidebar .pane-header .title,
+.monaco-workbench:has(.point-activitybar) .part.panel .pane-header .title {
+	color: var(--point-muted) !important;
+	font: 500 12px/1 var(--point-font) !important;
+	letter-spacing: normal;
+	text-transform: none;
+}
+.monaco-workbench:has(.point-activitybar) .part.sidebar .pane-header .actions { opacity: .88; }
+.monaco-workbench:has(.point-activitybar) .part.sidebar .pane-header:hover .actions,
+.monaco-workbench:has(.point-activitybar) .part.sidebar .pane-header.focused .actions { opacity: 1; }
+.monaco-workbench:has(.point-activitybar) .part.sidebar .pane-body { padding-top: 2px; }
+
+/* ════ Списки и деревья ══════════════════════════════════════════════════════
+   Имя обычным весом и на ступень тише основного текста: в макете белым и
+   плотным набрано только выбранное. */
+.monaco-workbench:has(.point-activitybar) .monaco-list-row:hover { background-color: var(--point-tint) !important; }
+.monaco-workbench:has(.point-activitybar) .monaco-list-row.focused,
+.monaco-workbench:has(.point-activitybar) .monaco-list-row.selected {
+	background-color: var(--point-tint-selected) !important;
+	box-shadow: inset 2px 0 0 var(--point-ember);
+	outline: none !important;
+}
+.monaco-workbench:has(.point-activitybar) .part.sidebar .monaco-list .monaco-list-row {
+	color: var(--point-body);
+	min-height: 22px !important;
+}
+.monaco-workbench:has(.point-activitybar) .part.sidebar .monaco-list .monaco-list-row .monaco-icon-label,
+.monaco-workbench:has(.point-activitybar) .part.sidebar .monaco-list .monaco-list-row .monaco-icon-label .label-name,
+.monaco-workbench:has(.point-activitybar) .part.sidebar .monaco-list .monaco-list-row .monaco-highlighted-label {
+	color: var(--point-body);
+	font-size: 12px;
+	font-weight: 400;
+	letter-spacing: .01em;
+	line-height: 20px;
+}
+.monaco-workbench:has(.point-activitybar) .part.sidebar .monaco-list .monaco-list-row .folder-icon .label-name,
+.monaco-workbench:has(.point-activitybar) .part.sidebar .monaco-list .monaco-list-row .rootfolder-icon .label-name { color: var(--point-primary); }
+/* Выбранная строка помечена подложкой и кромкой; цвет имени при этом не
+   меняется. Раньше менялся, и дерево на каждом шаге курсора перекрашивалось
+   в акцент — три признака одного состояния вместо одного. */
+.monaco-workbench:has(.point-activitybar) .part.sidebar .monaco-list .monaco-list-row.focused .monaco-icon-label .label-name,
+.monaco-workbench:has(.point-activitybar) .part.sidebar .monaco-list .monaco-list-row.selected .monaco-icon-label .label-name { color: var(--point-primary); }
+.monaco-workbench:has(.point-activitybar) .part.sidebar .monaco-list .monaco-list-row.focused .monaco-tl-twistie,
+.monaco-workbench:has(.point-activitybar) .part.sidebar .monaco-list .monaco-list-row.selected .monaco-tl-twistie { color: var(--point-primary) !important; }
+.monaco-workbench:has(.point-activitybar) .part.sidebar .monaco-list .monaco-list-row .monaco-icon-label .label-description,
+.monaco-workbench:has(.point-activitybar) .part.sidebar .monaco-list .monaco-list-row .monaco-icon-label::after {
+	color: var(--point-faint) !important;
+	font-size: 11px;
+	opacity: 1;
+}
+.monaco-workbench:has(.point-activitybar) .part.sidebar .monaco-list .monaco-tl-twistie {
+	color: var(--point-muted) !important;
+	opacity: 1 !important;
+	padding-right: 2px !important;
+}
+.monaco-workbench:has(.point-activitybar) .part.sidebar .monaco-list .monaco-tl-twistie::before { font-size: var(--point-icon-sm) !important; }
+.monaco-workbench:has(.point-activitybar) .part.sidebar .monaco-list .monaco-tl-indent { width: 12px !important; }
+.monaco-workbench:has(.point-activitybar) .part.sidebar .monaco-list .monaco-tl-indent > .indent-guide {
+	border-left: 1px solid var(--point-border) !important;
+	opacity: 1;
+}
+.monaco-workbench:has(.point-activitybar) .part.sidebar .monaco-list .monaco-tl-indent > .indent-guide.active { border-left-color: var(--point-faint) !important; }
+/* Инвентарь читается лучше, чем сжимается: строка выше базовой, отступ уровня
+   шире. Предсказуемая прокрутка дешевле, чем расшифровка мелких имён. */
+.monaco-workbench:has(.point-activitybar) .part.sidebar .explorer-folders-view .monaco-list-row {
+	height: 27px !important;
+	min-height: 27px !important;
+}
+.monaco-workbench:has(.point-activitybar) .part.sidebar .explorer-folders-view .monaco-list-row .monaco-icon-label,
+.monaco-workbench:has(.point-activitybar) .part.sidebar .explorer-folders-view .monaco-list-row .monaco-icon-label .label-name { line-height: 27px; }
+.monaco-workbench:has(.point-activitybar) .part.sidebar .explorer-folders-view .monaco-tl-indent { width: 14px !important; }
+.monaco-workbench:has(.point-activitybar) .part.sidebar .show-file-icons .monaco-icon-label::before {
+	background-size: 16px !important;
+	padding-right: 4px !important;
+}
+.monaco-workbench:has(.point-activitybar) .outline-pane .monaco-list-row,
+.monaco-workbench:has(.point-activitybar) .markers-panel .monaco-list-row { min-height: 22px !important; }
+.monaco-workbench:has(.point-activitybar) .outline-pane .monaco-icon-label,
+.monaco-workbench:has(.point-activitybar) .outline-pane .monaco-icon-label .label-name { font: 400 12px/22px var(--point-font); }
+.monaco-workbench:has(.point-activitybar) .debug-pane .monaco-list-row,
+.monaco-workbench:has(.point-activitybar) .debug-viewlet .monaco-list-row,
+.monaco-workbench:has(.point-activitybar) .extensions-viewlet .monaco-list-row { min-height: var(--point-hit) !important; }
+.monaco-workbench:has(.point-activitybar) .debug-toolbar,
+.monaco-workbench:has(.point-activitybar) .debug-viewlet,
+.monaco-workbench:has(.point-activitybar) .debug-pane {
+	background: var(--point-panel) !important;
+	border-color: var(--point-border) !important;
+}
+
+/* Летопись и Поиск: встроенные вьюшки. Point показывает свои панели, но эти
+   остаются доступными и обязаны читаться так же. */
+.monaco-workbench:has(.point-activitybar) .part.sidebar .scm-view .scm-provider > .header {
+	border-bottom: 1px solid var(--point-border);
+	padding: 4px 8px;
+}
+.monaco-workbench:has(.point-activitybar) .part.sidebar .scm-view .scm-provider > .header > .monaco-icon-label {
+	color: var(--point-primary);
+	font: 500 12px/1.2 var(--point-font);
+}
+.monaco-workbench:has(.point-activitybar) .part.sidebar .scm-view .monaco-list-row .resource-group > .name {
+	color: var(--point-muted);
+	font: 500 11px/22px var(--point-font);
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+}
+.monaco-workbench:has(.point-activitybar) .part.sidebar .scm-view .monaco-list-row .resource-group > .count { color: var(--point-faint); }
+.monaco-workbench:has(.point-activitybar) .part.sidebar .scm-view .monaco-list-row .resource > .decoration-icon {
+	font-size: var(--point-icon-sm) !important;
+	opacity: 1;
+}
+.monaco-workbench:has(.point-activitybar) .part.panel .search-view,
+.monaco-workbench:has(.point-activitybar) .part.sidebar .search-view { background: var(--point-panel) !important; }
+.monaco-workbench:has(.point-activitybar) .part.panel .search-view .search-widgets-container,
+.monaco-workbench:has(.point-activitybar) .part.sidebar .search-view .search-widgets-container {
+	border-bottom: 1px solid var(--point-border);
+	gap: 4px;
+	padding: 8px 10px 6px !important;
+}
+.monaco-workbench:has(.point-activitybar) .part.panel .search-view .messages,
+.monaco-workbench:has(.point-activitybar) .part.sidebar .search-view .messages {
+	color: var(--point-muted) !important;
+	font: 400 11px/1.4 var(--point-font) !important;
+	padding: 4px 10px !important;
+}
+.monaco-workbench:has(.point-activitybar) .part.panel .search-view .monaco-list .monaco-list-row .match,
+.monaco-workbench:has(.point-activitybar) .part.sidebar .search-view .monaco-list .monaco-list-row .match {
+	background: var(--point-match);
+	outline: 1px solid var(--point-edge);
+}
+.monaco-workbench:has(.point-activitybar) .part.panel .search-view .monaco-custom-toggle.checked,
+.monaco-workbench:has(.point-activitybar) .part.sidebar .search-view .monaco-custom-toggle.checked,
+.monaco-workbench:has(.point-activitybar) .editor-widget.find-widget .monaco-custom-toggle.checked {
+	background: var(--point-tint-strong) !important;
+	border-color: var(--point-ember) !important;
+	color: var(--point-ember) !important;
+}
+
+/* ════ Редактор ══════════════════════════════════════════════════════════════
+   Вкладка плоская: без подложки и скруглений, разделена волоском, активная
+   берёт фон редактора и акцентную линию снизу.
+
+   Высоту держит переменная `--editor-group-tab-height`, и её же ставит
+   раскладка инлайном на контейнере вкладок — переопределять надо оба места,
+   иначе полоса остаётся прежней, а вкладки из неё торчат. */
+.monaco-workbench:has(.point-activitybar) .part.editor > .content .editor-group-container > .title,
+.monaco-workbench:has(.point-activitybar) .part.editor > .content .tabs-and-actions-container {
+	--editor-group-tab-height: var(--point-tab-h) !important;
+	background: var(--point-strip) !important;
+	border-bottom-color: var(--point-border) !important;
+	min-height: var(--editor-group-tab-height);
+}
+.monaco-workbench:has(.point-activitybar) .part.editor > .content .editor-group-container { border-color: var(--point-border); }
+.monaco-workbench:has(.point-activitybar) .part.editor .tabs-container {
+	box-sizing: border-box;
+	gap: 0;
+	height: var(--editor-group-tab-height);
+	padding: 0;
+}
+.monaco-workbench:has(.point-activitybar) .part.editor .tab {
+	background: transparent !important;
+	border: 0 !important;
+	border-radius: 0 !important;
+	border-right: 1px solid var(--point-border) !important;
+	border-bottom: 2px solid transparent !important;
+	box-sizing: border-box;
+	height: var(--editor-group-tab-height) !important;
+	overflow: hidden;
+	padding: 0 12px !important;
+}
+.monaco-workbench:has(.point-activitybar) .part.editor .tab:hover { background: var(--point-tint) !important; }
+.monaco-workbench:has(.point-activitybar) .part.editor .tab.active {
+	background: var(--point-void) !important;
+	border-bottom-color: var(--point-ember) !important;
+	box-shadow: none !important;
+}
+/* The theme also paints a top border element; keep one active indicator. */
+.monaco-workbench:has(.point-activitybar) .part.editor .tab > .tab-border-top-container { display: none; }
+.monaco-workbench:has(.point-activitybar) .part.editor .tab.sticky { box-shadow: inset 2px 0 0 var(--point-ember) !important; }
+.monaco-workbench:has(.point-activitybar) .part.editor .tab .tab-label {
+	max-height: var(--editor-group-tab-height);
+	max-width: 160px;
+	min-width: 0;
+	overflow: hidden;
+}
+.monaco-workbench:has(.point-activitybar) .part.editor .tab .tab-label a {
+	color: var(--point-muted);
+	font: 400 12px/var(--editor-group-tab-height) var(--point-font);
+	font-style: normal !important;
+}
+.monaco-workbench:has(.point-activitybar) .part.editor .tab.active .tab-label a { color: var(--point-primary); font-weight: 500; }
+/* Изменённый файл — точка у имени, а не залитая вкладка. */
+.monaco-workbench:has(.point-activitybar) .part.editor .tab.dirty .tab-label::after {
+	background: var(--point-ember);
+	border-radius: 50%;
+	content: '';
+	display: inline-block;
+	height: 4px;
+	margin-left: 6px;
+	vertical-align: middle;
+	width: 4px;
+}
+.monaco-workbench:has(.point-activitybar) .part.editor .tab.dirty .dirty-icon,
+.monaco-workbench:has(.point-activitybar) .part.editor .tab.dirty .codicon-circle-filled { color: var(--point-ember) !important; }
+.monaco-workbench:has(.point-activitybar) .part.editor .tab .tab-close {
+	opacity: 0;
+	transition: opacity var(--point-motion-fast) linear;
+}
+.monaco-workbench:has(.point-activitybar) .part.editor .tab:hover .tab-close,
+.monaco-workbench:has(.point-activitybar) .part.editor .tab.active .tab-close,
+.monaco-workbench:has(.point-activitybar) .part.editor .tab:focus-within .tab-close { opacity: 1; }
+/* Крестик вкладки: апстрим даёт глиф 16 с отбивкой 2 — цель 20×20 при пороге
+   24. Спорить за `width`/`height` бесполезно: его цепочка от `.part.editor >
+   .content .editor-group-container` весит больше, и две попытки подряд давали
+   16×16, то есть хуже исходного. Поэтому растёт не коробка, а область
+   попадания: невидимый слой на 2 пикселя наружу превращает 20×20 в 24×24. */
+.monaco-workbench:has(.point-activitybar) .part.editor .tab > .tab-actions .action-label { position: relative; }
+.monaco-workbench:has(.point-activitybar) .part.editor .tab > .tab-actions .action-label::after {
+	content: '';
+	inset: -2px;
+	position: absolute;
+}
+/* Кнопкам полосы вкладок размер здесь **не задаётся** по той же причине:
+   прежние `height/width: 22px` не применялись никогда — мёртвый код, который
+   выглядел как настройка. */
+.monaco-workbench:has(.point-activitybar) .part.editor .tabs-and-actions-container .tab-actions-right,
+.monaco-workbench:has(.point-activitybar) .part.editor .tabs-and-actions-container .tab-actions-left {
+	align-items: center;
+	display: flex;
+}
+.monaco-workbench:has(.point-activitybar) .part.editor .tabs-and-actions-container .editor-actions {
+	align-self: center;
+	background: transparent;
+	border: 0;
+	box-sizing: border-box;
+	display: flex;
+	height: var(--point-hit);
+	margin: 2px 4px 2px 2px;
+	padding: 0 2px;
+}
+.monaco-workbench:has(.point-activitybar) .part.editor .editor-group-container > .title .tabs-and-actions-container .monaco-scrollable-element { min-width: 0; }
+
+/* Крошки — полоса навигации 24 пикселя. Звенья заполняют её целиком: раньше
+   высоту им задавала интерлиньяжем строка `11px/22px`, и цель попадания была
+   на два пикселя ниже видимой полосы. */
+.monaco-workbench:has(.point-activitybar) .part.editor .breadcrumbs-below-tabs {
+	background: var(--point-void);
+	border-bottom: 1px solid var(--point-border);
+	box-sizing: border-box;
+	min-height: var(--point-hit);
+}
+.monaco-workbench:has(.point-activitybar) .part.editor .monaco-breadcrumbs { min-height: var(--point-hit); }
+.monaco-workbench:has(.point-activitybar) .part.editor .breadcrumbs-control {
+	max-width: 100%;
+	min-width: 0;
+	overflow: hidden;
+	padding: 0 6px;
+}
+.monaco-workbench:has(.point-activitybar) .part.editor .breadcrumbs-control .monaco-breadcrumb-item {
+	border: 1px solid transparent;
+	border-radius: var(--point-r);
+	max-width: 180px;
+	min-width: 0;
+	overflow: hidden;
+	padding: 0 1px;
+}
+.monaco-workbench:has(.point-activitybar) .part.editor .breadcrumbs-control .monaco-breadcrumb-item .monaco-icon-label {
+	color: var(--point-faint);
+	font: 400 11px/var(--point-hit) var(--point-mono);
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.monaco-workbench:has(.point-activitybar) .part.editor .breadcrumbs-control .monaco-breadcrumb-item:last-child .monaco-icon-label { color: var(--point-muted); }
+.monaco-workbench:has(.point-activitybar) .part.editor .breadcrumbs-control .monaco-breadcrumb-item:hover { background: var(--point-tint); }
+.monaco-workbench:has(.point-activitybar) .part.editor .breadcrumbs-control .codicon-breadcrumb-separator {
+	color: var(--point-border-soft) !important;
+	font-size: 10px !important;
+}
+
+.monaco-workbench:has(.point-activitybar) .monaco-editor .sticky-widget {
+	background: var(--point-raised) !important;
+	border-bottom: 1px solid var(--point-border) !important;
+	box-shadow: none !important;
+}
+.monaco-workbench:has(.point-activitybar) .monaco-editor .sticky-widget .sticky-line-content { font: 400 12px/1.4 var(--point-mono); }
+.monaco-workbench:has(.point-activitybar) .monaco-editor .ghost-text-decoration,
+.monaco-workbench:has(.point-activitybar) .monaco-editor .ghost-text-decoration-preview {
+	color: color-mix(in srgb, var(--point-mana) 55%, var(--point-muted)) !important;
+	font-style: italic;
+}
+/* ════ Сравнение версий ══════════════════════════════════════════════════════
+   Сравнение — тот же редактор, а не отдельный экран: чем меньше на нём
+   собственной оправы, тем быстрее видно правку. Апстрим кладёт поверх кода
+   четыре слоя разом — растушёванные тени по краям колонок, штриховку на месте
+   отсутствующих строк, полосу действий посередине и полку скрытых строк с
+   двумя внутренними тенями. Здесь от каждого слоя остаётся ровно то, что
+   несёт смысл: волосок между колонками, ровная заливка вместо штриховки,
+   тихие глифы действий и полка высотой в строку.
+
+   Сила цвета правки живёт не здесь, а в теме:
+   `vscode-extension/themes/point-dark-color-theme.json`. */
+
+/* Между колонками — один волосок. Апстрим чертит границу с каждой стороны и
+   добавляет две тени по 5px: в тёмной теме они читаются не как граница, а как
+   размытая серая полоса, и обе колонки от неё «отваливаются». */
+.monaco-workbench:has(.point-activitybar) .monaco-diff-editor.side-by-side .editor.original {
+	border-right: 1px solid var(--point-border);
+	box-shadow: none;
+}
+.monaco-workbench:has(.point-activitybar) .monaco-diff-editor.side-by-side .editor.modified {
+	border-left: none;
+	box-shadow: none;
+}
+
+/* На месте отсутствующих строк — ровная заливка вместо диагоналей. Штриховка
+   занимает столько же места, сколько сама правка, но не несёт ничего сверх
+   «здесь пусто», и в поле зрения шумит громче кода. Цвет берётся из темы, а
+   `background` заодно снимает картинку апстрима. */
+.monaco-workbench:has(.point-activitybar) .monaco-diff-editor .diagonal-fill {
+	background: var(--vscode-diffEditor-diagonalFill);
+}
+
+/* Линейка правок справа стоит на грунте редактора: своя подложка делала из неё
+   тридцатипиксельную полосу вдоль всего окна — вторую границу там, где нужны
+   только метки. Бегунок — как обычный ползунок оболочки, без акцента: он
+   показывает, где ты, и звать никуда не должен. */
+.monaco-workbench:has(.point-activitybar) .monaco-diff-editor .diffOverview { background: var(--point-void); }
+.monaco-workbench:has(.point-activitybar) .monaco-diff-editor .diffViewport {
+	background: color-mix(in srgb, var(--point-border-soft) 40%, transparent);
+	border: none;
+	border-radius: var(--point-r);
+}
+.monaco-workbench:has(.point-activitybar) .monaco-diff-editor .diffViewport:hover {
+	background: color-mix(in srgb, var(--point-border-soft) 70%, transparent);
+}
+
+/* Полоса действий посередине: возврат и подготовка правки нужны, но это
+   служебное. Вертикальная черта куска — волосок вместо двух пикселей: на
+   пустом поле она читалась как третья граница колонки. Глифы приглушены
+   (цвет задан в теме через `editorGutter.itemGlyphForeground`), краска
+   продукта — только под курсором.
+
+   Цепочки повторяют глубину апстрима: он красит глиф правилом из девяти
+   классов, и короткий селектор пришлось бы вытягивать важностью. */
+.monaco-workbench:has(.point-activitybar) .monaco-diff-editor .gutter .gutterItem .background {
+	border-left: 1px solid var(--point-border-soft);
+}
+.monaco-workbench:has(.point-activitybar) .monaco-diff-editor .gutter .gutterItem .buttons .monaco-toolbar .monaco-action-bar .actions-container {
+	border: 1px solid var(--point-border);
+	border-radius: var(--point-r);
+}
+.monaco-workbench:has(.point-activitybar) .monaco-diff-editor .gutter .gutterItem .buttons .monaco-toolbar .monaco-action-bar .actions-container .action-item .action-label {
+	border-radius: var(--point-r);
+	font-size: 13px;
+	padding: 2px;
+}
+.monaco-workbench:has(.point-activitybar) .monaco-diff-editor .gutter .gutterItem .buttons .monaco-toolbar .monaco-action-bar .actions-container .action-item:hover .action-label {
+	background: var(--point-tint);
+	color: var(--point-primary);
+}
+
+/* Полка скрытых строк — служебная строка, а не заголовок раздела: шрифт
+   оболочки вместо кодового, высота ровно в строку (24px задаёт зона просмотра
+   в разметке, поэтому 22 плюс две границы), обе внутренние тени сняты цветом
+   в теме. Наведение подсвечивает всю полку: разворачивают её двойным щелчком
+   по ней самой, а до этого о том, что полка живая, говорила одна стрелка. */
+.monaco-workbench:has(.point-activitybar) .monaco-editor .diff-hidden-lines .center {
+	background: var(--point-panel);
+	border-bottom: 1px solid var(--point-border);
+	border-top: 1px solid var(--point-border);
+	box-sizing: border-box;
+	color: var(--point-faint);
+	font: 400 11px/22px var(--point-font);
+}
+.monaco-workbench:has(.point-activitybar) .monaco-editor .diff-hidden-lines .center:hover {
+	background: var(--point-raised);
+	color: var(--point-muted);
+}
+
+/* ──── Середина сравнения и панель над ним ───────────────────────────────────
+   Разметку ставят слои `pointDiffCenterFeature.ts` и `pointDiffPanelFeature.ts`,
+   наложенные оверлеем; здесь только их вид. Номера строк обеих версий стоят
+   парой в середине, промежуток закрашен цветом правки, сверху — строка
+   управления. Всё это включено только у полноразмерного сравнения двумя
+   колонками: у заглядывания и чата слои отдают нулевой размер и прячутся. */
+
+.monaco-workbench:has(.point-activitybar) .point-diff-host { overflow: hidden; }
+
+.monaco-workbench:has(.point-activitybar) .point-diff-panel {
+	align-items: center;
+	background: var(--point-panel);
+	border-bottom: 1px solid var(--point-border);
+	box-sizing: border-box;
+	display: flex;
+	gap: 2px;
+	height: 28px;
+	padding: 0 6px;
+	width: 100%;
+}
+.monaco-workbench:has(.point-activitybar) .point-diff-panel-group {
+	align-items: center;
+	display: flex;
+	gap: 2px;
+	min-width: 0;
+}
+.monaco-workbench:has(.point-activitybar) .point-diff-panel-spacer { flex: 1 1 auto; }
+
+/* Переключатель гаснет, пока выключен: включённое состояние — линия акцента
+   снизу, а не заливка. Заливкой в оболочке помечено «выбрано» у списков, и
+   второй смысл у того же приёма читался бы как выбор строки. */
+.monaco-workbench:has(.point-activitybar) .point-diff-action {
+	align-items: center;
+	border-bottom: 1px solid transparent;
+	border-radius: var(--point-r);
+	color: var(--point-muted);
+	cursor: pointer;
+	display: flex;
+	gap: 4px;
+	height: var(--point-hit);
+	padding: 0 6px;
+	user-select: none;
+	white-space: nowrap;
+}
+.monaco-workbench:has(.point-activitybar) .point-diff-action:hover {
+	background: var(--point-tint);
+	color: var(--point-primary);
+}
+.monaco-workbench:has(.point-activitybar) .point-diff-action.checked {
+	border-bottom-color: var(--point-ember);
+	color: var(--point-primary);
+}
+.monaco-workbench:has(.point-activitybar) .point-diff-action-icon { font-size: var(--point-icon-sm) !important; }
+.monaco-workbench:has(.point-activitybar) .point-diff-action-label { font: 400 11px/1 var(--point-font); }
+.monaco-workbench:has(.point-activitybar) .point-diff-counter {
+	color: var(--point-faint);
+	font: 400 11px/1 var(--point-font);
+	padding: 0 8px;
+	white-space: nowrap;
+}
+.monaco-workbench:has(.point-activitybar) .point-diff-counter.empty { font-style: italic; }
+
+/* Середина: перемычки лежат подложкой, номера — поверх них. Жёлоб действий
+   поднят слоем выше, иначе перемычка закрыла бы стрелки возврата. */
+.monaco-workbench:has(.point-activitybar) .point-diff-center {
+	overflow: hidden;
+	top: 0;
+	z-index: 0;
+}
+.monaco-workbench:has(.point-activitybar) .monaco-diff-editor .gutter { z-index: 1; }
+.monaco-workbench:has(.point-activitybar) .point-diff-ribbons {
+	height: 100%;
+	left: 0;
+	position: absolute;
+	top: 0;
+	width: 100%;
+}
+.monaco-workbench:has(.point-activitybar) .point-diff-ribbons-canvas {
+	display: block;
+	height: 100%;
+	width: 100%;
+}
+.monaco-workbench:has(.point-activitybar) .point-diff-ribbon {
+	stroke-width: 1;
+	vector-effect: non-scaling-stroke;
+}
+.monaco-workbench:has(.point-activitybar) .point-diff-ribbon.insert {
+	fill: color-mix(in srgb, var(--point-vital) 12%, transparent);
+	stroke: color-mix(in srgb, var(--point-vital) 26%, transparent);
+}
+.monaco-workbench:has(.point-activitybar) .point-diff-ribbon.delete {
+	fill: color-mix(in srgb, var(--point-wound) 12%, transparent);
+	stroke: color-mix(in srgb, var(--point-wound) 26%, transparent);
+}
+/* Переписанная строка — не добавление и не удаление, и красить её в один из
+   двух цветов значило бы соврать про половину правки. Нейтральная перемычка
+   говорит ровно то, что есть: слева и справа разное. */
+.monaco-workbench:has(.point-activitybar) .point-diff-ribbon.modify {
+	fill: color-mix(in srgb, var(--point-border-soft) 45%, transparent);
+	stroke: color-mix(in srgb, var(--point-border-soft) 80%, transparent);
+}
+
+.monaco-workbench:has(.point-activitybar) .point-diff-numbers {
+	height: 100%;
+	overflow: hidden;
+	position: absolute;
+	top: 0;
+	user-select: none;
+}
+.monaco-workbench:has(.point-activitybar) .point-diff-number {
+	color: var(--point-faint);
+	font: 400 11px/1 var(--point-mono);
+	left: 0;
+	position: absolute;
+	right: 8px;
+	text-align: right;
+}
+/* Правая колонка — та, куда смотрят: у неё номера ярче, чем у прежней версии. */
+.monaco-workbench:has(.point-activitybar) .point-diff-numbers.modified .point-diff-number { color: var(--point-muted); }
+
+/* Подсветка слов выключается переключателем на панели: полоса строки остаётся,
+   посимвольная разметка гаснет. */
+.monaco-workbench:has(.point-activitybar) .monaco-diff-editor.point-diff-no-word-highlight .char-insert,
+.monaco-workbench:has(.point-activitybar) .monaco-diff-editor.point-diff-no-word-highlight .char-delete { background-color: transparent !important; }
+
+/* Пустой редактор: подпись и строки действий вместо мёртвого водяного знака. */
+.monaco-workbench:has(.point-activitybar) .part.editor > .content .editor-group-container.empty { background: var(--point-void); }
+.monaco-workbench:has(.point-activitybar) .part.editor > .content .editor-group-container > .editor-group-watermark {
+	max-width: 420px;
+	padding: 8px 12px 16px;
+}
+.monaco-workbench:has(.point-activitybar) .part.editor > .content .editor-group-container > .editor-group-watermark > .watermark-container {
+	align-items: stretch;
+	gap: 12px;
+	width: 100%;
+}
+.monaco-workbench:has(.point-activitybar) .part.editor > .content .editor-group-container > .editor-group-watermark .letterpress {
+	align-self: center;
+	aspect-ratio: 1;
+	background-image: url('../../../media/code-icon.svg') !important;
+	background-position: center;
+	background-size: contain;
+	filter: none;
+	height: 36px;
+	opacity: .88;
+	width: 36px;
+}
+.monaco-workbench:has(.point-activitybar) .part.editor > .content .editor-group-container > .editor-group-watermark .shortcuts {
+	display: block !important;
+	width: 100%;
+}
+.monaco-workbench:has(.point-activitybar) .part.editor > .content .editor-group-container.empty > .editor-group-watermark .shortcuts::before {
+	color: var(--point-muted);
+	content: 'Пустой холст · откройте файл или позовите компаньона';
+	display: block;
+	font: 400 11px/1.45 var(--point-font);
+	margin-bottom: 10px;
+	text-align: center;
+}
+.monaco-workbench:has(.point-activitybar) .part.editor > .content .editor-group-container > .editor-group-watermark .watermark-box {
+	display: grid;
+	gap: 6px;
+}
+.monaco-workbench:has(.point-activitybar) .part.editor > .content .editor-group-container > .editor-group-watermark dl {
+	align-items: center;
+	background: var(--point-panel);
+	border: 1px solid var(--point-border);
+	border-radius: var(--point-r);
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	margin: 0;
+	min-height: 36px;
+	padding: 0 12px;
+}
+.monaco-workbench:has(.point-activitybar) .part.editor > .content .editor-group-container > .editor-group-watermark dt {
+	color: var(--point-body);
+	font: 400 12px/1.3 var(--point-font);
+}
+.monaco-workbench:has(.point-activitybar) .part.editor > .content .editor-group-container > .editor-group-watermark dd { margin: 0; }
+
+/* ════ Нижняя панель ═════════════════════════════════════════════════════════ */
+.monaco-workbench:has(.point-activitybar) .part.panel {
+	background: var(--point-panel) !important;
+	border-top: 1px solid var(--point-border) !important;
+}
+.monaco-workbench:has(.point-activitybar) .part.panel .composite.title {
+	background: var(--point-raised);
+	border-bottom: 1px solid var(--point-border);
+	height: 28px;
+}
+/* Значковые кнопки шапки панели (в том числе «Ещё…») приходят из Code-OSS
+   ростом 20×20 — ниже порога цели. Шапка высотой 28 позволяет дать им ровно
+   порог, не раздвигая панель. */
+.monaco-workbench:has(.point-activitybar) .part.panel > .title .monaco-action-bar .action-item.icon > .action-label {
+	align-items: center;
+	border-radius: var(--point-r);
+	display: flex !important;
+	height: var(--point-hit) !important;
+	justify-content: center;
+	min-width: var(--point-hit);
+	width: var(--point-hit) !important;
+}
+/* Одиночная вкладка терминала — не значок, а подпись со значком, и ширина ей
+   нужна по содержимому. Code-OSS выдаёт ей ту же коробку 24×24, что и кнопкам,
+   и имя канала вылезало поверх соседей: замер шапки в сценарии panel показал
+   ярлык 24×24 при подписи «powershell» — она ложилась на «разделить» и
+   «удалить». Длинное имя теперь режется многоточием, а не чужими значками. */
+.monaco-workbench:has(.point-activitybar) .part.panel > .title .action-label.single-terminal-tab {
+	gap: 4px;
+	max-width: 160px;
+	min-width: var(--point-hit);
+	overflow: hidden;
+	padding: 0 6px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	width: auto !important;
+}
+/* Кнопка со стрелкой («новый терминал» плюс список): стрелка у Code-OSS шире
+   своего контейнера и сдвинута влево, поэтому наезжала на кнопку на три
+   пикселя. Обе половины — ровно по цели указателя, без сдвига. */
+.monaco-workbench:has(.point-activitybar) .part.panel > .title .monaco-dropdown-with-primary .dropdown-action-container,
+.monaco-workbench:has(.point-activitybar) .part.panel > .title .monaco-dropdown-with-primary .dropdown-label {
+	width: var(--point-hit) !important;
+}
+.monaco-workbench:has(.point-activitybar) .part.panel > .title .monaco-dropdown-with-primary .dropdown-label > .action-label {
+	margin: 0 !important;
+	width: var(--point-hit) !important;
+}
+/* Ряда вкладок в шапке панели нет: полный список окон нижней панели живёт в
+   рейке, и второе место для того же выбора — та же ошибка, что была у
+   терминала. Шапка называет активное окно и держит его действия; подпись
+   возвращает сам Code-OSS, как только ряд вкладок из неё уходит. */
+.monaco-workbench:has(.point-activitybar) .part.panel > .title > .title-label {
+	align-items: center;
+	display: flex;
+	height: var(--point-hit);
+	min-width: 0;
+	padding: 0 8px;
+}
+.monaco-workbench:has(.point-activitybar) .part.panel > .title > .title-label > h2 {
+	color: var(--point-primary);
+	font: 500 11px/1 var(--point-font);
+	letter-spacing: 0.04em;
+	margin: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	text-transform: uppercase;
+	white-space: nowrap;
+}
+/* Действия окна прижимаются к правому краю. Апстрим делает это правилом для
+   шапки с рядом вкладок; ряда больше нет, а край — тот же. */
+.monaco-workbench:has(.point-activitybar) .part.panel > .title > .title-actions .monaco-action-bar .actions-container,
+.monaco-workbench:has(.point-activitybar) .part.panel > .title > .global-actions .monaco-action-bar .actions-container { justify-content: flex-end; }
+.monaco-workbench:has(.point-activitybar) .part.panel .pane-header {
+	background: var(--point-raised) !important;
+	border-bottom: 1px solid var(--point-border);
+	height: var(--point-pane-h) !important;
+}
+
+.monaco-workbench:has(.point-activitybar) .pane-body.integrated-terminal,
+.monaco-workbench:has(.point-activitybar) .editor-instance .terminal-wrapper,
+.monaco-workbench:has(.point-activitybar) .terminal-editor,
+.monaco-workbench:has(.point-activitybar) .pane-body.integrated-terminal .terminal-wrapper,
+.monaco-workbench:has(.point-activitybar) .repl,
+.monaco-workbench:has(.point-activitybar) .output-view,
+.monaco-workbench:has(.point-activitybar) .pane-body.output-view { background: var(--point-void) !important; }
+.monaco-workbench:has(.point-activitybar) .pane-body.integrated-terminal .tabs-container {
+	background: var(--point-panel);
+	border-right: 1px solid var(--point-border);
+}
+.monaco-workbench:has(.point-activitybar) .pane-body.integrated-terminal .tabs-list .monaco-list-row { min-height: var(--point-hit) !important; }
+.monaco-workbench:has(.point-activitybar) .pane-body.integrated-terminal .tabs-list .terminal-tabs-entry {
+	border-radius: var(--point-r);
+	margin: 1px 4px;
+	padding: 0 6px;
+}
+.monaco-workbench:has(.point-activitybar) .pane-body.integrated-terminal .terminal-tabs-entry .label-name { font: 400 11px/1 var(--point-mono); }
+/* Активный канал помечен полосой слева — вкладку не заливаем. */
+.monaco-workbench:has(.point-activitybar) .pane-body.integrated-terminal .terminal-tabs-entry.is-active::before {
+	background: var(--point-ember) !important;
+	width: 2px !important;
+}
+.monaco-workbench:has(.point-activitybar) .editor-instance .xterm,
+.monaco-workbench:has(.point-activitybar) .pane-body.integrated-terminal .xterm { padding: 4px 8px 6px !important; }
+.monaco-workbench:has(.point-activitybar) .editor-instance .xterm.focus,
+.monaco-workbench:has(.point-activitybar) .pane-body.integrated-terminal .xterm.focus { box-shadow: inset 0 0 0 1px var(--point-edge); }
+.monaco-workbench:has(.point-activitybar) .editor-instance .xterm.focus .xterm-helpers textarea:focus,
+.monaco-workbench:has(.point-activitybar) .pane-body.integrated-terminal .xterm.focus .xterm-helpers textarea:focus { outline: none !important; }
+.monaco-workbench:has(.point-activitybar) .terminal .terminal-command-decoration:not(.default):not(.error) { color: var(--point-vital) !important; }
+.monaco-workbench:has(.point-activitybar) .terminal .terminal-command-decoration.error { color: var(--point-wound) !important; }
+.monaco-workbench:has(.point-activitybar) .terminal .terminal-command-decoration.default { color: var(--point-faint) !important; }
+.monaco-workbench:has(.point-activitybar) .terminal-sticky-scroll,
+.monaco-workbench:has(.point-activitybar) .terminal-sticky-scroll-overlay,
+.monaco-workbench:has(.point-activitybar) .output-view .sticky-widget,
+.monaco-workbench:has(.point-activitybar) .pane-body.output-view .sticky-widget {
+	background: var(--point-raised) !important;
+	border-bottom: 1px solid var(--point-border) !important;
+}
+.monaco-workbench:has(.point-activitybar) .repl .repl-input-wrapper {
+	background: var(--point-panel) !important;
+	border-top: 1px solid var(--point-border) !important;
+}
+.monaco-workbench:has(.point-activitybar) .repl .repl-tree .monaco-list-row { font: 400 12px/1.45 var(--point-mono); }
+.monaco-workbench:has(.point-activitybar) .repl .repl-tree .monaco-list-row .codicon-debug-console-evaluation-input { color: var(--point-ember) !important; }
+
+.monaco-workbench:has(.point-activitybar) .markers-panel .markers-panel-container .message-box-container {
+	color: var(--point-muted);
+	font: 400 11px/1.45 var(--point-font);
+	padding: 8px 12px !important;
+}
+.monaco-workbench:has(.point-activitybar) .markers-panel .codicon.codicon-error { color: var(--point-wound) !important; }
+.monaco-workbench:has(.point-activitybar) .markers-panel .codicon.codicon-warning { color: var(--point-caution) !important; }
+.monaco-workbench:has(.point-activitybar) .markers-panel .codicon.codicon-info { color: var(--point-mana) !important; }
+.monaco-workbench:has(.point-activitybar) .markers-panel .monaco-tl-contents .marker-message { color: var(--point-body); font-size: 12px; }
+.monaco-workbench:has(.point-activitybar) .markers-panel .monaco-tl-contents .marker-source,
+.monaco-workbench:has(.point-activitybar) .markers-panel .monaco-tl-contents .marker-line,
+.monaco-workbench:has(.point-activitybar) .markers-panel .monaco-tl-contents .marker-code,
+.monaco-workbench:has(.point-activitybar) .markers-panel .monaco-tl-contents .marker-stats {
+	color: var(--point-faint);
+	font: 400 10px/1 var(--point-mono);
+	opacity: 1 !important;
+}
+.monaco-workbench:has(.point-activitybar) .markers-panel .count-badge {
+	background: var(--point-wound) !important;
+	color: var(--point-void) !important;
+}
+
+/* ════ Строка состояния ══════════════════════════════════════════════════════
+   Мелкий кегль, поля и просветы макета. Полоса хода поверх — при индексации,
+   задачах и прогонах агента. */
+.monaco-workbench:has(.point-activitybar) .part.statusbar {
+	background: var(--point-rail) !important;
+	border-top: 1px solid var(--point-border) !important;
+	color: var(--point-muted) !important;
+	height: var(--point-status-h) !important;
+	overflow: hidden;
+}
+.monaco-workbench:has(.point-activitybar) .part.statusbar .left-items { gap: 0; min-width: 0; padding-left: 12px; }
+.monaco-workbench:has(.point-activitybar) .part.statusbar .right-items { gap: 0; min-width: 0; padding-right: 12px; }
+.monaco-workbench:has(.point-activitybar) .part.statusbar .statusbar-item {
+	border-radius: var(--point-r);
+	font: 400 10px/var(--point-status-h) var(--point-font) !important;
+	margin: 0;
+	max-width: 220px;
+	overflow: hidden;
+	padding: 0 8px !important;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+/* Ссылка внутри элемента — и есть цель указателя. У счётчиков ошибок и
+   предупреждений содержимое короткое (значок плюс цифра), и коробка выходила
+   19–20 пикселей в ширину при пороге 24. Это отступление стояло принятым с
+   цикла 11 как «высота ряда задана раскладкой части»; но под порог уходила
+   ширина, а её задаём мы. Ширину и держим. */
+.monaco-workbench:has(.point-activitybar) .part.statusbar .statusbar-item a {
+	align-items: center;
+	display: inline-flex;
+	justify-content: center;
+	max-width: 100%;
+	min-width: var(--point-hit);
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.monaco-workbench:has(.point-activitybar) .part.statusbar .statusbar-item:hover {
+	background: var(--point-tint) !important;
+	color: var(--point-primary) !important;
+}
+/* Встроенный счётчик проблем красит себя целиком — оставляем один тихий
+   указатель вместо красной стены. */
+.monaco-workbench:has(.point-activitybar) .part.statusbar .statusbar-item[id="status.problems"],
+.monaco-workbench:has(.point-activitybar) .part.statusbar .statusbar-item[id="status.problems"].has-background-color {
+	background: transparent !important;
+	border-radius: 0;
+	color: var(--point-muted) !important;
+}
+.monaco-workbench:has(.point-activitybar) .part.statusbar .statusbar-item[id="status.problems"] .codicon-warning { color: var(--point-caution) !important; }
+.monaco-workbench:has(.point-activitybar) .part.statusbar .statusbar-item.point-diag-errors { color: var(--point-wound) !important; }
+.monaco-workbench:has(.point-activitybar) .part.statusbar .statusbar-item.point-diag-warnings { color: var(--point-caution) !important; }
+.monaco-workbench:has(.point-activitybar) .part.statusbar .statusbar-item[id="status.point.project"] { color: var(--point-primary) !important; }
+.monaco-workbench:has(.point-activitybar) .part.statusbar .statusbar-item[id="status.point.companion"] { color: var(--point-muted) !important; }
+.monaco-workbench:has(.point-activitybar) .part.statusbar .statusbar-item[id="status.point.core"] { color: var(--point-muted) !important; }
+.monaco-workbench:has(.point-activitybar) .part.statusbar .statusbar-item[id="status.point.index"] { color: var(--point-muted) !important; }
+.monaco-workbench:has(.point-activitybar) .part.statusbar.point-busy::before {
+	animation: point-status-progress 1.1s linear infinite;
+	background: linear-gradient(90deg, transparent, var(--point-ember), transparent);
+	content: '';
+	height: 2px;
+	left: 0;
+	pointer-events: none;
+	position: absolute;
+	right: 0;
+	top: 0;
+	z-index: 4;
+}
+@keyframes point-status-progress {
+	0% { transform: translateX(-40%); }
+	100% { transform: translateX(40%); }
+}
+/* Чужой хром: удалённое подключение, языковые статусы, чат. */
+/* «Размер интервала табуляции: 4» — самый широкий элемент ряда, 207px из 354,
+   занятых двумя показаниями. Отступ меняют раз в жизни проекта, а строку и
+   столбец читают постоянно. Само действие никуда не делось: команды
+   `editor.action.indentUsingSpaces`, `indentUsingTabs` и `detectIndentation`
+   остаются в палитре (проверено в собранной оболочке) — правило прячет
+   показание, а не отключает настройку. */
+.monaco-workbench:has(.point-activitybar) .part.statusbar .statusbar-item[id="status.editor.indentation"],
+.monaco-workbench:has(.point-activitybar) .part.statusbar .statusbar-item[id="status.host"],
+.monaco-workbench:has(.point-activitybar) .part.statusbar .statusbar-item[id^="status.languageStatus"],
+.monaco-workbench:has(.point-activitybar) .part.statusbar .statusbar-item[id="status.problemsVisibility"],
+.monaco-workbench:has(.point-activitybar) .part.statusbar .statusbar-item.remote-kind,
+.monaco-workbench:has(.point-activitybar) .part.statusbar .statusbar-item[id*="copilot" i],
+.monaco-workbench:has(.point-activitybar) .part.statusbar .statusbar-item[id*="chat" i],
+.monaco-workbench:has(.point-activitybar) .part.statusbar .statusbar-item[aria-label*="Copilot" i] { display: none !important; }
+
+/* ════ Всплывающее ═══════════════════════════════════════════════════════════
+   Палитра, меню, подсказки, уведомления, диалоги: поверхность на ступень выше
+   панелей, радиус 8, тень — кромка плюс мягкая темнота. */
+.monaco-workbench:has(.point-activitybar) .quick-input-widget,
+.monaco-workbench:has(.point-activitybar) .context-view .monaco-menu-container,
+.monaco-workbench:has(.point-activitybar) .monaco-hover,
+.monaco-workbench:has(.point-activitybar) .suggest-widget,
+.monaco-workbench:has(.point-activitybar) .workbench-suggest-widget,
+.monaco-workbench:has(.point-activitybar) .parameter-hints-widget,
+.monaco-workbench:has(.point-activitybar) .monaco-select-box-dropdown-container,
+.monaco-workbench:has(.point-activitybar) .editor-widget.find-widget,
+.monaco-workbench:has(.point-activitybar) .simple-find-part,
+.monaco-workbench:has(.point-activitybar) .terminal .xterm-find-widget,
+.monaco-workbench:has(.point-activitybar) .inline-suggestion-hints-widget,
+.monaco-workbench:has(.point-activitybar) .monaco-editor .rename-box,
+.monaco-workbench:has(.point-activitybar) .monaco-dialog-box,
+.monaco-workbench:has(.point-activitybar) .monaco-editor .peekview-widget {
+	background: var(--point-selected) !important;
+	border: 1px solid var(--point-border) !important;
+	border-radius: var(--point-r-lg) !important;
+	box-shadow: 0 16px 40px rgba(0, 0, 0, .55) !important;
+	overflow: hidden;
+}
+.monaco-workbench:has(.point-activitybar) .monaco-hover,
+.monaco-workbench:has(.point-activitybar) .parameter-hints-widget {
+	color: var(--point-body) !important;
+	font: 400 12px/1.45 var(--point-font);
+}
+/* ── Окно поиска ─────────────────────────────────────────────────────────────
+   «Найти всё» в JetBrains — одна большая строка ввода без коробки, лупа слева,
+   тонкая черта под ней и список ниже. Code-OSS собирает то же место из трёх
+   прямоугольников: полоска заголовка в 1px поверх скругления окна, поле в
+   рамке ростом 28 внутри шапки ростом 44 и контур фокуса вокруг запроса. На
+   тёмном фоне это читается как форма, вставленная в окно, а не как поиск. */
+.monaco-workbench:has(.point-activitybar) .quick-input-widget {
+	background: var(--point-raised) !important;
+	box-shadow: 0 24px 64px rgba(0, 0, 0, .6), 0 2px 10px rgba(0, 0, 0, .45) !important;
+	left: 50% !important;
+	margin-left: 0 !important;
+	max-width: min(760px, calc(100vw - 48px)) !important;
+	top: 14vh !important;
+	transform: translateX(-50%) !important;
+	width: min(760px, calc(100vw - 48px)) !important;
+}
+/* Полоска заголовка почти всегда пуста: ни текста, ни кнопок — только свой фон
+   на ступень светлее и своё скругление поверх скругления окна, то есть светлый
+   волосок поперёк верхней кромки. Прятать её нельзя: у мастеров с шагами она
+   несёт заголовок. Снимаем собственный фон — пустая перестаёт быть видна,
+   полная продолжает работать. */
+.monaco-workbench:has(.point-activitybar) .quick-input-widget .quick-input-titlebar {
+	background: transparent !important;
+	border-bottom: 0 !important;
+	border-radius: 0 !important;
+	color: var(--point-muted);
+	font: 500 11px/1 var(--point-font);
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+}
+/* Шапка — это и есть строка поиска: 52 пикселя, лупа слева, черта снизу. */
+.monaco-workbench:has(.point-activitybar) .quick-input-widget .quick-input-header {
+	border-bottom: 1px solid var(--point-border);
+	padding: 0 16px 0 44px !important;
+	position: relative;
+}
+.monaco-workbench:has(.point-activitybar) .quick-input-widget .quick-input-header::before {
+	color: var(--point-faint);
+	content: "\ea6d";
+	font: normal normal 16px/1 codicon;
+	left: 16px;
+	pointer-events: none;
+	position: absolute;
+	top: 50%;
+	transform: translateY(-50%);
+}
+.monaco-workbench:has(.point-activitybar) .quick-input-widget .quick-input-and-message,
+.monaco-workbench:has(.point-activitybar) .quick-input-widget .quick-input-filter,
+.monaco-workbench:has(.point-activitybar) .quick-input-widget .quick-input-box,
+.monaco-workbench:has(.point-activitybar) .quick-input-widget .quick-input-box .monaco-inputbox,
+.monaco-workbench:has(.point-activitybar) .quick-input-widget .quick-input-box .monaco-inputbox > .ibwrapper {
+	height: 52px !important;
+	min-height: 52px !important;
+}
+/* Коробки у поля нет. Прямоугольник вокруг запроса рисовала не рамка, а контур
+   фокуса: 0.8px акцентом на .monaco-inputbox и на самом поле. Окно поиска
+   открывается уже с фокусом в строке — кольцо здесь не сообщает ничего, кроме
+   того, что и так видно по курсору, зато читается как поле формы. */
+.monaco-workbench:has(.point-activitybar) .quick-input-widget .quick-input-box .monaco-inputbox,
+.monaco-workbench:has(.point-activitybar) .quick-input-widget .quick-input-box .monaco-inputbox .input {
+	background: transparent !important;
+	border: 0 !important;
+	border-radius: 0 !important;
+	box-shadow: none !important;
+	outline: 0 !important;
+}
+.monaco-workbench:has(.point-activitybar) .quick-input-widget .monaco-inputbox .input {
+	font: 400 15px/52px var(--point-font) !important;
+	height: 52px !important;
+	padding: 0 !important;
+}
+.monaco-workbench:has(.point-activitybar) .quick-input-widget .monaco-inputbox .input::placeholder {
+	color: var(--point-faint) !important;
+	opacity: 1;
+}
+/* Счётчик найденного — подпись, а не элемент управления. */
+.monaco-workbench:has(.point-activitybar) .quick-input-widget .quick-input-visible-count {
+	color: var(--point-faint) !important;
+	font: 400 11px/1 var(--point-font) !important;
+}
+/* Список стоит на том же левом краю, что и строка ввода: иначе результат
+   набран левее запроса, который его нашёл. */
+.monaco-workbench:has(.point-activitybar) .quick-input-widget .quick-input-list .monaco-list-row { padding: 0 16px !important; }
+/* Вторая строка ряда — оригинал команды или её раздел — была набрана тем же
+   кеглем, что и название, и ряд читался как две равные надписи. Разницу даёт
+   кегль, а не цвет: Code-OSS уже гасит эту строку прозрачностью, и добавленная
+   поверх ступень цвета опускала замер до 3.32 при пороге 4.5. */
+.monaco-workbench:has(.point-activitybar) .quick-input-widget .quick-input-list-row + .quick-input-list-row { font-size: 11px !important; }
+
+/* ── Своё окно поиска ────────────────────────────────────────────────────────
+   Две вкладки: файл по имени и строка в содержимом. Палитра отвечает только на
+   первый вопрос, а на второй уводит в панель сбоку — то есть из окна. Разметку
+   рисует `pointSearchWindow.contribution.ts`, здесь только вид.
+
+   Геометрия та же, что у палитры: 760 в ширину, 14vh сверху, скругление 8 и
+   двухслойная тень. Два окна поиска в одном продукте не должны выглядеть как
+   два разных продукта. */
+.point-search-scrim {
+	align-items: flex-start;
+	background: rgba(0, 0, 0, .38);
+	bottom: 0;
+	display: flex;
+	justify-content: center;
+	left: 0;
+	padding-top: 14vh;
+	position: fixed;
+	right: 0;
+	top: 0;
+	/* Выше палитры: если открыты обе, своё окно поверх. */
+	z-index: 2600;
+}
+/* Рамка считается внутрь заявленных величин: у палитры ширина 760 — это то,
+   что видно на экране, а не 760 плюс два волоска рамки. С `content-box` окно
+   выходило 762, строка ввода 39 вместо 38, подвал 27 вместо 26 — ровно на
+   толщину собственных границ. */
+.point-search,
+.point-search-tabs,
+.point-search-field,
+.point-search-foot { box-sizing: border-box; }
+.point-search {
+	background: var(--point-raised);
+	border: 1px solid var(--point-border);
+	border-radius: var(--point-r-lg);
+	box-shadow: 0 24px 64px rgba(0, 0, 0, .6), 0 2px 10px rgba(0, 0, 0, .45);
+	display: flex;
+	flex-direction: column;
+	max-height: 62vh;
+	min-height: 0;
+	overflow: hidden;
+	width: min(760px, calc(100vw - 48px));
+}
+/* Ряд вкладок. Активная помечена подчёркиванием, а не заливкой: заливка на
+   таблетке читалась бы как нажатая кнопка, а это переключатель раздела. */
+/* `flex: 0 0 auto` здесь не украшение: окно — колонка с потолком 62vh, и на
+   полной выдаче список дожимал соседей по общему правилу усадки. Замер на
+   пятидесяти строках: полоса вкладок 29 вместо 36, подвал 12 вместо 26 — путь
+   выбранной строки складывался вдвое ровно тогда, когда он нужнее всего.
+   Усаживаться должен список, у него на то и прокрутка. */
+.point-search-tabs {
+	align-items: center;
+	border-bottom: 1px solid var(--point-border);
+	display: flex;
+	flex: 0 0 auto;
+	gap: 4px;
+	height: 36px;
+	padding: 0 12px;
+}
+.point-search-tab {
+	align-items: center;
+	background: transparent;
+	border: 0;
+	border-radius: var(--point-r);
+	color: var(--point-muted);
+	cursor: pointer;
+	display: inline-flex;
+	font: 500 13px/1 var(--point-font);
+	gap: 8px;
+	height: 28px;
+	padding: 0 10px;
+	position: relative;
+}
+/* Сочетание стоит при своей вкладке, а не в общей подсказке: две привычки
+   JetBrains — двойной Shift и Ctrl+Shift+F — ведут в разные вкладки, и знать
+   об этом нужно там, где выбирают. */
+/* Не --point-faint: на подложке окна он даёт 3.8 при пороге 4.5 для мелкого
+   текста. Ступень muted — 5.65. */
+.point-search-tab-key {
+	color: var(--point-muted);
+	font: 400 10px/1 var(--point-mono);
+	font-style: normal;
+}
+.point-search-tab.is-active .point-search-tab-key { color: var(--point-muted); }
+.point-search-tab:hover { color: var(--point-primary); }
+/* Подчёркивание рисуется полосой по нижней кромке ряда, а не тенью внутрь
+   таблетки: тень повторяет скругление и загибается на концах вверх — под
+   надписью получалась не черта, а скобка. */
+.point-search-tab.is-active { color: var(--point-primary); }
+.point-search-tab.is-active::after {
+	background: var(--point-ember);
+	bottom: -6px;
+	content: "";
+	height: 2px;
+	left: 8px;
+	position: absolute;
+	right: 8px;
+}
+.point-search-tab:focus-visible { outline: 1px solid var(--point-ember); outline-offset: 2px; }
+.point-search-hint {
+	color: var(--point-muted);
+	font: 400 11px/1 var(--point-font);
+	margin-left: auto;
+}
+/* Строка ввода — та же, что в палитре: 52 пикселя, лупа слева, черта снизу. */
+/* Строка ввода ниже, чем была: 52 пикселя — рост поля формы, а у поиска
+   JetBrains это одна строка чуть выше списка. Высокое поле съедало две строки
+   выдачи и делало окно рыхлым. */
+.point-search-field {
+	align-items: center;
+	border-bottom: 1px solid var(--point-border);
+	display: flex;
+	flex: 0 0 auto;
+	gap: 8px;
+	height: 38px;
+	padding: 0 12px;
+}
+.point-search-field > .codicon { color: var(--point-faint); font-size: var(--point-icon-md); }
+.point-search-input {
+	background: transparent;
+	border: 0;
+	color: var(--point-primary);
+	flex: 1 1 auto;
+	font: 400 14px/38px var(--point-font);
+	min-width: 0;
+	outline: 0;
+	padding: 0;
+}
+/* Кегль отдельным правилом с длинным селектором. У Code-OSS есть
+   `.monaco-workbench input { font-size: 100% }` — класс плюс тип, вес выше
+   одиночного класса, и он возвращал строку ввода к 13px, унаследованным от
+   оболочки. Замер живого окна: 13px при заявленных 14. */
+.monaco-workbench:has(.point-activitybar) .point-search input.point-search-input { font-size: 14px; }
+.point-search-input::placeholder { color: var(--point-faint); }
+/* Общее правило оболочки рисует акцентное кольцо всему, что получило фокус.
+   Здесь оно лишнее: окно открывается уже с курсором в строке, и кольцо
+   возвращает ровно ту коробку, ради снятия которой окно и заводилось. */
+/* Селектор длиннее общего правила намеренно: у того (`input:focus` внутри
+   .monaco-workbench) стоит !important, и короткая форма ему проигрывала. */
+.monaco-workbench:has(.point-activitybar) .point-search input.point-search-input:focus,
+.monaco-workbench:has(.point-activitybar) .point-search input.point-search-input:focus-visible {
+	border: 0 !important;
+	outline: 0 !important;
+}
+.point-search-list {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow: auto;
+	padding: 4px 0;
+}
+/* Список — обычный div, и системная полоса прокрутки на тёмном фоне светлее
+   всего окна. Своя повторяет ползунок оболочки: 5 в жёлобе 9, скруглён целиком. */
+.point-search-list::-webkit-scrollbar { width: 9px; }
+.point-search-list::-webkit-scrollbar-track { background: transparent; }
+.point-search-list::-webkit-scrollbar-thumb {
+	background: color-mix(in srgb, var(--point-primary) 18%, transparent);
+	background-clip: content-box;
+	border: 2px solid transparent;
+	border-radius: 999px;
+}
+.point-search-list::-webkit-scrollbar-thumb:hover {
+	background: color-mix(in srgb, var(--point-primary) 34%, transparent);
+	background-clip: content-box;
+}
+/* Строка результата: слева имя или найденный текст, справа приглушённый путь.
+   Одна высота у обеих вкладок — окно не должно менять ритм при переключении. */
+.point-search-row {
+	align-items: center;
+	cursor: pointer;
+	display: flex;
+	gap: 8px;
+	height: 28px;
+	padding: 0 12px;
+}
+/* Значок рисует тема значков — тем же правилом, что в Инвентаре: класс
+   `file-icon` плюс расширение, картинка приходит на `::before`. Размер и
+   отступ задаём здесь: у темы они рассчитаны на строку дерева. */
+.point-search-row-icon {
+	flex: 0 0 auto;
+	height: 16px;
+	width: 16px;
+}
+.point-search-row-icon::before {
+	background-position: center;
+	background-repeat: no-repeat;
+	background-size: 16px 16px;
+	content: "";
+	display: block;
+	height: 16px;
+	width: 16px;
+}
+/* Путь у вкладки файлов стоит сразу за именем и обрезается с начала:
+   `direction: rtl` переносит многоточие в начало строки, а `plaintext`
+   оставляет сам путь читаемым слева направо. */
+.point-search-row-path {
+	color: var(--point-muted);
+	direction: rtl;
+	/* Остаток строки уходит вправо от пути, а не между именем и путём: иначе
+	   путь прижимался к правому краю и переставал читаться как продолжение
+	   имени — ровно то, чем он в JetBrains и является. */
+	flex: 0 1 auto;
+	margin-right: auto;
+	font: 400 11px/1.2 var(--point-font);
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	unicode-bidi: plaintext;
+	white-space: nowrap;
+}
+.point-search-row-label {
+	color: var(--point-primary);
+	/* Строка забирает остаток, путь держит своё место: без этого длинная строка
+	   кода дожимала путь до «CONTRIBUTING…», то есть до бесполезного. */
+	flex: 1 1 auto;
+	font: 400 12px/1.2 var(--point-font);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+/* Текстовая вкладка показывает строку кода — моноширинный набор, иначе отступы
+   и выравнивание внутри строки теряются. */
+.point-search.is-text .point-search-row-label { font-family: var(--point-mono); font-size: 12px; }
+/* У вкладки файлов имя занимает своё, а не всю ширину: следом за ним идёт
+   путь. У текстовой имя — это строка кода, и остаток нужен ей. */
+.point-search:not(.is-text) .point-search-row-label { flex: 0 1 auto; }
+/* Подсветка совпадения — подложка, а не только цвет: акцентная буква посреди
+   моноширинной строки теряется, а прямоугольник виден сразу и не спорит с
+   подсветкой синтаксиса, которой в списке нет. */
+.point-search-row-label mark {
+	background: var(--point-match);
+	border-radius: var(--point-r);
+	color: var(--point-primary);
+	font-weight: 500;
+	padding: 1px 0;
+}
+.point-search-row.is-active .point-search-row-label mark { background: color-mix(in srgb, var(--point-ember) 34%, transparent); }
+.point-search-row-detail {
+	color: var(--point-muted);
+	flex: 0 0 auto;
+	max-width: 46%;
+	font: 400 11px/1.2 var(--point-font);
+	margin-left: auto;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.point-search-row:hover { background: var(--point-tint); }
+.point-search-row.is-active {
+	background: var(--point-tint-selected);
+	box-shadow: inset 2px 0 0 var(--point-ember);
+}
+.point-search-empty {
+	color: var(--point-muted);
+	font: 400 12px/1.4 var(--point-font);
+	padding: 12px 16px;
+}
+.point-search-foot {
+	align-items: center;
+	border-top: 1px solid var(--point-border);
+	color: var(--point-muted);
+	display: flex;
+	flex: 0 0 auto;
+	font: 400 11px/1 var(--point-font);
+	gap: 16px;
+	height: 26px;
+	padding: 0 12px;
+}
+/* Полный путь выбранной строки — как в JetBrains: список показывает имя, а
+   куда именно ведёт выбор, видно внизу и целиком. */
+.point-search-path {
+	color: var(--point-muted);
+	direction: rtl;
+	flex: 1 1 auto;
+	font: 400 11px/1 var(--point-mono);
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	unicode-bidi: plaintext;
+	white-space: nowrap;
+}
+/* Сколько нашлось — справа, у края: слева стоят подсказки клавиш, и число
+   среди них читалось бы как ещё одна подсказка. */
+.point-search-count {
+	color: var(--point-muted);
+	margin-left: auto;
+}
+/* Пока идёт поиск, черта под строкой ввода берёт акцентный тон: список ещё от
+   прошлого запроса, и без признака он выглядит ответом на новый. */
+.point-search.is-busy .point-search-field { border-bottom-color: var(--point-edge); }
+.monaco-workbench:has(.point-activitybar) .quick-input-widget .monaco-list-row { min-height: 28px !important; }
+.monaco-workbench:has(.point-activitybar) .quick-input-widget .monaco-list-row .monaco-highlighted-label .highlight,
+.monaco-workbench:has(.point-activitybar) .quick-input-widget .monaco-list-row .highlight {
+	color: var(--point-ember) !important;
+	font-weight: 500;
+}
+/* Ряд действий строки палитры считает высоту по содержимому — без порога
+   подросшая кнопка вылезает из своего ряда. */
+.monaco-workbench:has(.point-activitybar) .quick-input-widget .quick-input-list-entry-action-bar {
+	align-items: center;
+	min-height: var(--point-hit);
+}
+/* ── Пункты меню ────────────────────────────────────────────────────────────
+   Строка меню — две вложенные коробки: `.action-item` во всю ширину и
+   `.action-menu-item` внутри, отбитый по 4 от краёв и со скруглением. Подсветка
+   висела на обеих, и побеждала внешняя: полоса от края до края с прямыми углами
+   поперёк скруглённого списка. Красим только внутреннюю — подсветка получается
+   таблеткой, как в верхней панели. */
+.monaco-workbench:has(.point-activitybar) .monaco-menu .monaco-action-bar.vertical .action-menu-item {
+	border-radius: var(--point-r);
+	margin: 0 6px;
+	min-height: 26px;
+	/* Важность: Code-OSS кладёт инлайном обводку `menu.selectionBorder` — у Point
+	   это янтарь, и пункт под курсором получал кольцо поверх подсветки. Два
+	   способа сказать одно; остаётся подсветка. */
+	outline: none !important;
+}
+/* Подменю — такой же список, но своей заплаты у него не было: голый тёмный
+   прямоугольник с прямыми углами рядом со скруглённым родителем. */
+.monaco-workbench:has(.point-activitybar) .monaco-menu .monaco-submenu {
+	background: var(--point-selected);
+	border: 1px solid var(--point-border);
+	border-radius: var(--point-r-lg);
+	box-shadow: 0 16px 40px rgba(0, 0, 0, .55);
+}
+.monaco-workbench:has(.point-activitybar) .monaco-menu .action-item:hover,
+.monaco-workbench:has(.point-activitybar) .monaco-menu .action-item.focused { background-color: transparent !important; }
+/* Важность: цвет подсветки Code-OSS кладёт инлайном из темы (`menu.selectionBackground`). */
+.monaco-workbench:has(.point-activitybar) .monaco-menu .action-item:not(.disabled) .action-menu-item:hover,
+.monaco-workbench:has(.point-activitybar) .monaco-menu .action-item:not(.disabled) .action-menu-item.focused { background-color: var(--point-tint-strong) !important; }
+/* Выключенный пункт не подсвечивается вовсе: подсветка обещает нажатие. */
+.monaco-workbench:has(.point-activitybar) .monaco-menu .action-item.disabled .action-menu-item:hover,
+.monaco-workbench:has(.point-activitybar) .monaco-menu .action-item.disabled .action-menu-item.focused { background-color: transparent !important; }
+.monaco-workbench:has(.point-activitybar) .monaco-menu .action-item:not(.disabled) .action-menu-item:hover .action-label,
+.monaco-workbench:has(.point-activitybar) .monaco-menu .action-item:not(.disabled) .action-menu-item.focused .action-label { color: var(--point-primary); }
+/* Общая заплата мелкого хрома красит `.action-label` на наведении — меню тоже
+   панель действий, и её подсветка ложилась вторым слоем поверх таблетки, шириной
+   в надпись, а не в строку: у пунктов с сочетанием клавиш выходил тёмный огрызок
+   на треть строки. В меню подсвечивает только сам пункт. */
+.monaco-workbench:has(.point-activitybar) .monaco-menu .monaco-action-bar .action-item:hover .action-label { background: none; }
+.monaco-workbench:has(.point-activitybar) .monaco-menu .action-label { color: var(--point-body); font: 400 12px/1.3 var(--point-font); }
+.monaco-workbench:has(.point-activitybar) .monaco-menu .keybinding { color: var(--point-faint); font: 400 11px/1 var(--point-mono); }
+/* Поля Code-OSS считает в эмах от кегля пункта: `0 2em` слева и справа — это по
+   24 пикселя, и список получался вдвое шире содержимого. Слева ровно столько,
+   сколько занимает колонка галочки, справа — обычный отступ. */
+.monaco-workbench:has(.point-activitybar) .monaco-menu .monaco-action-bar.vertical .action-label:not(.separator) { padding: 0 12px 0 24px; }
+.monaco-workbench:has(.point-activitybar) .monaco-menu .monaco-action-bar.vertical .keybinding,
+.monaco-workbench:has(.point-activitybar) .monaco-menu .monaco-action-bar.vertical .submenu-indicator { padding: 0 12px; }
+.monaco-workbench:has(.point-activitybar) .monaco-menu .monaco-action-bar.vertical .menu-item-check { width: 26px; }
+/* Стрелка подменю висит на отрицательном поле, подобранном под прежние 2em:
+   с новыми полями она вылезала за край списка. */
+.monaco-workbench:has(.point-activitybar) .monaco-menu .monaco-action-bar.vertical .submenu-indicator.codicon::before { margin-right: -8px; }
+.monaco-workbench:has(.point-activitybar) .monaco-menu .monaco-action-bar.vertical { padding: 6px 0; }
+/* Разделитель отбит по краям вместе с пунктами: линия от края до края в
+   скруглённом списке упирается в его углы. */
+.monaco-workbench:has(.point-activitybar) .monaco-menu .monaco-action-bar.vertical .action-label.separator {
+	border-bottom-color: var(--point-border);
+	margin: 4px 6px !important;
+	width: auto;
+}
+/* ── Выпадашки жетонов верхней панели ───────────────────────────────────────
+   Своих правил у них нет: вид приходит от `.monaco-menu`, тот же, что у строки
+   меню. Длину строки держит не стиль, а сам список — обрезка средствами CSS
+   требует `overflow: hidden` на подписи, а её коробка ровно в строку, и вместе
+   с длинным путём срезаются хвосты букв у всех пунктов разом. Класс
+   `point-title-menu` остаётся зацепкой для замера.
+
+   Кольцо фокуса внутри списка снято — по тому же доводу, что и у списка строки
+   меню: фокус там виден подсветкой пункта, а янтарное кольцо вокруг всего
+   списка спорит с его рамкой и углами. Приходит оно после клавиатуры:
+   `:focus-visible` достаётся ряду действий внутри списка, и общее правило
+   фокуса обводит список целиком. */
+.monaco-workbench:has(.point-activitybar) .context-view .monaco-menu-container :focus,
+.monaco-workbench:has(.point-activitybar) .context-view.monaco-menu-container :focus { outline: 0 !important; }
+
+/* ── Свой список под жетоном ────────────────────────────────────────────────
+   Меню Code-OSS сюда не годится: у его пункта одна подпись и колонка сочетания
+   клавиш, а строке проекта нужны три части — метка, имя и состояние справа.
+   Поверхность, радиус и тень — те же, что у всего всплывающего у Point. */
+.monaco-workbench:has(.point-activitybar) .point-popup {
+	background: var(--point-selected);
+	border: 1px solid var(--point-border);
+	border-radius: var(--point-r-lg);
+	box-shadow: 0 16px 40px rgba(0, 0, 0, .55);
+	display: flex;
+	flex-direction: column;
+	margin-top: 4px;
+	min-width: 300px;
+	/* Потолок ширины: без него список растягивался под самое длинное имя ветки
+	   и уезжал на пол-экрана, а строки при этом всё равно читались по началу
+	   имени. Что не поместилось, договаривает подсказка строки. */
+	max-width: 420px;
+	padding: 6px;
+	/* Боковая панель считается от списка, поэтому он — точка отсчёта. */
+	position: relative;
+}
+/* Заголовок раздела — прописными и мелко: он метит список, а не читается как
+   его первая строка. Ступень краски поднята с `faint` до `muted`: замер дал
+   контраст 3.53 при пороге 4.5 — на десяти пикселях прописными это уже не
+   «приглушённо», а «не прочесть». Теперь 5.25. */
+.monaco-workbench:has(.point-activitybar) .point-popup-section {
+	align-items: baseline;
+	color: var(--point-muted);
+	display: flex;
+	font: 500 10px/1.4 var(--point-font);
+	gap: 6px;
+	letter-spacing: .08em;
+	padding: 8px 10px 4px;
+	text-transform: uppercase;
+}
+/* Число у заголовка отвечает на «это все ветки?» — вопрос, который иначе
+   решается только памятью о собственном репозитории. Цифра моноширинная и
+   светлее подписи: она не часть названия раздела. */
+.monaco-workbench:has(.point-activitybar) .point-popup-section-count {
+	color: var(--point-muted);
+	font: 500 10px/1.4 var(--point-mono);
+	letter-spacing: 0;
+}
+.monaco-workbench:has(.point-activitybar) .point-popup-separator {
+	background: var(--point-border);
+	height: 1px;
+	margin: 4px 4px;
+}
+.monaco-workbench:has(.point-activitybar) .point-popup-row {
+	align-items: center;
+	background: transparent;
+	border: 0;
+	border-radius: var(--point-r);
+	color: var(--point-body);
+	cursor: pointer;
+	display: flex;
+	gap: 10px;
+	min-height: 32px;
+	padding: 0 10px;
+	text-align: left;
+	width: 100%;
+}
+.monaco-workbench:has(.point-activitybar) .point-popup-row:hover,
+.monaco-workbench:has(.point-activitybar) .point-popup-row:focus,
+.monaco-workbench:has(.point-activitybar) .point-popup-row-expanded { background: var(--point-tint-strong); }
+/* Выключенная строка видна, но подсветки не получает: подсветка обещает
+   нажатие, а нажимать тут нечего. */
+.monaco-workbench:has(.point-activitybar) .point-popup-row-disabled { cursor: default; opacity: .45; }
+.monaco-workbench:has(.point-activitybar) .point-popup-row-disabled:hover,
+.monaco-workbench:has(.point-activitybar) .point-popup-row-disabled:focus { background: transparent; }
+/* Кольцо фокуса внутри списка снято по тому же доводу, что и в меню: фокус
+   виден подсветкой строки. */
+.monaco-workbench:has(.point-activitybar) .point-popup-row:focus { outline: 0 !important; }
+/* Метка проекта — тот же квадрат с буквой, что и в жетоне. Янтарный он только
+   у открытого проекта: янтарь у Point опознаёт, а не украшает. */
+.monaco-workbench:has(.point-activitybar) .point-popup-mark {
+	align-items: center;
+	background: var(--point-tint);
+	border-radius: var(--point-r);
+	color: var(--point-muted);
+	display: flex;
+	flex: none;
+	font: 600 11px/1 var(--point-font);
+	height: 22px;
+	justify-content: center;
+	width: 22px;
+}
+.monaco-workbench:has(.point-activitybar) .point-popup-row-current .point-popup-mark {
+	/* Тот же приём, что у метки в заголовке: сплошная заливка и тёмная буква.
+	   Янтарь на янтаре не проходил порог контраста. */
+	background: var(--point-ember);
+	color: var(--point-void);
+}
+.monaco-workbench:has(.point-activitybar) .point-popup-icon {
+	color: var(--point-muted);
+	flex: none;
+	font-size: 16px;
+	/* Значок действия встаёт в ту же колонку, что и метка проекта: строки
+	   раздела ниже иначе разъезжались бы с верхними на четыре пикселя. */
+	width: 22px;
+}
+.monaco-workbench:has(.point-activitybar) .point-popup-label {
+	flex: 1 1 auto;
+	font: 500 13px/1.45 var(--point-font);
+	/* Длинное имя обрезается многоточием, а не переносится: строка в две
+	   строки ломает ритм списка, и глазу приходится заново искать, где
+	   кончается одна ветка и начинается следующая. `min-width: 0` обязателен —
+	   без него элемент флекса не сжимается ниже своего содержимого. */
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.monaco-workbench:has(.point-activitybar) .point-popup-row-current .point-popup-label { color: var(--point-primary); }
+/* Состояние справа: приглушённое и мельче — это не вторая подпись, а пометка. */
+.monaco-workbench:has(.point-activitybar) .point-popup-meta {
+	color: var(--point-faint);
+	flex: none;
+	font: 400 11px/1.45 var(--point-font);
+	padding-left: 12px;
+}
+/* Строки-действия набраны как содержимое, а не как имена проектов. */
+.monaco-workbench:has(.point-activitybar) .point-popup-row .point-popup-icon + .point-popup-label { font-weight: 400; }
+/* Галочка и стрелка в подменю — по правому краю строки, за состоянием. */
+.monaco-workbench:has(.point-activitybar) .point-popup-check {
+	color: var(--point-ember);
+	flex: none;
+	font-size: var(--point-icon-sm);
+}
+.monaco-workbench:has(.point-activitybar) .point-popup-more {
+	border-radius: var(--point-r);
+	color: var(--point-faint);
+	flex: none;
+	font-size: var(--point-icon-sm);
+	margin-right: -4px;
+	padding: 4px;
+}
+.monaco-workbench:has(.point-activitybar) .point-popup-more:hover {
+	background: var(--point-tint-strong);
+	color: var(--point-primary);
+}
+/* Поиск над списком: одна строка ввода без рамки-коробки — рамка внутри списка
+   спорила бы с его собственной. Разделяет их линия, а не вторая обводка. */
+.monaco-workbench:has(.point-activitybar) .point-popup-search {
+	align-items: center;
+	border-bottom: 1px solid var(--point-border);
+	display: flex;
+	gap: 8px;
+	margin: -6px -6px 4px;
+	padding: 10px 12px;
+}
+.monaco-workbench:has(.point-activitybar) .point-popup-search .codicon { color: var(--point-faint); font-size: var(--point-icon-sm); }
+/* Поле открывается уже с фокусом, поэтому кольцо фокуса на нём стояло бы
+   всегда — а общее правило фокуса рисует его янтарным во всю коробку. Здесь
+   фокус и так очевиден: курсор в поле, список под ним. Важность нужна, чтобы
+   перебить это общее правило. */
+.monaco-workbench:has(.point-activitybar) .point-popup-search-input {
+	background: transparent;
+	border: 0;
+	color: var(--point-primary);
+	flex: 1 1 auto;
+	font: 400 13px/1.45 var(--point-font);
+	outline: 0 !important;
+	padding: 0;
+}
+/* Замер показал, что общего `outline: 0` мало: правило фокуса адресует элемент
+   псевдоклассом и весит столько же, а при равном весе спорят порядком в файле.
+   Здесь цепочка длиннее на два класса и сам псевдокласс — спор кончается. */
+.monaco-workbench:has(.point-activitybar) .point-popup .point-popup-search .point-popup-search-input:focus,
+.monaco-workbench:has(.point-activitybar) .point-popup .point-popup-search .point-popup-search-input:focus-visible { outline: 0 !important; }
+.monaco-workbench:has(.point-activitybar) .point-popup-search-input::placeholder { color: var(--point-faint); }
+.monaco-workbench:has(.point-activitybar) .point-popup-list {
+	display: flex;
+	flex-direction: column;
+}
+/* Прокручивается только список веток: их бывает много, а шапка, поиск и «новая
+   ветка» должны остаться на месте. Список проектов ограничен восемью строками и
+   действиями — потолок высоты там прятал бы половину списка за полосой.
+   Потолок опущен с 380: над списком встала шапка состояния, и на прежнем
+   значении выпадашка перерастала окно ноутбука. */
+.monaco-workbench:has(.point-activitybar) .point-branch-popup .point-popup-list {
+	max-height: 300px;
+	overflow-x: hidden;
+	overflow-y: auto;
+	/* Место под полосу держится всегда: без этого список при появлении полосы
+	   дёргается на её ширину, а строки уезжают под неё. */
+	scrollbar-gutter: stable;
+}
+/* Полоса прокрутки своя. Системная приходит со стрелками на концах и светлым
+   ползунком: в тёмном списке она читается ярче содержимого и накрывает стрелки
+   подменю у правого края. */
+.monaco-workbench:has(.point-activitybar) .point-popup-list::-webkit-scrollbar { width: 10px; }
+.monaco-workbench:has(.point-activitybar) .point-popup-list::-webkit-scrollbar-track { background: transparent; }
+.monaco-workbench:has(.point-activitybar) .point-popup-list::-webkit-scrollbar-button { display: none; height: 0; width: 0; }
+.monaco-workbench:has(.point-activitybar) .point-popup-list::-webkit-scrollbar-thumb {
+	background: var(--point-border-soft);
+	background-clip: content-box;
+	border: 3px solid transparent;
+	/* Видимая часть ползунка — 5px, и радиус делает её полной пилюлей. */
+	border-radius: 999px;
+}
+.monaco-workbench:has(.point-activitybar) .point-popup-list::-webkit-scrollbar-thumb:hover { background: var(--point-muted); background-clip: content-box; }
+.monaco-workbench:has(.point-activitybar) .point-popup-empty {
+	color: var(--point-faint);
+	font: 400 12px/1.45 var(--point-font);
+	padding: 10px;
+}
+.monaco-workbench:has(.point-activitybar) .point-branch-popup { min-width: 330px; }
+/* Хеш справа от ветки — моноширинный: восемь знаков вперемешку из цифр и букв
+   в пропорциональном наборе читаются как слово, а не как число. */
+.monaco-workbench:has(.point-activitybar) .point-branch-popup .point-popup-meta {
+	color: var(--point-muted);
+	font: 400 10px/1.45 var(--point-mono);
+}
+
+/* ── Шапка списка ───────────────────────────────────────────────────────────
+   Состояние репозитория над списком веток: где мы, что не сохранено и что не
+   обменялось с сервером. Отбита от списка линией и своей подложкой края — это
+   не первая строка списка, а ответ на другой вопрос. */
+.monaco-workbench:has(.point-activitybar) .point-popup-head {
+	border-bottom: 1px solid var(--point-border);
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	margin: -6px -6px 0;
+	padding: 10px 12px;
+}
+/* Поле поиска идёт следом и своё верхнее отрицательное поле не тянет: иначе
+   оно наползло бы на шапку на её же рамку. */
+.monaco-workbench:has(.point-activitybar) .point-popup-head + .point-popup-search { margin-top: 0; }
+.monaco-workbench:has(.point-activitybar) .point-popup-head-line {
+	align-items: center;
+	display: flex;
+	gap: 8px;
+}
+/* Значок ветки в шапке — приглушённый. Янтарным он спорил бы с янтарным числом
+   плитки и с красной строкой предупреждения: три краски на шапку в 150 пикселей
+   высотой, и ни одна уже не значит «смотри сюда». */
+.monaco-workbench:has(.point-activitybar) .point-popup-head-icon {
+	color: var(--point-muted);
+	flex: none;
+	font-size: var(--point-icon-md);
+}
+.monaco-workbench:has(.point-activitybar) .point-popup-head-title {
+	color: var(--point-primary);
+	font: 600 13px/1.45 var(--point-font);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.monaco-workbench:has(.point-activitybar) .point-popup-head-sub {
+	align-items: center;
+	color: var(--point-muted);
+	display: flex;
+	font: 400 11px/1.45 var(--point-font);
+	gap: 6px;
+}
+.monaco-workbench:has(.point-activitybar) .point-popup-head-sub .codicon { color: var(--point-faint); font-size: var(--point-icon-sm); }
+/* Незавершённое слияние и отсоединённый HEAD — состояния, при которых обычные
+   действия работают не так, как ждут. Строка предупреждения стоит выше плиток:
+   сперва «что не так», потом «сколько чего». */
+.monaco-workbench:has(.point-activitybar) .point-popup-note {
+	align-items: center;
+	background: var(--point-tint);
+	border-radius: var(--point-r);
+	display: flex;
+	font: 400 11px/1.4 var(--point-font);
+	gap: 6px;
+	padding: 4px 6px;
+}
+.monaco-workbench:has(.point-activitybar) .point-popup-note .codicon { flex: none; font-size: var(--point-icon-sm); }
+.monaco-workbench:has(.point-activitybar) .point-popup-note-caution { color: var(--point-caution); }
+.monaco-workbench:has(.point-activitybar) .point-popup-note-wound { color: var(--point-wound); }
+
+/* Плитки состояния: крупное число и слово под ним. Три в ряд равной ширины —
+   их сравнивают друг с другом, а не читают подряд. */
+.monaco-workbench:has(.point-activitybar) .point-popup-stats {
+	display: flex;
+	gap: 4px;
+}
+.monaco-workbench:has(.point-activitybar) .point-popup-stat {
+	align-items: center;
+	background: var(--point-tint);
+	border: 0;
+	border-radius: var(--point-r);
+	cursor: pointer;
+	display: flex;
+	flex: 1 1 0;
+	flex-direction: column;
+	gap: 2px;
+	padding: 6px 4px;
+	text-align: center;
+}
+/* Плитка без действия не подсвечивается и не берёт курсор: подсветка обещает
+   нажатие, а нажимать тут нечего. */
+.monaco-workbench:has(.point-activitybar) .point-popup-stat-flat { cursor: default; }
+.monaco-workbench:has(.point-activitybar) button.point-popup-stat:hover,
+.monaco-workbench:has(.point-activitybar) button.point-popup-stat:focus { background: var(--point-tint-strong); }
+/* Фокус виден подсветкой плитки — как у строк списка; кольцо поверх подложки
+   было бы вторым, более резким «здесь». */
+.monaco-workbench:has(.point-activitybar) .point-popup .point-popup-stat:focus,
+.monaco-workbench:has(.point-activitybar) .point-popup .point-popup-stat:focus-visible { outline: 0 !important; }
+.monaco-workbench:has(.point-activitybar) .point-popup-stat-icon { color: var(--point-faint); font-size: var(--point-icon-sm); }
+.monaco-workbench:has(.point-activitybar) .point-popup-stat-value {
+	color: var(--point-body);
+	font: 500 18px/1.2 var(--point-font);
+}
+.monaco-workbench:has(.point-activitybar) .point-popup-stat-label {
+	color: var(--point-muted);
+	font: 400 10px/1.4 var(--point-font);
+}
+/* Янтарь — только там, где число требует внимания: есть что забрать, отправить
+   или сохранить. Нулевая плитка остаётся нейтральной, иначе краска «здесь
+   что-то есть» стояла бы всегда и перестала бы значить. */
+.monaco-workbench:has(.point-activitybar) .point-popup-stat-attention .point-popup-stat-value,
+.monaco-workbench:has(.point-activitybar) .point-popup-stat-attention .point-popup-stat-icon { color: var(--point-ember); }
+
+/* Ряд действий: значок и подпись столбиком. В строку четыре подписи вроде
+   «Закоммитить» в список шириной 330 не встают, а сокращать их до значков без
+   подписи — возвращать угадывание по глифу. */
+.monaco-workbench:has(.point-activitybar) .point-popup-head-actions {
+	display: flex;
+	gap: 4px;
+}
+.monaco-workbench:has(.point-activitybar) .point-popup-head-action {
+	align-items: center;
+	background: transparent;
+	border: 0;
+	border-radius: var(--point-r);
+	color: var(--point-body);
+	cursor: pointer;
+	display: flex;
+	flex: 1 1 0;
+	flex-direction: column;
+	gap: 2px;
+	min-height: var(--point-hit);
+	padding: 6px 2px;
+}
+.monaco-workbench:has(.point-activitybar) .point-popup-head-action .codicon { font-size: var(--point-icon-md); }
+.monaco-workbench:has(.point-activitybar) .point-popup-head-action-label {
+	font: 400 10px/1.4 var(--point-font);
+	text-align: center;
+}
+.monaco-workbench:has(.point-activitybar) .point-popup-head-action:hover,
+.monaco-workbench:has(.point-activitybar) .point-popup-head-action:focus {
+	background: var(--point-tint-strong);
+	color: var(--point-primary);
+}
+.monaco-workbench:has(.point-activitybar) .point-popup .point-popup-head-action:focus,
+.monaco-workbench:has(.point-activitybar) .point-popup .point-popup-head-action:focus-visible { outline: 0 !important; }
+/* Недоступное действие видно, но не подсвечивается: подсветка обещает нажатие,
+   а подсказка на нём объясняет, почему нажать нельзя. */
+.monaco-workbench:has(.point-activitybar) .point-popup-head-action-disabled { color: var(--point-muted); cursor: default; opacity: .45; }
+.monaco-workbench:has(.point-activitybar) .point-popup-head-action-disabled:hover,
+.monaco-workbench:has(.point-activitybar) .point-popup-head-action-disabled:focus {
+	background: transparent;
+	color: var(--point-muted);
+}
+
+/* ── Боковая панель подменю ─────────────────────────────────────────────────
+   Открывается рядом со списком, а не вместо него: строка, о которой подменю,
+   должна остаться на виду — иначе непонятно, чьи это действия. Поверхность на
+   ступень выше самого списка, чтобы два слоя не сливались в один прямоугольник. */
+.monaco-workbench:has(.point-activitybar) .point-popup-side {
+	background: var(--point-raised);
+	border: 1px solid var(--point-border);
+	border-radius: var(--point-r-lg);
+	box-shadow: 0 16px 40px rgba(0, 0, 0, .55);
+	display: none;
+	flex-direction: column;
+	left: 100%;
+	margin-left: 6px;
+	min-width: 220px;
+	padding: 6px;
+	position: absolute;
+	top: 0;
+	z-index: 1;
+}
+.monaco-workbench:has(.point-activitybar) .point-popup-side-open { display: flex; }
+/* Справа не поместилась — уходит влево от списка. */
+.monaco-workbench:has(.point-activitybar) .point-popup-side-left {
+	left: auto;
+	margin-left: 0;
+	margin-right: 6px;
+	right: 100%;
+}
+/* Заголовок панели — имя ветки: набирается как есть, без прописных, потому что
+   в именах веток регистр значим. */
+.monaco-workbench:has(.point-activitybar) .point-popup-side .point-popup-section {
+	color: var(--point-muted);
+	letter-spacing: 0;
+	text-transform: none;
+}
+.monaco-workbench:has(.point-activitybar) .suggest-widget .monaco-list-row,
+.monaco-workbench:has(.point-activitybar) .workbench-suggest-widget .monaco-list-row { min-height: var(--point-hit) !important; }
+.monaco-workbench:has(.point-activitybar) .monaco-editor .peekview-widget .head {
+	background: var(--point-raised) !important;
+	border-bottom: 1px solid var(--point-border);
+}
+.monaco-workbench:has(.point-activitybar) .monaco-editor .peekview-widget .head .peekview-title { font: 500 12px/1.3 var(--point-font); }
+.monaco-workbench:has(.point-activitybar) .monaco-editor .peekview-widget .head .peekview-title .filename { color: var(--point-primary); }
+.monaco-workbench:has(.point-activitybar) .monaco-editor .peekview-widget .head .peekview-title .dirname,
+.monaco-workbench:has(.point-activitybar) .monaco-editor .peekview-widget .head .peekview-title .meta { color: var(--point-faint); }
+.monaco-workbench:has(.point-activitybar) .monaco-editor .zone-widget .zone-widget-container.focus-border { border-color: var(--point-ember) !important; }
+.monaco-workbench:has(.point-activitybar) .editor-widget.find-widget .matchesCount {
+	color: var(--point-muted) !important;
+	font: 400 11px/1 var(--point-mono) !important;
+}
+.monaco-workbench:has(.point-activitybar) .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message {
+	color: var(--point-primary);
+	font: 500 13px/1.35 var(--point-font);
+}
+.monaco-workbench:has(.point-activitybar) .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-detail {
+	color: var(--point-muted);
+	font-size: 12px;
+}
+.monaco-workbench:has(.point-activitybar) .monaco-dialog-box .dialog-buttons-row .monaco-button.primary,
+.monaco-workbench:has(.point-activitybar) .monaco-dialog-box .dialog-buttons-row .monaco-text-button {
+	background: var(--point-ember) !important;
+	border-color: var(--point-ember) !important;
+	color: var(--point-void) !important;
+}
+
+/* Уведомления: акцентная кромка слева по степени важности, а не заливка. */
+.monaco-workbench:has(.point-activitybar) > .notifications-toasts .notifications-list-container,
+.monaco-workbench:has(.point-activitybar) > .notifications-center {
+	background: var(--point-selected) !important;
+	border: 1px solid var(--point-border) !important;
+	border-radius: var(--point-r-lg) !important;
+	box-shadow: 0 14px 36px rgba(0, 0, 0, .48) !important;
+	overflow: hidden;
+}
+.monaco-workbench:has(.point-activitybar) > .notifications-toasts .notification-list-item,
+.monaco-workbench:has(.point-activitybar) > .notifications-center .notification-list-item {
+	background: var(--point-selected);
+	border-left: 2px solid var(--point-ember);
+	box-sizing: border-box;
+	color: var(--point-primary);
+	padding: 10px 8px 10px 6px;
+}
+.monaco-workbench:has(.point-activitybar) > .notifications-toasts .notification-list-item:has(.codicon-error) { border-left-color: var(--point-wound); }
+.monaco-workbench:has(.point-activitybar) > .notifications-toasts .notification-list-item:has(.codicon-warning) { border-left-color: var(--point-caution); }
+.monaco-workbench:has(.point-activitybar) > .notifications-toasts .notification-list-item:has(.codicon-info) { border-left-color: var(--point-mana); }
+.monaco-workbench:has(.point-activitybar) > .notifications-toasts .notification-list-item .notification-list-item-message { font: 400 12px/1.45 var(--point-font); }
+.monaco-workbench:has(.point-activitybar) > .notifications-toasts .notification-list-item .notification-list-item-source {
+	color: var(--point-faint);
+	font: 400 11px/1.3 var(--point-font);
+}
+.monaco-workbench:has(.point-activitybar) > .notifications-toasts .notification-list-item .monaco-text-button {
+	background: transparent !important;
+	border: 1px solid var(--point-edge) !important;
+	color: var(--point-ember) !important;
+	font: 500 11px/1 var(--point-font) !important;
+}
+.monaco-workbench:has(.point-activitybar) > .notifications-toasts .notification-list-item .monaco-text-button:hover { background: var(--point-tint-strong) !important; }
+.monaco-workbench:has(.point-activitybar) > .notifications-toasts .codicon.codicon-error { color: var(--point-wound) !important; }
+.monaco-workbench:has(.point-activitybar) > .notifications-toasts .codicon.codicon-warning { color: var(--point-caution) !important; }
+.monaco-workbench:has(.point-activitybar) > .notifications-toasts .codicon.codicon-info { color: var(--point-mana) !important; }
+.monaco-workbench:has(.point-activitybar) > .notifications-toasts .progress-bit { background: var(--point-ember) !important; }
+.monaco-workbench:has(.point-activitybar) > .notifications-center > .notifications-center-header {
+	background: var(--point-raised) !important;
+	border-bottom: 1px solid var(--point-border) !important;
+}
+.monaco-workbench:has(.point-activitybar) > .notifications-center > .notifications-center-header > .notifications-center-header-title {
+	color: var(--point-primary);
+	font: 500 11px/1 var(--point-font);
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+.monaco-workbench:has(.point-activitybar) > .notifications-center .monaco-list-row:not(:last-child) > .notification-list-item { border-bottom: 1px solid var(--point-border); }
+
+/* ════ Настройки ═════════════════════════════════════════════════════════════
+   У Point свои экраны, но встроенный редактор настроек остаётся доступным и не
+   должен выпадать из ритма. */
+.monaco-workbench:has(.point-activitybar) .settings-editor { background: var(--point-panel) !important; }
+.monaco-workbench:has(.point-activitybar) .settings-editor > .settings-header {
+	background: var(--point-raised);
+	border-bottom: 1px solid var(--point-border);
+	padding: 8px 12px 4px !important;
+}
+.monaco-workbench:has(.point-activitybar) .settings-editor > .settings-header .settings-tabs-widget .action-label {
+	color: var(--point-muted) !important;
+	font: 500 11px/1 var(--point-font) !important;
+	letter-spacing: 0.04em;
+	min-height: var(--point-hit);
+	padding: 0 10px !important;
+	text-transform: uppercase;
+}
+.monaco-workbench:has(.point-activitybar) .settings-editor > .settings-header .settings-tabs-widget .action-label.checked {
+	box-shadow: inset 0 -2px 0 var(--point-ember);
+	color: var(--point-primary) !important;
+}
+.monaco-workbench:has(.point-activitybar) .settings-editor .settings-toc-container {
+	background: var(--point-void);
+	border-right: 1px solid var(--point-border);
+	padding: 4px 0;
+}
+.monaco-workbench:has(.point-activitybar) .settings-editor .settings-toc-container .monaco-list-row {
+	margin: 0 4px;
+	min-height: var(--point-hit) !important;
+}
+.monaco-workbench:has(.point-activitybar) .settings-editor .settings-toc-container .monaco-list-row .settings-toc-entry {
+	color: var(--point-muted);
+	font: 400 12px/var(--point-hit) var(--point-font);
+}
+.monaco-workbench:has(.point-activitybar) .settings-editor .settings-toc-container .monaco-list-row.focused .settings-toc-entry,
+.monaco-workbench:has(.point-activitybar) .settings-editor .settings-toc-container .monaco-list-row.selected .settings-toc-entry { color: var(--point-primary); }
+.monaco-workbench:has(.point-activitybar) .settings-editor .settings-tree-container { background: var(--point-panel); }
+.monaco-workbench:has(.point-activitybar) .settings-editor .settings-tree-container .settings-group-title-label {
+	color: var(--point-primary) !important;
+	font: 500 12px/1.2 var(--point-font) !important;
+	letter-spacing: 0.06em;
+	padding: 10px 12px 4px !important;
+	text-transform: uppercase;
+}
+.monaco-workbench:has(.point-activitybar) .settings-editor .settings-tree-container .setting-item { padding: 6px 12px 8px !important; }
+.monaco-workbench:has(.point-activitybar) .settings-editor .settings-tree-container .setting-item-contents { padding: 6px 8px !important; }
+.monaco-workbench:has(.point-activitybar) .settings-editor .settings-tree-container .setting-item-label {
+	color: var(--point-primary);
+	font: 500 12px/1.3 var(--point-font);
+}
+.monaco-workbench:has(.point-activitybar) .settings-editor .settings-tree-container .setting-item-category {
+	color: var(--point-faint);
+	font: 400 11px/1.3 var(--point-font);
+}
+.monaco-workbench:has(.point-activitybar) .settings-editor .settings-tree-container .setting-item-description {
+	color: var(--point-muted) !important;
+	font-size: 11px !important;
+	line-height: 1.4 !important;
+	opacity: 1 !important;
+	padding-top: 2px !important;
+}
+.monaco-workbench:has(.point-activitybar) .settings-editor .settings-tree-container .setting-item-modified-indicator {
+	background: var(--point-ember) !important;
+	width: 2px !important;
+}
+
+/* ════ Приветствие и пустые состояния ════════════════════════════════════════
+   Point показывает свой Дом; эти экраны остаются запасными. */
+.monaco-workbench:has(.point-activitybar) .part.editor > .content .gettingStartedContainer:not(.point-native-home) { background: var(--point-void) !important; }
+.monaco-workbench:has(.point-activitybar) .part.editor > .content .gettingStartedContainer:not(.point-native-home) h2 { font: 500 18px/1.3 var(--point-font); }
+.monaco-workbench:has(.point-activitybar) .welcome-view-content {
+	background: transparent !important;
+	color: var(--point-body);
+	font: 400 12px/1.5 var(--point-font);
+	max-width: 360px;
+	padding: 16px !important;
+}
+.monaco-workbench:has(.point-activitybar) .welcome-view-content p { color: var(--point-muted); }
+.monaco-workbench:has(.point-activitybar) .welcome-view-content .monaco-button,
+.monaco-workbench:has(.point-activitybar) .welcome-view-content .monaco-text-button {
+	background: transparent !important;
+	border: 1px solid var(--point-edge) !important;
+	color: var(--point-ember) !important;
+	font: 500 12px/1 var(--point-font) !important;
+	height: 32px !important;
+	margin-top: 8px;
+}
+.monaco-workbench:has(.point-activitybar) .welcome-view-content .monaco-button:hover,
+.monaco-workbench:has(.point-activitybar) .welcome-view-content .monaco-text-button:hover { background: var(--point-tint-strong) !important; }
+.monaco-workbench:has(.point-activitybar) .extensions-viewlet .extension-list-item .extension-name { font: 500 12px/1.3 var(--point-font); }
+
+/* Tool windows and keymap keep the search and footer visible while scrolling. */
+.monaco-workbench:has(.point-activitybar) .point-windows-popup {
+	box-sizing: border-box;
+	width: min(420px, calc(100vw - 24px));
+	min-width: min(340px, calc(100vw - 24px));
+	max-height: calc(100vh - 72px);
+}
+.monaco-workbench:has(.point-activitybar) .point-windows-popup .point-popup-list {
+	min-height: 0;
+	max-height: min(420px, calc(100vh - 230px));
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	scrollbar-gutter: stable;
+}
+.monaco-workbench:has(.point-activitybar) .point-windows-popup > :not(.point-popup-list) { flex-shrink: 0; }
+.monaco-workbench:has(.point-activitybar) .point-windows-popup .point-popup-meta {
+	color: var(--point-muted);
+	font-family: var(--point-mono);
+	white-space: nowrap;
+}
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-title-action-windows {
+	margin-left: 8px;
+	border-left: 1px solid var(--point-border-soft);
+}
+.monaco-workbench:has(.point-activitybar) .part.sidebar:focus-within > .composite.title {
+	box-shadow: inset 0 -1px var(--point-edge);
+}
+@media (max-width: 1100px) {
+	.monaco-workbench:has(.point-activitybar) .part.titlebar .point-branch-chip { max-width: 130px; }
+	.monaco-workbench:has(.point-activitybar) .part.titlebar .point-title-action-keymap { display: none; }
+	.point-search-hint { display: none; }
+}
+@media (max-width: 600px) {
+	.point-search-tab-key { display: none; }
+	.monaco-workbench:has(.point-activitybar) .part.titlebar .command-center-quick-pick::after { display: none; }
+}
+
+/* ════ Узкое окно и покой ════════════════════════════════════════════════════
+   Заголовок теряет кнопки запуска раньше, чем чипы: запуск доступен и с
+   клавиатуры, а имя проекта и ветка — единственный способ понять, где ты. */
+@media (max-width: 880px) {
+	.monaco-workbench:has(.point-activitybar) .part.titlebar .point-title-action:has(.codicon-debug-alt),
+	.monaco-workbench:has(.point-activitybar) .part.titlebar .point-title-action:has(.codicon-play) { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	/* Обе ступени в ноль: этого хватает всему, что оформляет Point. Ниже —
+	   переходы самого Code-OSS, до которых наши токены не достают. */
+	.monaco-workbench:has(.point-activitybar) { --point-motion-fast: 0ms; --point-motion-base: 0ms; }
+	.monaco-workbench:has(.point-activitybar) .part.statusbar.point-busy::before { animation: none; }
+	.monaco-workbench:has(.point-activitybar) .part.editor .tab .tab-close { transition: none; }
+	.monaco-workbench:has(.point-activitybar) .monaco-sash.vertical::before,
+	.monaco-workbench:has(.point-activitybar) .monaco-sash.horizontal::before { transition: none; }
+}

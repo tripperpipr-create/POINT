@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "profiles": {
+    "quick": {
+      "releaseQualifying": false,
+      "durationSeconds": 2,
+      "fixtureFiles": 200,
+      "events": 800,
+      "runs": 40,
+      "flowExecutions": 20,
+      "concurrentFullRuns": 4,
+      "restartEverySeconds": 1,
+      "memoryGrowthPercent": 25,
+      "historyReopenMs": 5000,
+      "databaseMaxBytes": 33554432,
+      "databaseBytesPerEvent": 4096,
+      "desktopProbeEverySeconds": 1,
+      "hubCyclesPerProbe": 1
+    },
+    "eight-hour": {
+      "releaseQualifying": true,
+      "durationSeconds": 28800,
+      "fixtureFiles": 50000,
+      "events": 100000,
+      "runs": 5000,
+      "flowExecutions": 2000,
+      "concurrentFullRuns": 4,
+      "restartEverySeconds": 900,
+      "memoryGrowthPercent": 10,
+      "historyReopenMs": 5000,
+      "databaseMaxBytes": 134217728,
+      "databaseBytesPerEvent": 512,
+      "desktopProbeEverySeconds": 3600,
+      "hubCyclesPerProbe": 2
+    },
+    "twenty-four-hour": {
+      "releaseQualifying": true,
+      "durationSeconds": 86400,
+      "fixtureFiles": 50000,
+      "events": 100000,
+      "runs": 5000,
+      "flowExecutions": 2000,
+      "concurrentFullRuns": 4,
+      "restartEverySeconds": 900,
+      "memoryGrowthPercent": 10,
+      "historyReopenMs": 5000,
+      "databaseMaxBytes": 134217728,
+      "databaseBytesPerEvent": 512,
+      "desktopProbeEverySeconds": 3600,
+      "hubCyclesPerProbe": 2
+    }
+  },
+  "requiredFaults": [
+    "core-restart",
+    "code-oss-restart",
+    "agent-hub-open-close",
+    "run-cancellation",
+    "provider-timeout",
+    "docker-stop-recovery",
+    "temporary-disk-write-loss",
+    "disk-low-write-refusal",
+    "interrupted-run-recovery"
+  ]
+}

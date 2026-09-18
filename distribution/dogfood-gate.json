@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "minimumElapsedHours": 336,
+  "minimumCheckpointDays": 14,
+  "maximumCheckpointGapHours": 30,
+  "minimumRuns": 14
+}

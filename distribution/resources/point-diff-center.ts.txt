@@ -1,0 +1,250 @@
+/*---------------------------------------------------------------------------------------------
+ *  Point IDE — середина сравнения: перемычки правок и парные номера строк.
+ *
+ *  В просмотрщике различий JetBrains между колонками нет пустого жёлоба: там
+ *  идут номера обеих версий подряд, а промежуток закрашен цветом правки, и
+ *  левая половина правки читается вместе с правой. Апстрим держит номера у
+ *  каждой колонки свои, по внешним краям, а между колонками — серую полосу:
+ *  одна правка выглядит двумя несвязанными пятнами, и чтобы сверить номера,
+ *  взгляд ходит через весь экран.
+ *
+ *  Здесь номера обеих версий сведены в середину — у самих редакторов колонка
+ *  номеров выключена (см. `diffEditorEditors.ts`), — а промежуток закрашен.
+ *
+ *  Про форму перемычки. У JetBrains она трапеция, потому что там стороны НЕ
+ *  выровнены: строка 129 слева может стоять напротив 134 справа. Monaco
+ *  выравнивает стороны прокладками (`diffEditorViewZones`), поэтому верх и низ
+ *  правки на обеих сторонах на одной высоте, и честная трапеция вырождается в
+ *  прямую перемычку. Рисуем всё равно многоугольником по четырём точкам: если
+ *  стороны когда-нибудь разъедутся, форма покажет это сама, а не соврёт.
+ *
+ *  Сверх колонок номеров середина места не просит: перемычка рисуется по всему
+ *  промежутку, который и так есть. Считая снятые у обоих редакторов колонки
+ *  номеров, середина выходит уже прежней.
+ *--------------------------------------------------------------------------------------------*/
+
+import { EventType, addDisposableListener, h } from '../../../../../base/browser/dom.js';
+import { IMouseWheelEvent } from '../../../../../base/browser/mouseEvent.js';
+import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { IObservable, autorun, derived, observableFromEvent, observableSignalFromEvent } from '../../../../../base/common/observable.js';
+import { EditorOption } from '../../../../common/config/editorOptions.js';
+import { LineRange } from '../../../../common/core/ranges/lineRange.js';
+import { ICodeEditor } from '../../../editorBrowser.js';
+import { DiffEditorEditors } from '../components/diffEditorEditors.js';
+import { DiffEditorOptions } from '../diffEditorOptions.js';
+import { DiffEditorViewModel } from '../diffEditorViewModel.js';
+import { prependRemoveOnDispose } from '../utils.js';
+
+const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
+
+/** Поля вокруг цифр. Меньше шести — колонка липнет к коду, больше десяти — отрывается от него. */
+const numberPadding = 8;
+
+/** Разряды, под которые место держится всегда: файл на девять строк не должен дёргать раскладку. */
+const minimumDigits = 2;
+
+export class PointDiffCenterFeature extends Disposable {
+
+	/** Сколько места середина просит у раскладки сверх уже существующего промежутка. */
+	public readonly width: IObservable<number>;
+
+	private readonly _elements = h('div.point-diff-center@root', { style: { position: 'absolute', height: '100%' } }, [
+		h('div.point-diff-ribbons@ribbons'),
+		h('div.point-diff-numbers.original@originalNumbers'),
+		h('div.point-diff-numbers.modified@modifiedNumbers'),
+	]);
+
+	private readonly _ribbons: SVGSVGElement;
+	private readonly _originalNodes: HTMLElement[] = [];
+	private readonly _modifiedNodes: HTMLElement[] = [];
+
+	constructor(
+		diffEditorRoot: HTMLElement,
+		private readonly _diffModel: IObservable<DiffEditorViewModel | undefined>,
+		private readonly _editors: DiffEditorEditors,
+		private readonly _options: DiffEditorOptions,
+	) {
+		super();
+
+		this._ribbons = document.createElementNS(SVG_NAMESPACE, 'svg');
+		this._ribbons.setAttribute('class', 'point-diff-ribbons-canvas');
+		this._elements.ribbons.appendChild(this._ribbons);
+
+		// Середина ложится ПЕРЕД жёлобом действий: стрелки возврата обязаны
+		// остаться поверх перемычки, а порядок слоёв здесь задан порядком узлов
+		// — жёлоб добавляется тем же способом и тоже первым.
+		this._register(prependRemoveOnDispose(diffEditorRoot, this._elements.root));
+
+		// Берём из шрифта одно число, а не весь FontInfo: раскладка редактора
+		// шлёт то же событие изменения настроек, и наблюдатель за объектом
+		// пересчитывался бы на каждый её проход. Ширина колонки участвует в
+		// раскладке — значит цикл был бы не теоретический.
+		const characterWidth = observableFromEvent(this, this._editors.modified.onDidChangeConfiguration, () => this._editors.modified.getOption(EditorOption.fontInfo).typicalHalfwidthCharacterWidth);
+
+		const originalLineCount = derived(this, reader => {
+			const model = this._editors.originalObs.model.read(reader);
+			this._editors.originalObs.versionId.read(reader);
+			return model ? model.getLineCount() : 1;
+		});
+		const modifiedLineCount = derived(this, reader => {
+			const model = this._editors.modifiedObs.model.read(reader);
+			this._editors.modifiedObs.versionId.read(reader);
+			return model ? model.getLineCount() : 1;
+		});
+
+		const columnWidth = (lineCount: number, characterWidth: number) => {
+			const digits = Math.max(minimumDigits, String(lineCount).length);
+			return Math.ceil(digits * characterWidth) + numberPadding * 2;
+		};
+
+		this.width = derived(this, reader => {
+			if (!this._options.pointCenterEnabled.read(reader)) { return 0; }
+			const width = characterWidth.read(reader);
+			return columnWidth(originalLineCount.read(reader), width)
+				+ columnWidth(modifiedLineCount.read(reader), width);
+		});
+
+		this._register(autorun(reader => {
+			/** @description PointDiffCenter: ширина колонок номеров */
+			const width = characterWidth.read(reader);
+			const modifiedWidth = columnWidth(modifiedLineCount.read(reader), width);
+			this._elements.originalNumbers.style.width = `${columnWidth(originalLineCount.read(reader), width)}px`;
+			this._elements.originalNumbers.style.right = `${modifiedWidth}px`;
+			this._elements.modifiedNumbers.style.width = `${modifiedWidth}px`;
+			this._elements.modifiedNumbers.style.right = '0px';
+		}));
+
+		const originalViewZones = observableSignalFromEvent('original.onDidChangeViewZones', this._editors.original.onDidChangeViewZones);
+		const modifiedViewZones = observableSignalFromEvent('modified.onDidChangeViewZones', this._editors.modified.onDidChangeViewZones);
+		const originalHiddenAreas = observableSignalFromEvent('original.onDidChangeHiddenAreas', this._editors.original.onDidChangeHiddenAreas);
+		const modifiedHiddenAreas = observableSignalFromEvent('modified.onDidChangeHiddenAreas', this._editors.modified.onDidChangeHiddenAreas);
+
+		this._register(autorun(reader => {
+			/** @description PointDiffCenter: отрисовка */
+			// Всё, от чего зависит картинка, читается прямо здесь: автопрогон
+			// перезапускается по любому из них, а производное значение молчало
+			// бы, пока не изменится сам результат.
+			const enabled = this._options.pointCenterEnabled.read(reader);
+			this._editors.originalObs.scrollTop.read(reader);
+			this._editors.modifiedObs.scrollTop.read(reader);
+			this._editors.originalObs.layoutInfo.read(reader);
+			this._editors.modifiedObs.layoutInfo.read(reader);
+			originalViewZones.read(reader);
+			modifiedViewZones.read(reader);
+			originalHiddenAreas.read(reader);
+			modifiedHiddenAreas.read(reader);
+			originalLineCount.read(reader);
+			modifiedLineCount.read(reader);
+			const diff = this._diffModel.read(reader)?.diff.read(reader);
+
+			this._elements.root.style.display = enabled ? '' : 'none';
+			if (!enabled) { return; }
+
+			this._renderNumbers(this._editors.original, this._elements.originalNumbers, this._originalNodes);
+			this._renderNumbers(this._editors.modified, this._elements.modifiedNumbers, this._modifiedNodes);
+			this._renderRibbons(diff ? diff.mappings.map(mapping => mapping.lineRangeMapping) : []);
+		}));
+
+		// Колесо над серединой прокручивает сравнение, а не останавливается о
+		// чужую полосу: жёлоб действий поступает так же.
+		this._register(addDisposableListener(this._elements.root, EventType.MOUSE_WHEEL, (e: IMouseWheelEvent) => {
+			if (this._editors.modified.getOption(EditorOption.scrollbar).handleMouseWheel) {
+				this._editors.modified.delegateScrollFromMouseWheelEvent(e);
+			}
+		}, { passive: false }));
+
+		this._register(toDisposable(() => {
+			this._originalNodes.length = 0;
+			this._modifiedNodes.length = 0;
+		}));
+	}
+
+	/** Раскладка зовёт это, зная левый край промежутка и его полную ширину. */
+	public layout(left: number, width: number): void {
+		this._elements.root.style.left = `${left}px`;
+		this._elements.root.style.width = `${width}px`;
+	}
+
+	private _renderNumbers(editor: ICodeEditor, container: HTMLElement, pool: HTMLElement[]): void {
+		const model = editor.getModel();
+		let used = 0;
+		if (model) {
+			const lineHeight = editor.getOption(EditorOption.lineHeight);
+			const scrollTop = editor.getScrollTop();
+			const height = editor.getLayoutInfo().height;
+			for (const range of editor.getVisibleRanges()) {
+				for (let line = range.startLineNumber; line <= range.endLineNumber; line++) {
+					const top = editor.getTopForLineNumber(line) - scrollTop;
+					if (top + lineHeight < 0 || top > height) { continue; }
+					let node = pool[used];
+					if (!node) {
+						node = document.createElement('div');
+						node.className = 'point-diff-number';
+						container.appendChild(node);
+						pool[used] = node;
+					}
+					node.style.top = `${top}px`;
+					node.style.height = `${lineHeight}px`;
+					node.style.lineHeight = `${lineHeight}px`;
+					node.style.display = '';
+					node.textContent = String(line);
+					used++;
+				}
+			}
+		}
+		for (let index = used; index < pool.length; index++) {
+			pool[index].style.display = 'none';
+		}
+	}
+
+	private _renderRibbons(mappings: readonly { original: LineRange; modified: LineRange }[]): void {
+		this._ribbons.replaceChildren();
+
+		const original = this._editors.original;
+		const modified = this._editors.modified;
+		const originalScrollTop = original.getScrollTop();
+		const modifiedScrollTop = modified.getScrollTop();
+		const height = modified.getLayoutInfo().height;
+		const width = this._elements.root.clientWidth;
+		this._ribbons.setAttribute('width', `${width}`);
+		this._ribbons.setAttribute('height', `${height}`);
+
+		// Отсев по номерам строк прежде, чем считать высоты: у правки в сотню
+		// кусков это четыре обращения к раскладке на каждый кусок, и вся эта
+		// работа повторялась бы на каждый шаг колеса. Границы берутся по краям
+		// видимого; свёрнутые куски внутри пропускаются с запасом — так дешевле,
+		// чем считать точно.
+		const visible = modified.getVisibleRanges();
+		const firstVisibleLine = visible.length > 0 ? visible[0].startLineNumber : 1;
+		const lastVisibleLine = visible.length > 0 ? visible[visible.length - 1].endLineNumber : 1;
+
+		for (const mapping of mappings) {
+			// Границы с запасом в строку: удаление стоит между строками, и кусок,
+			// начавшийся строкой выше видимого, рисуется по его верхнему краю.
+			if (mapping.modified.endLineNumberExclusive < firstVisibleLine - 1 || mapping.modified.startLineNumber > lastVisibleLine + 1) { continue; }
+			const originalTop = original.getTopForLineNumber(mapping.original.startLineNumber) - originalScrollTop;
+			const originalBottom = original.getTopForLineNumber(mapping.original.endLineNumberExclusive) - originalScrollTop;
+			const modifiedTop = modified.getTopForLineNumber(mapping.modified.startLineNumber) - modifiedScrollTop;
+			const modifiedBottom = modified.getTopForLineNumber(mapping.modified.endLineNumberExclusive) - modifiedScrollTop;
+
+			const top = Math.min(originalTop, modifiedTop);
+			const bottom = Math.max(originalBottom, modifiedBottom);
+			if (bottom < 0 || top > height) { continue; }
+
+			// Пустая сторона — добавление или удаление целиком, обе непустые —
+			// переписанные строки. Цвет тот же, что у самой правки: перемычка
+			// продолжает полосу, а не заводит третий смысл.
+			const kind = mapping.original.isEmpty ? 'insert' : (mapping.modified.isEmpty ? 'delete' : 'modify');
+
+			const shape = document.createElementNS(SVG_NAMESPACE, 'polygon');
+			shape.setAttribute('class', `point-diff-ribbon ${kind}`);
+			shape.setAttribute('points', [
+				`0,${originalTop}`,
+				`${width},${modifiedTop}`,
+				`${width},${modifiedBottom}`,
+				`0,${originalBottom}`,
+			].join(' '));
+			this._ribbons.appendChild(shape);
+		}
+	}
+}

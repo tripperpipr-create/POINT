@@ -1,0 +1,46 @@
+# PHP/Composer Agent Hub vertical (Composer/Symfony URL intake).
+# Build: docker build -f Dockerfile.sandbox-php -t point-agent-sandbox-php:1.3.1 .
+# Attested release image remains Dockerfile.sandbox → point-agent-sandbox:1.2.2.
+#
+# Pin Wolfi PHP packages to one ABI (8.3.33-r3). Unpinned apk installs mixed
+# module APIs and broke ctype/openssl/mbstring/phar at runtime.
+
+FROM point-agent-sandbox:1.2.2
+
+USER root
+RUN apk add --no-cache \
+      php-8.3=8.3.33-r3 \
+      php-8.3-config=8.3.33-r3 \
+      php-8.3-ctype=8.3.33-r3 \
+      php-8.3-ctype-config=8.3.33-r3 \
+      php-8.3-curl=8.3.33-r3 \
+      php-8.3-curl-config=8.3.33-r3 \
+      php-8.3-dom=8.3.33-r3 \
+      php-8.3-dom-config=8.3.33-r3 \
+      php-8.3-fileinfo=8.3.33-r3 \
+      php-8.3-fileinfo-config=8.3.33-r3 \
+      php-8.3-iconv=8.3.33-r3 \
+      php-8.3-iconv-config=8.3.33-r3 \
+      php-8.3-intl=8.3.33-r3 \
+      php-8.3-intl-config=8.3.33-r3 \
+      php-8.3-mbstring=8.3.33-r3 \
+      php-8.3-mbstring-config=8.3.33-r3 \
+      php-8.3-openssl=8.3.33-r3 \
+      php-8.3-openssl-config=8.3.33-r3 \
+      php-8.3-phar=8.3.33-r3 \
+      php-8.3-phar-config=8.3.33-r3 \
+      php-8.3-pdo=8.3.33-r3 \
+      php-8.3-pdo-config=8.3.33-r3 \
+      php-8.3-pdo_sqlite=8.3.33-r3 \
+      php-8.3-pdo_sqlite-config=8.3.33-r3 \
+      php-8.3-simplexml=8.3.33-r3 \
+      php-8.3-simplexml-config=8.3.33-r3 \
+      php-8.3-xml=8.3.33-r3 \
+      php-8.3-xml-config=8.3.33-r3 \
+      php-8.3-xmlwriter=8.3.33-r3 \
+      php-8.3-xmlwriter-config=8.3.33-r3 \
+      php-8.3-zip=8.3.33-r3 \
+      php-8.3-zip-config=8.3.33-r3 \
+      composer=2.10.3-r0
+USER 10001:10001
+WORKDIR /workspace

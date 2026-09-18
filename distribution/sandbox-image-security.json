@@ -1,0 +1,103 @@
+{
+  "schemaVersion": 2,
+  "productVersion": "1.2.2",
+  "scannedAt": "2026-08-31T02:58:08Z",
+  "method": "docker-save-archive-no-docker-socket",
+  "dockerfileSha256": "586e6754a92d06f7464b7e7fad25828f4a9003809028e0dc360bd88eaa5a2752",
+  "integrationTestSha256": "ec01748103dd04741d12771fc81bf2d8402f781e53345e4b808b47bb98e460ab",
+  "image": {
+    "tag": "point-agent-sandbox:release",
+    "digest": "sha256:e0a50330e7e8f68f13b0973dcad0ab82324dfa6a7fa88392dc4f22aed7dce882",
+    "sizeBytes": 340618825,
+    "archiveBytes": 340642816,
+    "archiveSha256": "6abbf82b25a7712362d9a97d7b7db8f1dbd735d46e85b868c4a9fe781a7345d1"
+  },
+  "base": {
+    "name": "cgr.dev/chainguard/wolfi-base",
+    "digest": "sha256:03c6561658909fc4eadd0b2dc717375df40a22cc05455b8f82f1f1974e7e4427"
+  },
+  "directPackages": [
+    "ca-certificates-bundle=20260611-r0",
+    "git=2.55.0-r5",
+    "build-base=1-r9",
+    "python-3.13=3.13.15-r4",
+    "ripgrep=15.2.0-r2",
+    "go-1.26=1.26.7-r0",
+    "nodejs-24=24.20.0-r1",
+    "npm=12.0.2-r0"
+  ],
+  "scanner": {
+    "name": "Trivy",
+    "version": "0.74.0",
+    "imageDigest": "sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969",
+    "actionVersion": "0.36.0",
+    "actionCommit": "a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8"
+  },
+  "settings": {
+    "scanners": ["vuln"],
+    "packageTypes": ["os", "library"],
+    "severities": ["HIGH", "CRITICAL"],
+    "ignoreUnfixed": false,
+    "exitCodeOnFinding": 1
+  },
+  "result": {
+    "osFamily": "wolfi",
+    "osPackages": 79,
+    "high": 0,
+    "critical": 0,
+    "total": 0,
+    "exitCode": 0,
+    "reportBytes": 987539,
+    "reportSha256": "0d823f10a25a778e54591633d677b252627ad328bacb1a06e6a6cbdf1e554d60"
+  },
+  "artifacts": {
+    "trivyReport": {
+      "path": "distribution/sandbox-trivy.json",
+      "bytes": 987539,
+      "sha256": "0d823f10a25a778e54591633d677b252627ad328bacb1a06e6a6cbdf1e554d60"
+    },
+    "sbom": {
+      "path": "distribution/sandbox-sbom.cdx.json",
+      "format": "CycloneDX",
+      "specVersion": "1.7",
+      "components": 82,
+      "bytes": 138907,
+      "sha256": "bcd0c3852f3be2be5544cbeb7eba01b1a5b6a860867d7c1aca8dc13714689da8"
+    },
+    "transitivePackageManifest": {
+      "path": "distribution/sandbox-packages.json",
+      "packages": 80,
+      "bytes": 37921,
+      "sha256": "c53964a112bdabbb4251d7cc2f29aee80c7e969403675103376900bdcfe58a83"
+    },
+    "provenance": {
+      "path": "distribution/sandbox-build-provenance.json",
+      "level": "local-build-record",
+      "sourceControlVerified": false,
+      "bytes": 2949,
+      "sha256": "4d7fc5ab7ddb50e1c73a59b45f437be6a8c9c6745af207bff78dd30b9191e37c"
+    }
+  },
+  "integration": {
+    "command": "go test ./internal/sandbox -run TestDockerSandboxIntegration -count=1 -v",
+    "passed": true,
+    "verified": [
+      "uid-gid-10001",
+      "read-only-rootfs",
+      "zero-capabilities",
+      "no-new-privileges",
+      "pid-namespace",
+      "exact-memory-cpu-pid-cgroups",
+      "host-secret-filtering",
+      "host-path-isolation",
+      "deny-all-egress",
+      "exact-tls-egress-positive",
+      "unlisted-fqdn-denied",
+      "plain-http-denied",
+      "direct-ip-denied",
+      "egress-resource-cleanup",
+      "immutable-image-digest-execution",
+      "pinned-toolchain-login-shell"
+    ]
+  }
+}

@@ -1,0 +1,197 @@
+/* Point workbench: ярлыки окон нижней панели в нижней части левой рейки.
+
+   У окна инструментов обязан быть ярлык, и окна без ярлыка не бывает: окно,
+   которое видно только по памяти на сочетание клавиш, для большинства не
+   существует вовсе. Ряд вкладок в шапке панели показывает окна, только пока
+   панель открыта, — закрыл её, и Запуск, Отладка, Проблемы, Поиск, Службы и
+   Логи исчезают с экрана целиком. Полоса стоит в рейке всегда. */
+import { asCSSUrl } from '../../../../base/browser/cssValue.js';
+import { $, addDisposableListener, append, clearNode, EventType } from '../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IViewDescriptorService, ViewContainer, ViewContainerLocation } from '../../../common/views.js';
+import { IActivityService, NumberBadge } from '../../../services/activity/common/activity.js';
+import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
+import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+
+// Порядок задаёт Point, а не порядок регистрации контейнеров в Code-OSS: он
+// повторяет ряд Alt+N, и глаз находит окно там же, где его находит рука.
+// Контейнер, которого в списке нет (окно от расширения), встаёт в конец — но
+// ярлык получает всё равно.
+const stripOrder = [
+	'workbench.view.search',
+	'workbench.view.extension.pointRun',
+	'workbench.view.debug',
+	'workbench.panel.markers',
+	'workbench.view.extension.pointServices',
+	'workbench.view.extension.pointLogs',
+	'workbench.panel.output',
+	'terminal',
+];
+
+// Встроенные контейнеры регистрируются с `doNotRegisterOpenCommand`, и своей
+// команды открытия у них нет. Клавишу им дают сочетания расширения Point —
+// подсказка обязана называть именно её, иначе назовёт пустоту.
+const stripKeybindingCommands = new Map<string, string>([
+	['workbench.view.search', 'workbench.action.findInFiles'],
+	['workbench.panel.markers', 'workbench.actions.view.problems'],
+	['workbench.panel.output', 'workbench.action.output.toggleOutput'],
+	['terminal', 'workbench.action.terminal.toggleTerminal'],
+]);
+
+export class PointPanelStrip extends Disposable {
+
+	readonly element: HTMLElement;
+	private readonly itemDisposables = this._register(new DisposableStore());
+
+	constructor(
+		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
+		@IActivityService private readonly activityService: IActivityService,
+		@IViewsService private readonly viewsService: IViewsService,
+		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+	) {
+		super();
+
+		this.element = $('.point-panel-strip', {
+			role: 'toolbar',
+			'aria-label': localize('point.panelStrip', "Окна нижней панели"),
+		});
+
+		this._register(this.viewDescriptorService.onDidChangeViewContainers(() => this.render()));
+		this._register(this.viewDescriptorService.onDidChangeContainerLocation(() => this.render()));
+		this._register(this.paneCompositeService.onDidPaneCompositeOpen(event => {
+			if (event.viewContainerLocation === ViewContainerLocation.Panel) { this.render(); }
+		}));
+		this._register(this.paneCompositeService.onDidPaneCompositeClose(event => {
+			if (event.viewContainerLocation === ViewContainerLocation.Panel) { this.render(); }
+		}));
+		this._register(this.layoutService.onDidChangePartVisibility(() => this.render()));
+		this._register(this.keybindingService.onDidUpdateKeybindings(() => this.render()));
+		this._register(this.activityService.onDidChangeActivity(() => this.render()));
+
+		this.render();
+	}
+
+	// Рейка отдаёт полосе ровно столько высоты, сколько она заняла: остаток
+	// считает верхняя группа, и без этой цифры она думала бы, что места больше.
+	get height(): number {
+		return this.element.clientHeight;
+	}
+
+	private render(): void {
+		this.itemDisposables.clear();
+		clearNode(this.element);
+
+		const containers = this.orderedContainers();
+		const active = this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel);
+		const panelVisible = this.layoutService.isVisible(Parts.PANEL_PART);
+
+		for (const container of containers) {
+			const model = this.viewDescriptorService.getViewContainerModel(container);
+			const checked = panelVisible && active?.getId() === container.id;
+			// Счётчик ошибок и метка хода живут на ярлыке, а не только на
+			// вкладке: вкладку видно, пока панель открыта, а ярлык — всегда,
+			// и молчащий ярлык вернул бы ту же слепоту, ради которой полоса.
+			const activity = this.activityService.getViewContainerActivities(container.id).at(0);
+			const badgeText = activity?.badge instanceof NumberBadge
+				? (activity.badge.number > 99 ? '99+' : String(activity.badge.number))
+				: undefined;
+			const hasBadge = Boolean(activity) && (!(activity!.badge instanceof NumberBadge) || activity!.badge.number > 0);
+			const hint = this.hintFor(container, model.title, model.keybindingId);
+			const description = hasBadge ? `${hint} · ${activity!.badge.getDescription()}` : hint;
+			const item = append(this.element, $('.point-strip-item', {
+				role: 'button',
+				tabindex: '0',
+				title: description,
+				'aria-label': description,
+				'aria-pressed': String(checked),
+			}));
+			item.classList.toggle('checked', checked);
+			this.paintIcon(append(item, $('.point-strip-icon')), model.icon);
+			if (hasBadge) {
+				const badge = append(item, $('i.point-strip-badge'));
+				badge.classList.toggle('dot', badgeText === undefined);
+				if (badgeText !== undefined) { badge.textContent = badgeText; }
+			}
+
+			const open = () => this.toggle(container.id);
+			this.itemDisposables.add(addDisposableListener(item, EventType.CLICK, open));
+			this.itemDisposables.add(addDisposableListener(item, EventType.KEY_DOWN, event => {
+				const key = new StandardKeyboardEvent(event);
+				if (key.keyCode === KeyCode.Enter || key.keyCode === KeyCode.Space) {
+					key.preventDefault();
+					key.stopPropagation();
+					open();
+				}
+			}));
+		}
+
+		this.element.classList.toggle('empty', containers.length === 0);
+	}
+
+	private orderedContainers(): ViewContainer[] {
+		// `hideIfEmpty` — не наша выдумка: Проблемы, Вывод, Терминал и консоль
+		// отладки объявлены так в апстриме, и ярлык окна без единой вьюшки вёл
+		// бы в пустоту. Условие то же, по которому их прячет ряд вкладок.
+		const containers = this.viewDescriptorService
+			.getViewContainersByLocation(ViewContainerLocation.Panel)
+			.filter(container => !container.hideIfEmpty || this.viewsService.isViewContainerActive(container.id));
+		const rank = (container: ViewContainer) => {
+			const index = stripOrder.indexOf(container.id);
+			return index === -1 ? stripOrder.length : index;
+		};
+		return containers.sort((left, right) => rank(left) - rank(right) || (left.order ?? 0) - (right.order ?? 0));
+	}
+
+	private hintFor(container: ViewContainer, title: string, keybindingId: string | undefined): string {
+		// Кандидатов перебираем, а не берём первого: у встроенных окон
+		// `keybindingId` заполнен идентификатором контейнера, под которым
+		// сочетания нет, и остановка на нём оставляла Поиск без Alt+3.
+		const candidates = [stripKeybindingCommands.get(container.id), keybindingId, container.openCommandActionDescriptor?.id];
+		for (const command of candidates) {
+			const label = command ? this.keybindingService.lookupKeybinding(command)?.getLabel() : undefined;
+			if (label) {
+				return `${title} · ${label}`;
+			}
+		}
+		return title;
+	}
+
+	private paintIcon(target: HTMLElement, icon: ThemeIcon | URI | undefined): void {
+		if (ThemeIcon.isThemeIcon(icon)) {
+			target.classList.add(...ThemeIcon.asClassNameArray(icon));
+			return;
+		}
+		if (URI.isUri(icon)) {
+			// Значок расширения приходит файлом, а не глифом шрифта. Маска
+			// вместо фона — тогда он берёт цвет текста и гаснет вместе с ним,
+			// как соседние codicon'ы; фоном он светился бы мимо состояния.
+			const cssUrl = asCSSUrl(icon).toString();
+			target.classList.add('uri-icon');
+			target.style.setProperty('mask', `${cssUrl} no-repeat 50% 50%`);
+			target.style.setProperty('mask-size', 'var(--activity-bar-icon-size, 18px)');
+			target.style.setProperty('-webkit-mask', `${cssUrl} no-repeat 50% 50%`);
+			target.style.setProperty('-webkit-mask-size', 'var(--activity-bar-icon-size, 18px)');
+		}
+	}
+
+	private toggle(id: string): void {
+		const active = this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel);
+		if (this.layoutService.isVisible(Parts.PANEL_PART) && active?.getId() === id) {
+			// Повторное нажатие по активному ярлыку закрывает панель — так
+			// ведёт себя полоса в JetBrains, и без этого окно можно открыть, но
+			// нельзя убрать той же кнопкой.
+			this.layoutService.setPartHidden(true, Parts.PANEL_PART);
+			return;
+		}
+		void this.paneCompositeService.openPaneComposite(id, ViewContainerLocation.Panel, true);
+	}
+}

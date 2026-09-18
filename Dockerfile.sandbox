@@ -1,0 +1,27 @@
+FROM cgr.dev/chainguard/wolfi-base@sha256:03c6561658909fc4eadd0b2dc717375df40a22cc05455b8f82f1f1974e7e4427 AS egress-build
+
+RUN apk add --no-cache go-1.26=1.26.7-r0
+WORKDIR /src
+COPY go.mod go.sum ./
+COPY internal/egress ./internal/egress
+COPY cmd/point-egress-gateway ./cmd/point-egress-gateway
+RUN CGO_ENABLED=0 go build -trimpath -ldflags '-s -w' -o /out/point-egress-gateway ./cmd/point-egress-gateway
+
+FROM cgr.dev/chainguard/wolfi-base@sha256:03c6561658909fc4eadd0b2dc717375df40a22cc05455b8f82f1f1974e7e4427
+
+RUN apk add --no-cache \
+      ca-certificates-bundle=20260611-r0 \
+      git=2.55.0-r5 \
+      build-base=1-r9 \
+      python-3.13=3.13.15-r4 \
+      ripgrep=15.2.0-r2 \
+      go-1.26=1.26.7-r0 \
+      nodejs-24=24.20.0-r1 \
+      npm=12.0.2-r0 \
+    && addgroup -g 10001 point \
+    && adduser -D -u 10001 -G point -h /tmp/home -s /usr/bin/nologin point
+
+COPY --from=egress-build /out/point-egress-gateway /usr/local/bin/point-egress-gateway
+
+USER 10001:10001
+WORKDIR /workspace

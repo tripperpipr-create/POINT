@@ -1,0 +1,871 @@
+/*---------------------------------------------------------------------------------------------
+ *  Point IDE — выпадашки верхней панели: проект, Git, запуск.
+ *
+ *  В JetBrains верхняя панель — не украшение: слева жетон проекта, рядом жетон
+ *  ветки, справа конфигурация запуска, и каждый по нажатию раскрывает список.
+ *  У Point жетоны были, но каждый просто выполнял одну команду и открывал
+ *  палитру посреди экрана — при том, что стрелка вниз обещала список.
+ *
+ *  Здесь три списка:
+ *
+ *  - **Проект** — свой виджет: недавние проекты строкой «значок · имя ·
+ *    состояние», у открытого — «открыт · N изменений». Меню такого не умеет:
+ *    у пункта меню одна подпись и колонка сочетания клавиш, а здесь нужны три
+ *    колонки и своя разметка.
+ *  - **Ветка** — свой виджет с шапкой состояния, поиском и разделами; он живёт
+ *    вкладом рядом с SCM (`pointBranchPopup.contribution.ts`), потому что
+ *    состояние репозитория и список веток даёт служба SCM, а её из заголовка не
+ *    видно. Здесь — только разметка списка, сам жетон ветки и разбор чисел
+ *    обмена, который нужен обоим: и жетону, и списку.
+ *  - **Запуск** — действия запуска; сам список конфигураций живёт в расширении
+ *    и приходит палитрой по «Выбрать конфигурацию…».
+ *
+ *  Цвета берутся из уже наложенной `point-workbench.css`; своих здесь нет.
+ *  Значок проекта — квадрат с буквой, янтарный у открытого и нейтральный у
+ *  прочих: янтарь у Point — единственная опознавательная краска, и раскрашивать
+ *  каждый проект своей значило бы завести вторую систему смыслов.
+ *--------------------------------------------------------------------------------------------*/
+
+import { $, addDisposableListener, append, EventType, getWindow, isAncestor } from '../../../../base/browser/dom.js';
+import { AnchorAlignment } from '../../../../base/browser/ui/contextview/contextview.js';
+import { IAction, Separator } from '../../../../base/common/actions.js';
+import { splitRecentLabel } from '../../../../base/common/labels.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
+import { DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { isMacintosh } from '../../../../base/common/platform.js';
+import { localize } from '../../../../nls.js';
+import { IMenuService, MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService, Verbosity } from '../../../../platform/label/common/label.js';
+import product from '../../../../platform/product/common/product.js';
+import { IWindowOpenable } from '../../../../platform/window/common/window.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IRecentlyOpened, isRecentFolder, IWorkspacesService } from '../../../../platform/workspaces/common/workspaces.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+
+/** Действия запуска под жетоном конфигурации. */
+export const PointRunWidgetMenu = MenuId.for('PointRunWidgetMenu');
+
+/** Сколько недавних проектов показывать в самой выпадашке. Дальше — «Все недавние…». */
+const MAX_RECENT_PROJECTS = 8;
+
+/** Сколько ждать наведения, прежде чем раскрыть или закрыть боковую панель. */
+const SIDE_OPEN_MS = 220;
+const SIDE_CLOSE_MS = 260;
+
+/** Потолок длины строки: путь у тёзок режется с начала — различает их хвост. */
+const MAX_PATH_CHARS = 30;
+
+function shortenPath(path: string, budget: number): string {
+	return path.length <= budget ? path : `…${path.slice(path.length - budget + 1)}`;
+}
+
+/**
+ * Русское склонение по числу: 1 изменение, 2 изменения, 5 изменений. Вывезено
+ * из модуля наружу, потому что теми же словами говорит выпадашка ветки, а два
+ * счётчика склонений на один продукт разойдутся в первой же правке.
+ */
+export function pointPlural(count: number, one: string, few: string, many: string): string {
+	const tens = count % 100;
+	if (tens >= 11 && tens <= 14) { return many; }
+	const ones = count % 10;
+	if (ones === 1) { return one; }
+	if (ones >= 2 && ones <= 4) { return few; }
+	return many;
+}
+
+if (product.applicationName === 'point') {
+
+	// Жетон конфигурации запуска. Сам список конфигураций живёт в расширении и
+	// приходит палитрой по «Выбрать конфигурацию…»: в оболочке его нет, а
+	// придумывать здесь второй источник — заводить расхождение со строкой
+	// состояния, которая берёт имя оттуда же.
+	MenuRegistry.appendMenuItem(PointRunWidgetMenu, {
+		command: { id: 'localAgent.runWithoutDebug', title: localize('point.widget.run', "Запустить") },
+		group: '1_run',
+		order: 1
+	});
+	MenuRegistry.appendMenuItem(PointRunWidgetMenu, {
+		command: { id: 'localAgent.startDebug', title: localize('point.widget.debug', "Отладка") },
+		group: '1_run',
+		order: 2
+	});
+	MenuRegistry.appendMenuItem(PointRunWidgetMenu, {
+		command: { id: 'localAgent.runFile', title: localize('point.widget.runFile', "Запустить файл") },
+		group: '1_run',
+		order: 3
+	});
+	MenuRegistry.appendMenuItem(PointRunWidgetMenu, {
+		command: { id: 'localAgent.runAnything', title: localize('point.widget.runAnything', "Запустить что угодно…") },
+		group: '1_run',
+		order: 4
+	});
+
+	MenuRegistry.appendMenuItem(PointRunWidgetMenu, {
+		command: { id: 'localAgent.selectRunConfiguration', title: localize('point.widget.selectRun', "Выбрать конфигурацию…") },
+		group: '2_configure',
+		order: 1
+	});
+	MenuRegistry.appendMenuItem(PointRunWidgetMenu, {
+		command: { id: 'localAgent.editRunConfigurations', title: localize('point.widget.editRun', "Настроить конфигурации…") },
+		group: '2_configure',
+		order: 2
+	});
+}
+
+// ── Общая часть: меню и свой всплывающий список ─────────────────────────────
+
+function menuActions(accessor: ServicesAccessor, menu: MenuId): IAction[] {
+	const groups = accessor.get(IMenuService).getMenuActions(menu, accessor.get(IContextKeyService), { renderShortTitle: true });
+	return Separator.join(...groups.map(([, actions]) => actions));
+}
+
+/**
+ * Когда список последний раз закрылся. Повторное нажатие по жетону должно
+ * закрывать список, а само по себе оно его переоткрывает: список снимается по
+ * `mousedown` в окне, и `click` приходит уже к закрытому. Помним момент закрытия
+ * и не открываемся, пока это тот же самый жест.
+ */
+const dismissedAt = new WeakMap<HTMLElement, number>();
+const REOPEN_GUARD_MS = 200;
+
+function reopensSameClick(anchor: HTMLElement): boolean {
+	const at = dismissedAt.get(anchor);
+	return typeof at === 'number' && Date.now() - at < REOPEN_GUARD_MS;
+}
+
+function markOpen(anchor: HTMLElement): void {
+	anchor.classList.add('point-widget-open');
+}
+
+function markClosed(anchor: HTMLElement): void {
+	dismissedAt.set(anchor, Date.now());
+	anchor.classList.remove('point-widget-open');
+}
+
+function showWidgetMenu(accessor: ServicesAccessor, anchor: HTMLElement, actions: IAction[], alignment = AnchorAlignment.LEFT): void {
+	markOpen(anchor);
+	accessor.get(IContextMenuService).showContextMenu({
+		getAnchor: () => anchor,
+		getActions: () => actions,
+		getMenuClassName: () => 'point-title-menu',
+		anchorAlignment: alignment,
+		onHide: () => markClosed(anchor)
+	});
+}
+
+/** Строка своего списка: значок или буква, подпись и приглушённое состояние справа. */
+export interface IPointPopupRow {
+	readonly label: string;
+	readonly meta?: string;
+	/** Буква в квадрате — метка проекта. */
+	readonly mark?: string;
+	/** Класс кодикона вместо квадрата — у строк-действий. */
+	readonly icon?: string;
+	readonly current?: boolean;
+	readonly tooltip?: string;
+	/** Выключенная строка видна, но не нажимается: подсветка обещала бы действие. */
+	readonly enabled?: boolean;
+	readonly run?: (event: MouseEvent | KeyboardEvent) => unknown;
+	/**
+	 * Действия над этой строкой. Раскрываются сбоку от списка, не вместо него:
+	 * подменю поясняет строку, а строка должна остаться на виду.
+	 */
+	readonly submenu?: () => readonly IPointPopupSection[];
+}
+
+export interface IPointPopupSection {
+	readonly title?: string;
+	/**
+	 * Число справа от заголовка раздела. Стоит там, где список обрезан или
+	 * отфильтрован: «Локальные ветки · 24» отвечает на вопрос «это все?»,
+	 * который иначе решается только памятью о собственном репозитории.
+	 */
+	readonly count?: number;
+	readonly rows: readonly IPointPopupRow[];
+}
+
+/**
+ * Плитка состояния в шапке: крупное число и слово под ним.
+ *
+ * Слово стоит в именительном падеже и числу не подчиняется — это подпись
+ * столбца, а не продолжение фразы: «1 входящих» читалось бы опечаткой.
+ * Согласованная фраза живёт в подсказке, где для неё есть место.
+ */
+export interface IPointPopupStat {
+	readonly icon: string;
+	readonly value: string;
+	readonly label: string;
+	/** `attention` — есть что забрать, отправить или сохранить. */
+	readonly tone?: 'attention' | 'idle';
+	readonly tooltip?: string;
+	readonly run?: () => unknown;
+}
+
+/** Строка-предупреждение под шапкой: незавершённое слияние, отсоединённый HEAD. */
+export interface IPointPopupNote {
+	readonly icon: string;
+	readonly text: string;
+	readonly tone?: 'caution' | 'wound';
+}
+
+/**
+ * Шапка списка: где мы сейчас и что с этим можно сделать.
+ *
+ * У жетона ветки её не было, и список отвечал только на «куда переключиться».
+ * Но первый вопрос к Git другой — «есть ли новое на сервере и всё ли у меня
+ * сохранено», — и за ответом приходилось идти в панель Git или в строку
+ * состояния. Шапка отвечает на него там же, где спрашивают.
+ */
+export interface IPointPopupHeader {
+	readonly icon?: string;
+	readonly title: string;
+	readonly titleTooltip?: string;
+	readonly subtitle?: string;
+	readonly subtitleIcon?: string;
+	readonly subtitleTooltip?: string;
+	readonly note?: IPointPopupNote;
+	readonly stats?: readonly IPointPopupStat[];
+	/** Ряд кнопок под плитками: обновить, стянуть, отправить, закоммитить. */
+	readonly actions?: readonly IPointPopupRow[];
+}
+
+export interface IPointPopupOptions {
+	/** Разделы списка. Зависят от строки поиска, поэтому это функция. */
+	readonly sections: (query: string) => readonly IPointPopupSection[];
+	/** Поле поиска над списком; без него список статический. */
+	readonly search?: string;
+	/** Состояние и действия над списком. */
+	readonly header?: IPointPopupHeader;
+	/** Строка под списком — например «Новая ветка…». */
+	readonly foot?: IPointPopupRow;
+	/** Класс-довесок к `.point-popup`. */
+	readonly modifier: string;
+	readonly alignment?: AnchorAlignment;
+}
+
+/**
+ * Свой всплывающий список под жетоном. Меню Code-OSS сюда не годится: у его
+ * пункта одна подпись и колонка сочетания клавиш, а здесь у строки четыре
+ * части — метка, имя, состояние справа и стрелка в подменю, а над списком ещё
+ * поле поиска.
+ *
+ * Клавиатура работает как в меню: стрелки ходят по строкам, Enter выполняет,
+ * Esc закрывает. Мимо списка щелчок его снимает, уход фокуса из окна — тоже.
+ */
+export function showPointPopup(contextViewService: IContextViewService, anchor: HTMLElement, options: IPointPopupOptions): void {
+	markOpen(anchor);
+	contextViewService.showContextView({
+		getAnchor: () => anchor,
+		anchorAlignment: options.alignment ?? AnchorAlignment.LEFT,
+		canRelayout: false,
+		render: (container: HTMLElement) => {
+			const store = new DisposableStore();
+			const popup = append(container, $(`div.point-popup${options.modifier}`, { role: 'menu' }));
+			const hide = () => contextViewService.hideContextView();
+			/** Все строки по порядку — по ним ходят стрелки. */
+			let buttons: HTMLElement[] = [];
+
+			// Боковая панель подменю. Живёт внутри списка, а не отдельным слоем:
+			// слой вида в окне один, и вторым показом он снял бы сам список —
+			// подменю открывалось бы вместо него, а не рядом с ним. В разметку
+			// она встаёт последней: открывается из списка, значит и в обходе
+			// строк идёт после него.
+			const side = $('div.point-popup-side');
+			/** Какой строке принадлежит кнопка: по ней открывается подменю с клавиатуры. */
+			const rowOf = new WeakMap<HTMLElement, IPointPopupRow>();
+			let sideRow: HTMLElement | undefined;
+			let sideButtons: HTMLElement[] = [];
+			const sideDelay = store.add(new MutableDisposable<IDisposable>());
+
+			const closeSide = () => {
+				sideDelay.clear();
+				sideRow?.classList.remove('point-popup-row-expanded');
+				sideRow = undefined;
+				sideButtons = [];
+				side.textContent = '';
+				side.classList.remove('point-popup-side-open');
+			};
+
+			const addRow = (host: HTMLElement, row: IPointPopupRow): HTMLElement => {
+				const enabled = row.enabled !== false;
+				const button = append(host, $('button.point-popup-row', {
+					type: 'button',
+					role: 'menuitem',
+					tabindex: '-1',
+					title: row.tooltip ?? row.label,
+				}));
+				if (row.current) {
+					button.classList.add('point-popup-row-current');
+				}
+				if (!enabled) {
+					button.classList.add('point-popup-row-disabled');
+					button.setAttribute('aria-disabled', 'true');
+				}
+				if (row.mark !== undefined) {
+					append(button, $('span.point-popup-mark', { 'aria-hidden': 'true' }, row.mark));
+				} else if (row.icon) {
+					append(button, $(`span.point-popup-icon.codicon.${row.icon}`, { 'aria-hidden': 'true' }));
+				}
+				append(button, $('span.point-popup-label', {}, row.label));
+				if (row.meta) {
+					append(button, $('span.point-popup-meta', {}, row.meta));
+				}
+				if (row.current) {
+					append(button, $('span.point-popup-check.codicon.codicon-check', { 'aria-hidden': 'true' }));
+				}
+				if (row.submenu) {
+					const more = append(button, $('span.point-popup-more.codicon.codicon-chevron-right', { 'aria-hidden': 'true' }));
+					// Целились в стрелку — значит хотели список действий, а не
+					// действие строки. Без этого нажатие на стрелку у ветки
+					// переключало ветку: событие доходило до самой строки.
+					store.add(addDisposableListener(more, EventType.MOUSE_DOWN, event => {
+						event.preventDefault();
+						event.stopPropagation();
+						openSide(button, row);
+					}));
+					store.add(addDisposableListener(more, EventType.CLICK, event => {
+						event.preventDefault();
+						event.stopPropagation();
+					}));
+				}
+				rowOf.set(button, row);
+				store.add(addDisposableListener(button, EventType.CLICK, event => {
+					if (!enabled) {
+						return;
+					}
+					if (row.submenu && !row.run) {
+						openSide(button, row);
+						return;
+					}
+					hide();
+					row.run?.(event as MouseEvent);
+				}));
+				// Подменю раскрывается наведением, как в JetBrains: рука идёт по
+				// списку, и остановка на строке — уже вопрос «что с ней можно».
+				// Задержка держит его закрытым, пока рука просто проходит мимо.
+				store.add(addDisposableListener(button, EventType.MOUSE_OVER, () => {
+					if (host === side) {
+						return;
+					}
+					if (!row.submenu) {
+						sideDelay.value = disposableTimeout(() => closeSide(), SIDE_CLOSE_MS);
+						return;
+					}
+					if (sideRow === button) {
+						sideDelay.clear();
+						return;
+					}
+					sideDelay.value = disposableTimeout(() => openSide(button, row), SIDE_OPEN_MS);
+				}));
+				return button;
+			};
+
+			// Пока указатель на самой панели, она не закрывается: путь к ней идёт
+			// наискось через соседние строки, и закрытие по уходу со строки
+			// отняло бы панель раньше, чем рука до неё дойдёт.
+			store.add(addDisposableListener(side, EventType.MOUSE_OVER, () => sideDelay.clear()));
+
+			function openSide(button: HTMLElement, row: IPointPopupRow): void {
+				if (!row.submenu || sideRow === button) {
+					return;
+				}
+				closeSide();
+				sideRow = button;
+				button.classList.add('point-popup-row-expanded');
+				let first = true;
+				for (const section of row.submenu()) {
+					if (!section.rows.length) {
+						continue;
+					}
+					if (!first) {
+						append(side, $('div.point-popup-separator'));
+					}
+					if (section.title) {
+						append(side, $('div.point-popup-section', {}, section.title));
+					}
+					for (const item of section.rows) {
+						sideButtons.push(addRow(side, item));
+					}
+					first = false;
+				}
+				side.classList.add('point-popup-side-open');
+				// Панель встаёт вровень со своей строкой и уходит влево, если
+				// справа от списка ей уже не хватает места.
+				const rowBox = button.getBoundingClientRect();
+				const popupBox = popup.getBoundingClientRect();
+				side.style.top = `${Math.max(0, rowBox.top - popupBox.top - 6)}px`;
+				const fitsRight = popupBox.right + side.offsetWidth + 12 <= getWindow(popup).innerWidth;
+				side.classList.toggle('point-popup-side-left', !fitsRight);
+			}
+
+			// Шапка идёт первой строкой разметки и первой же в обходе стрелками:
+			// она про «где я сейчас», а список — про «куда перейти», и порядок
+			// чтения совпадает с порядком вопросов.
+			const headerButtons: HTMLElement[] = [];
+			if (options.header) {
+				const header = options.header;
+				const box = append(popup, $('div.point-popup-head'));
+				const line = append(box, $('div.point-popup-head-line'));
+				if (header.icon) {
+					append(line, $(`span.point-popup-head-icon.codicon.${header.icon}`, { 'aria-hidden': 'true' }));
+				}
+				append(line, $('span.point-popup-head-title', { title: header.titleTooltip ?? header.title }, header.title));
+				if (header.subtitle) {
+					const sub = append(box, $('div.point-popup-head-sub', { title: header.subtitleTooltip ?? header.subtitle }));
+					if (header.subtitleIcon) {
+						append(sub, $(`span.codicon.${header.subtitleIcon}`, { 'aria-hidden': 'true' }));
+					}
+					append(sub, $('span.point-popup-head-sub-text', {}, header.subtitle));
+				}
+				if (header.note) {
+					const note = append(box, $(`div.point-popup-note.point-popup-note-${header.note.tone ?? 'caution'}`));
+					append(note, $(`span.codicon.${header.note.icon}`, { 'aria-hidden': 'true' }));
+					append(note, $('span', {}, header.note.text));
+				}
+				if (header.stats?.length) {
+					const stats = append(box, $('div.point-popup-stats'));
+					for (const stat of header.stats) {
+						// Плитка без действия — не кнопка: подсветка и фокус
+						// обещали бы нажатие, а нажимать нечего.
+						const tile = append(stats, stat.run
+							? $('button.point-popup-stat', { type: 'button', role: 'menuitem', tabindex: '-1', title: stat.tooltip ?? stat.label })
+							: $('div.point-popup-stat.point-popup-stat-flat', { title: stat.tooltip ?? stat.label }));
+						tile.classList.add(`point-popup-stat-${stat.tone ?? 'idle'}`);
+						append(tile, $(`span.point-popup-stat-icon.codicon.${stat.icon}`, { 'aria-hidden': 'true' }));
+						append(tile, $('span.point-popup-stat-value', {}, stat.value));
+						append(tile, $('span.point-popup-stat-label', {}, stat.label));
+						if (stat.run) {
+							store.add(addDisposableListener(tile, EventType.CLICK, () => {
+								hide();
+								stat.run?.();
+							}));
+							headerButtons.push(tile);
+						}
+					}
+				}
+				if (header.actions?.length) {
+					const bar = append(box, $('div.point-popup-head-actions'));
+					for (const action of header.actions) {
+						const enabled = action.enabled !== false;
+						const button = append(bar, $('button.point-popup-head-action', {
+							type: 'button',
+							role: 'menuitem',
+							tabindex: '-1',
+							title: action.tooltip ?? action.label,
+						}));
+						if (!enabled) {
+							button.classList.add('point-popup-head-action-disabled');
+							button.setAttribute('aria-disabled', 'true');
+						}
+						if (action.icon) {
+							append(button, $(`span.codicon.${action.icon}`, { 'aria-hidden': 'true' }));
+						}
+						append(button, $('span.point-popup-head-action-label', {}, action.label));
+						store.add(addDisposableListener(button, EventType.CLICK, event => {
+							if (!enabled) {
+								return;
+							}
+							hide();
+							action.run?.(event as MouseEvent);
+						}));
+						headerButtons.push(button);
+					}
+				}
+			}
+
+			let search: HTMLInputElement | undefined;
+			if (options.search) {
+				const box = append(popup, $('div.point-popup-search'));
+				append(box, $('span.codicon.codicon-search', { 'aria-hidden': 'true' }));
+				search = append(box, $('input.point-popup-search-input', {
+					type: 'text',
+					placeholder: options.search,
+					'aria-label': options.search,
+					spellcheck: 'false',
+				})) as HTMLInputElement;
+			}
+			const list = append(popup, $('div.point-popup-list'));
+			if (options.foot) {
+				append(popup, $('div.point-popup-separator'));
+			}
+			const footHost = options.foot ? append(popup, $('div.point-popup-foot')) : undefined;
+
+			const renderList = (query: string) => {
+				closeSide();
+				list.textContent = '';
+				buttons = [...headerButtons];
+				let rendered = 0;
+				for (const section of options.sections(query)) {
+					if (!section.rows.length) {
+						continue;
+					}
+					if (rendered) {
+						append(list, $('div.point-popup-separator'));
+					}
+					if (section.title) {
+						const heading = append(list, $('div.point-popup-section'));
+						append(heading, $('span', {}, section.title));
+						if (section.count !== undefined) {
+							append(heading, $('span.point-popup-section-count', {}, String(section.count)));
+						}
+					}
+					for (const row of section.rows) {
+						buttons.push(addRow(list, row));
+					}
+					rendered += section.rows.length;
+				}
+				if (!rendered) {
+					append(list, $('div.point-popup-empty', {}, localize('point.popup.nothing', "Ничего не найдено")));
+				}
+				if (footHost && options.foot) {
+					footHost.textContent = '';
+					buttons.push(addRow(footHost, options.foot));
+				}
+			};
+			renderList('');
+
+			if (search) {
+				store.add(addDisposableListener(search, EventType.INPUT, () => renderList(search!.value.trim())));
+			}
+
+			store.add(addDisposableListener(popup, EventType.KEY_DOWN, event => {
+				const keyboardEvent = event as KeyboardEvent;
+				const active = getWindow(popup).document.activeElement as HTMLElement;
+				const inSide = sideButtons.includes(active);
+				// Пока открыта боковая панель и фокус в ней, стрелки ходят по
+				// ней: она и есть то, с чем сейчас работают.
+				const walk = inSide ? sideButtons : buttons;
+				const index = walk.indexOf(active);
+				const focusAt = (next: number) => {
+					if (walk.length) {
+						walk[(next + walk.length) % walk.length]?.focus();
+					}
+				};
+				const back = () => {
+					const owner = sideRow;
+					closeSide();
+					owner?.focus();
+				};
+				if (keyboardEvent.key === 'ArrowDown') {
+					focusAt(index + 1);
+				} else if (keyboardEvent.key === 'ArrowUp') {
+					// Из поля поиска стрелка вверх уводит в конец списка, а не в никуда.
+					focusAt(index < 0 ? -1 : index - 1);
+				} else if (keyboardEvent.key === 'ArrowRight' && !inSide) {
+					// Именно `openSide`, а не нажатие строки: у строки ветки есть
+					// и своё действие — переключиться, — и нажатие выполнило бы
+					// его, закрыв список. Стрелка вправо про подменю, и только.
+					const row = active ? rowOf.get(active) : undefined;
+					if (row?.submenu) {
+						openSide(active, row);
+						sideButtons[0]?.focus();
+					}
+				} else if (keyboardEvent.key === 'ArrowLeft' && inSide) {
+					back();
+				} else if (keyboardEvent.key === 'Escape' || keyboardEvent.key === 'Tab') {
+					if (inSide) {
+						back();
+					} else {
+						hide();
+						anchor.focus();
+					}
+				} else {
+					return;
+				}
+				keyboardEvent.preventDefault();
+				keyboardEvent.stopPropagation();
+			}));
+
+			// Слой вида сам закрывается только по своим событиям, а список висит
+			// поверх окна: щелчок мимо и уход фокуса из окна снимают его так же,
+			// как это делает обработчик контекстного меню.
+			const targetWindow = getWindow(container);
+			store.add(addDisposableListener(targetWindow, EventType.MOUSE_DOWN, event => {
+				if (!isAncestor(event.target as HTMLElement, popup) && !isAncestor(event.target as HTMLElement, anchor)) {
+					hide();
+				}
+			}, true));
+			store.add(addDisposableListener(targetWindow, EventType.BLUR, () => hide()));
+
+			// Фокус — в поле поиска, если оно есть: список с поиском открывают,
+			// чтобы набрать имя. Иначе — на текущей строке.
+			append(popup, side);
+			const current = buttons.find(button => button.classList.contains('point-popup-row-current'));
+			(search ?? current ?? buttons[0])?.focus();
+			return store;
+		},
+		onHide: () => markClosed(anchor)
+	});
+}
+
+// ── Проект ──────────────────────────────────────────────────────────────────
+
+interface IRecentProject {
+	readonly name: string;
+	readonly parentPath: string;
+	readonly fullLabel: string;
+	readonly openable: IWindowOpenable;
+	readonly key: string;
+	readonly remoteAuthority: string | undefined;
+}
+
+function recentProjects(accessor: ServicesAccessor, recents: IRecentlyOpened): IRecentProject[] {
+	const labelService = accessor.get(ILabelService);
+	return recents.workspaces.slice(0, MAX_RECENT_PROJECTS).map(recent => {
+		const fullLabel = isRecentFolder(recent)
+			? recent.label || labelService.getWorkspaceLabel(recent.folderUri, { verbose: Verbosity.LONG })
+			: recent.label || labelService.getWorkspaceLabel(recent.workspace, { verbose: Verbosity.LONG });
+		const openable: IWindowOpenable = isRecentFolder(recent)
+			? { folderUri: recent.folderUri }
+			: { workspaceUri: recent.workspace.configPath };
+		return {
+			...splitRecentLabel(fullLabel),
+			fullLabel,
+			openable,
+			key: isRecentFolder(recent) ? recent.folderUri.toString() : recent.workspace.configPath.toString(),
+			remoteAuthority: recent.remoteAuthority
+		};
+	});
+}
+
+/**
+ * Состояние проекта в правой колонке. У открытого — «открыт» и число изменений
+ * рабочей копии; число приходит контекстным ключом от вклада SCM, тем же, что
+ * считает значок на панели действий, поэтому жетон и значок не разойдутся.
+ * У прочих — путь: даты последнего открытия у недавних просто нет, и придумать
+ * её значило бы соврать в единственном месте строки, где ждут правды.
+ */
+function projectMeta(accessor: ServicesAccessor, project: IRecentProject, isCurrent: boolean): string {
+	if (!isCurrent) {
+		return shortenPath(project.parentPath, MAX_PATH_CHARS);
+	}
+	const changes = accessor.get(IContextKeyService).getContextKeyValue<number>('point.scmChangeCount') ?? 0;
+	return changes > 0
+		? localize('point.popup.openWithChanges', "открыт · {0} {1}", changes, pointPlural(changes, "изменение", "изменения", "изменений"))
+		: localize('point.popup.open', "открыт");
+}
+
+/** Выпадашка жетона проекта: недавние проекты, затем действия над проектом. */
+export async function showPointProjectMenu(instantiationService: IInstantiationService, anchor: HTMLElement): Promise<void> {
+	if (reopensSameClick(anchor)) {
+		return;
+	}
+	// Недавние приходят из главного процесса, поэтому список собирается после
+	// ожидания: `invokeFunction` живёт только внутри синхронного вызова.
+	const recents = await instantiationService.invokeFunction(accessor => accessor.get(IWorkspacesService).getRecentlyOpened());
+	instantiationService.invokeFunction(accessor => {
+		const hostService = accessor.get(IHostService);
+		const commandService = accessor.get(ICommandService);
+		const openFolders = new Set(accessor.get(IWorkspaceContextService).getWorkspace().folders.map(folder => folder.uri.toString()));
+
+		const projects = recentProjects(accessor, recents).map(project => {
+			const isCurrent = openFolders.has(project.key);
+			return {
+				label: project.name,
+				meta: projectMeta(accessor, project, isCurrent),
+				mark: (project.name.trim()[0] ?? 'P').toUpperCase(),
+				current: isCurrent,
+				tooltip: project.fullLabel,
+				run: (event: MouseEvent | KeyboardEvent) => {
+					// Открытый проект уже открыт: повторное открытие той же папки
+					// перезагрузило бы окно ровно в то же состояние. Строка есть,
+					// чтобы показать, где ты, — как и у текущей ветки.
+					if (isCurrent) {
+						return;
+					}
+					const openInNewWindow = (!isMacintosh && (event.ctrlKey || event.shiftKey)) || (isMacintosh && (event.metaKey || event.altKey));
+					return hostService.openWindow([project.openable], {
+						forceNewWindow: openInNewWindow,
+						remoteAuthority: project.remoteAuthority || null
+					});
+				}
+			} satisfies IPointPopupRow;
+		});
+
+		const action = (icon: string, label: string, command: string): IPointPopupRow => ({
+			icon,
+			label,
+			run: () => commandService.executeCommand(command)
+		});
+
+		showPointPopup(accessor.get(IContextViewService), anchor, {
+			modifier: '.point-project-popup',
+			sections: () => [
+				{ title: localize('point.popup.projects', "Проекты"), rows: projects },
+				{
+					rows: [
+						action('codicon-folder-opened', localize('point.popup.openFolder', "Открыть папку…"), 'workbench.action.files.openFolder'),
+						action('codicon-repo-clone', localize('point.popup.clone', "Клонировать…"), 'localAgent.gitClone'),
+						action('codicon-new-folder', localize('point.popup.addFolder', "Добавить папку в проект…"), 'workbench.action.addRootFolder'),
+					]
+				},
+				{
+					rows: [
+						action('codicon-history', localize('point.popup.allRecent', "Все недавние проекты…"), 'localAgent.switchProject'),
+						action('codicon-settings-gear', localize('point.popup.projectSettings', "Настройки проекта"), 'workbench.action.openWorkspaceSettings'),
+						action('codicon-empty-window', localize('point.popup.newWindow', "Новое окно"), 'workbench.action.newWindow'),
+						action('codicon-close', localize('point.popup.closeProject', "Закрыть проект"), 'workbench.action.closeFolder'),
+					]
+				},
+			]
+		});
+	});
+}
+
+// ── Жетон ветки ─────────────────────────────────────────────────────────────
+
+/**
+ * Ключи, по которым жетон ветки перерисовывается. Все, кроме первого, ставит
+ * вклад SCM (`contrib/scm/browser/activity.ts`) по активному репозиторию — там
+ * же, где считается значок на панели действий, поэтому жетон, значок и строка
+ * состояния не расходятся.
+ */
+export const POINT_BRANCH_CHIP_KEYS = [
+	'scmActiveRepositoryBranchName',
+	'point.scmDirty',
+	'point.scmAhead',
+	'point.scmBehind',
+	'point.scmUpstream',
+];
+
+/**
+ * Сколько коммитов разделяет текущую ветку и её источник.
+ *
+ * Числа берутся из команд строки состояния, которые публикует расширение Git:
+ * там они уже посчитаны его собственным `git status -b`, и второй разбор вывода
+ * `git` завёл бы вторую правду о репозитории — расходящуюся ровно в те моменты,
+ * когда один из двух счётчиков ещё не успел обновиться.
+ *
+ * Формат подписи задаёт расширение: `3↓ 2↑`, а у зеркала, куда нельзя писать, —
+ * одно `3↓`. Команды перебираются с конца: обмен идёт последней командой, а
+ * первой стоит имя ветки, и в имени ветки стрелка тоже возможна.
+ */
+export function pointSyncCounts(commands: readonly { readonly title?: string }[] | undefined): { behind: number; ahead: number } {
+	for (let index = (commands?.length ?? 0) - 1; index >= 0; index--) {
+		const title = commands![index].title ?? '';
+		const behind = /(\d+)\s*↓/.exec(title);
+		const ahead = /(\d+)\s*↑/.exec(title);
+		if (behind || ahead) {
+			return { behind: behind ? Number(behind[1]) : 0, ahead: ahead ? Number(ahead[1]) : 0 };
+		}
+	}
+	return { behind: 0, ahead: 0 };
+}
+
+/** Состояние репозитория, каким его видит верхняя панель. */
+export interface IPointGitState {
+	readonly branch: string;
+	/** Сколько записей в рабочей копии не закоммичено — вместе с неотслеживаемыми. */
+	readonly dirty: number;
+	/** Коммиты, которых нет на сервере. */
+	readonly ahead: number;
+	/**
+	 * Коммиты, которых нет у нас. Число известно **с последнего `git fetch`**:
+	 * сам git на сервер не ходит, пока его не попросят, и врать про свежесть
+	 * этого числа нельзя — поэтому оговорка стоит в каждой подсказке.
+	 */
+	readonly behind: number;
+	/** Ветка-источник, `''` — ветки нет на сервере. */
+	readonly upstream: string;
+}
+
+export function pointGitState(contextKeyService: IContextKeyService): IPointGitState {
+	const read = <T>(key: string, fallback: T): T => contextKeyService.getContextKeyValue<T>(key) ?? fallback;
+	return {
+		branch: read('scmActiveRepositoryBranchName', ''),
+		dirty: read('point.scmDirty', 0),
+		ahead: read('point.scmAhead', 0),
+		behind: read('point.scmBehind', 0),
+		upstream: read('point.scmUpstream', ''),
+	};
+}
+
+/** «5 изменений», «1 коммит» — число со словом в нужном падеже. */
+function commits(count: number): string {
+	return `${count} ${pointPlural(count, "коммит", "коммита", "коммитов")}`;
+}
+
+function changes(count: number): string {
+	return `${count} ${pointPlural(count, "изменение", "изменения", "изменений")}`;
+}
+
+/**
+ * Жетон ветки: имя, точка несохранённого и счётчики обмена с сервером.
+ *
+ * Прежде на жетоне стояло одно имя ветки, и по нему нельзя было ответить ни на
+ * один вопрос, с которого начинается работа с Git: есть ли что-то новое на
+ * сервере, всё ли закоммичено, отправлено ли то, что закоммичено. За каждым
+ * ответом приходилось открывать панель Git.
+ *
+ * Пометки живут в своей обёртке между именем и стрелкой: имя обрезается
+ * многоточием, и счётчики, стоящие с ним в одной строке, обрезались бы вместе
+ * с ним — то есть пропадали бы ровно у длинных имён веток.
+ */
+export function updatePointBranchChip(chip: HTMLElement, label: HTMLElement, contextKeyService: IContextKeyService): void {
+	const state = pointGitState(contextKeyService);
+	label.textContent = state.branch;
+	chip.classList.toggle('point-branch-chip-idle', !state.branch);
+	chip.classList.toggle('point-branch-chip-dirty', state.dirty > 0);
+
+	let marks = chip.querySelector<HTMLElement>('.point-branch-chip-marks');
+	if (!marks) {
+		marks = $('span.point-branch-chip-marks', { 'aria-hidden': 'true' });
+		label.after(marks);
+	}
+	marks.textContent = '';
+	// Точка несохранённого — та же, что у изменённой вкладки редактора: один
+	// знак на продукт для «есть несохранённая работа».
+	if (state.dirty > 0) {
+		append(marks, $('span.point-branch-chip-dot'));
+	}
+	if (state.behind > 0) {
+		append(marks, $('span.point-branch-chip-count.point-branch-chip-behind', {}, `↓${state.behind}`));
+	}
+	if (state.ahead > 0) {
+		append(marks, $('span.point-branch-chip-count.point-branch-chip-ahead', {}, `↑${state.ahead}`));
+	}
+	// Неопубликованная ветка — не «ноль исходящих», а другое состояние: тянуть
+	// и отправлять некуда вовсе. Числами это не показать, поэтому значок.
+	if (state.branch && !state.upstream) {
+		append(marks, $('span.point-branch-chip-unpublished.codicon.codicon-cloud-upload'));
+	}
+
+	chip.title = state.branch ? branchChipTooltip(state) : localize('point.branchChipEmpty', "Репозиторий Git не найден");
+}
+
+function branchChipTooltip(state: IPointGitState): string {
+	const lines = [localize('point.branchChip.branch', "Ветка {0}", state.branch)];
+	lines.push(state.dirty > 0
+		? localize('point.branchChip.dirty', "Не закоммичено: {0}", changes(state.dirty))
+		: localize('point.branchChip.clean', "Всё закоммичено"));
+	if (!state.upstream) {
+		lines.push(localize('point.branchChip.unpublished', "Ветки нет на сервере — её ещё не публиковали"));
+	} else {
+		lines.push(state.behind > 0
+			? localize('point.branchChip.behind', "На сервере новых: {0} (по данным последнего обновления)", commits(state.behind))
+			: localize('point.branchChip.upToDate', "Новых коммитов на сервере нет — по данным последнего обновления"));
+		lines.push(state.ahead > 0
+			? localize('point.branchChip.ahead', "Не отправлено: {0}", commits(state.ahead))
+			: localize('point.branchChip.pushed', "Всё отправлено в {0}", state.upstream));
+	}
+	lines.push(localize('point.branchChip.hint', "Нажмите — состояние, ветки и действия Git"));
+	return lines.join('\n');
+}
+
+// ── Запуск ──────────────────────────────────────────────────────────────────
+
+/** Выпадашка жетона конфигурации запуска. */
+export function showPointRunMenu(instantiationService: IInstantiationService, anchor: HTMLElement): void {
+	if (reopensSameClick(anchor)) {
+		return;
+	}
+	instantiationService.invokeFunction(accessor => {
+		// Жетон запуска стоит у правого края: список, выровненный по левому краю
+		// жетона, вылезал бы за окно и его двигал бы сам слой вида.
+		showWidgetMenu(accessor, anchor, menuActions(accessor, PointRunWidgetMenu), AnchorAlignment.RIGHT);
+	});
+}

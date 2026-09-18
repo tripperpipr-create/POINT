@@ -1,0 +1,12 @@
+{
+  "repository": "https://github.com/microsoft/vscode.git",
+  "ref": "1.124.2",
+  "commit": "6928394f91b684055b873eecb8bc281365131f1c",
+  "platform": "win32-x64",
+  "node": "24.15.0",
+  "nodeSha256": "cc5149eabd53779ce1e7bdc5401643622d0c7e6800ade18928a767e940bb0e62",
+  "russianLanguagePack": {
+    "version": "1.124.0",
+    "sha256": "37b858228d1c12231f0b16bdb0da10a65db59062bd9c6383e2fcad9be67430a8"
+  }
+}

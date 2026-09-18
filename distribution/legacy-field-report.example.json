@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "optInAggregateOnly": false,
+  "realProjectAttestation": false,
+  "projectNonce": "replace-with-a-random-64-character-lowercase-hex-value-not-derived-from-a-project",
+  "stackFamily": "go",
+  "releaseWindow": {
+    "id": "replace-with-release-window-id",
+    "sequence": 1,
+    "startedAt": "2026-01-01T00:00:00Z",
+    "completedAt": "2026-01-08T00:00:00Z",
+    "fullWindowAttestation": false,
+    "candidateVersion": "0.0.0-example",
+    "candidateCommit": "0000000000000000000000000000000000000000"
+  },
+  "runs": {
+    "started": 0,
+    "completed": 0,
+    "failed": 0,
+    "cancelled": 0,
+    "interrupted": 0
+  },
+  "lifecycle": {
+    "upgradeFromPreviousVersion": false,
+    "backupRestore": false,
+    "legacyProfilesVisible": false,
+    "legacyWorkflowsVisible": false,
+    "legacyRunHistoryVisible": false,
+    "canonicalRunCompleted": false,
+    "rollbackToPreviousVersion": false,
+    "noDataLoss": false
+  },
+  "blockingDefects": {
+    "p0": 0,
+    "p1": 0
+  },
+  "compatibilityTotals": {
+    "legacy_profile_save": 0,
+    "legacy_profile_delete": 0,
+    "legacy_profile_run_fallback": 0,
+    "legacy_workflow_save": 0,
+    "legacy_workflow_delete": 0,
+    "legacy_workflow_run": 0,
+    "legacy_custom_command_save": 0,
+    "legacy_custom_command_execute": 0,
+    "legacy_run_snapshot_read": 0
+  },
+  "compatibilityUsage": []
+}

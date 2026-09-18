@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "provenanceLevel": "local-build-record",
+  "generatedAt": "2026-08-31T02:58:08Z",
+  "subject": {
+    "name": "point-agent-sandbox:release",
+    "digest": "sha256:e0a50330e7e8f68f13b0973dcad0ab82324dfa6a7fa88392dc4f22aed7dce882",
+    "sizeBytes": 340618825,
+    "archiveSha256": "6abbf82b25a7712362d9a97d7b7db8f1dbd735d46e85b868c4a9fe781a7345d1"
+  },
+  "builder": {
+    "id": "docker-desktop/buildkit",
+    "command": "docker build --pull -f Dockerfile.sandbox -t point-agent-sandbox:release .",
+    "embeddedAttestation": true,
+    "platformManifestDigest": "sha256:fce0555d53d201a097d170d5b1e7d3647ee2505c9ca05614ff4220e1c1933138",
+    "configDigest": "sha256:8803703d6a3000fba764ea1882fe7b4b14c7a8a50e0abeed53c4dfb19fcd84de",
+    "attestationManifestDigest": "sha256:4d82af1a47bc1e25039541006da41704317ee0797fb9918a3e8e04b54535715a"
+  },
+  "sourceControl": {
+    "verified": false,
+    "reason": "The supplied workspace has no root .git metadata. The production workflow separately requires fetch-depth 0, a clean baseline, and an unchanged github.sha."
+  },
+  "materials": [
+    {"path": "Dockerfile.sandbox", "sha256": "586e6754a92d06f7464b7e7fad25828f4a9003809028e0dc360bd88eaa5a2752"},
+    {"path": ".dockerignore", "sha256": "114a7fa92bbd043b782480b1f9135798174a851678223042f8248e17d4f102f6"},
+    {"path": "go.mod", "sha256": "b83a68642fcd6233b05450529abbde5e9f9dd94d71b2c2a4353ea68c8eab531a"},
+    {"path": "go.sum", "sha256": "f103186a44b480f6c7d9b02e6c58aacbaea0bf9772c7b2fad172f7c15562b61e"},
+    {"path": "cmd/point-egress-gateway/main.go", "sha256": "4db59473eae5814611872ea712c116c3e535f20ed86fd8e60ba767d9a08e2d6e"},
+    {"path": "cmd/point-egress-gateway/main_test.go", "sha256": "44c605cac2700bbf129fa413251c2f42daeebcde9387ab84e2395996af6f98e3"},
+    {"path": "internal/egress/gateway.go", "sha256": "7cec8914581e2fc730b91a9619956163b853391ca351de0afbfb12f8b581de36"},
+    {"path": "internal/egress/gateway_test.go", "sha256": "4b23542f863c15fb34cfd92c17873a48f10e6827577b1f29e7c4286da27cf88a"},
+    {"path": "internal/egress/policy.go", "sha256": "f5f17606eef3f34c4aa4ba42465ce24f66a44d08ad959f69f557ee31156d2a73"},
+    {"path": "internal/egress/policy_test.go", "sha256": "72b38f2f8ca990f761a7a0324f4330366f8def8189eebe9ab796bd2822726963"},
+    {"path": "internal/egress/tls.go", "sha256": "b9cb664f40145d56d49a9ab25fe0848c5c73c8f0452f50d171b58ef3f95dd198"},
+    {"path": "internal/egress/tls_test.go", "sha256": "2903625e84f00b769e9a481b61cc35e9686d0eb9381f64eb5a42c5e6394da2ac"},
+    {"uri": "docker://cgr.dev/chainguard/wolfi-base", "digest": "sha256:03c6561658909fc4eadd0b2dc717375df40a22cc05455b8f82f1f1974e7e4427"}
+  ],
+  "evidence": {
+    "trivyReport": "distribution/sandbox-trivy.json",
+    "cycloneDxSbom": "distribution/sandbox-sbom.cdx.json",
+    "transitivePackageManifest": "distribution/sandbox-packages.json",
+    "securityAttestation": "distribution/sandbox-image-security.json"
+  }
+}

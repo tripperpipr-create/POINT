@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "candidateVersion": "0.0.0-example",
+  "candidateCommit": "0000000000000000000000000000000000000000",
+  "startedAt": "2026-01-01T00:00:00Z",
+  "completedAt": "2026-01-01T00:00:01Z",
+  "fourteenDayAttestation": false,
+  "operatorSignoff": false,
+  "totals": {
+    "runsStarted": 0,
+    "runsTerminal": 0,
+    "p0": 0,
+    "p1": 0,
+    "dataLossIncidents": 0,
+    "databaseCorruptionIncidents": 0,
+    "lostTerminalEvents": 0
+  },
+  "checkpoints": []
+}

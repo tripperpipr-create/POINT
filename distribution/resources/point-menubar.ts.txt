@@ -1,0 +1,507 @@
+/*---------------------------------------------------------------------------------------------
+ *  Point IDE — верхнее меню по образцу JetBrains.
+ *
+ *  Code-OSS даёт восемь меню: Файл, Правка, Выделение, Вид, Переход, Выполнить,
+ *  Терминал, Справка. Половина из них про редактор текста, а не про работу с
+ *  проектом: отдельное меню «Выделение» есть только здесь, «Терминал» занимает
+ *  верхний уровень целиком ради шести пунктов, зато ни кода, ни рефакторинга,
+ *  ни Git в строке нет вовсе — и это при том, что все нужные команды у Point
+ *  давно есть, с жетбрейнсовскими сочетаниями клавиш.
+ *
+ *  Строка приводится к жетбрейнсовской:
+ *
+ *      Файл · Правка · Вид · Переход · Код · Выполнить · Git · Инструменты · Справка
+ *
+ *  «Выделение» уходит подменю в «Правку», «Терминал» — в «Инструменты»: ничего
+ *  не теряется, а верхний уровень занимают вещи, за которыми ходят каждый день.
+ *  Порядок задаётся дробными числами, чтобы не трогать чужие регистрации:
+ *  Файл 1, Правка 2, Вид 4, Переход 5, Выполнить 6, Справка 8 — наши встают
+ *  между ними.
+ *
+ *  Подписи короткие: у команд расширения в палитре они с подсказкой вида
+ *  «(как Ctrl+K)», и в меню такая строка читалась бы дважды — сочетание клавиш
+ *  меню и так показывает своей колонкой.
+ *--------------------------------------------------------------------------------------------*/
+
+import { localize, localize2 } from '../../../../nls.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import product from '../../../../platform/product/common/product.js';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+
+const PointMenubarCodeMenu = MenuId.for('PointMenubarCodeMenu');
+const PointMenubarRefactorMenu = MenuId.for('PointMenubarRefactorMenu');
+const PointMenubarGitMenu = MenuId.for('PointMenubarGitMenu');
+const PointMenubarToolsMenu = MenuId.for('PointMenubarToolsMenu');
+const PointMenubarBookmarksMenu = MenuId.for('PointMenubarBookmarksMenu');
+
+if (product.applicationName === 'point') {
+	CommandsRegistry.registerCommand('point.collectHubGarbage', () => {
+		const collect = (globalThis as typeof globalThis & { gc?: () => void }).gc;
+		if (typeof collect !== 'function') {
+			return false;
+		}
+		collect();
+		return true;
+	});
+	CommandsRegistry.registerCommand('point.openInMainEditor', async (accessor, raw: { fileUri?: UriComponents; line?: number }) => {
+		if (!raw?.fileUri) {
+			return false;
+		}
+		const line = Number.isInteger(raw.line) && Number(raw.line) > 0 ? Number(raw.line) : undefined;
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+		await accessor.get(IEditorService).openEditor({
+			resource: URI.revive(raw.fileUri),
+			options: {
+				pinned: true,
+				...(line ? { selection: { startLineNumber: line, startColumn: 1 } } : {}),
+			},
+		}, editorGroupsService.mainPart.activeGroup);
+		editorGroupsService.mainPart.activeGroup.focus();
+		return true;
+	});
+	CommandsRegistry.registerCommand('point.focusAgentHubWindow', accessor => {
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+		for (const part of editorGroupsService.parts) {
+			if (part === editorGroupsService.mainPart) {
+				continue;
+			}
+			const group = part.groups.find(candidate => candidate.editors.some(editor => editor.getName() === 'Агенты Point'));
+			if (group) {
+				group.focus();
+				return true;
+			}
+		}
+		return false;
+	});
+
+	// ── Верхний уровень ─────────────────────────────────────────────────────
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
+		submenu: PointMenubarCodeMenu,
+		title: {
+			...localize2('point.menubar.code', "Код"),
+			mnemonicTitle: localize({ key: 'point.menubar.mCode', comment: ['&& denotes a mnemonic'] }, "&&Код")
+		},
+		order: 5.3
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
+		submenu: PointMenubarGitMenu,
+		title: {
+			...localize2('point.menubar.git', "Git"),
+			mnemonicTitle: localize({ key: 'point.menubar.mGit', comment: ['&& denotes a mnemonic'] }, "&&Git")
+		},
+		order: 6.3
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
+		submenu: PointMenubarToolsMenu,
+		title: {
+			...localize2('point.menubar.tools', "Инструменты"),
+			mnemonicTitle: localize({ key: 'point.menubar.mTools', comment: ['&& denotes a mnemonic'] }, "&&Инструменты")
+		},
+		order: 6.6
+	});
+
+	// «Выделение» и «Терминал» сняты с верхнего уровня в menubar.contribution и
+	// возвращаются подменю там, где им место.
+	MenuRegistry.appendMenuItem(MenuId.MenubarEditMenu, {
+		submenu: MenuId.MenubarSelectionMenu,
+		title: localize('point.menubar.selection', "Выделение"),
+		group: 'z_point_selection',
+		order: 1
+	});
+
+	MenuRegistry.appendMenuItem(PointMenubarToolsMenu, {
+		submenu: MenuId.MenubarTerminalMenu,
+		title: localize('point.menubar.terminal', "Терминал"),
+		group: '2_terminal',
+		order: 1
+	});
+
+	MenuRegistry.appendMenuItem(PointMenubarCodeMenu, {
+		submenu: PointMenubarRefactorMenu,
+		title: localize('point.menubar.refactor', "Рефакторинг"),
+		group: '1_refactor',
+		order: 1
+	});
+
+	// ── Код ─────────────────────────────────────────────────────────────────
+	// Порядок жетбрейнсовский: сначала привести код в порядок, потом правки по
+	// месту, потом помощь редактора, потом структура и проблемы.
+
+	MenuRegistry.appendMenuItem(PointMenubarCodeMenu, {
+		command: { id: 'localAgent.reformatCode', title: localize('point.menubar.reformat', "Реформатировать код") },
+		group: '2_format',
+		order: 1
+	});
+	MenuRegistry.appendMenuItem(PointMenubarCodeMenu, {
+		command: { id: 'localAgent.optimizeImports', title: localize('point.menubar.optimizeImports', "Оптимизировать импорты") },
+		group: '2_format',
+		order: 2
+	});
+
+	MenuRegistry.appendMenuItem(PointMenubarCodeMenu, {
+		command: { id: 'editor.action.commentLine', title: localize('point.menubar.commentLine', "Комментарий строки") },
+		group: '3_edit',
+		order: 1
+	});
+	MenuRegistry.appendMenuItem(PointMenubarCodeMenu, {
+		command: { id: 'editor.action.blockComment', title: localize('point.menubar.blockComment', "Блочный комментарий") },
+		group: '3_edit',
+		order: 2
+	});
+	MenuRegistry.appendMenuItem(PointMenubarCodeMenu, {
+		command: { id: 'localAgent.moveStatementUp', title: localize('point.menubar.moveUp', "Переместить строку вверх") },
+		group: '3_edit',
+		order: 3
+	});
+	MenuRegistry.appendMenuItem(PointMenubarCodeMenu, {
+		command: { id: 'localAgent.moveStatementDown', title: localize('point.menubar.moveDown', "Переместить строку вниз") },
+		group: '3_edit',
+		order: 4
+	});
+	MenuRegistry.appendMenuItem(PointMenubarCodeMenu, {
+		command: { id: 'localAgent.selectNextOccurrence', title: localize('point.menubar.nextOccurrence', "Выделить следующее вхождение") },
+		group: '3_edit',
+		order: 5
+	});
+
+	MenuRegistry.appendMenuItem(PointMenubarCodeMenu, {
+		command: { id: 'editor.action.triggerSuggest', title: localize('point.menubar.suggest', "Дополнить код") },
+		group: '4_assist',
+		order: 1
+	});
+	MenuRegistry.appendMenuItem(PointMenubarCodeMenu, {
+		command: { id: 'localAgent.parameterHints', title: localize('point.menubar.parameterHints', "Подсказки параметров") },
+		group: '4_assist',
+		order: 2
+	});
+	MenuRegistry.appendMenuItem(PointMenubarCodeMenu, {
+		command: { id: 'editor.action.quickFix', title: localize('point.menubar.quickFix', "Быстрое исправление…") },
+		group: '4_assist',
+		order: 3
+	});
+
+	MenuRegistry.appendMenuItem(PointMenubarCodeMenu, {
+		command: { id: 'localAgent.fileStructure', title: localize('point.menubar.fileStructure', "Структура файла") },
+		group: '5_structure',
+		order: 1
+	});
+	MenuRegistry.appendMenuItem(PointMenubarCodeMenu, {
+		command: { id: 'editor.foldAll', title: localize('point.menubar.foldAll', "Свернуть всё") },
+		group: '5_structure',
+		order: 2
+	});
+	MenuRegistry.appendMenuItem(PointMenubarCodeMenu, {
+		command: { id: 'editor.unfoldAll', title: localize('point.menubar.unfoldAll', "Развернуть всё") },
+		group: '5_structure',
+		order: 3
+	});
+
+	MenuRegistry.appendMenuItem(PointMenubarCodeMenu, {
+		command: { id: 'localAgent.nextError', title: localize('point.menubar.nextError', "Следующая ошибка") },
+		group: '6_problems',
+		order: 1
+	});
+	MenuRegistry.appendMenuItem(PointMenubarCodeMenu, {
+		command: { id: 'localAgent.previousError', title: localize('point.menubar.previousError', "Предыдущая ошибка") },
+		group: '6_problems',
+		order: 2
+	});
+
+	MenuRegistry.appendMenuItem(PointMenubarCodeMenu, {
+		command: { id: 'localAgent.copyReference', title: localize('point.menubar.copyReference', "Копировать ссылку на строку") },
+		group: '7_misc',
+		order: 1
+	});
+	MenuRegistry.appendMenuItem(PointMenubarCodeMenu, {
+		command: { id: 'localAgent.newScratch', title: localize('point.menubar.scratch', "Черновик") },
+		group: '7_misc',
+		order: 2
+	});
+
+	// ── Рефакторинг ─────────────────────────────────────────────────────────
+	// Подменю, а не своё меню наверху: в JetBrains оно верхнего уровня, но там
+	// за ним дюжина отдельных операций. У языкового сервера их три — переимено-
+	// вание, разбор действий и правки уровня файла; меню из трёх строк на
+	// верхнем уровне выглядело бы пустым.
+
+	MenuRegistry.appendMenuItem(PointMenubarRefactorMenu, {
+		command: { id: 'localAgent.renameSymbol', title: localize('point.menubar.rename', "Переименовать…") },
+		group: '1_refactor',
+		order: 1
+	});
+	MenuRegistry.appendMenuItem(PointMenubarRefactorMenu, {
+		command: { id: 'localAgent.refactorThis', title: localize('point.menubar.refactorThis', "Refactor This…") },
+		group: '1_refactor',
+		order: 2
+	});
+	MenuRegistry.appendMenuItem(PointMenubarRefactorMenu, {
+		command: { id: 'editor.action.sourceAction', title: localize('point.menubar.sourceAction', "Действия с исходником…") },
+		group: '1_refactor',
+		order: 3
+	});
+
+	// ── Git ─────────────────────────────────────────────────────────────────
+
+	MenuRegistry.appendMenuItem(PointMenubarGitMenu, {
+		command: { id: 'localAgent.vcsCommit', title: localize('point.menubar.commit', "Коммит…") },
+		group: '1_commit',
+		order: 1
+	});
+	MenuRegistry.appendMenuItem(PointMenubarGitMenu, {
+		command: { id: 'localAgent.vcsChanges', title: localize('point.menubar.changes', "Изменения") },
+		group: '1_commit',
+		order: 2
+	});
+
+	MenuRegistry.appendMenuItem(PointMenubarGitMenu, {
+		command: { id: 'localAgent.vcsPull', title: localize('point.menubar.pull', "Обновить проект") },
+		group: '2_remote',
+		order: 1
+	});
+	MenuRegistry.appendMenuItem(PointMenubarGitMenu, {
+		command: { id: 'localAgent.vcsPush', title: localize('point.menubar.push', "Отправить") },
+		group: '2_remote',
+		order: 2
+	});
+	MenuRegistry.appendMenuItem(PointMenubarGitMenu, {
+		command: { id: 'git.sync', title: localize('point.menubar.sync', "Синхронизировать") },
+		group: '2_remote',
+		order: 3
+	});
+	MenuRegistry.appendMenuItem(PointMenubarGitMenu, {
+		command: { id: 'git.fetch', title: localize('point.menubar.fetch', "Получить изменения") },
+		group: '2_remote',
+		order: 4
+	});
+
+	MenuRegistry.appendMenuItem(PointMenubarGitMenu, {
+		command: { id: 'git.checkout', title: localize('point.menubar.checkout', "Ветка…") },
+		group: '3_branch',
+		order: 1
+	});
+	MenuRegistry.appendMenuItem(PointMenubarGitMenu, {
+		command: { id: 'git.branch', title: localize('point.menubar.branch', "Создать ветку…") },
+		group: '3_branch',
+		order: 2
+	});
+	MenuRegistry.appendMenuItem(PointMenubarGitMenu, {
+		command: { id: 'git.stash', title: localize('point.menubar.stash', "Спрятать изменения") },
+		group: '3_branch',
+		order: 3
+	});
+
+	MenuRegistry.appendMenuItem(PointMenubarGitMenu, {
+		command: { id: 'localAgent.vcsShowDiff', title: localize('point.menubar.diff', "Показать diff файла") },
+		group: '4_file',
+		order: 1
+	});
+	MenuRegistry.appendMenuItem(PointMenubarGitMenu, {
+		command: { id: 'localAgent.showFileHistory', title: localize('point.menubar.fileHistory', "История файла") },
+		group: '4_file',
+		order: 2
+	});
+	MenuRegistry.appendMenuItem(PointMenubarGitMenu, {
+		command: { id: 'localAgent.gitAnnotate', title: localize('point.menubar.annotate', "Аннотации") },
+		group: '4_file',
+		order: 3
+	});
+	MenuRegistry.appendMenuItem(PointMenubarGitMenu, {
+		command: { id: 'localAgent.vcsRollback', title: localize('point.menubar.rollback', "Откатить изменения файла") },
+		group: '4_file',
+		order: 4
+	});
+
+	MenuRegistry.appendMenuItem(PointMenubarGitMenu, {
+		command: { id: 'localAgent.openChronicle', title: localize('point.menubar.chronicle', "Летопись Git") },
+		group: '5_project',
+		order: 1
+	});
+	MenuRegistry.appendMenuItem(PointMenubarGitMenu, {
+		command: { id: 'localAgent.gitClone', title: localize('point.menubar.clone', "Клонировать проект…") },
+		group: '5_project',
+		order: 2
+	});
+
+	// ── Инструменты ─────────────────────────────────────────────────────────
+	// То, что в JetBrains лежит в Tools: помощник, окна служб, состояние
+	// проекта. Терминал приходит сюда подменю целиком.
+
+	MenuRegistry.appendMenuItem(PointMenubarToolsMenu, {
+		command: { id: 'localAgent.askCompanion', title: localize('point.menubar.companion', "Помощник Point") },
+		group: '1_companion',
+		order: 1
+	});
+	MenuRegistry.appendMenuItem(PointMenubarToolsMenu, {
+		command: { id: 'localAgent.quickChat', title: localize('point.menubar.quickChat', "Быстрый чат") },
+		group: '1_companion',
+		order: 2
+	});
+	MenuRegistry.appendMenuItem(PointMenubarToolsMenu, {
+		command: { id: 'localAgent.openAgentComposer', title: localize('point.menubar.agentTask', "Новая задача агенту") },
+		group: '1_companion',
+		order: 3
+	});
+	MenuRegistry.appendMenuItem(PointMenubarToolsMenu, {
+		command: { id: 'localAgent.openAgentsHubWindow', title: localize('point.menubar.agentsWindow', "Окно агентов") },
+		group: '1_companion',
+		order: 4
+	});
+
+	MenuRegistry.appendMenuItem(PointMenubarToolsMenu, {
+		command: { id: 'localAgent.openTerminal', title: localize('point.menubar.consoleChannel', "Консольный канал") },
+		group: '2_terminal',
+		order: 2
+	});
+
+	MenuRegistry.appendMenuItem(PointMenubarToolsMenu, {
+		command: { id: 'localAgent.openDatabases', title: localize('point.menubar.databases', "Базы данных") },
+		group: '3_services',
+		order: 1
+	});
+	MenuRegistry.appendMenuItem(PointMenubarToolsMenu, {
+		command: { id: 'localAgent.openDocker', title: localize('point.menubar.docker', "Docker") },
+		group: '3_services',
+		order: 2
+	});
+	MenuRegistry.appendMenuItem(PointMenubarToolsMenu, {
+		command: { id: 'localAgent.connectServer', title: localize('point.menubar.connectServer', "Подключиться к серверу") },
+		group: '3_services',
+		order: 3
+	});
+	MenuRegistry.appendMenuItem(PointMenubarToolsMenu, {
+		command: { id: 'localAgent.openProcesses', title: localize('point.menubar.processes', "Процессы") },
+		group: '3_services',
+		order: 4
+	});
+
+	MenuRegistry.appendMenuItem(PointMenubarToolsMenu, {
+		command: { id: 'localAgent.openStatistics', title: localize('point.menubar.statistics', "Статистика проекта") },
+		group: '4_project',
+		order: 1
+	});
+	MenuRegistry.appendMenuItem(PointMenubarToolsMenu, {
+		command: { id: 'localAgent.coreStatusAction', title: localize('point.menubar.coreStatus', "Состояние ядра") },
+		group: '4_project',
+		order: 2
+	});
+	MenuRegistry.appendMenuItem(PointMenubarToolsMenu, {
+		command: { id: 'localAgent.rebuildIndex', title: localize('point.menubar.rebuildIndex', "Перестроить индекс") },
+		group: '4_project',
+		order: 3
+	});
+
+	MenuRegistry.appendMenuItem(PointMenubarToolsMenu, {
+		command: { id: 'localAgent.openIdeSettings', title: localize('point.menubar.ideSettings', "Настройки IDE") },
+		group: '5_settings',
+		order: 1
+	});
+	MenuRegistry.appendMenuItem(PointMenubarToolsMenu, {
+		command: { id: 'localAgent.showWalkthrough', title: localize('point.menubar.walkthrough', "Обучение") },
+		group: '5_settings',
+		order: 2
+	});
+
+	// ── Выполнить ───────────────────────────────────────────────────────────
+	// Штатное меню отладки уже знает про запуск и остановку; не хватает того,
+	// чем в JetBrains пользуются постоянно, — выбора конфигурации и запуска
+	// произвольной задачи. Группа `0_` встаёт над штатными.
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
+		command: { id: 'localAgent.runFile', title: localize('point.menubar.runFile', "Запустить файл") },
+		group: '0_point_run',
+		order: 1
+	});
+	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
+		command: { id: 'localAgent.runAnything', title: localize('point.menubar.runAnything', "Run Anything…") },
+		group: '0_point_run',
+		order: 2
+	});
+	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
+		// «Конфигурация запуска» — своя, точки; штатные «Открыть конфигурации» и
+		// «Добавить конфигурацию…» ниже про launch.json, и путать их нельзя.
+		command: { id: 'localAgent.selectRunConfiguration', title: localize('point.menubar.selectRunConfiguration', "Выбрать конфигурацию запуска") },
+		group: '0_point_run',
+		order: 3
+	});
+	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
+		command: { id: 'localAgent.editRunConfigurations', title: localize('point.menubar.editRunConfigurations', "Настроить конфигурации запуска…") },
+		group: '0_point_run',
+		order: 4
+	});
+
+	// ── Переход ─────────────────────────────────────────────────────────────
+	// Жетбрейнсовская навигация поверх штатной: поиск везде, переходы по имени,
+	// недавние места и закладки.
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+		command: { id: 'localAgent.searchEverywhere', title: localize('point.menubar.searchEverywhere', "Поиск везде") },
+		group: '0_point_search',
+		order: 1
+	});
+	MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+		command: { id: 'localAgent.findAction', title: localize('point.menubar.findAction', "Найти действие…") },
+		group: '0_point_search',
+		order: 2
+	});
+	MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+		// Подпись не «Перейти к файлу…»: ровно так называется штатный пункт ниже,
+		// и в одном списке вышли бы две одинаковые строки с разными сочетаниями.
+		command: { id: 'localAgent.navigateFile', title: localize('point.menubar.navigateFile', "Файл по имени…") },
+		group: '0_point_search',
+		order: 3
+	});
+	MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+		command: { id: 'localAgent.navigateClass', title: localize('point.menubar.navigateClass', "Класс или символ по имени…") },
+		group: '0_point_search',
+		order: 4
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+		command: { id: 'localAgent.findUsages', title: localize('point.menubar.findUsages', "Найти использования") },
+		group: 'z_point_places',
+		order: 1
+	});
+	MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+		command: { id: 'localAgent.recentLocations', title: localize('point.menubar.recentLocations', "Недавние места") },
+		group: 'z_point_places',
+		order: 2
+	});
+	MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+		command: { id: 'localAgent.lastEditLocation', title: localize('point.menubar.lastEdit', "Последнее место правки") },
+		group: 'z_point_places',
+		order: 3
+	});
+	MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+		submenu: PointMenubarBookmarksMenu,
+		title: localize('point.menubar.bookmarks', "Закладки"),
+		group: 'z_point_places',
+		order: 4
+	});
+
+	MenuRegistry.appendMenuItem(PointMenubarBookmarksMenu, {
+		command: { id: 'localAgent.toggleBookmark', title: localize('point.menubar.toggleBookmark', "Переключить закладку") },
+		group: '1_bookmarks',
+		order: 1
+	});
+	MenuRegistry.appendMenuItem(PointMenubarBookmarksMenu, {
+		command: { id: 'localAgent.showBookmarks', title: localize('point.menubar.showBookmarks', "Показать закладки") },
+		group: '1_bookmarks',
+		order: 2
+	});
+	MenuRegistry.appendMenuItem(PointMenubarBookmarksMenu, {
+		command: { id: 'localAgent.nextBookmark', title: localize('point.menubar.nextBookmark', "Следующая закладка") },
+		group: '2_bookmarks',
+		order: 1
+	});
+	MenuRegistry.appendMenuItem(PointMenubarBookmarksMenu, {
+		command: { id: 'localAgent.previousBookmark', title: localize('point.menubar.previousBookmark', "Предыдущая закладка") },
+		group: '2_bookmarks',
+		order: 2
+	});
+}

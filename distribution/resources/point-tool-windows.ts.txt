@@ -1,0 +1,119 @@
+/* Point workbench: tool windows, reversible focus mode and searchable keymap. */
+import { getActiveWindow } from '../../../../base/browser/dom.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { AnchorAlignment } from '../../../../base/browser/ui/contextview/contextview.js';
+import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import product from '../../../../platform/product/common/product.js';
+import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
+import { IPointPopupRow, showPointPopup } from './pointTitleWidgets.js';
+
+const toolParts = [Parts.SIDEBAR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART] as const;
+const snapshots = new WeakMap<IWorkbenchLayoutService, boolean[]>();
+
+function toggleToolWindows(accessor: ServicesAccessor): void {
+	const layout = accessor.get(IWorkbenchLayoutService);
+	const saved = snapshots.get(layout);
+	if (saved) {
+		toolParts.forEach((part, index) => layout.setPartHidden(!saved[index], part));
+		snapshots.delete(layout);
+	} else {
+		const visible = toolParts.map(part => layout.isVisible(part));
+		// An already empty layout has nothing to hide: bring back the project.
+		if (!visible.some(Boolean)) { layout.setPartHidden(false, Parts.SIDEBAR_PART); return; }
+		snapshots.set(layout, visible);
+		toolParts.forEach(part => layout.setPartHidden(true, part));
+		layout.focusPart(Parts.EDITOR_PART, getActiveWindow());
+	}
+}
+
+const entries = [
+	['Окна инструментов', 'Проект', 'files', 'workbench.view.explorer'],
+	['Окна инструментов', 'Коммит', 'source-control', 'localAgent.vcsChanges'],
+	['Окна инструментов', 'Найти в файлах', 'search', 'workbench.action.findInFiles'],
+	['Окна инструментов', 'Отладка', 'debug-alt', 'workbench.view.debug'],
+	['Окна инструментов', 'Проблемы', 'warning', 'workbench.actions.view.problems'],
+	['Окна инструментов', 'Структура', 'list-tree', 'localAgent.showOutline'],
+	['Окна инструментов', 'Запуск и консоли', 'play', 'workbench.view.extension.pointRun'],
+	['Окна инструментов', 'Службы', 'database', 'workbench.view.extension.pointServices'],
+	['Окна инструментов', 'Git · история', 'book', 'localAgent.openChronicle'],
+	['Окна инструментов', 'Консольный канал', 'terminal', 'localAgent.openTerminal'],
+	['Окна инструментов', 'Помощник Point', 'hubot', 'localAgent.askCompanion'],
+	['Окна инструментов', 'Подключения', 'plug', 'localAgent.openConnections'],
+	['Окна инструментов', 'Хаб агентов', 'sparkle', 'localAgent.open'],
+	['Расположение', 'Левая панель', 'layout-sidebar-left', 'workbench.action.toggleSidebarVisibility'],
+	['Расположение', 'Правая панель', 'layout-sidebar-right', 'workbench.action.toggleAuxiliaryBar'],
+	['Расположение', 'Нижняя панель', 'layout-panel', 'workbench.action.togglePanel'],
+	['Расположение', 'Скрыть / восстановить окна', 'layout', 'point.toggleToolWindows'],
+	['Редактор', 'Разделить справа', 'split-horizontal', 'workbench.action.splitEditorRight'],
+	['Редактор', 'Разделить снизу', 'split-vertical', 'workbench.action.splitEditorDown'],
+	['Редактор', 'Перенести редактор в отдельное окно', 'empty-window', 'workbench.action.moveEditorToNewWindow'],
+	['Редактор', 'Вернуть один редактор', 'layout-centered', 'workbench.action.joinAllGroups'],
+	['Поиск и переход', 'Поиск везде', 'search', 'point.searchWindow'],
+	['Поиск и переход', 'Найти текст в файлах', 'whole-word', 'point.searchWindowText'],
+	['Поиск и переход', 'Найти действие', 'zap', 'localAgent.findAction'],
+	['Поиск и переход', 'Структура файла', 'list-tree', 'localAgent.fileStructure'],
+	['Поиск и переход', 'Недавние файлы', 'history', 'workbench.action.quickOpenPreviousRecentlyUsedEditorInGroup'],
+	['Код', 'Переименовать символ', 'edit', 'localAgent.renameSymbol'],
+	['Код', 'Форматировать код', 'symbol-ruler', 'localAgent.reformatCode'],
+	['Код', 'Найти использования', 'references', 'localAgent.findUsages'],
+	['Код', 'Быстрое исправление', 'lightbulb', 'editor.action.quickFix'],
+	['Запуск', 'Запустить проект', 'play', 'localAgent.runWithoutDebug'],
+	['Запуск', 'Отладка проекта', 'debug-alt', 'localAgent.startDebug'],
+	['Запуск', 'Выбрать конфигурацию', 'list-unordered', 'localAgent.selectRunConfiguration'],
+] as const;
+
+function showWindows(accessor: ServicesAccessor, keymap: boolean): void {
+	const root = getActiveWindow().document;
+	const button = root.querySelector<HTMLElement>(keymap ? '.point-title-action-keymap' : '.point-title-action-windows');
+	const anchor = button?.getClientRects().length ? button : root.querySelector<HTMLElement>('.part.titlebar');
+	if (!anchor) { return; }
+	if (anchor.classList.contains('point-widget-open')) {
+		accessor.get(IContextViewService).hideContextView();
+		anchor.focus();
+		return;
+	}
+	const commands = accessor.get(ICommandService);
+	const bindings = accessor.get(IKeybindingService);
+	const layout = accessor.get(IWorkbenchLayoutService);
+	const visibility: Record<string, boolean> = {
+		'workbench.action.toggleSidebarVisibility': layout.isVisible(Parts.SIDEBAR_PART),
+		'workbench.action.toggleAuxiliaryBar': layout.isVisible(Parts.AUXILIARYBAR_PART),
+		'workbench.action.togglePanel': layout.isVisible(Parts.PANEL_PART),
+	};
+	showPointPopup(accessor.get(IContextViewService), anchor, {
+		modifier: '.point-windows-popup',
+		alignment: AnchorAlignment.RIGHT,
+		search: keymap ? 'Найти команду или сочетание клавиш…' : 'Найти окно или расположение…',
+		header: { title: keymap ? 'Горячие клавиши' : 'Рабочее пространство', subtitle: 'Point IDE' },
+		sections: query => {
+			const groups = new Map<string, IPointPopupRow[]>();
+			for (const [group, label, icon, command] of entries) {
+				if (!keymap && !['Окна инструментов', 'Расположение', 'Редактор'].includes(group)) { continue; }
+				const shortcut = bindings.lookupKeybinding(command)?.getLabel() ?? '';
+				if (!`${group} ${label} ${shortcut}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())) { continue; }
+				const rows = groups.get(group) ?? [];
+				rows.push({ label, icon: `codicon-${icon}`, meta: shortcut, current: visibility[command], run: () => commands.executeCommand(command) });
+				groups.set(group, rows);
+			}
+			return [...groups].map(([title, rows]) => ({ title, rows }));
+		},
+		foot: { label: 'Настроить сочетания клавиш…', icon: 'codicon-settings-gear', run: () => commands.executeCommand('workbench.action.openGlobalKeybindings') },
+	});
+}
+
+if (product.applicationName === 'point') {
+	CommandsRegistry.registerCommand('point.toggleToolWindows', toggleToolWindows);
+	CommandsRegistry.registerCommand('point.toolWindows', accessor => showWindows(accessor, false));
+	CommandsRegistry.registerCommand('point.keymap', accessor => showWindows(accessor, true));
+	KeybindingsRegistry.registerKeybindingRule({ id: 'point.toggleToolWindows', weight: KeybindingWeight.ExternalExtension + 50, primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F12 });
+	for (const [id, title] of [['point.toolWindows', 'Окна и расположение…'], ['point.keymap', 'Горячие клавиши…'], ['point.toggleToolWindows', 'Скрыть / восстановить окна инструментов']]) {
+		const command = { id, title };
+		MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command });
+		MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, { command, group: '3_point_windows' });
+	}
+}

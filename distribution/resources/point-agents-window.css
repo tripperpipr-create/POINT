@@ -1,0 +1,32 @@
+/* Окно агентов Point — это Чертог, а не сессии агентов из апстрима.
+   ----------------------------------------------------------------------------
+   Этот CSS относится только к диагностическому fallback POINT_SESSIONS_HUB=1.
+   Production Hub открывается как auxiliary editor window и не получает этот
+   upstream chrome. Fallback открывается через sessions-окно Code-OSS, и с ним
+   приезжает его собственный хром: командный центр «New Session» шириной 449px,
+   стрелки назад/вперёд, кнопка «Открыть в редакторе», действия сессии и
+   переключатели раскладки. Ниже — полоса вкладок редактора с единственной
+   вкладкой «Агенты Point». Само окно при этом отдано под Хаб целиком: рейка,
+   боковые панели и панель снизу уже скрыты (preparePointHubLayout), а других
+   вкладок в нём не бывает по устройству.
+
+   Получается чужой продукт в двух строках над своим: наверху предлагают начать
+   сессию агента, ниже — Чертог со своей навигацией. Здесь эти два ряда убраны.
+
+   Область системных кнопок (window-controls-container) и перетаскиваемая
+   полоса (titlebar-drag-region) остаются: без них окно нельзя ни двигать, ни
+   закрыть. Поэтому скрывается содержимое титульной панели, а не она сама.
+
+   Правила ограничены классом .agent-sessions-workbench — его ставит только
+   sessions-окно fallback, обычное окно IDE своего командного центра не теряет. */
+
+.agent-sessions-workbench .titlebar-center,
+.agent-sessions-workbench .left-toolbar-container,
+.agent-sessions-workbench .titlebar-session-actions-container,
+.agent-sessions-workbench .titlebar-right-layout-container {
+	display: none !important;
+}
+
+.agent-sessions-workbench .editor-group-container > .title {
+	display: none !important;
+}

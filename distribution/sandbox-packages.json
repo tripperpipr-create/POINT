@@ -1,0 +1,1235 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-31T02:58:08Z",
+  "image": {
+    "tag": "point-agent-sandbox:release",
+    "digest": "sha256:e0a50330e7e8f68f13b0973dcad0ab82324dfa6a7fa88392dc4f22aed7dce882"
+  },
+  "packageCount": 80,
+  "packages": [
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "apk-tools",
+      "version": "2.14.10-r13",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/apk-tools@2.14.10-r13?arch=x86_64&distro=20230201",
+        "UID": "2369be5f3bd17ad8"
+      },
+      "purl": "pkg:apk/wolfi/apk-tools@2.14.10-r13?arch=x86_64&distro=20230201",
+      "licenses": [
+        "GPL-2.0-only"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "binutils",
+      "version": "2.47-r1",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/binutils@2.47-r1?arch=x86_64&distro=20230201",
+        "UID": "b33436d4b282c26b"
+      },
+      "purl": "pkg:apk/wolfi/binutils@2.47-r1?arch=x86_64&distro=20230201",
+      "licenses": [
+        "GPL-2.0-only"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "build-base",
+      "version": "1-r9",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/build-base@1-r9?arch=x86_64&distro=20230201",
+        "UID": "6f9197260f18dafd"
+      },
+      "purl": "pkg:apk/wolfi/build-base@1-r9?arch=x86_64&distro=20230201",
+      "licenses": [
+        "MIT"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "busybox",
+      "version": "1.38.0-r2",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/busybox@1.38.0-r2?arch=x86_64&distro=20230201",
+        "UID": "68fa06e326018ccd"
+      },
+      "purl": "pkg:apk/wolfi/busybox@1.38.0-r2?arch=x86_64&distro=20230201",
+      "licenses": [
+        "GPL-2.0-only"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "c-ares",
+      "version": "1.34.8-r1",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/c-ares@1.34.8-r1?arch=x86_64&distro=20230201",
+        "UID": "24f39ad4d5a72f36"
+      },
+      "purl": "pkg:apk/wolfi/c-ares@1.34.8-r1?arch=x86_64&distro=20230201",
+      "licenses": [
+        "MIT"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "ca-certificates-bundle",
+      "version": "20260611-r0",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/ca-certificates-bundle@20260611-r0?arch=x86_64&distro=20230201",
+        "UID": "796d28c490a63bc0"
+      },
+      "purl": "pkg:apk/wolfi/ca-certificates-bundle@20260611-r0?arch=x86_64&distro=20230201",
+      "licenses": [
+        "MPL-2.0",
+        "MIT"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "cyrus-sasl-heimdal-libs",
+      "version": "2.1.28-r55",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/cyrus-sasl-heimdal-libs@2.1.28-r55?arch=x86_64&distro=20230201",
+        "UID": "ccc826d34a9a6091"
+      },
+      "purl": "pkg:apk/wolfi/cyrus-sasl-heimdal-libs@2.1.28-r55?arch=x86_64&distro=20230201",
+      "licenses": [
+        "BSD-3-Clause"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "gcc",
+      "version": "16.2.0-r1",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/gcc@16.2.0-r1?arch=x86_64&distro=20230201",
+        "UID": "63dd1642279614f1"
+      },
+      "purl": "pkg:apk/wolfi/gcc@16.2.0-r1?arch=x86_64&distro=20230201",
+      "licenses": [
+        "GPL-3.0-or-later WITH GCC-exception-3.1"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "gdbm",
+      "version": "1.26-r6",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/gdbm@1.26-r6?arch=x86_64&distro=20230201",
+        "UID": "57c088a5549b45eb"
+      },
+      "purl": "pkg:apk/wolfi/gdbm@1.26-r6?arch=x86_64&distro=20230201",
+      "licenses": [
+        "GPL-3.0-or-later"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "git",
+      "version": "2.55.0-r5",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/git@2.55.0-r5?arch=x86_64&distro=20230201",
+        "UID": "7e1557f3d0297042"
+      },
+      "purl": "pkg:apk/wolfi/git@2.55.0-r5?arch=x86_64&distro=20230201",
+      "licenses": [
+        "GPL-2.0-or-later"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "glibc-2.44",
+      "version": "2.44-r1",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/glibc-2.44@2.44-r1?arch=x86_64&distro=20230201",
+        "UID": "bb2152a1c3057ba5"
+      },
+      "purl": "pkg:apk/wolfi/glibc-2.44@2.44-r1?arch=x86_64&distro=20230201",
+      "licenses": [
+        "LGPL-2.1-or-later"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "glibc-2.44-dev",
+      "version": "2.44-r1",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/glibc-2.44-dev@2.44-r1?arch=x86_64&distro=20230201",
+        "UID": "d68aaf2834ead188"
+      },
+      "purl": "pkg:apk/wolfi/glibc-2.44-dev@2.44-r1?arch=x86_64&distro=20230201",
+      "licenses": [
+        "LGPL-2.1-or-later"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "glibc-2.44-locale-posix",
+      "version": "2.44-r1",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/glibc-2.44-locale-posix@2.44-r1?arch=x86_64&distro=20230201",
+        "UID": "f96bfcc821a1eccd"
+      },
+      "purl": "pkg:apk/wolfi/glibc-2.44-locale-posix@2.44-r1?arch=x86_64&distro=20230201",
+      "licenses": [
+        "LGPL-2.1-or-later"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "gmp",
+      "version": "6.3.0-r9",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/gmp@6.3.0-r9?arch=x86_64&distro=20230201",
+        "UID": "dca91f9eab14a8df"
+      },
+      "purl": "pkg:apk/wolfi/gmp@6.3.0-r9?arch=x86_64&distro=20230201",
+      "licenses": [
+        "LGPL-3.0-or-later",
+        "GPL-2.0-or-later"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "go-1.26",
+      "version": "1.26.7-r0",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/go-1.26@1.26.7-r0?arch=x86_64&distro=20230201",
+        "UID": "b71a113a187f0d3e"
+      },
+      "purl": "pkg:apk/wolfi/go-1.26@1.26.7-r0?arch=x86_64&distro=20230201",
+      "licenses": [
+        "BSD-3-Clause"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "heimdal-libs",
+      "version": "7.8.0-r52",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/heimdal-libs@7.8.0-r52?arch=x86_64&distro=20230201",
+        "UID": "a08f1aa87ba7513f"
+      },
+      "purl": "pkg:apk/wolfi/heimdal-libs@7.8.0-r52?arch=x86_64&distro=20230201",
+      "licenses": [
+        "BSD-3-Clause"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "icu78-data-full",
+      "version": "78.3-r3",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/icu78-data-full@78.3-r3?arch=x86_64&distro=20230201",
+        "UID": "1b28e5926849a965"
+      },
+      "purl": "pkg:apk/wolfi/icu78-data-full@78.3-r3?arch=x86_64&distro=20230201",
+      "licenses": [
+        "MIT"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "isl",
+      "version": "0.28-r2",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/isl@0.28-r2?arch=x86_64&distro=20230201",
+        "UID": "2d1048667f69abd9"
+      },
+      "purl": "pkg:apk/wolfi/isl@0.28-r2?arch=x86_64&distro=20230201",
+      "licenses": [
+        "MIT"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "keyutils-libs",
+      "version": "1.6.3-r40",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/keyutils-libs@1.6.3-r40?arch=x86_64&distro=20230201",
+        "UID": "a1aee87c378c7299"
+      },
+      "purl": "pkg:apk/wolfi/keyutils-libs@1.6.3-r40?arch=x86_64&distro=20230201",
+      "licenses": [
+        "GPL-2.0-or-later",
+        "LGPL-2.0-or-later"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "krb5-conf",
+      "version": "1.0-r9",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/krb5-conf@1.0-r9?arch=x86_64&distro=20230201",
+        "UID": "b81e99c4433e711e"
+      },
+      "purl": "pkg:apk/wolfi/krb5-conf@1.0-r9?arch=x86_64&distro=20230201",
+      "licenses": [
+        "MIT"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "krb5-libs",
+      "version": "1.22.2-r3",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/krb5-libs@1.22.2-r3?arch=x86_64&distro=20230201",
+        "UID": "a19e08ff4cf6cf90"
+      },
+      "purl": "pkg:apk/wolfi/krb5-libs@1.22.2-r3?arch=x86_64&distro=20230201",
+      "licenses": [
+        "MIT"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "ld-linux-2.44",
+      "version": "2.44-r1",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/ld-linux-2.44@2.44-r1?arch=x86_64&distro=20230201",
+        "UID": "8c513880979da1ea"
+      },
+      "purl": "pkg:apk/wolfi/ld-linux-2.44@2.44-r1?arch=x86_64&distro=20230201",
+      "licenses": [
+        "LGPL-2.1-or-later"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "libatomic",
+      "version": "16.2.0-r1",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/libatomic@16.2.0-r1?arch=x86_64&distro=20230201",
+        "UID": "29616fa06e055920"
+      },
+      "purl": "pkg:apk/wolfi/libatomic@16.2.0-r1?arch=x86_64&distro=20230201",
+      "licenses": [
+        "GPL-3.0-or-later WITH GCC-exception-3.1"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "libbrotlicommon1",
+      "version": "1.2.0-r4",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/libbrotlicommon1@1.2.0-r4?arch=x86_64&distro=20230201",
+        "UID": "a998a801b5e858cb"
+      },
+      "purl": "pkg:apk/wolfi/libbrotlicommon1@1.2.0-r4?arch=x86_64&distro=20230201",
+      "licenses": [
+        "MIT"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "libbrotlidec1",
+      "version": "1.2.0-r4",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/libbrotlidec1@1.2.0-r4?arch=x86_64&distro=20230201",
+        "UID": "412908f46972dd9b"
+      },
+      "purl": "pkg:apk/wolfi/libbrotlidec1@1.2.0-r4?arch=x86_64&distro=20230201",
+      "licenses": [
+        "MIT"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "libbrotlienc1",
+      "version": "1.2.0-r4",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/libbrotlienc1@1.2.0-r4?arch=x86_64&distro=20230201",
+        "UID": "7668efc4bd26c2d6"
+      },
+      "purl": "pkg:apk/wolfi/libbrotlienc1@1.2.0-r4?arch=x86_64&distro=20230201",
+      "licenses": [
+        "MIT"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "libbz2-1",
+      "version": "1.0.8-r23",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/libbz2-1@1.0.8-r23?arch=x86_64&distro=20230201",
+        "UID": "676e0aab8ff156b5"
+      },
+      "purl": "pkg:apk/wolfi/libbz2-1@1.0.8-r23?arch=x86_64&distro=20230201",
+      "licenses": [
+        "MPL-2.0",
+        "MIT"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "libcom_err",
+      "version": "1.47.4-r2",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/libcom_err@1.47.4-r2?arch=x86_64&distro=20230201",
+        "UID": "809cdbd09d064d5e"
+      },
+      "purl": "pkg:apk/wolfi/libcom_err@1.47.4-r2?arch=x86_64&distro=20230201",
+      "licenses": [
+        "GPL-2.0-or-later",
+        "LGPL-2.0-or-later",
+        "BSD-3-Clause",
+        "MIT"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "libcrypt1-2.44",
+      "version": "2.44-r1",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/libcrypt1-2.44@2.44-r1?arch=x86_64&distro=20230201",
+        "UID": "4e4e313828a9b074"
+      },
+      "purl": "pkg:apk/wolfi/libcrypt1-2.44@2.44-r1?arch=x86_64&distro=20230201",
+      "licenses": [
+        "LGPL-2.1-or-later"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "libcrypto3",
+      "version": "3.6.4-r0",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/libcrypto3@3.6.4-r0?arch=x86_64&distro=20230201",
+        "UID": "4ab9c67b09dfb610"
+      },
+      "purl": "pkg:apk/wolfi/libcrypto3@3.6.4-r0?arch=x86_64&distro=20230201",
+      "licenses": [
+        "Apache-2.0"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "libcurl-openssl4",
+      "version": "8.21.0-r3",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/libcurl-openssl4@8.21.0-r3?arch=x86_64&distro=20230201",
+        "UID": "bd57ea89ae1af361"
+      },
+      "purl": "pkg:apk/wolfi/libcurl-openssl4@8.21.0-r3?arch=x86_64&distro=20230201",
+      "licenses": [
+        "MIT"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "libexpat1",
+      "version": "2.8.3-r1",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/libexpat1@2.8.3-r1?arch=x86_64&distro=20230201",
+        "UID": "84a5ff9103313f98"
+      },
+      "purl": "pkg:apk/wolfi/libexpat1@2.8.3-r1?arch=x86_64&distro=20230201",
+      "licenses": [
+        "MIT"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "libffi",
+      "version": "3.8.0-r0",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/libffi@3.8.0-r0?arch=x86_64&distro=20230201",
+        "UID": "e3dcaaa74c70bfa3"
+      },
+      "purl": "pkg:apk/wolfi/libffi@3.8.0-r0?arch=x86_64&distro=20230201",
+      "licenses": [
+        "MIT"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "libgcc",
+      "version": "16.2.0-r1",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/libgcc@16.2.0-r1?arch=x86_64&distro=20230201",
+        "UID": "f81a94147850324a"
+      },
+      "purl": "pkg:apk/wolfi/libgcc@16.2.0-r1?arch=x86_64&distro=20230201",
+      "licenses": [
+        "GPL-3.0-or-later WITH GCC-exception-3.1"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "libgomp",
+      "version": "16.2.0-r1",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/libgomp@16.2.0-r1?arch=x86_64&distro=20230201",
+        "UID": "46b39da86f11bee"
+      },
+      "purl": "pkg:apk/wolfi/libgomp@16.2.0-r1?arch=x86_64&distro=20230201",
+      "licenses": [
+        "GPL-3.0-or-later WITH GCC-exception-3.1"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "libicu78",
+      "version": "78.3-r3",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/libicu78@78.3-r3?arch=x86_64&distro=20230201",
+        "UID": "4b98f0935d4a1cde"
+      },
+      "purl": "pkg:apk/wolfi/libicu78@78.3-r3?arch=x86_64&distro=20230201",
+      "licenses": [
+        "MIT"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "libidn2",
+      "version": "2.3.8-r8",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/libidn2@2.3.8-r8?arch=x86_64&distro=20230201",
+        "UID": "b7a9ff3a798b3199"
+      },
+      "purl": "pkg:apk/wolfi/libidn2@2.3.8-r8?arch=x86_64&distro=20230201",
+      "licenses": [
+        "GPL-2.0-or-later",
+        "LGPL-3.0-or-later"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "libldap",
+      "version": "2.6.10-r5",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/libldap@2.6.10-r5?arch=x86_64&distro=20230201",
+        "UID": "a3a3755a4554d4b1"
+      },
+      "purl": "pkg:apk/wolfi/libldap@2.6.10-r5?arch=x86_64&distro=20230201",
+      "licenses": [
+        "OLDAP-2.8"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "libnghttp2-14",
+      "version": "1.70.0-r2",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/libnghttp2-14@1.70.0-r2?arch=x86_64&distro=20230201",
+        "UID": "f3745bc98709e02a"
+      },
+      "purl": "pkg:apk/wolfi/libnghttp2-14@1.70.0-r2?arch=x86_64&distro=20230201",
+      "licenses": [
+        "MIT"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "libpcre2-8-0",
+      "version": "10.47-r1",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/libpcre2-8-0@10.47-r1?arch=x86_64&distro=20230201",
+        "UID": "5c34de550f3941fe"
+      },
+      "purl": "pkg:apk/wolfi/libpcre2-8-0@10.47-r1?arch=x86_64&distro=20230201",
+      "licenses": [
+        "BSD-3-Clause"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "libpsl",
+      "version": "0.23.3-r1",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/libpsl@0.23.3-r1?arch=x86_64&distro=20230201",
+        "UID": "d1bd7b739f66c5a7"
+      },
+      "purl": "pkg:apk/wolfi/libpsl@0.23.3-r1?arch=x86_64&distro=20230201",
+      "licenses": [
+        "MIT"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "libquadmath",
+      "version": "16.2.0-r1",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/libquadmath@16.2.0-r1?arch=x86_64&distro=20230201",
+        "UID": "97076bbfe33acef3"
+      },
+      "purl": "pkg:apk/wolfi/libquadmath@16.2.0-r1?arch=x86_64&distro=20230201",
+      "licenses": [
+        "GPL-3.0-or-later WITH GCC-exception-3.1"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "libssl3",
+      "version": "3.6.4-r0",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/libssl3@3.6.4-r0?arch=x86_64&distro=20230201",
+        "UID": "8398219fa4135c1c"
+      },
+      "purl": "pkg:apk/wolfi/libssl3@3.6.4-r0?arch=x86_64&distro=20230201",
+      "licenses": [
+        "Apache-2.0"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "libstdc++",
+      "version": "16.2.0-r1",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/libstdc%2B%2B@16.2.0-r1?arch=x86_64&distro=20230201",
+        "UID": "4102dd9462950b3"
+      },
+      "purl": "pkg:apk/wolfi/libstdc%2B%2B@16.2.0-r1?arch=x86_64&distro=20230201",
+      "licenses": [
+        "GPL-3.0-or-later WITH GCC-exception-3.1"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "libstdc++-dev",
+      "version": "16.2.0-r1",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/libstdc%2B%2B-dev@16.2.0-r1?arch=x86_64&distro=20230201",
+        "UID": "2b9040d213570026"
+      },
+      "purl": "pkg:apk/wolfi/libstdc%2B%2B-dev@16.2.0-r1?arch=x86_64&distro=20230201",
+      "licenses": [
+        "GPL-3.0-or-later WITH GCC-exception-3.1"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "libunistring",
+      "version": "1.4.2-r3",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/libunistring@1.4.2-r3?arch=x86_64&distro=20230201",
+        "UID": "220cd55638894890"
+      },
+      "purl": "pkg:apk/wolfi/libunistring@1.4.2-r3?arch=x86_64&distro=20230201",
+      "licenses": [
+        "GPL-2.0-or-later",
+        "LGPL-3.0-or-later"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "libuuid",
+      "version": "2.42.2-r4",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/libuuid@2.42.2-r4?arch=x86_64&distro=20230201",
+        "UID": "9d3f06f586f3cc66"
+      },
+      "purl": "pkg:apk/wolfi/libuuid@2.42.2-r4?arch=x86_64&distro=20230201",
+      "licenses": [
+        "GPL-3.0-or-later",
+        "GPL-2.0-or-later",
+        "GPL-2.0-only",
+        "GPL-1.0-only",
+        "LGPL-2.1-or-later",
+        "BSD-1-Clause",
+        "BSD-2-Clause",
+        "BSD-3-Clause",
+        "BSD-4-Clause-UC",
+        "MIT",
+        "CC-PDDC"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "libuv",
+      "version": "1.52.1-r1",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/libuv@1.52.1-r1?arch=x86_64&distro=20230201",
+        "UID": "9d0a21ebbbe422cf"
+      },
+      "purl": "pkg:apk/wolfi/libuv@1.52.1-r1?arch=x86_64&distro=20230201",
+      "licenses": [
+        "MIT",
+        "ISC"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "libverto",
+      "version": "0.3.2-r8",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/libverto@0.3.2-r8?arch=x86_64&distro=20230201",
+        "UID": "bfa93b6bdeb685b3"
+      },
+      "purl": "pkg:apk/wolfi/libverto@0.3.2-r8?arch=x86_64&distro=20230201",
+      "licenses": [
+        "MIT"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "libxcrypt",
+      "version": "4.5.2-r4",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/libxcrypt@4.5.2-r4?arch=x86_64&distro=20230201",
+        "UID": "b2cc94683efeb4a4"
+      },
+      "purl": "pkg:apk/wolfi/libxcrypt@4.5.2-r4?arch=x86_64&distro=20230201",
+      "licenses": [
+        "GPL-2.0-or-later",
+        "LGPL-2.1-or-later"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "libxcrypt-dev",
+      "version": "4.5.2-r4",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/libxcrypt-dev@4.5.2-r4?arch=x86_64&distro=20230201",
+        "UID": "44b091cd5d4d9150"
+      },
+      "purl": "pkg:apk/wolfi/libxcrypt-dev@4.5.2-r4?arch=x86_64&distro=20230201",
+      "licenses": [
+        "GPL-2.0-or-later",
+        "LGPL-2.1-or-later"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "libzstd1",
+      "version": "1.5.7-r8",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/libzstd1@1.5.7-r8?arch=x86_64&distro=20230201",
+        "UID": "179537229a770c72"
+      },
+      "purl": "pkg:apk/wolfi/libzstd1@1.5.7-r8?arch=x86_64&distro=20230201",
+      "licenses": [
+        "BSD-2-Clause",
+        "GPL-2.0-only"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "linux-headers",
+      "version": "7.2.2-r0",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/linux-headers@7.2.2-r0?arch=x86_64&distro=20230201",
+        "UID": "a2121d031a1803df"
+      },
+      "purl": "pkg:apk/wolfi/linux-headers@7.2.2-r0?arch=x86_64&distro=20230201",
+      "licenses": [
+        "GPL-2.0-only WITH Linux-syscall-note"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "make",
+      "version": "4.4.1-r13",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/make@4.4.1-r13?arch=x86_64&distro=20230201",
+        "UID": "ed2bc300a56aa9e4"
+      },
+      "purl": "pkg:apk/wolfi/make@4.4.1-r13?arch=x86_64&distro=20230201",
+      "licenses": [
+        "GPL-3.0-or-later"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "mpc",
+      "version": "1.4.1-r1",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/mpc@1.4.1-r1?arch=x86_64&distro=20230201",
+        "UID": "36580181f4305670"
+      },
+      "purl": "pkg:apk/wolfi/mpc@1.4.1-r1?arch=x86_64&distro=20230201",
+      "licenses": [
+        "LGPL-3.0-or-later"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "mpdecimal",
+      "version": "4.0.1-r4",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/mpdecimal@4.0.1-r4?arch=x86_64&distro=20230201",
+        "UID": "81bffb8cd6bb86d9"
+      },
+      "purl": "pkg:apk/wolfi/mpdecimal@4.0.1-r4?arch=x86_64&distro=20230201",
+      "licenses": [
+        "BSD-2-Clause"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "mpfr",
+      "version": "4.2.2-r2",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/mpfr@4.2.2-r2?arch=x86_64&distro=20230201",
+        "UID": "a827e3c3329757b8"
+      },
+      "purl": "pkg:apk/wolfi/mpfr@4.2.2-r2?arch=x86_64&distro=20230201",
+      "licenses": [
+        "LGPL-3.0-or-later"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "ncurses",
+      "version": "6.6.20260829-r0",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/ncurses@6.6.20260829-r0?arch=x86_64&distro=20230201",
+        "UID": "e70d9d32883c4c6c"
+      },
+      "purl": "pkg:apk/wolfi/ncurses@6.6.20260829-r0?arch=x86_64&distro=20230201",
+      "licenses": [
+        "MIT"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "ncurses-terminfo-base",
+      "version": "6.6.20260829-r0",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/ncurses-terminfo-base@6.6.20260829-r0?arch=x86_64&distro=20230201",
+        "UID": "825c9592cef55f57"
+      },
+      "purl": "pkg:apk/wolfi/ncurses-terminfo-base@6.6.20260829-r0?arch=x86_64&distro=20230201",
+      "licenses": [
+        "MIT"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "nghttp3",
+      "version": "1.18.0-r0",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/nghttp3@1.18.0-r0?arch=x86_64&distro=20230201",
+        "UID": "6dc5e77991b45154"
+      },
+      "purl": "pkg:apk/wolfi/nghttp3@1.18.0-r0?arch=x86_64&distro=20230201",
+      "licenses": [
+        "MIT"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "ngtcp2",
+      "version": "1.25.0-r2",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/ngtcp2@1.25.0-r2?arch=x86_64&distro=20230201",
+        "UID": "14bb49f4ae32a5e2"
+      },
+      "purl": "pkg:apk/wolfi/ngtcp2@1.25.0-r2?arch=x86_64&distro=20230201",
+      "licenses": [
+        "MIT"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "node-gyp",
+      "version": "13.0.2-r0",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/node-gyp@13.0.2-r0?arch=x86_64&distro=20230201",
+        "UID": "69f0953474af909b"
+      },
+      "purl": "pkg:apk/wolfi/node-gyp@13.0.2-r0?arch=x86_64&distro=20230201",
+      "licenses": [
+        "Artistic-2.0"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "nodejs-24",
+      "version": "24.20.0-r1",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/nodejs-24@24.20.0-r1?arch=x86_64&distro=20230201",
+        "UID": "2507c09619a85a91"
+      },
+      "purl": "pkg:apk/wolfi/nodejs-24@24.20.0-r1?arch=x86_64&distro=20230201",
+      "licenses": [
+        "MIT"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "npm",
+      "version": "12.0.2-r0",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/npm@12.0.2-r0?arch=x86_64&distro=20230201",
+        "UID": "46be27bd2e2471eb"
+      },
+      "purl": "pkg:apk/wolfi/npm@12.0.2-r0?arch=x86_64&distro=20230201",
+      "licenses": [
+        "Artistic-2.0"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "openssf-compiler-options",
+      "version": "20250904-r9",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/openssf-compiler-options@20250904-r9?arch=x86_64&distro=20230201",
+        "UID": "8b24b75f25dbc275"
+      },
+      "purl": "pkg:apk/wolfi/openssf-compiler-options@20250904-r9?arch=x86_64&distro=20230201",
+      "licenses": [
+        "CC-BY-4.0"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "pkgconf",
+      "version": "3.0.6-r1",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/pkgconf@3.0.6-r1?arch=x86_64&distro=20230201",
+        "UID": "1dc65bb191944eb9"
+      },
+      "purl": "pkg:apk/wolfi/pkgconf@3.0.6-r1?arch=x86_64&distro=20230201",
+      "licenses": [
+        "ISC"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "posix-cc-wrappers",
+      "version": "2-r10",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/posix-cc-wrappers@2-r10?arch=x86_64&distro=20230201",
+        "UID": "179e52384a714933"
+      },
+      "purl": "pkg:apk/wolfi/posix-cc-wrappers@2-r10?arch=x86_64&distro=20230201",
+      "licenses": [
+        "MIT"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "py3-pip-wheel",
+      "version": "26.2.1-r0",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/py3-pip-wheel@26.2.1-r0?arch=x86_64&distro=20230201",
+        "UID": "a995d5c2f4fa9b4d"
+      },
+      "purl": "pkg:apk/wolfi/py3-pip-wheel@26.2.1-r0?arch=x86_64&distro=20230201",
+      "licenses": [
+        "MIT"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "python-3.13",
+      "version": "3.13.15-r4",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/python-3.13@3.13.15-r4?arch=x86_64&distro=20230201",
+        "UID": "9d3f90a69ededce1"
+      },
+      "purl": "pkg:apk/wolfi/python-3.13@3.13.15-r4?arch=x86_64&distro=20230201",
+      "licenses": [
+        "PSF-2.0"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "python-3.13-base",
+      "version": "3.13.15-r4",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/python-3.13-base@3.13.15-r4?arch=x86_64&distro=20230201",
+        "UID": "7c1e7fa2051b1434"
+      },
+      "purl": "pkg:apk/wolfi/python-3.13-base@3.13.15-r4?arch=x86_64&distro=20230201",
+      "licenses": [
+        "PSF-2.0"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "readline",
+      "version": "8.3-r3",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/readline@8.3-r3?arch=x86_64&distro=20230201",
+        "UID": "35c6873bbcb8f4ff"
+      },
+      "purl": "pkg:apk/wolfi/readline@8.3-r3?arch=x86_64&distro=20230201",
+      "licenses": [
+        "GPL-3.0-or-later"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "ripgrep",
+      "version": "15.2.0-r2",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/ripgrep@15.2.0-r2?arch=x86_64&distro=20230201",
+        "UID": "8b23b91498ae1054"
+      },
+      "purl": "pkg:apk/wolfi/ripgrep@15.2.0-r2?arch=x86_64&distro=20230201",
+      "licenses": [
+        "MIT"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "sqlite-libs",
+      "version": "3.53.4-r1",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/sqlite-libs@3.53.4-r1?arch=x86_64&distro=20230201",
+        "UID": "ca0e375dcd0fb663"
+      },
+      "purl": "pkg:apk/wolfi/sqlite-libs@3.53.4-r1?arch=x86_64&distro=20230201",
+      "licenses": [
+        "blessing"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "wolfi-base",
+      "version": "1-r7",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/wolfi-base@1-r7?arch=x86_64&distro=20230201",
+        "UID": "98f0982d899385fb"
+      },
+      "purl": "pkg:apk/wolfi/wolfi-base@1-r7?arch=x86_64&distro=20230201",
+      "licenses": [
+        "MIT"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "wolfi-baselayout",
+      "version": "20230201-r29",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/wolfi-baselayout@20230201-r29?arch=x86_64&distro=20230201",
+        "UID": "f36fdba1d8404f08"
+      },
+      "purl": "pkg:apk/wolfi/wolfi-baselayout@20230201-r29?arch=x86_64&distro=20230201",
+      "licenses": [
+        "MIT"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "wolfi-keys",
+      "version": "1-r13",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/wolfi-keys@1-r13?arch=x86_64&distro=20230201",
+        "UID": "a003a9fe0d531d03"
+      },
+      "purl": "pkg:apk/wolfi/wolfi-keys@1-r13?arch=x86_64&distro=20230201",
+      "licenses": [
+        "MIT"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "xz",
+      "version": "5.8.3-r2",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/xz@5.8.3-r2?arch=x86_64&distro=20230201",
+        "UID": "5800c8985bfc32bc"
+      },
+      "purl": "pkg:apk/wolfi/xz@5.8.3-r2?arch=x86_64&distro=20230201",
+      "licenses": [
+        "GPL-3.0-or-later"
+      ]
+    },
+    {
+      "target": "/scan/sandbox.tar (wolfi 20230201)",
+      "class": "os-pkgs",
+      "type": "wolfi",
+      "name": "zlib",
+      "version": "1.3.2-r4",
+      "identifier": {
+        "PURL": "pkg:apk/wolfi/zlib@1.3.2-r4?arch=x86_64&distro=20230201",
+        "UID": "d2fe8a51770d17b6"
+      },
+      "purl": "pkg:apk/wolfi/zlib@1.3.2-r4?arch=x86_64&distro=20230201",
+      "licenses": [
+        "MPL-2.0",
+        "MIT"
+      ]
+    },
+    {
+      "target": "usr/local/bin/point-egress-gateway",
+      "class": "lang-pkgs",
+      "type": "gobinary",
+      "name": "local-agent-workbench",
+      "version": null,
+      "identifier": {
+        "PURL": "pkg:golang/local-agent-workbench",
+        "UID": "662ab6c71a01484"
+      },
+      "purl": "pkg:golang/local-agent-workbench",
+      "licenses": [
+        null
+      ]
+    },
+    {
+      "target": "usr/local/bin/point-egress-gateway",
+      "class": "lang-pkgs",
+      "type": "gobinary",
+      "name": "stdlib",
+      "version": "v1.26.7",
+      "identifier": {
+        "PURL": "pkg:golang/stdlib@v1.26.7",
+        "UID": "5cffeecdb12fdd0c"
+      },
+      "purl": "pkg:golang/stdlib@v1.26.7",
+      "licenses": [
+        null
+      ]
+    }
+  ]
+}

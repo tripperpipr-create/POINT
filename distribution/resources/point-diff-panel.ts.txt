@@ -1,0 +1,216 @@
+/*---------------------------------------------------------------------------------------------
+ *  Point IDE — панель над сравнением.
+ *
+ *  В JetBrains у просмотрщика различий своя строка управления: режим просмотра,
+ *  политика пробелов, подсветка, переходы между различиями и их счёт. У Code-OSS
+ *  всё это тоже есть — но врозь: часть командами в палитре, часть переключателем
+ *  в шапке вкладки, а счёта различий нет вовсе. Пока настройку надо вспоминать
+ *  по имени, ею не пользуются.
+ *
+ *  Строка живёт только у полноразмерного сравнения двумя колонками: во
+ *  встроенных сравнениях (заглядывание, чат, многофайловое) она отняла бы
+ *  высоту у трёх строк кода, ради которых их и открывают.
+ *
+ *  Свои здесь только две вещи: счётчик и подсветка слов. Остальное зовёт
+ *  команды Code-OSS по имени — так переключатель и клавиша делают одно и то же,
+ *  а не расходятся при первой правке.
+ *
+ *  Подсветка слов — свой переключатель потому, что у Monaco такой настройки
+ *  нет: посимвольную разметку он ставит всегда. Гасится она классом на корне
+ *  сравнения и правилом в `point-workbench.css`; решение помнится по профилю,
+ *  а не по файлу — это привычка чтения, а не свойство файла.
+ *--------------------------------------------------------------------------------------------*/
+
+import { EventType, addDisposableListener, h } from '../../../../../base/browser/dom.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { IObservable, autorun, derived, observableValue } from '../../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { DiffEditorOptions } from '../diffEditorOptions.js';
+import { DiffEditorViewModel } from '../diffEditorViewModel.js';
+
+/** Высота строки управления. Двадцать восемь — цель указателя 24 плюс поля. */
+const panelHeight = 28;
+
+const HIGHLIGHT_WORDS_KEY = 'point.diff.highlightWords';
+
+/** «1 различие», «2 различия», «5 различий» — иначе счётчик читается как машинный вывод. */
+function differencesLabel(count: number): string {
+	const tail = count % 100;
+	const last = count % 10;
+	if (tail >= 11 && tail <= 14) { return `${count} различий`; }
+	if (last === 1) { return `${count} различие`; }
+	if (last >= 2 && last <= 4) { return `${count} различия`; }
+	return `${count} различий`;
+}
+
+interface IPanelAction {
+	readonly node: HTMLElement;
+	readonly toggled?: IObservable<boolean>;
+}
+
+export class PointDiffPanelFeature extends Disposable {
+
+	/** Сколько высоты панель забирает у сравнения. Ноль — панели нет. */
+	public readonly height: IObservable<number>;
+
+	private readonly _elements = h('div.point-diff-panel@root', [
+		h('div.point-diff-panel-group@left'),
+		h('div.point-diff-panel-spacer'),
+		h('div.point-diff-panel-group@right'),
+	]);
+
+	private readonly _counter = h('div.point-diff-counter@root');
+	private readonly _highlightWords;
+
+	constructor(
+		hostElement: HTMLElement,
+		diffEditorRoot: HTMLElement,
+		private readonly _diffModel: IObservable<DiffEditorViewModel | undefined>,
+		private readonly _options: DiffEditorOptions,
+		@ICommandService private readonly _commandService: ICommandService,
+		@IStorageService private readonly _storageService: IStorageService,
+	) {
+		super();
+
+		this._highlightWords = observableValue<boolean>(this, this._storageService.getBoolean(HIGHLIGHT_WORDS_KEY, StorageScope.PROFILE, true));
+
+		// Слой пересоздаётся, когда сравнение переключают на одну колонку:
+		// без снятия узла в обёртке осталась бы мёртвая панель, а класс
+		// подсветки — на корне, и посимвольная разметка не вернулась бы.
+		hostElement.appendChild(this._elements.root);
+		this._register(toDisposable(() => {
+			this._elements.root.remove();
+			diffEditorRoot.classList.remove('point-diff-no-word-highlight');
+		}));
+
+		this.height = derived(this, reader => this._options.pointCenterEnabled.read(reader) ? panelHeight : 0);
+
+		const mappings = derived(this, reader => this._diffModel.read(reader)?.diff.read(reader)?.mappings.length ?? 0);
+
+		this._addAction(this._elements.left, {
+			icon: Codicon.splitHorizontal,
+			label: 'Две колонки',
+			tooltip: 'Две колонки или одна',
+			command: 'toggle.diff.renderSideBySide',
+			toggled: this._options.renderSideBySide,
+		});
+		this._addAction(this._elements.left, {
+			icon: Codicon.whitespace,
+			label: 'Пробелы',
+			tooltip: 'Учитывать пробелы в начале и конце строки',
+			command: 'toggle.diff.ignoreTrimWhitespace',
+			toggled: this._options.ignoreTrimWhitespace.map(ignore => !ignore),
+		});
+		this._addAction(this._elements.left, {
+			icon: Codicon.symbolText,
+			label: 'Слова',
+			tooltip: 'Подсвечивать изменённые слова внутри строки',
+			toggled: this._highlightWords,
+			run: () => {
+				const next = !this._highlightWords.get();
+				this._highlightWords.set(next, undefined);
+				this._storageService.store(HIGHLIGHT_WORDS_KEY, next, StorageScope.PROFILE, StorageTarget.USER);
+			},
+		});
+		this._addAction(this._elements.left, {
+			icon: Codicon.fold,
+			label: 'Свернуть равное',
+			tooltip: 'Прятать неизменённые части файла',
+			command: 'diffEditor.toggleCollapseUnchangedRegions',
+			toggled: this._options.hideUnchangedRegions,
+		});
+
+		this._elements.right.appendChild(this._counter.root);
+		this._addAction(this._elements.right, {
+			icon: Codicon.arrowUp,
+			tooltip: 'Предыдущее различие',
+			command: 'workbench.action.compareEditor.previousChange',
+		});
+		this._addAction(this._elements.right, {
+			icon: Codicon.arrowDown,
+			tooltip: 'Следующее различие',
+			command: 'workbench.action.compareEditor.nextChange',
+		});
+		this._addAction(this._elements.right, {
+			icon: Codicon.arrowSwap,
+			tooltip: 'Поменять стороны местами',
+			command: 'workbench.action.compareEditor.swapSides',
+		});
+
+		this._register(autorun(reader => {
+			/** @description PointDiffPanel: счётчик и видимость */
+			const enabled = this._options.pointCenterEnabled.read(reader);
+			this._elements.root.style.display = enabled ? '' : 'none';
+			if (!enabled) { return; }
+			const count = mappings.read(reader);
+			this._counter.root.textContent = count === 0 ? 'Различий нет' : differencesLabel(count);
+			this._counter.root.classList.toggle('empty', count === 0);
+		}));
+
+		this._register(autorun(reader => {
+			/** @description PointDiffPanel: подсветка слов */
+			diffEditorRoot.classList.toggle('point-diff-no-word-highlight', !this._highlightWords.read(reader));
+		}));
+	}
+
+	private _addAction(container: HTMLElement, descriptor: {
+		icon: ThemeIcon;
+		label?: string;
+		tooltip: string;
+		command?: string;
+		toggled?: IObservable<boolean>;
+		run?: () => void;
+	}): IPanelAction {
+		const node = document.createElement('div');
+		node.className = 'point-diff-action';
+		node.title = descriptor.tooltip;
+		node.setAttribute('role', 'button');
+		node.tabIndex = 0;
+
+		const icon = document.createElement('span');
+		icon.className = `point-diff-action-icon ${ThemeIcon.asClassName(descriptor.icon)}`;
+		node.appendChild(icon);
+
+		if (descriptor.label) {
+			const label = document.createElement('span');
+			label.className = 'point-diff-action-label';
+			label.textContent = descriptor.label;
+			node.appendChild(label);
+		}
+
+		const run = () => {
+			if (descriptor.run) {
+				descriptor.run();
+			} else if (descriptor.command) {
+				this._commandService.executeCommand(descriptor.command);
+			}
+		};
+
+		// Нажатие не должно уводить обойму из редактора: команды переходов
+		// смотрят на активное сравнение, а панель — часть его же.
+		this._register(addDisposableListener(node, EventType.MOUSE_DOWN, e => e.preventDefault()));
+		this._register(addDisposableListener(node, EventType.CLICK, () => run()));
+		this._register(addDisposableListener(node, EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				e.preventDefault();
+				run();
+			}
+		}));
+
+		if (descriptor.toggled) {
+			const toggled = descriptor.toggled;
+			this._register(autorun(reader => {
+				/** @description PointDiffPanel: состояние переключателя */
+				const on = toggled.read(reader);
+				node.classList.toggle('checked', on);
+				node.setAttribute('aria-pressed', String(on));
+			}));
+		}
+
+		container.appendChild(node);
+		return { node, toggled: descriptor.toggled };
+	}
+}

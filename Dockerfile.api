@@ -1,0 +1,22 @@
+FROM golang:1.25-bookworm AS builder
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/workbench-api ./cmd/server
+
+FROM golang:1.25-bookworm
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl git ripgrep tini && rm -rf /var/lib/apt/lists/*
+RUN groupadd --gid 10001 workbench && useradd --uid 10001 --gid workbench --create-home workbench \
+    && mkdir -p /data /workspace /tmp/go-cache && chown -R workbench:workbench /data /workspace /tmp/go-cache
+COPY --from=builder /out/workbench-api /usr/local/bin/workbench-api
+USER workbench
+ENV DATA_DIR=/data \
+    WORKSPACE_ROOT=/workspace \
+    HTTP_ADDR=0.0.0.0:8080 \
+    REDIS_ADDR=redis:6379 \
+    GOCACHE=/tmp/go-cache
+EXPOSE 8080
+HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=5 CMD curl -fsS http://127.0.0.1:8080/api/health || exit 1
+ENTRYPOINT ["/usr/bin/tini","--"]
+CMD ["workbench-api"]

@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Чертог — эталонная разметка</title>
+<link rel="stylesheet" href="../media/rpg-tokens.css">
+<link rel="stylesheet" href="../media/style.css">
+</head>
+<!-- Регистр Хаба включается атрибутом data-layout, как в реальном вебвью. -->
+<body data-layout="wide" style="margin:0;height:100vh;overflow:hidden">
+<div class="hall" id="hall">
+  <div class="hall-scan"></div>
+
+  <!-- ── РЕЙКА ─────────────────────────────────────────────────────────── -->
+  <aside class="hall-rail">
+    <div class="hall-rail-head">
+      <div class="hall-mark">◇</div>
+      <div class="hall-wordmark">
+        <b>ЧЕРТОГ</b>
+        <span>POINT · HALL</span>
+      </div>
+    </div>
+    <nav class="hall-nav" id="nav" aria-label="Разделы Чертога"></nav>
+    <div class="hall-rail-foot">
+      <div class="row"><i></i><b>ИНДЕКС 96%</b></div>
+      <small>отстал на 41 коммит · <a href="#" style="color:var(--ember-light)">пересобрать</a></small>
+    </div>
+  </aside>
+
+  <!-- ── ЦЕНТР ────────────────────────────────────────────────────────── -->
+  <main class="hall-main">
+    <header class="hall-head">
+      <div class="hall-crumb" id="crumb">ЧЕРТОГ / ОБЗОР</div>
+      <dl class="hall-gauge" style="margin:0"><dt>РАСХОД</dt><dd>$18.40 / $40</dd></dl>
+      <div class="hall-alarm"><i></i><span>7 ЖДУТ РЕШЕНИЯ</span></div>
+      <button class="hall-btn is-sm" data-go="master">МАСТЕР ⌘K</button>
+    </header>
+
+    <div class="hall-body">
+
+      <!-- ══ ОБЗОР ══════════════════════════════════════════════════════ -->
+      <section class="hall-page" data-screen="overview">
+        <div class="hall-panel is-alarm">
+          <header style="gap:var(--s-7)">
+            <div style="display:flex;align-items:baseline;gap:var(--s-5)">
+              <span class="hall-count">7</span>
+              <div style="display:flex;flex-direction:column;gap:var(--s-3)">
+                <b style="color:var(--ember-light);letter-spacing:.2em">ЖДЁТ ВАС</b>
+                <small style="margin:0;color:var(--hub-muted-2)">самое старое ждёт 12м 04с — агент простаивает</small>
+              </div>
+            </div>
+            <button class="hall-btn is-primary" data-go="decisions" style="margin-left:auto">РАЗОБРАТЬ ОЧЕРЕДЬ</button>
+          </header>
+          <div class="hall-grid is-tiles" style="gap:0" id="waiting"></div>
+        </div>
+
+        <div class="hall-grid is-two">
+          <section class="hall-panel">
+            <header><b>ИДЁТ СЕЙЧАС</b><small>2 прогона</small></header>
+            <div id="running"></div>
+          </section>
+
+          <section class="hall-panel">
+            <header><b>ИЗМЕНЕНО, НЕ ПРОВЕРЕНО</b><small style="color:var(--ember)">ВСЕ →</small></header>
+            <div id="unverified"></div>
+          </section>
+        </div>
+
+        <div class="hall-grid is-two">
+          <section class="hall-panel" style="padding:var(--s-6);display:flex;flex-direction:column;gap:var(--s-6)">
+            <b style="font:var(--fw-medium) var(--t-tiny)/1 var(--font-mono);letter-spacing:.18em;color:var(--hub-muted-2)">РАСХОД</b>
+            <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--s-4)">
+              <span style="font:var(--fw-semibold) 28px/1 var(--font-ui)">$18.40</span>
+              <span style="font:var(--fw-medium) var(--t-small)/1 var(--font-mono);color:var(--hub-faint)">/ $40 сегодня</span>
+              <span style="flex:1"></span>
+              <span style="font:var(--fw-medium) var(--t-tiny)/1 var(--font-mono);color:var(--ember-light)">до упора ~3 прогона</span>
+            </div>
+            <div class="hall-track is-thick"><i style="width:46%"></i></div>
+          </section>
+
+          <section class="hall-panel" style="padding:var(--s-6);display:flex;flex-direction:column;gap:var(--s-5)">
+            <div style="display:flex;align-items:center;gap:var(--s-4)">
+              <b style="font:var(--fw-medium) var(--t-tiny)/1 var(--font-mono);letter-spacing:.18em;color:var(--hub-muted-2)">ЗДОРОВЬЕ</b>
+              <small style="margin-left:auto;font:var(--fw-normal) var(--t-micro)/1 var(--font-mono);color:var(--hub-faint-3)">исправное скрыто</small>
+            </div>
+            <div id="health"></div>
+          </section>
+        </div>
+      </section>
+
+      <!-- ══ РЕШЕНИЯ ════════════════════════════════════════════════════ -->
+      <section class="hall-split" data-screen="decisions" hidden>
+        <div class="hall-queue">
+          <header style="display:flex;align-items:center;gap:var(--s-4);padding:var(--s-5) var(--s-6);border-bottom:1px solid var(--hub-border)">
+            <b style="font:var(--fw-medium) var(--t-tiny)/1 var(--font-mono);letter-spacing:.16em;color:var(--hub-muted-2)">ОЧЕРЕДЬ · 7</b>
+            <small style="margin-left:auto;font:var(--fw-medium) var(--t-micro)/1 var(--font-mono);color:var(--hub-faint-3)">по времени ожидания</small>
+          </header>
+          <div class="hall-queue-list" id="queue" data-keynav="column" aria-label="Очередь решений"></div>
+          <div class="hall-keys">
+            <span><kbd>J</kbd><kbd>K</kbd><kbd>↑</kbd><kbd>↓</kbd><em>перебор</em></span>
+            <span><kbd>A</kbd><em>принять</em></span>
+            <span><kbd>R</kbd><em>отклонить</em></span>
+            <span><kbd>S</kbd><em>отложить</em></span>
+            <span><kbd>D</kbd><em>диф</em></span>
+          </div>
+        </div>
+
+        <div style="min-height:0;overflow:auto;display:flex;flex-direction:column">
+          <div style="flex:1;padding:var(--s-7);display:flex;flex-direction:column;gap:var(--s-6)">
+            <div class="hall-title">
+              <div style="display:flex;align-items:center;gap:var(--s-4)">
+                <span class="hall-chip is-hot" id="pickKind">ПАТЧ</span>
+                <span style="font:var(--fw-medium) var(--t-tiny)/1 var(--font-mono);color:var(--hub-faint-2)" id="pickWait">ждёт 12м 04с · агент простаивает</span>
+              </div>
+              <h1 id="pickTitle">engine.go: заменить глобальный мьютекс на sync.Map</h1>
+            </div>
+
+            <div class="hall-triad">
+              <dl class="hall-facet" style="margin:0"><dt>ЧТО ПРОСЯТ</dt><dd id="pickAsk"></dd></dl>
+              <dl class="hall-facet is-risk" style="margin:0"><dt>ЧЕМ РИСКУЕТ</dt><dd id="pickRisk"></dd></dl>
+              <dl class="hall-facet" style="margin:0"><dt>ЧЕМ ОБОСНОВАНО</dt><dd id="pickEvidence"></dd></dl>
+            </div>
+
+            <section class="hall-panel">
+              <header><b>ФАКТЫ ОСМОТРА</b></header>
+              <dl class="hall-facts" id="pickFacts" style="margin:0"></dl>
+            </section>
+
+            <section class="hall-panel" style="background:var(--hub-panel)">
+              <header><b>ДИФ · <span id="pickDiffMeta"></span></b><small>D — развернуть целиком</small></header>
+              <div class="hall-diff" id="pickDiff"></div>
+            </section>
+          </div>
+
+          <div class="hall-verdict">
+            <button class="hall-btn is-primary">ПРИНЯТЬ · A</button>
+            <button class="hall-btn">ОТКЛОНИТЬ · R</button>
+            <button class="hall-btn">ОТЛОЖИТЬ · S</button>
+            <small>решение уходит в журнал изменений и обратимо, кроме помеченного «необратимо»</small>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<script>
+// Эталон работает на тех же данных, что описаны в макете. Задача разметки —
+// доказать, что классы слоя 05-hall воспроизводят дизайн без инлайновых стилей.
+const NAV = [
+  ['overview', 'ОБЗОР', '·'],
+  ['master', 'МАСТЕР', '2'],
+  ['decisions', 'РЕШЕНИЯ', '7'],
+  ['changes', 'ИЗМЕНЕНИЯ', '3'],
+  ['quests', 'КВЕСТЫ', '2'],
+  ['guild', 'ГИЛЬДИЯ', '·'],
+]
+const CRUMBS = {
+  overview: 'ЧЕРТОГ / ОБЗОР', master: 'ЧЕРТОГ / МАСТЕР / СЕССИЯ 14',
+  decisions: 'ЧЕРТОГ / РЕШЕНИЯ / ОЧЕРЕДЬ', changes: 'ЧЕРТОГ / ИЗМЕНЕНИЯ',
+  quests: 'ЧЕРТОГ / КВЕСТЫ / ПРОГОН #48', guild: 'ЧЕРТОГ / ГИЛЬДИЯ',
+}
+const WAITING = [
+  ['1', 'патч на применение', '12м', true],
+  ['1', 'команда в песочнице', '08м', true],
+  ['1', 'набор изменений', '06м', false],
+  ['1', 'конфликт слияния', '05м', false],
+  ['2', 'предложения мастера', '04м', false],
+  ['1', 'пользовательский инструмент', '02м', false],
+]
+const RUNNING = [
+  ['Починить флаки-тесты в биллинге', 'Дозор релиза · этап 3 из 5', 58, '148k tok', '$3.90', '14м'],
+  ['Обновить схему миграций', 'Кузня · этап 1 из 3', 22, '31k tok', '$0.80', '4м'],
+]
+const UNVERIFIED = [
+  ['internal/engine/engine.go', '+82 / −14 · прогон #47', 'НЕ ПРОВЕРЕН', true],
+  ['internal/engine/scheduler.go', '+12 / −3 · прогон #47', 'НЕ ПРОВЕРЕН', true],
+  ['docs/api.md', '+40 / −0 · прогон #45', 'БЕЗ ТЕСТОВ', false],
+]
+const HEALTH = [
+  ['ИНДЕКС', 'отстал на 41 коммит', 'три поиска промахнулись мимо vendor', 'пересобрать'],
+  ['ПРОВАЙДЕР', 'llmux — таймауты', '2 повтора за последний час', 'проверить'],
+]
+const QUEUE = [
+  { kind: 'ПАТЧ', risk: 'средний', wait: '12м 04с', who: 'ФОРДЖ · прогон #47',
+    title: 'engine.go: заменить глобальный мьютекс на sync.Map',
+    ask: 'Применить патч на 2 файла: +82 / −14 строк. Ветка feature/engine-lock, коммит не создаётся.',
+    riskText: 'Трогает горячий путь исполнения. Есть тесты, но нет бенчмарка — регресс по латентности не будет виден.',
+    evidence: 'Осмотрел 6 файлов, нашёл 3 места блокировки. go test ./internal/engine прошёл на ревизии 40.',
+    diffMeta: 'internal/engine/engine.go · +82 / −14',
+    facts: [['ARGV', 'apply_patch --set cs-44 --dry-run=false', 'code'],
+            ['РАБОЧИЙ КАТАЛОГ', '/srv/point/internal/engine', 'code'],
+            ['ЗАТРОНУТЫЕ ФАЙЛЫ', 'engine.go · scheduler.go', 'code'],
+            ['ЗАВИСИТ ОТ', 'cs-41 (применён), cs-42 (применён)', ''],
+            ['ВЕРИФИКАТОР', 'go test ./... — будет запущен после применения', '']],
+    diff: [['118', 'ctx', 'func (e *Engine) acquire(id string) *slot {'],
+           ['119', 'del', '-\te.mu.Lock()'],
+           ['120', 'del', '-\tdefer e.mu.Unlock()'],
+           ['121', 'add', '+\tif v, ok := e.slots.Load(id); ok {'],
+           ['122', 'add', '+\t\treturn v.(*slot)'],
+           ['123', 'add', '+\t}'],
+           ['124', 'ctx', '\ts := newSlot(id)'],
+           ['125', 'add', '+\te.slots.Store(id, s)'],
+           ['126', 'ctx', '\treturn s']] },
+  { kind: 'КОМАНДА', risk: 'высокий', wait: '08м 41с', who: 'ГОНЕЦ · прогон #48',
+    title: 'rm -rf ./tmp/cache — очистить кэш сборки',
+    ask: 'Выполнить команду в песочнице проекта до повторного прогона тестов.',
+    riskText: 'Удаление без корзины. Каталог совпадает с шаблоном игнорируемых, но содержит 2.1 ГБ артефактов текущей сборки.',
+    evidence: 'Флаки-тест падает только при холодном кэше — агент воспроизвёл это дважды из трёх.',
+    diffMeta: 'команда, дифа нет',
+    facts: [['ARGV', '/bin/rm -rf ./tmp/cache', 'code'],
+            ['ПЕСОЧНИЦА', 'docker · point-sandbox:3 · сеть выключена', ''],
+            ['ОБЪЁМ', '2.1 ГБ, 14 208 файлов', ''],
+            ['ОБРАТИМОСТЬ', 'необратимо', 'danger']],
+    diff: [['—', 'ctx', '$ rm -rf ./tmp/cache'], ['—', 'ctx', '# вывод появится после решения']] },
+  { kind: 'КОНФЛИКТ', risk: 'высокий', wait: '05м 30с', who: 'флоу · узел join-2',
+    title: 'Трёхстороннее слияние: две ветки правят одну функцию',
+    ask: 'Выбрать сторону или собрать вручную.',
+    riskText: 'Ветки СТРАЖА и ФОРДЖА расходятся в обработке ошибок — автослияние даст молчаливое проглатывание ошибки.',
+    evidence: 'Общий предок — ревизия 39, обе стороны прошли свои тесты по отдельности.',
+    diffMeta: 'scheduler.go · 1 конфликт',
+    facts: [['УЗЕЛ', 'flow-run 12 / join-2', 'code'], ['СТОРОНЫ', 'ФОРДЖ (наша) · СТРАЖ (их)', '']],
+    diff: [['88', 'del', '<<<<<<< наша'], ['89', 'ctx', '\treturn fmt.Errorf("slot: %w", err)'], ['90', 'add', '>>>>>>> их']] },
+]
+
+const esc = (v) => String(v).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+let screen = 'overview'
+let pick = 0
+
+function paintNav() {
+  document.getElementById('nav').innerHTML = NAV.map(([id, label, count]) => `
+    <button data-go="${id}" class="${id === screen ? 'is-active' : ''} ${id === 'decisions' ? 'is-urgent' : ''}">
+      <i></i><span>${label}</span><b>${count}</b>
+    </button>`).join('')
+  document.getElementById('crumb').textContent = CRUMBS[screen]
+  for (const node of document.querySelectorAll('[data-screen]')) {
+    node.hidden = node.dataset.screen !== screen
+  }
+}
+
+function paintOverview() {
+  document.getElementById('waiting').innerHTML = WAITING.map(([n, label, wait, hot]) => `
+    <div class="hall-panel-row" style="display:flex;align-items:center;gap:var(--s-5);border-right:1px solid var(--hub-border-soft);cursor:pointer">
+      <span style="font:var(--fw-semibold) var(--t-title)/1 var(--font-mono);width:20px;flex:none">${n}</span>
+      <span style="font:var(--fw-normal) var(--t-small)/1.35 var(--font-mono);color:var(--hub-muted);flex:1">${esc(label)}</span>
+      <span style="font:var(--fw-semibold) var(--t-tiny)/1 var(--font-mono);color:${hot ? 'var(--ember)' : 'var(--hub-faint-2)'}">${wait}</span>
+    </div>`).join('')
+
+  document.getElementById('running').innerHTML = RUNNING.map(([title, who, pct, tok, money, el]) => `
+    <div class="hall-panel-row" style="display:flex;flex-direction:column;gap:var(--s-4)">
+      <div style="display:flex;align-items:center;gap:var(--s-5)">
+        <div class="hall-portrait"></div>
+        <div style="display:flex;flex-direction:column;gap:var(--s-2);flex:1;min-width:0">
+          <span style="font:var(--fw-medium) 14px/1.2 var(--font-ui)">${esc(title)}</span>
+          <span style="font:var(--fw-normal) var(--t-tiny)/1 var(--font-mono);color:var(--hub-faint)">${esc(who)}</span>
+        </div>
+        <button class="hall-btn is-accent is-sm">ВМЕШАТЬСЯ</button>
+      </div>
+      <div class="hall-track"><i style="width:${pct}%"></i></div>
+      <div style="display:flex;gap:var(--s-6);font:var(--fw-medium) var(--t-micro)/1 var(--font-mono);color:var(--hub-faint-2)">
+        <span>${tok}</span><span>${money}</span><span>${el}</span>
+      </div>
+    </div>`).join('')
+
+  document.getElementById('unverified').innerHTML = UNVERIFIED.map(([file, meta, tag, hot]) => `
+    <div class="hall-panel-row" style="display:grid;grid-template-columns:1fr auto;gap:var(--s-4);align-items:center;cursor:pointer">
+      <div style="display:flex;flex-direction:column;gap:var(--s-2);min-width:0">
+        <span style="font:var(--fw-medium) var(--t-small)/1 var(--font-mono);color:var(--hub-text-2);overflow:hidden;text-overflow:ellipsis">${esc(file)}</span>
+        <span style="font:var(--fw-normal) var(--t-micro)/1 var(--font-mono);color:var(--hub-faint-2)">${esc(meta)}</span>
+      </div>
+      <span class="hall-chip ${hot ? 'is-hot' : 'is-dim'}">${tag}</span>
+    </div>`).join('')
+
+  document.getElementById('health').innerHTML = HEALTH.map(([tag, name, detail, action]) => `
+    <div style="display:flex;align-items:center;gap:var(--s-5);padding:var(--s-4) 0;border-bottom:1px solid var(--hub-border-soft)">
+      <span class="hall-chip is-hot">${tag}</span>
+      <div style="display:flex;flex-direction:column;gap:var(--s-2);flex:1;min-width:0">
+        <span style="font:var(--fw-medium) var(--t-small)/1 var(--font-mono);color:var(--hub-text-2)">${esc(name)}</span>
+        <span style="font:var(--fw-normal) var(--t-tiny)/1.4 var(--font-mono);color:var(--hub-faint)">${esc(detail)}</span>
+      </div>
+      <span style="font:var(--fw-semibold) var(--t-micro)/1 var(--font-mono);color:var(--ember-light);cursor:pointer">${action}</span>
+    </div>`).join('')
+}
+
+function paintQueue() {
+  document.getElementById('queue').innerHTML = QUEUE.map((d, i) => `
+    <button class="hall-queue-item ${i === pick ? 'is-active' : ''}" data-pick="${i}"${i === pick ? ' aria-current="true"' : ''}>
+      <div style="display:flex;align-items:center;gap:var(--s-4)">
+        <span class="hall-chip ${d.risk === 'высокий' ? 'hot' : ''}">${d.kind}</span>
+        <span style="flex:1"></span>
+        <span style="font:var(--fw-semibold) var(--t-tiny)/1 var(--font-mono);color:${i === 0 ? 'var(--ember)' : 'var(--hub-faint-2)'}">${d.wait}</span>
+      </div>
+      <span class="title">${esc(d.title)}</span>
+      <div style="display:flex;align-items:center;gap:var(--s-4)">
+        <div class="hall-portrait is-sm"></div>
+        <span class="who">${esc(d.who)}</span>
+        <span style="flex:1"></span>
+        <span class="hall-chip ${d.risk === 'высокий' ? 'is-hot' : 'is-dim'}">${d.risk}</span>
+      </div>
+    </button>`).join('')
+
+  const d = QUEUE[pick]
+  document.getElementById('pickKind').textContent = d.kind
+  document.getElementById('pickKind').className = 'hall-chip ' + (d.risk === 'высокий' ? 'is-hot' : '')
+  document.getElementById('pickWait').textContent = `ждёт ${d.wait} · агент простаивает`
+  document.getElementById('pickTitle').textContent = d.title
+  document.getElementById('pickAsk').textContent = d.ask
+  document.getElementById('pickRisk').textContent = d.riskText
+  document.getElementById('pickEvidence').textContent = d.evidence
+  document.getElementById('pickDiffMeta').textContent = d.diffMeta
+  document.getElementById('pickFacts').innerHTML = d.facts.map(([k, v, kind]) => `
+    <div class="hall-fact"><dt>${esc(k)}</dt><dd class="${kind}">${esc(v)}</dd></div>`).join('')
+  document.getElementById('pickDiff').innerHTML = d.diff.map(([n, type, text]) => `
+    <div class="hall-diff-row is-${type}"><span class="n">${n}</span><span class="l">${esc(text)}</span></div>`).join('')
+}
+
+document.addEventListener('click', (event) => {
+  const go = event.target.closest('[data-go]')
+  if (go) { screen = go.dataset.go; paintNav(); return }
+  const item = event.target.closest('[data-pick]')
+  if (item) { pick = Number(item.dataset.pick); paintQueue() }
+})
+
+// Клавиатура — обязательная часть экрана решений, а не удобство.
+document.addEventListener('keydown', (event) => {
+  if (screen !== 'decisions') return
+  if (event.key === 'j' || event.key === 'о' || event.key === 'ArrowDown') { pick = Math.min(pick + 1, QUEUE.length - 1); paintQueue() }
+  if (event.key === 'k' || event.key === 'л' || event.key === 'ArrowUp') { pick = Math.max(pick - 1, 0); paintQueue() }
+})
+
+paintNav(); paintOverview(); paintQueue()
+</script>
+</body>
+</html>

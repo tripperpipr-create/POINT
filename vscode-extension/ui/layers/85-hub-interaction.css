@@ -1,0 +1,258 @@
+/* ── Hub interaction + composition pass ───────────────────────────── */
+.command-center-kicker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+.command-center-kicker > span {
+  color: var(--mana);
+  font: 650 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace;
+  letter-spacing: .1em;
+}
+.situation-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: var(--s-1) var(--s-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--void);
+  color: var(--muted);
+  font: 650 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  font-style: normal;
+}
+.situation-badge.tone-alert {
+  color: var(--ember);
+  border-color: color-mix(in srgb, var(--ember) 55%, var(--border));
+  background: color-mix(in srgb, var(--ember) 10%, var(--void));
+}
+.situation-badge.tone-live,
+.situation-badge.tone-ready {
+  color: var(--vital);
+  border-color: color-mix(in srgb, var(--vital) 45%, var(--border));
+  background: color-mix(in srgb, var(--vital) 8%, var(--void));
+}
+.situation-badge.tone-next,
+.situation-badge.tone-idle {
+  color: var(--ember);
+  border-color: color-mix(in srgb, var(--ember) 40%, var(--border));
+  background: color-mix(in srgb, var(--ember) 7%, var(--void));
+}
+.command-center-hero.tone-idle {
+  border-left-color: var(--mana);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--mana) 10%, transparent), transparent 40%),
+    linear-gradient(180deg, color-mix(in srgb, var(--mana) 6%, var(--panel)), var(--panel));
+}
+.command-center-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.guild-ops {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+  min-width: 0;
+  align-items: stretch;
+}
+.guild-ops > :not(.hub-current-quest):not(.hub-overview-secondary) {
+  grid-column: 1 / -1;
+}
+.command-center-grid > .companion-studio {
+  min-width: 0;
+}
+.hub-shell.tabs > button,
+.hub-shell-8.tabs > button {
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: var(--t-tiny);
+  letter-spacing: .02em;
+}
+.hub-shell-8.tabs > button b {
+  font: 650 var(--t-tiny)/1.15 "JetBrains Mono", Consolas, monospace;
+}
+.hub-card-footer,
+.proposal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+.hub-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--space-3);
+  min-width: 0;
+}
+.hub-member-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+.hub-member-chips > span {
+  padding: var(--s-2) var(--s-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--void);
+  color: var(--mana);
+  font: 650 var(--t-micro)/1.2 "JetBrains Mono", Consolas, monospace;
+}
+.hub-skill-card {
+  display: grid;
+  gap: var(--space-2);
+  align-content: start;
+  min-height: 108px;
+}
+.hub-skill-card .equip-on {
+  color: var(--vital);
+  font: 650 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace;
+  font-style: normal;
+  text-transform: uppercase;
+}
+.empty.compact.point-frame {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+  padding: var(--space-5);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--mana) 4%, var(--panel));
+}
+.empty-glyph {
+  color: var(--mana);
+  font: 700 var(--t-title)/1 "JetBrains Mono", Consolas, monospace;
+}
+.empty.compact .empty-next {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+.companion-review-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid color-mix(in srgb, var(--ember) 28%, var(--border));
+}
+.companion-review-head strong {
+  color: var(--ember);
+  font: 650 var(--t-tiny)/1 "JetBrains Mono", Consolas, monospace;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.companion-review-head small { color: var(--muted); font-size: var(--t-micro); }
+.quest-proposal-list,
+.companion-action-list {
+  scroll-margin-top: 12px;
+}
+.proposal-actions .primary {
+  min-width: 72px;
+}
+.companion-compose-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: flex-end;
+}
+.companion-compose-actions.compact {
+  flex: 0 0 auto;
+}
+.companion-compose.compact {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+}
+.companion-pending-cue {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: var(--space-2);
+  align-items: center;
+  padding: var(--s-3) var(--s-4);
+  border: 1px dashed color-mix(in srgb, var(--mana) 40%, var(--border));
+  background: color-mix(in srgb, var(--mana) 6%, var(--void));
+}
+.companion-pending-cue > span {
+  color: var(--mana);
+  font: 700 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.companion-pending-cue p {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--t-small);
+}
+.companion-compose.console textarea:focus-visible,
+.companion-compose.compact textarea:focus-visible,
+.hub-shell.tabs > button:focus-visible,
+.proposal-actions button:focus-visible {
+  outline: 1px solid var(--ember);
+  outline-offset: 2px;
+}
+.hub-statistics .hub-card-footer { margin-top: var(--space-3); }
+.team-form {
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  background: var(--raised);
+  border-radius: var(--radius);
+}
+.guild-roster,
+.guild-heading {
+  max-width: none;
+}
+.guild-roster {
+  padding: var(--page-pad-y) var(--page-pad-x) var(--space-6);
+}
+.guild-heading {
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-3);
+}
+.guild-heading h1 {
+  font-size: var(--t-title);
+}
+@media (max-width: 900px) {
+  .guild-ops {
+    grid-template-columns: 1fr;
+  }
+  .hub-card-grid {
+    grid-template-columns: 1fr;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .command-center-grid,
+  .guild-ops {
+    scroll-behavior: auto;
+  }
+}
+
+.hub-databases .db-table-wrap { overflow: auto; max-height: 360px; border: 1px solid var(--point-border, var(--vscode-widget-border)); }
+.hub-databases .db-table { width: 100%; border-collapse: collapse; font: var(--t-body)/1.35 "JetBrains Mono", Consolas, monospace; }
+.hub-databases .db-table th, .hub-databases .db-table td { padding: var(--s-2) var(--s-4); border-bottom: 1px solid var(--point-border, var(--vscode-widget-border)); text-align: left; vertical-align: top; }
+.hub-databases .db-table th { position: sticky; top: 0; background: var(--point-panel, var(--vscode-sideBar-background)); }
+.hub-databases .db-query-result, .hub-databases .db-schema { margin-top: 12px; }
+.hub-card.selected { outline: 1px solid var(--ember, var(--vscode-focusBorder)); }
+button.linkish { background: none; border: none; color: var(--vscode-textLink-foreground); padding: 0; cursor: pointer; text-decoration: underline; }
+.execution-guarantees {
+  width: 100%;
+  margin-top: var(--s-4);
+  border: 1px solid var(--point-line, var(--border));
+  border-radius: var(--r-3);
+  background: var(--surface-void);
+}
+.execution-guarantees summary { cursor: pointer; padding: var(--s-3) var(--s-4h); font-size: var(--t-small); letter-spacing: var(--tracking-label); }
+.execution-guarantees > div { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-2); padding: 0 var(--s-4h) var(--s-4); }
+.execution-guarantees span { display: grid; grid-template-columns: auto 1fr; column-gap: var(--s-3); align-items: center; font-size: var(--t-micro); }
+.execution-guarantees span em { grid-column: 2; opacity: .68; font-style: normal; }
+.execution-guarantees .available b { color: var(--point-success, var(--vital)); }
+.execution-guarantees .unavailable b { color: var(--point-warning, var(--caution)); }
+.execution-guarantees p { margin: 0; padding: 0 var(--s-4h) var(--s-4); font-size: var(--t-small); opacity: .76; }

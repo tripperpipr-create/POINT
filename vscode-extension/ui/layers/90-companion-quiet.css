@@ -1,0 +1,448 @@
+/* Два правила отсюда удалены: слой 95 объявлял те же селекторы и те же свойства
+   целиком, поэтому здешние значения не доходили до экрана никогда. Остальные 29
+   совпадающих селекторов в слоях компаньона — не дубли, а работающий каскад:
+   поздний слой намеренно правит ранний, и сливать слои нельзя. */
+/* Companion chat — quiet, dialogue-first surface. */
+.companion-presence {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--vital, var(--vital));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--vital, var(--vital)) 12%, transparent);
+}
+.companion-studio:not(.setup-active) {
+  min-width: 0;
+  border: 0;
+  border-radius: 0;
+  background: var(--vscode-sideBar-background, var(--panel));
+  box-shadow: none;
+  overflow: hidden;
+}
+.companion-chat-workspace.dialogue-first {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-height: 0;
+  padding: var(--s-5) 14px 14px;
+  overflow: hidden;
+  background: transparent;
+}
+.companion-chat-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-5);
+  min-height: 38px;
+  margin: 0;
+  padding: 0 var(--s-1) var(--s-4h);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+}
+.companion-chat-identity,
+.companion-chat-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  min-width: 0;
+}
+.companion-chat-identity > div { min-width: 0; }
+.companion-chat-identity strong,
+.companion-chat-identity small { display: block; }
+.companion-chat-identity strong {
+  margin: 0;
+  font: 600 var(--t-base)/1.25 var(--vscode-font-family, system-ui, sans-serif);
+}
+.companion-chat-identity small {
+  margin: var(--s-1) 0 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: var(--t-tiny);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.companion-chat-actions { flex: 0 0 auto; gap: var(--s-3); }
+.companion-chat-actions button,
+.companion-peek-actions button,
+.companion-dock-actions button {
+  min-height: 27px;
+  padding: var(--s-2) var(--s-4);
+  border-color: transparent;
+  background: transparent;
+  /* Кнопка остаётся кнопкой: базовые 2px, как у всех остальных в доке. */
+  border-radius: var(--r-1);
+}
+.companion-chat-actions button:hover,
+.companion-peek-actions button:hover,
+.companion-dock-actions button:hover {
+  border-color: var(--border);
+  background: var(--vscode-toolbar-hoverBackground, color-mix(in srgb, var(--raised) 75%, transparent));
+}
+.companion-chat-actions .companion-icon-action {
+  width: auto;
+  padding: var(--s-2) var(--s-4);
+  color: var(--muted);
+  font-size: var(--t-micro);
+}
+/* Полоса контекста задумана в одну строку с горизонтальной прокруткой, но
+   правило требовало прямого родителя-рабочей области, а в разметке полоса
+   лежит внутри `.companion-chat-notices`. Ни в доке, ни в боковой панели оно
+   не срабатывало: полоса переносилась в три ряда и занимала 74px. В доке, где
+   всего 260px высоты, это треть окна под сведения, которые тут же повторены
+   строкой контекста внутри композера.
+
+   Одной строкой полоса идёт **только в доке**: там не хватает высоты, а ширины
+   вдоволь. В боковой панели наоборот, и первая версия этой правки, снявшая
+   перенос везде, увела чипы за правый край колонки — замер стенда на 420, 300
+   и 260px поймал это сразу. */
+.companion-chat-workspace > .companion-ide-now,
+body[data-layout="companion"] .companion-chat-notices > .companion-ide-now {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: var(--s-3);
+  min-height: 34px;
+  margin: 0;
+  padding: var(--s-4) 1px var(--s-3);
+  overflow-x: auto;
+  overflow-y: hidden;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  scrollbar-width: none;
+}
+.companion-chat-workspace > .companion-ide-now::-webkit-scrollbar,
+body[data-layout="companion"] .companion-chat-notices > .companion-ide-now::-webkit-scrollbar { display: none; }
+/* Здесь чип срезали до 23px — на пиксель ниже порога цели указателя, и
+   магическим числом поверх правильных 24 из слоя 45. Один пиксель экономии
+   стоил того, что по чипу контекста промахиваются. */
+.companion-chat-workspace .companion-focus-chip {
+  flex: 0 0 auto;
+  min-height: var(--control-sm);
+  max-width: 240px;
+  padding: var(--s-2) var(--s-4);
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--r-full);
+  background: color-mix(in srgb, var(--vscode-badge-background, var(--raised)) 72%, transparent);
+  color: var(--vscode-descriptionForeground, var(--muted));
+  font: 500 var(--t-tiny)/1.2 var(--vscode-font-family, system-ui, sans-serif);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.companion-chat-workspace .companion-focus-chip.file,
+.companion-chat-workspace .companion-focus-chip.selection { color: var(--vscode-textLink-foreground, var(--mana)); }
+.companion-chat-workspace .companion-focus-chip.warn,
+.companion-chat-workspace .companion-focus-chip.fail { color: var(--vscode-editorWarning-foreground, var(--ember)); }
+.companion-chat-workspace .companion-focus-chip.run { color: var(--vital); }
+.companion-activity {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  min-height: 24px;
+  margin: 0 var(--s-1) var(--s-2);
+  color: var(--muted);
+  font-size: var(--t-tiny);
+}
+.companion-activity-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--vital);
+}
+.companion-activity-dot.status-running { animation: hub-pulse 1.15s ease-in-out infinite; }
+.companion-activity-dot.status-done { background: var(--vital); }
+.companion-activity-dot.status-error { background: var(--vscode-editorError-foreground, var(--ember)); }
+.companion-thread-wrap {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 180px;
+  overflow: hidden;
+}
+.companion-thread-wrap > .companion-thread,
+.companion-thread {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 18px;
+  width: 100%;
+  min-height: 180px;
+  max-height: none;
+  margin: 0;
+  padding: var(--s-6) var(--s-2) 18px;
+  overflow: auto;
+  border: 0;
+  background: transparent;
+  scroll-behavior: smooth;
+}
+.companion-msg {
+  display: grid;
+  gap: var(--s-3);
+  max-width: min(88%, 720px);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.companion-msg.assistant,
+.companion-msg.assistant.warning,
+.companion-msg.assistant.streaming {
+  align-self: flex-start;
+  justify-self: auto;
+  border: 0;
+  background: transparent;
+}
+.companion-msg.user {
+  align-self: flex-end;
+  justify-self: auto;
+  padding: var(--s-4) var(--s-5);
+  border: 0;
+  border-radius: var(--r-3) var(--r-3) var(--r-2) var(--r-3);
+  background: color-mix(in srgb, var(--vscode-button-background, var(--mana)) 15%, var(--vscode-editor-background, var(--void)));
+}
+.companion-msg.user header { display: none; }
+.companion-msg header {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  min-height: 16px;
+}
+.companion-msg header .companion-presence {
+  width: 6px;
+  height: 6px;
+  box-shadow: none;
+}
+.companion-msg header small {
+  color: var(--muted);
+  font: 500 var(--t-tiny)/1.2 var(--vscode-font-family, system-ui, sans-serif);
+  letter-spacing: 0;
+}
+.companion-msg p,
+.companion-msg.user p,
+.companion-msg.assistant p,
+.companion-msg-body {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  font: 400 var(--t-body)/1.58 var(--vscode-font-family, system-ui, sans-serif);
+  overflow-wrap: anywhere;
+}
+.companion-msg-body p { margin: 0 0 var(--s-4); }
+.companion-msg-body p:last-child { margin-bottom: 0; }
+.companion-msg.warning .companion-msg-body,
+.companion-msg.warning > p { color: var(--vscode-editorError-foreground, var(--ember)); }
+.companion-msg.thinking { opacity: .72; }
+.companion-msg.thinking p::after { width: 5px; height: 5px; }
+.companion-msg-actions {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: 1px;
+  opacity: 0;
+  transition: opacity var(--motion-fast) var(--ease);
+}
+.companion-msg:hover .companion-msg-actions,
+.companion-msg:focus-within .companion-msg-actions { opacity: 1; }
+.companion-msg-actions button {
+  min-height: 23px;
+  padding: var(--s-1) var(--s-4);
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+  font-size: var(--t-micro);
+}
+.companion-empty {
+  align-self: center;
+  display: grid;
+  justify-items: center;
+  gap: var(--s-4);
+  width: min(100%, 520px);
+  margin: auto;
+  padding: 28px var(--s-4h);
+  color: var(--muted);
+  text-align: center;
+}
+.companion-empty > span { color: var(--ember); font-size: var(--t-display); opacity: .9; }
+.companion-empty > strong { color: var(--vscode-foreground, inherit); font-size: var(--t-lead); font-weight: 600; }
+.companion-empty > p { max-width: 320px; font-size: var(--t-small); }
+.companion-empty .companion-quick-prompts {
+  justify-content: center;
+  margin: var(--s-4) 0 0;
+}
+.companion-quick-prompts { display: flex; flex-wrap: wrap; gap: var(--s-3); }
+.companion-quick-prompts button {
+  min-height: 28px;
+  max-width: 100%;
+  padding: var(--s-2) var(--s-4);
+  overflow: hidden;
+  border-color: color-mix(in srgb, var(--border) 65%, transparent);
+  border-radius: var(--r-full);
+  background: transparent;
+  color: var(--muted);
+  font-size: var(--t-tiny);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.companion-compose.minimal {
+  flex: 0 0 auto;
+  display: grid;
+  gap: var(--s-4);
+  margin-top: 2px;
+  padding: var(--s-4) var(--s-4) var(--s-4);
+  border: 1px solid color-mix(in srgb, var(--vscode-input-border, var(--border)) 82%, var(--ember) 18%);
+  border-radius: var(--r-2);
+  background: var(--vscode-input-background, var(--vscode-editor-background, var(--void)));
+  box-shadow: 0 3px 12px color-mix(in srgb, #000 14%, transparent);
+}
+.companion-compose.minimal textarea {
+  min-height: 38px;
+  max-height: 160px;
+  padding: var(--s-3) var(--s-3);
+  resize: none;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--vscode-input-foreground, inherit);
+  font: 400 var(--t-body)/1.45 var(--vscode-font-family, system-ui, sans-serif);
+}
+.companion-compose.minimal textarea:focus-visible { outline: 0; }
+.companion-compose.minimal .companion-compose-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  min-width: 0;
+}
+.companion-compose.minimal .companion-compose-meta small {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: var(--t-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.companion-compose.minimal .companion-compose-actions { flex: 0 0 auto; margin-left: auto; }
+.companion-pending-cue {
+  flex: 0 0 auto;
+  margin: 0 0 var(--s-4);
+  border: 0;
+  border-radius: var(--r-2);
+  background: color-mix(in srgb, var(--ember) 7%, transparent);
+}
+.companion-nudge-banner,
+.companion-applied-cue,
+.companion-intervention-toolbar {
+  flex: 0 0 auto;
+  margin: var(--s-3) 0;
+  border: 0;
+  border-left: var(--edge-accent) solid var(--vscode-editorWarning-foreground, var(--ember));
+  border-radius: 0 var(--r-2) var(--r-2) 0;
+  background: color-mix(in srgb, var(--vscode-editorWarning-foreground, var(--ember)) 6%, transparent);
+}
+.companion-review {
+  flex: 0 0 auto;
+  max-height: min(36vh, 320px);
+  margin: var(--s-4) 0 0;
+  overflow: auto;
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  /* Карточки внутри — 4px; панель вокруг них была 8px. */
+  border-radius: var(--r-2);
+  background: transparent;
+}
+.companion-review > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-4) var(--s-4h);
+  color: var(--muted);
+  cursor: pointer;
+  list-style: none;
+  font-size: var(--t-tiny);
+}
+.companion-review > summary::-webkit-details-marker { display: none; }
+.companion-review > summary::before { content: '›'; font-size: var(--t-title); line-height: 1; transition: transform var(--motion-fast) var(--ease); }
+.companion-review[open] > summary::before { transform: rotate(90deg); }
+.companion-review > summary strong {
+  display: grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  border-radius: var(--r-full);
+  background: var(--vscode-badge-background, var(--raised));
+  color: var(--vscode-badge-foreground, inherit);
+  font-size: var(--t-micro);
+}
+.companion-review > summary small { margin-left: auto; color: var(--muted); font-size: var(--t-micro); }
+.companion-review-body { display: grid; gap: var(--s-4); padding: 0 var(--s-4) var(--s-4); }
+.companion-review .quest-proposal-card,
+.companion-review .companion-action-card { border-radius: var(--r-2); box-shadow: none; }
+.companion-peek,
+.companion-sidebar { background: var(--vscode-sideBar-background, var(--panel)); }
+.companion-peek-brand {
+  min-height: 46px;
+  padding: var(--s-4) var(--s-5);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  background: transparent;
+}
+.companion-peek-brand > div:first-child {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  min-width: 0;
+}
+.companion-peek-brand > div:first-child > div { display: grid; gap: var(--s-1); min-width: 0; }
+.companion-peek-brand strong {
+  font: 600 var(--t-body)/1.2 var(--vscode-font-family, system-ui, sans-serif);
+  letter-spacing: 0;
+  text-transform: none;
+}
+.companion-peek-context {
+  display: block;
+  max-width: min(52vw, 360px);
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: var(--t-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.companion-peek-body,
+.companion-sidebar > .companion-dock-main {
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+.companion-peek .companion-studio,
+.companion-sidebar .companion-studio { height: 100%; min-height: 0; }
+.companion-peek .companion-chat-workspace,
+.companion-sidebar .companion-chat-workspace { height: 100%; }
+.companion-popup-close { width: 28px; min-width: 28px; padding: 0; font-size: var(--t-title); }
+.companion-dock-brand {
+  min-height: 44px;
+  padding: var(--s-4) var(--s-4h);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  background: transparent;
+}
+.companion-dock-brand > div:first-child { display: flex; align-items: center; gap: var(--s-4); }
+.companion-dock-brand strong { font: 600 var(--t-body)/1.2 var(--vscode-font-family, system-ui, sans-serif); letter-spacing: 0; }
+.companion-dock-main { padding: 0; }
+.companion-dock-brief { gap: var(--s-4h); padding: 14px; background: transparent; }
+.companion-dock-brief > header { grid-template-columns: auto minmax(0, 1fr); }
+.companion-dock-brief > header strong { font: 600 var(--t-base)/1.2 var(--vscode-font-family, system-ui, sans-serif); }
+.companion-dock-brief > header small { margin-top: 2px; }
+@media (max-width: 520px) {
+  .companion-chat-workspace.dialogue-first { padding: var(--s-4h); }
+  .companion-chat-identity small,
+  .companion-compose.minimal .companion-compose-meta small,
+  .companion-review > summary small { display: none; }
+  .companion-msg { max-width: 94%; }
+  .companion-peek-actions button:not(.companion-popup-close) { font-size: 0; width: 30px; padding: 0; }
+  .companion-peek-actions button:not(.companion-popup-close)::before { content: '↗'; font-size: var(--t-base); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .companion-msg-actions,
+  .companion-review > summary::before { transition: none; }
+}

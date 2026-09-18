@@ -1,0 +1,94 @@
+/* Answer actions and deterministic scroll anchoring. */
+.companion-thread { scroll-behavior: auto; }
+
+.companion-msg-actions {
+  align-items: center;
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--s-4);
+}
+.companion-message-menu { position: relative; }
+.companion-message-menu > summary {
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: var(--r-1);
+  color: var(--ui-muted);
+  cursor: pointer;
+  display: flex;
+  font: var(--fw-bold) var(--t-small)/1 var(--font-mono);
+  height: var(--s-7);
+  justify-content: center;
+  list-style: none;
+  width: var(--s-7);
+}
+.companion-message-menu > summary::-webkit-details-marker { display: none; }
+.companion-message-menu > summary:hover,
+.companion-message-menu[open] > summary {
+  background: var(--ui-raised);
+  border-color: var(--ui-border);
+  color: var(--ui-text);
+}
+.companion-message-menu > div {
+  background: var(--ui-panel);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--r-1);
+  bottom: calc(100% + var(--s-2));
+  box-shadow: 0 var(--s-4) var(--s-8) var(--ui-void);
+  display: grid;
+  gap: var(--s-2);
+  min-width: 190px;
+  padding: var(--s-3);
+  position: absolute;
+  right: 0;
+  z-index: 20;
+}
+.companion-message-menu > div > button {
+  justify-content: flex-start;
+  min-height: var(--s-7);
+  text-align: left;
+  width: 100%;
+}
+.companion-message-menu > div > button.primary { justify-content: center; }
+
+@media (max-width: 360px) {
+  .companion-message-menu > div { left: auto; max-width: calc(100vw - var(--s-7)); right: 0; }
+}
+
+/* Отметка ответа. Она живёт в шапке реплики, рядом с именем говорящего: это
+   свойство самого ответа, а не действие над ним — действия лежат в меню ниже.
+   Цвет приглушённый: своя оценка не должна спорить с текстом ответа. */
+.companion-msg-mark {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: var(--t-micro);
+  letter-spacing: .02em;
+}
+.companion-message-menu button.is-on {
+  border-color: color-mix(in srgb, var(--point-ember) 45%, var(--point-border));
+  color: var(--vscode-foreground);
+}
+
+/* Критичный ответ отличается от обычного совета с первого взгляда: у него своя
+   рамка и подпись в шапке. Предупреждение остаётся мягким — иначе «важно» и
+   «критично» сливаются, и оба перестают значить что-либо. */
+.companion-msg.critical {
+  border-color: color-mix(in srgb, var(--wound) 60%, var(--point-border));
+  background: color-mix(in srgb, var(--wound) 8%, var(--point-panel));
+}
+.companion-msg-level {
+  margin-left: var(--s-3);
+  color: var(--muted);
+  font-size: var(--t-micro);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.companion-msg.critical .companion-msg-level { color: var(--wound); }
+
+/* Чего помощник не смог посмотреть. Подпись приглушённая и стоит под ответом:
+   это оговорка к сказанному, а не отдельное предупреждение. */
+.companion-msg-blindspot {
+  display: block;
+  margin-top: var(--s-3);
+  color: var(--muted);
+  font-size: var(--t-micro);
+}

@@ -1,0 +1,169 @@
+/* Канон геометрии «Чертога».
+   ----------------------------------------------------------------------------
+   Слой лежит в конце каскада намеренно: раньше он стоял в середине и навязывал
+   свои значения через, потому что позже шли слои, спорившие с ним.
+   Порядок решает ту же задачу без силы — и позволяет переопределить правило
+   обычной специфичностью, а не ещё одним принудительным правилом. */
+:root {
+  color-scheme: dark;
+  font-family: var(--font-ui);
+}
+body { color: var(--primary); background: var(--panel); }
+.app, .message, .approval, .patch, .agent-preflight, .run-diagnostics, .run-snapshot,
+.context-preview, .context-chips > span, .run-context > span, .safe-mode-mark, .safe-mode-facts,
+.more-tabs > div, .examples button, .notice, .avatar, .diagnostic-grid > span,
+.agent-preflight-stats span, .agent-preflight-tools span, .agent-preflight-completion,
+.run-diagnostics > header > span, .status, .brand-mark, .orbit, button, input, select, textarea {
+  border-radius: var(--r-1);
+}
+.safe-mode-mark { box-shadow: none; }
+.brand-mark { box-shadow: none; }
+.brand-mark i, .status i, .orbit::after, footer > span i {
+  box-shadow: none;
+  border-radius: 0;
+}
+.more-tabs > div { box-shadow: none; }
+input:focus, select:focus, textarea:focus { box-shadow: none; }
+.tool-toggle em, .run-diagnostics > header > span {
+  border-radius: var(--r-1);
+}
+.primary, .composer .send, .composer-actions .send {
+  color: var(--surface-void);
+  background: var(--ember);
+  border-color: var(--ember);
+}
+.primary:hover, .composer .send:hover, .composer-actions .send:hover {
+  background: var(--ember-pressed);
+  border-color: var(--ember-hover);
+  color: var(--surface-void);
+}
+.app small, .app label, .message small, .run-diagnostics > header small,
+.diagnostic-signals p, .context-toolbar span, .composer > small,
+.change-record header small, .status, .quest-label, .brand small {
+  font-size: var(--t-micro);
+  line-height: 1.45;
+}
+.context-chips > span, .run-context > span, .run-diagnostics > header > span {
+  border-radius: var(--r-1);
+  font-size: var(--t-micro);
+}
+
+/* ── Заголовок страницы Гильдии ────────────────────────────────────────────
+   Пять экранов — Отряды, Навыки, Память, Базы, Связи — делят одну структуру
+   «киккер / заголовок / описание». До этого её определяли три разных слоя
+   (45, 65 и 75), каждый со своим кеглем и отступами, поэтому экраны читались
+   как собранные из разных продуктов. Здесь одно определение на всех, на шкалах
+   «Чертога»: киккер — служебная метка, заголовок — единственный крупный
+   элемент, описание — не шире 56 символов, чтобы строка не расползалась. */
+.hub-page-head,
+.changes-heading {
+  gap: var(--s-5);
+  padding: 0 0 var(--s-5);
+  border-bottom: 1px solid var(--surface-border);
+}
+.hub-page-head > div > span,
+.changes-heading > div > span {
+  color: var(--text-faint);
+  font: var(--fw-semibold) var(--t-micro) / 1 var(--font-mono);
+  letter-spacing: var(--tracking-label);
+}
+.hub-page-head h1,
+.changes-heading h1 {
+  margin: var(--s-3) 0 var(--s-2);
+  font: var(--fw-semibold) var(--t-title) / 1.15 var(--font-ui);
+  letter-spacing: -.01em;
+}
+.hub-page-head p,
+.changes-heading p {
+  max-width: 56ch;
+  color: var(--text-muted);
+  font: var(--fw-normal) var(--t-body) / var(--lh-base) var(--font-ui);
+}
+.hub-page-head em,
+.changes-heading em {
+  color: var(--text-muted);
+  font: var(--fw-semibold) var(--t-title) / 1 var(--font-mono);
+  font-style: normal;
+}
+
+/* Полотно страницы: один ритм полей вместо трёх разных и без декоративного
+   свечения, которое подсвечивало левый верхний угол непонятно зачем. */
+.hub-teams, .hub-skills, .hub-memory, .hub-connections,
+.hub-changesets-page, .hub-journal, .hub-page, .hub-databases {
+  padding: var(--s-6) var(--s-7) var(--s-8);
+  background-image: none;
+}
+
+/* ── Один ритм страницы на весь Чертог ─────────────────────────────────────
+   Квесты и Агенты жили на 14 px по горизонтали, страницы Гильдии и экраны
+   «Чертога» — на 24 px. При переключении раздела контент прыгал к краю, и это
+   читалось как разные приложения. Здесь общая колонка и общие поля: ширина
+   ограничена той же величиной, что у Хаба, чтобы строка не расползалась на
+   широком мониторе. */
+body[data-layout="wide"] .chat-main,
+body[data-layout="wide"] .history,
+body[data-layout="wide"] .settings {
+  width: min(var(--hub-max), 100%);
+  margin-inline: auto;
+  padding: var(--s-6) var(--s-7) var(--s-8);
+}
+
+/* Рабочая строка — задача сверху, исполнитель снизу, действия отдельным рядом.
+   Длинный текст больше не выталкивает имя агента и кнопку за границу карточки. */
+.hub-exec-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--s-3) var(--s-5);
+}
+.hub-exec-row > div:first-child { min-width: 0; }
+.hub-exec-row > div:first-child > strong,
+.hub-exec-row > div:first-child > small {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.hub-exec-row > div:first-child > small { margin-top: var(--s-2); color: var(--text-muted); }
+.hub-exec-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+}
+.hub-exec-actions > em:first-child {
+  margin-right: auto;
+  max-width: min(42ch, 100%);
+  overflow-wrap: anywhere;
+}
+/* В канонной строке исполнения (Обзор, цикл 30) управление стоит не справа от
+   задачи, а под ней, во всю ширину — и прижимать его к правому краю больше не
+   к чему: поля ввода под ним начинаются слева, у левого края задачи, а кнопки
+   уезжали к противоположному. Общий левый край здесь важнее симметрии. */
+.hall-panel-row .hub-exec-actions { justify-content: flex-start; }
+.hub-current-quest h2 {
+  max-width: 28ch;
+  overflow-wrap: anywhere;
+  line-height: 1.18;
+}
+.hub-party .section-title { align-items: flex-start; }
+.hub-party .section-title > em {
+  max-width: 34ch;
+  color: var(--text-muted);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.party-status { min-width: 0; }
+.party-status strong,
+.hub-party-grid strong,
+.hub-party-grid small { overflow-wrap: anywhere; }
+
+@media (max-width: 620px) {
+  .hub-exec-row { grid-template-columns: 1fr; }
+  .hub-exec-row > .status { justify-self: start; }
+  .hub-exec-actions { justify-content: flex-start; }
+  .hub-exec-actions > em:first-child { flex-basis: 100%; margin-right: 0; }
+  .hub-party .section-title { display: grid; }
+  .hub-party .section-title > em { max-width: none; text-align: left; }
+}

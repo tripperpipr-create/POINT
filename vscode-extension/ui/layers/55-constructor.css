@@ -1,0 +1,19 @@
+/* Agent constructor (10-step) */
+.agent-constructor { max-width: 1280px; }
+.agent-constructor .constructor-steps { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.constructor-skill-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: var(--s-3); }
+.constructor-review-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-4); margin-bottom: var(--s-4h); }
+.constructor-review-grid span { display: grid; gap: var(--s-1); padding: var(--s-4); border: 1px solid var(--point-border); background: var(--point-void); }
+.constructor-review-grid small { color: var(--point-muted); font-size: var(--t-micro); letter-spacing: .08em; }
+.blueprint-sync-preview { display: grid; gap: var(--s-4); margin-bottom: 12px; padding: var(--s-4h); border: 1px solid var(--mana); background: var(--point-void); }
+.blueprint-sync-preview > header { display: flex; justify-content: space-between; gap: var(--s-4h); }
+.blueprint-sync-preview > header div { display: grid; gap: var(--s-1); }
+.blueprint-sync-preview > header em { color: var(--mana); font-style: normal; }
+.blueprint-sync-preview article { display: grid; gap: var(--s-3); padding-top: 8px; border-top: 1px solid var(--point-border); }
+.blueprint-sync-preview article > div { display: grid; grid-template-columns: minmax(0, 1fr) 24px minmax(0, 1fr); gap: var(--s-4); align-items: center; }
+.blueprint-sync-preview article b { text-align: center; color: var(--mana); }
+.blueprint-sync-preview article pre, .blueprint-sync-preview details pre { max-height: 150px; overflow: auto; margin: var(--s-2) 0 0; padding: var(--s-4); white-space: pre-wrap; overflow-wrap: anywhere; background: var(--raised); }
+.blueprint-sync-preview footer { display: flex; gap: var(--s-3); flex-wrap: wrap; }
+.constructor-prompt-preview { margin-top: 8px; border: 1px solid var(--point-border); background: var(--point-void); }
+.constructor-prompt-preview summary { padding: var(--s-4) var(--s-4h); cursor: pointer; font-size: var(--t-tiny); color: var(--point-mana); }
+.constructor-prompt-preview pre { margin: 0; padding: var(--s-4h); max-height: 280px; overflow: auto; font-size: var(--t-tiny); line-height: 1.45; white-space: pre-wrap; }

@@ -1,0 +1,566 @@
+/* Companion chat — minimal conversation surface. */
+body[data-layout="companion"],
+body[data-layout="companion-sidebar"],
+body[data-layout="companion-peek"],
+body[data-layout="companion-popup"] {
+  color: var(--vscode-foreground);
+  background: var(--vscode-sideBar-background, var(--panel));
+}
+.companion-dock,
+.companion-sidebar,
+.companion-peek,
+.companion-dock .companion-dock-main,
+.companion-sidebar .companion-dock-main,
+.companion-peek .companion-peek-body,
+.companion-dock .companion-studio:not(.setup-active),
+.companion-sidebar .companion-studio:not(.setup-active),
+.companion-peek .companion-studio:not(.setup-active) {
+  min-height: 0;
+  height: 100%;
+  max-height: none;
+  background: var(--vscode-sideBar-background, var(--panel));
+}
+.companion-dock .companion-studio.has-thread,
+.companion-sidebar .companion-studio.has-thread,
+.companion-peek .companion-studio.has-thread {
+  min-height: 0;
+  max-height: none;
+}
+/* Одна строка, а не две. `.companion-studio` объявлен сеткой `auto auto`:
+   вторая строка — для панели настройки, и в Хабе она есть. В боковой панели,
+   доке и всплывающем окне её нет, а строка остаётся и забирает свободное
+   место: при 420×900 под композером висела мёртвая полоса в 142px, при 260×700
+   её не было — содержимое переставало помещаться. Отсюда и ощущение, что чат
+   "съезжает" вверх на высоком окне. */
+.companion-dock .companion-studio:not(.setup-active),
+.companion-sidebar .companion-studio:not(.setup-active),
+.companion-peek .companion-studio:not(.setup-active) {
+  grid-template-rows: minmax(0, 1fr);
+}
+.companion-chat-workspace.dialogue-first {
+  height: 100%;
+  padding: 0;
+  background: transparent;
+}
+.companion-dock .companion-dock-main {
+  overflow: hidden;
+  padding: 0;
+}
+.companion-dock-brand > .companion-dock-actions {
+  display: flex;
+  flex-flow: row wrap;
+  justify-content: flex-end;
+  gap: var(--s-3);
+}
+.companion-dock .companion-chat-workspace,
+.companion-dock .companion-thread-wrap {
+  min-height: 0;
+  height: 100%;
+}
+.companion-dock .companion-thread-wrap { overflow: hidden; }
+.companion-chat-toolbar {
+  min-height: 46px;
+  padding: var(--s-4) var(--s-5);
+  border-bottom: 1px solid color-mix(in srgb, var(--vscode-panel-border, var(--border)) 72%, transparent);
+}
+.companion-chat-identity { gap: var(--s-4); }
+.companion-chat-identity strong {
+  font-size: var(--t-base);
+  font-weight: 600;
+}
+.companion-chat-identity small {
+  margin-top: 1px;
+  color: var(--vscode-descriptionForeground, var(--muted));
+  font-size: var(--t-tiny);
+}
+.companion-presence {
+  width: 7px;
+  height: 7px;
+  box-shadow: none;
+}
+.companion-chat-menu {
+  position: relative;
+  flex: 0 0 auto;
+}
+.companion-chat-menu > summary {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 28px;
+  border: 0;
+  border-radius: var(--r-2);
+  color: var(--vscode-descriptionForeground, var(--muted));
+  cursor: pointer;
+  list-style: none;
+  font: 700 var(--t-base)/1 var(--vscode-font-family, system-ui, sans-serif);
+  letter-spacing: 1px;
+}
+.companion-chat-menu > summary::-webkit-details-marker { display: none; }
+.companion-chat-menu > summary:hover,
+.companion-chat-menu[open] > summary {
+  color: var(--vscode-foreground);
+  background: var(--vscode-toolbar-hoverBackground, var(--raised));
+}
+.companion-chat-menu > div {
+  position: absolute;
+  z-index: 20;
+  top: 32px;
+  right: 0;
+  display: grid;
+  gap: var(--s-1);
+  width: max-content;
+  min-width: 150px;
+  padding: var(--s-3);
+  border: 1px solid var(--vscode-menu-border, var(--border));
+  border-radius: var(--r-3);
+  background: var(--vscode-menu-background, var(--vscode-editorWidget-background, var(--raised)));
+  box-shadow: 0 8px 24px color-mix(in srgb, #000 28%, transparent);
+}
+.companion-chat-menu > div button {
+  justify-content: flex-start;
+  min-height: 28px;
+  padding: var(--s-3) var(--s-4);
+  border: 0;
+  background: transparent;
+  color: var(--vscode-menu-foreground, var(--vscode-foreground));
+  text-align: left;
+}
+.companion-chat-menu > div button:hover {
+  background: var(--vscode-menu-selectionBackground, var(--vscode-list-hoverBackground));
+  color: var(--vscode-menu-selectionForeground, var(--vscode-foreground));
+}
+.companion-thread-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.companion-thread-wrap > .companion-thread,
+.companion-dock .companion-thread,
+.companion-sidebar .companion-thread,
+.companion-peek .companion-thread {
+  min-height: 0;
+  height: auto;
+  max-height: none;
+  gap: var(--s-6);
+  padding: 18px 14px 20px;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--vscode-scrollbarSlider-background, var(--muted)) 55%, transparent) transparent;
+}
+.companion-dock .companion-thread {
+  height: 100%;
+  min-height: 0;
+}
+.companion-msg {
+  gap: var(--s-3);
+  max-width: min(100%, 760px);
+}
+.companion-msg.assistant > header { display: none; }
+.companion-msg.user {
+  max-width: min(86%, 620px);
+  padding: var(--s-4) var(--s-5);
+  border-radius: var(--r-3) var(--r-3) var(--r-2) var(--r-3);
+  background: color-mix(in srgb, var(--vscode-button-background, var(--mana)) 16%, var(--vscode-editor-background, var(--void)));
+}
+.companion-msg p,
+.companion-msg.user p,
+.companion-msg.assistant p,
+.companion-msg-body {
+  font-size: var(--t-base);
+  line-height: 1.6;
+}
+.companion-msg-body p { margin-bottom: var(--s-4h); }
+.companion-msg-body ul,
+.companion-msg-body ol { margin-block: var(--s-3) var(--s-4h); padding-left: 20px; }
+.companion-msg-body li + li { margin-top: 4px; }
+.companion-msg-actions { height: 22px; margin-top: 0; }
+.companion-msg-actions button {
+  min-height: 22px;
+  padding: 1px var(--s-3);
+  font-size: var(--t-tiny);
+}
+.companion-trace {
+  width: min(100%, 620px);
+  color: var(--vscode-descriptionForeground, var(--muted));
+  font-size: var(--t-tiny);
+}
+.companion-trace > summary {
+  width: max-content;
+  color: var(--vscode-descriptionForeground, var(--muted));
+  cursor: pointer;
+  opacity: .72;
+}
+.companion-trace[open] > summary { margin-bottom: 6px; opacity: 1; }
+.companion-empty {
+  gap: var(--s-3);
+  width: min(100%, 440px);
+  padding: var(--s-7) var(--s-4);
+}
+.companion-empty > span { font-size: var(--t-title); }
+.companion-empty > strong { font-size: var(--t-title); }
+.companion-empty > p {
+  margin: 0;
+  font-size: var(--t-body);
+  line-height: 1.5;
+}
+.companion-empty .companion-quick-prompts {
+  display: grid;
+  width: min(100%, 360px);
+  margin-top: 12px;
+}
+.companion-empty .companion-quick-prompts button {
+  justify-content: flex-start;
+  min-height: 34px;
+  padding: var(--s-4) var(--s-4h);
+  border: 0;
+  border-radius: var(--r-1);
+  background: color-mix(in srgb, var(--vscode-list-hoverBackground, var(--raised)) 58%, transparent);
+  color: var(--vscode-foreground);
+  text-align: left;
+}
+.companion-empty .companion-quick-prompts button:hover {
+  background: var(--vscode-list-hoverBackground, var(--raised));
+}
+.companion-starters {
+  display: grid;
+  gap: var(--s-3);
+  width: min(100%, 400px);
+  margin-top: var(--s-4);
+}
+
+/* ── Боковая панель: регистр инструмента, а не первого экрана ──────────────
+   Док компаньона — широкая и низкая полоса, и выключка по центру там уместна.
+   Боковая панель — колонка 300px, живущая в окне IDE постоянно, и то же
+   оформление превращает её в стартовый экран: заголовок в 18px по центру,
+   абзац в четыре строки по центру, декоративный знак 42×42 и свечение фона.
+   §4 ТЗ требует от оболочки инструмента, а не дашборда.
+
+   Правила ограничены этим регистром: док, всплывающая и подсматривающая
+   формы настроены прежними циклами и не трогаются. */
+body[data-layout="companion-sidebar"] .companion-empty {
+  justify-items: start;
+  align-self: start;
+  width: 100%;
+  margin: 0;
+  padding: var(--s-6) var(--s-5) var(--s-5);
+  background: none;
+  text-align: left;
+}
+/* Знак присутствия уже есть в шапке — зелёная точка рядом с именем. Второй,
+   декоративный, в узкой колонке дублирует его и стоит 42px высоты. */
+body[data-layout="companion-sidebar"] .companion-empty > span { display: none; }
+body[data-layout="companion-sidebar"] .companion-empty > strong { font-size: var(--t-base); }
+body[data-layout="companion-sidebar"] .companion-empty > p {
+  max-width: none;
+  font-size: var(--t-small);
+  line-height: var(--lh-base);
+}
+body[data-layout="companion-sidebar"] .companion-starters { width: 100%; }
+
+/* Контекст IDE — это контейнер со сведениями, а не состояние, и рамка с
+   заливкой акцентом делали его самым громким блоком панели. Смысл несут
+   отдельные чипы: «не сохранён», «N в Problems», «сбой» — они цвет и
+   сохраняют. Путь к файлу, выделение и язык — сведения, и остаются тихими. */
+body[data-layout="companion-sidebar"] .companion-ide-now {
+  border-color: color-mix(in srgb, var(--vscode-panel-border, var(--border)) 72%, transparent);
+  background: transparent;
+  color: var(--vscode-descriptionForeground, var(--muted));
+}
+body[data-layout="companion-sidebar"] .companion-focus-chip.file,
+body[data-layout="companion-sidebar"] .companion-focus-chip.selection,
+body[data-layout="companion-sidebar"] .companion-focus-chip.meta {
+  border-color: color-mix(in srgb, var(--vscode-panel-border, var(--border)) 72%, transparent);
+  background: transparent;
+  color: var(--vscode-descriptionForeground, var(--muted));
+}
+body[data-layout="companion-sidebar"] .companion-focus-chip.file:hover,
+body[data-layout="companion-sidebar"] .companion-focus-chip.selection:hover {
+  color: var(--vscode-foreground);
+}
+.companion-starter {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px var(--s-4);
+  align-items: center;
+  width: 100%;
+  min-height: 48px;
+  padding: var(--s-3) var(--s-4h);
+  border: 1px solid color-mix(in srgb, var(--vscode-panel-border, var(--border)) 62%, transparent);
+  border-radius: var(--r-2);
+  background: color-mix(in srgb, var(--vscode-list-hoverBackground, var(--raised)) 48%, transparent);
+  color: var(--vscode-foreground);
+  text-align: left;
+}
+.companion-starter:hover {
+  border-color: color-mix(in srgb, var(--vscode-focusBorder, var(--mana)) 48%, var(--border));
+  background: var(--vscode-list-hoverBackground, var(--raised));
+}
+.companion-starter strong { font-size: var(--t-small); font-weight: 600; }
+.companion-starter small {
+  grid-column: 1;
+  overflow: hidden;
+  color: var(--vscode-descriptionForeground, var(--muted));
+  font-size: var(--t-micro);
+  line-height: 1.35;
+  text-overflow: ellipsis;
+}
+.companion-starter > span {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  color: var(--vscode-descriptionForeground, var(--muted));
+}
+/* Стопка уведомлений делит высоту с лентой, а не берёт фиксированные 280px.
+   Прежний потолок не зависел от того, что внутри: контекст IDE и уведомление
+   об исполненном действии занимали 210 из 280, и карточке «Предложений» —
+   единственному, что требует ответа, — оставалось меньше трети её роста.
+   Доля колонки решает это без магических чисел: пока в стопке одно решение,
+   она помещается целиком, а лента отдаёт высоту только тогда, когда есть
+   ради чего. Больше решений — стопка упирается в потолок и прокручивается
+   сама, одной прокруткой (см. .companion-review ниже). */
+.companion-chat-notices {
+  flex: 0 0 auto;
+  display: grid;
+  gap: var(--s-3);
+  min-height: 0;
+  max-height: 62%;
+  margin: 0 var(--s-4h) var(--s-3);
+  overflow: auto;
+}
+.companion-nudge-banner {
+  display: block;
+  margin: 0;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--vscode-editorWarning-foreground, var(--ember)) 28%, var(--border));
+  border-left-width: var(--edge-accent);
+  border-radius: var(--r-2);
+  background: color-mix(in srgb, var(--vscode-editorWarning-foreground, var(--ember)) 5%, transparent);
+}
+.companion-nudge-banner > summary {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: 32px;
+  padding: var(--s-3) var(--s-4);
+  cursor: pointer;
+  list-style: none;
+}
+.companion-nudge-banner > summary::-webkit-details-marker { display: none; }
+.companion-nudge-banner > summary > span {
+  display: grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  color: var(--vscode-editorWarning-foreground, var(--ember));
+  font-weight: 700;
+}
+.companion-nudge-banner > summary strong {
+  overflow: hidden;
+  font-size: var(--t-small);
+  font-weight: 550;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.companion-nudge-banner > summary small { color: var(--muted); font-size: var(--t-micro); }
+.companion-nudge-banner > div { padding: 0 var(--s-4) var(--s-4) 30px; }
+.companion-nudge-banner > div p { margin: 0 0 var(--s-4); font-size: var(--t-small); line-height: 1.45; }
+.companion-nudge-banner footer { display: flex; flex-wrap: wrap; gap: var(--s-3); }
+.companion-nudge-banner footer button { min-height: 25px; padding: var(--s-2) var(--s-4); font-size: var(--t-micro); }
+/* Слой 90 сделал «Предложения» отдельным скролл-боксом: max-height 320 плюс
+   overflow. Здесь ограничение снято, а прокрутка оставалась — и это ломало
+   док. Скролл-контейнер без max-height получает автоминимум 0, поэтому сетка
+   .companion-chat-notices (сама ограниченная 280px) сжимала его до остатка
+   после контекста IDE и уведомления: при ширине дока 380px карточка в 268px
+   показывалась в окне 134px, при 320px — в 77px. Прокрутки там не ждут, и
+   кнопки «Запустить / Изменить / Отклонить» просто исчезали.
+   Прокрутка у стопки уведомлений должна быть одна — снаружи. */
+.companion-review {
+  max-height: none;
+  overflow: visible;
+  margin: 0;
+  border-color: color-mix(in srgb, var(--border) 58%, transparent);
+}
+.companion-review > summary { min-height: 32px; padding: var(--s-3) var(--s-4); }
+.companion-review > summary small { display: none; }
+.companion-applied-cue,
+.companion-intervention-toolbar {
+  margin: 0;
+  border-radius: var(--r-2);
+}
+.companion-pending-cue {
+  margin: 0 var(--s-4h) var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  font-size: var(--t-tiny);
+}
+.companion-compose.minimal {
+  margin: 0 var(--s-4h) var(--s-4h);
+  padding: var(--s-4) var(--s-4) var(--s-4) var(--s-4h);
+  border-color: color-mix(in srgb, var(--vscode-input-border, var(--border)) 72%, transparent);
+  /* Композер — карточка вокруг поля, а поле внутри скруглено на 2px:
+     8px снаружи 2px читались как две несвязанные детали. */
+  border-radius: var(--r-2);
+  background: var(--vscode-input-background, var(--vscode-editor-background, var(--void)));
+  box-shadow: none;
+}
+/* Само поле здесь безрамочное — рамку несёт компоуз, поэтому и на наведение
+   отвечать должен он. Шаг слабее фокуса: рамка проявляется, кольца нет. */
+.companion-compose.minimal:hover:not(:focus-within) {
+  border-color: var(--vscode-input-border, var(--border));
+}
+.companion-compose.minimal:focus-within {
+  border-color: var(--vscode-focusBorder, var(--mana));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--vscode-focusBorder, var(--mana)) 18%, transparent);
+}
+.companion-compose-context {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-width: 0;
+  padding: 0 var(--s-2) var(--s-1);
+  color: var(--vscode-descriptionForeground, var(--muted));
+  font-size: var(--t-micro);
+}
+.companion-compose-context button,
+.companion-compose-context span {
+  min-width: 0;
+  max-width: 58%;
+  overflow: hidden;
+  color: inherit;
+  font: inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Кнопка контекста композера — 20px: самая мелкая цель в доке. */
+.companion-compose-context button {
+  min-height: var(--control-sm);
+  padding: 1px var(--s-3);
+  border: 0;
+  border-radius: var(--r-1);
+  background: var(--vscode-badge-background, var(--raised));
+}
+.companion-compose-context button:hover { color: var(--vscode-foreground); }
+.companion-compose.minimal textarea {
+  min-height: 34px;
+  max-height: 180px;
+  padding: var(--s-3) var(--s-2) var(--s-2);
+  font-size: var(--t-base);
+  line-height: 1.45;
+}
+.companion-compose.minimal .companion-compose-meta { min-height: 30px; }
+/* Подсказка о клавишах приглушалась прозрачностью поверх и без того тихого
+   цвета: вместе они давали контраст 4.4 при пороге 4.5 на кегле 9px. Тот же
+   приём разбирался в цикле 17 на недоступных кнопках — прозрачность гасит и
+   цвет, и фон, и померить получившееся по токену уже нельзя. Цвет назван. */
+.companion-compose.minimal .companion-compose-meta small {
+  padding-left: 4px;
+  color: var(--vscode-descriptionForeground, var(--muted));
+  font-size: var(--t-micro);
+}
+
+/* Низкий док. В настоящей панели компаньону достаётся около 260px высоты, и
+   постоянные части съедали из них всё: шапка 44, полоса контекста 74, композер
+   124 — ленте оставалось 33px из 455, то есть 7% содержимого. Человек, впервые
+   открывший дока, видел полоску в тридцать пикселей вместо рассказа о том, что
+   компаньон умеет. В таком окне подсказка о клавишах уступает место разговору:
+   Enter и Shift+Enter — знание на один раз, а лента нужна всегда. */
+@media (max-height: 360px) {
+  body[data-layout="companion"] .companion-compose.minimal .companion-compose-meta small { display: none; }
+  body[data-layout="companion"] .companion-compose.minimal .companion-compose-meta { min-height: 0; }
+  body[data-layout="companion"] .companion-compose.minimal { gap: var(--s-3); padding-block: var(--s-3); }
+
+  /* Пустое состояние в доке разворачивается поперёк. Оно собрано для высокой
+     колонки: знак, заголовок, абзац и четыре строки одна под другой — 422px.
+     У дока форма противоположная: 800px ширины простаивают, а высоты нет.
+     Абзац здесь снимается — он объясняет то же, что подписи под названиями
+     действий, и в боковой панели остаётся целиком. */
+  body[data-layout="companion"] .companion-empty {
+    gap: var(--s-4);
+    width: 100%;
+    padding: var(--s-5) var(--s-6);
+    background: none;
+    text-align: left;
+    justify-items: start;
+  }
+  body[data-layout="companion"] .companion-empty > span,
+  body[data-layout="companion"] .companion-empty > p { display: none; }
+  body[data-layout="companion"] .companion-empty > strong { font-size: var(--t-base); }
+  body[data-layout="companion"] .companion-starters {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    width: 100%;
+    margin-top: 0;
+  }
+  body[data-layout="companion"] .companion-starter { min-height: 40px; }
+  body[data-layout="companion"] .companion-starter small { display: none; }
+
+  /* Контекст в композере и полоса контекста над ним показывают одно и то же:
+     файл, число проблем, несохранённость. В высоком окне это допустимый повтор
+     рядом с местом ввода; в низком он стоит 26px из ста, а нажимаемые чипы
+     есть только у полосы — значит убирается повтор, а не оригинал. */
+  body[data-layout="companion"] .companion-compose-context { display: none; }
+
+  /* Отправка встаёт рядом с полем, а не строкой под ним. Приём в продукте уже
+     есть — `.companion-compose.compact` устроен ровно так; в низком доке он
+     нужен по той же причине: каждая отдельная строка стоит ленте её высоты. */
+  body[data-layout="companion"] .companion-compose.minimal {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+  }
+  body[data-layout="companion"] .companion-compose.minimal .companion-compose-meta {
+    grid-column: 2;
+    grid-row: 1;
+  }
+}
+.companion-compose.minimal .companion-compose-actions {
+  display: flex;
+  gap: var(--s-3);
+}
+.companion-compose.minimal .companion-compose-actions button {
+  display: grid;
+  place-items: center;
+  width: auto;
+  min-width: 30px;
+  height: 30px;
+  min-height: 30px;
+  padding: 0 var(--s-4);
+  /* Кнопка отправки была единственной в панели с радиусом 8px — рядом с
+     «Очистить», «Настроить» и остальными на 2px это читалось как другой
+     элемент, а не как главная кнопка того же ряда. */
+  border-radius: var(--r-1);
+  font-size: var(--t-small);
+  line-height: 1;
+}
+.companion-compose.minimal .companion-stop-action {
+  color: var(--vscode-descriptionForeground, var(--muted));
+  font-size: var(--t-tiny);
+}
+.companion-scroll-latest {
+  right: 14px;
+  bottom: 8px;
+  min-height: 27px;
+  padding: var(--s-2) var(--s-4);
+  border-radius: var(--r-full);
+  font-size: var(--t-tiny);
+}
+.companion-peek-brand {
+  min-height: 44px;
+  padding: var(--s-4) var(--s-4h);
+}
+.companion-peek-brand strong { font-size: var(--t-base); }
+.companion-peek-context { max-width: min(48vw, 340px); font-size: var(--t-micro); }
+.companion-peek-actions button { min-height: 28px; }
+
+@media (max-width: 420px) {
+  .companion-chat-toolbar { padding-inline: var(--s-4h); }
+  .companion-thread-wrap > .companion-thread,
+  .companion-sidebar .companion-thread,
+  .companion-peek .companion-thread { padding: 15px var(--s-4h) 18px; }
+  .companion-msg.user { max-width: 92%; }
+  .companion-compose.minimal { margin-inline: var(--s-4); margin-bottom: 8px; }
+  .companion-chat-notices,
+  .companion-pending-cue { margin-inline: var(--s-4); }
+  .companion-compose.minimal .companion-compose-meta small { display: none; }
+  .companion-compose.minimal .companion-compose-meta { justify-content: flex-end; }
+  .companion-chat-identity small { display: block; }
+  .companion-starter small { white-space: normal; }
+  .companion-dock-brand { align-items: flex-start; }
+  .companion-dock-actions { justify-content: flex-end; }
+}

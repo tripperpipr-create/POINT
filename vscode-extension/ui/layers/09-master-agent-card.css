@@ -1,0 +1,162 @@
+/* Карточка нового исполнителя в ленте Мастера.
+
+   Каркас берётся у остальных карточек решения (`.hall-panel` в слое 05, тихий
+   регистр в слое 07): обводка белым 10%, радиус 8, без заливки. Здесь описано
+   только то, чего у панели нет, — форма внутри неё.
+
+   Слой стоит сразу за карточкой запуска не по алфавиту, а по каскаду: правил
+   на `.hall-dialogue .hall-panel` в слоях старше 08 нет, поэтому при равной
+   специфичности карточка выигрывает у 05, 06 и 07 и ни с кем не спорит.
+
+   Цвета — только `--hub-*`, `--ember`, `--caution`; шкалы — `--s-*`, `--t-*`,
+   `--r-1`. Карточка запуска однажды сослалась на `--point-teal` и `--mono`,
+   которых в вебвью нет, и браузер выбросил тринадцать объявлений целиком. */
+
+/* Мера — та же, что у карточки запуска: исполнитель и задание, ради которого
+   он нужен, читаются одним столбцом. Мера ленты (880px) оставляла карточку с
+   формой уже соседнего наряда, и пара выглядела ступенькой. */
+.hall-dialogue .hall-thread > .master-agent {
+  max-width: 62rem;
+  margin-inline: auto;
+}
+
+/* Поля формы. Одна композиция на все подписи: подпись — рубрика над полем,
+   моноширинная и мелкая, как рубрики карточки запуска. */
+.master-agent label {
+  display: grid;
+  gap: var(--s-2);
+  min-width: 0;
+}
+.master-agent label > span {
+  color: var(--hub-faint-2);
+  font: var(--fw-normal) var(--t-micro) / 1 var(--font-mono);
+  letter-spacing: var(--tracking-label);
+}
+.master-agent input[type="text"],
+.master-agent input:not([type]),
+.master-agent input[type="number"],
+.master-agent select,
+.master-agent textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--control-md);
+  box-sizing: border-box;
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--hub-border);
+  border-radius: var(--r-1);
+  background: var(--hub-void);
+  color: var(--hub-text);
+  font: var(--fw-normal) var(--t-small) / var(--lh-base) var(--font-ui);
+}
+.master-agent textarea { resize: vertical; }
+.master-agent input::placeholder,
+.master-agent textarea::placeholder { color: var(--hub-faint-3); }
+.master-agent input:focus-visible,
+.master-agent select:focus-visible,
+.master-agent textarea:focus-visible {
+  outline: none;
+  border-color: var(--ember-line);
+}
+
+/* Имя и роль в один ряд: это одна мысль — кто именно появится. Портрета здесь
+   нет намеренно: у исполнителя, которого ещё не завели, лица не бывает, и
+   пустая плашка читалась незагрузившейся картинкой, а не характером. */
+.master-agent-identity,
+.master-agent-brain,
+.master-agent-limits {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--s-4);
+}
+
+/* Чертежи — ряд кнопок с подписью: «взять готовое» стоит рядом с полями,
+   которые оно заполнит, а не отдельным разделом. */
+.master-agent-blueprints {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+}
+.master-agent-blueprints > span {
+  color: var(--hub-faint-2);
+  font: var(--fw-normal) var(--t-micro) / 1 var(--font-mono);
+  letter-spacing: var(--tracking-label);
+}
+
+/* Права и пределы. Своё «показать»: браузерный треугольник в регистре Чертога
+   единственный округлый знак на экране, и цель указателя у него меньше нормы. */
+.master-agent-more > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: var(--hit);
+  color: var(--hub-muted);
+  font: var(--fw-normal) var(--t-small) / 1.3 var(--font-ui);
+  cursor: pointer;
+  list-style: none;
+}
+.master-agent-more > summary::-webkit-details-marker { display: none; }
+.master-agent-more > summary::before {
+  content: "+";
+  width: 1em;
+  color: var(--hub-faint-2);
+  font-family: var(--font-mono);
+}
+.master-agent-more[open] > summary::before { content: "−"; }
+.master-agent-more > summary:hover,
+.master-agent-more > summary:focus-visible { color: var(--hub-text); outline: none; }
+.master-agent-more[open] {
+  display: grid;
+  gap: var(--s-5);
+  padding-bottom: var(--s-2);
+}
+
+/* Умение и права на него — одна строка: отметка, название, что делать при
+   вызове. Порознь они расходились: набор умений в одном месте, политика в
+   другом, и человек не видел, что именно он только что разрешил. */
+.master-agent-grants {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--s-3) var(--s-5);
+}
+.master-agent-tool {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s-3);
+}
+.master-agent-tool > b {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--hub-faint-2);
+  font: var(--fw-normal) var(--t-small) / 1.3 var(--font-ui);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.master-agent-tool.is-on > b { color: var(--hub-text-2); }
+.master-agent-tool > input[type="checkbox"] {
+  width: var(--s-6);
+  height: var(--s-6);
+  margin: 0;
+  accent-color: var(--ember);
+}
+.master-agent-tool > select {
+  width: auto;
+  flex: 0 0 auto;
+  padding: var(--s-1) var(--s-2);
+  color: var(--hub-muted);
+  font-size: var(--t-micro);
+}
+.master-agent-tool > select:disabled { opacity: var(--disabled-opacity); }
+
+/* Отказ назван словами и на месте отказа. Прежняя форма отправляла пустое в
+   ядро и возвращала английскую ошибку валидации где-то в другом месте. */
+.master-agent-error {
+  margin: 0;
+  padding-left: var(--s-4);
+  border-left: var(--edge-accent) solid var(--caution);
+  color: var(--hub-text-2);
+  font: var(--fw-normal) var(--t-small) / var(--lh-base) var(--font-ui);
+}
+.master-agent-error.is-hidden { display: none; }
+

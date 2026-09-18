@@ -1,0 +1,134 @@
+/* Interactive agent create / hire flow — additive, keeps roster chrome intact */
+body[data-layout="wide"] .agent-studio.create-flow { max-width: 1180px; }
+.create-flow-hero {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) minmax(180px,220px);
+  gap: var(--s-5);
+  align-items: stretch;
+  margin: 0 0 var(--s-4h);
+  padding: var(--s-5) 14px;
+  background: var(--point-panel);
+  border: 1px solid var(--point-border);
+  border-left: var(--edge-accent) solid var(--point-ember);
+ 
+}
+.create-flow-hero .quest-label { color: var(--point-ember); letter-spacing: .14em; }
+.create-flow-hero h1 { margin: var(--s-3) 0 var(--s-2); font: 500 var(--t-title)/1.2 "JetBrains Mono", Consolas, monospace; }
+.create-flow-hero p { margin: 0; color: var(--point-muted); font-size: var(--t-body); line-height: 1.45; }
+.create-step-why { margin: 0 0 var(--s-2); color: var(--point-muted); font-size: var(--t-small); line-height: 1.45; }
+.create-flow-body { display: grid; gap: var(--s-4h); }
+.create-flow-body.with-dossier { grid-template-columns: minmax(0,1.4fr) minmax(220px,.75fr); align-items: start; }
+.create-dossier { display: grid; gap: var(--s-4); position: sticky; top: 8px; }
+.create-dossier .character-card { margin: 0; }
+.create-dossier .create-live-check { margin: 0; }
+
+.create-live-check {
+  display: grid;
+  gap: var(--s-4);
+  padding: var(--s-4h);
+  background: var(--point-void);
+  border: 1px solid var(--point-border);
+  border-radius: var(--r-1);
+}
+.create-live-check.ready { border-color: color-mix(in srgb, var(--point-vital) 55%, var(--point-border)); }
+.create-live-check > header { display: flex; justify-content: space-between; align-items: center; color: var(--point-muted); font: 650 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace; letter-spacing: .08em; }
+.create-live-check > header span { color: var(--point-mana); }
+.create-live-check ul { display: grid; gap: var(--s-2); margin: 0; padding: 0; list-style: none; }
+.create-live-check li { display: grid; grid-template-columns: 14px 1fr; gap: var(--s-3); align-items: center; color: var(--point-muted); font-size: var(--t-tiny); }
+.create-live-check li i { width: 10px; height: 10px; border: 1px solid var(--point-border); background: transparent; }
+.create-live-check li.ok { color: var(--point-vital); }
+.create-live-check li.ok i { border-color: var(--point-vital); background: var(--point-vital); }
+.create-live-check p { margin: 0; color: var(--point-muted); font-size: var(--t-tiny); line-height: 1.4; }
+
+.create-class-picker { margin: 0; padding: var(--s-5); border: 1px solid color-mix(in srgb, var(--point-arcane) 42%, var(--point-border)); border-radius: var(--r-1); background: color-mix(in srgb, var(--point-arcane) 5%, var(--point-panel)); }
+.create-class-picker > header { display: flex; justify-content: space-between; gap: var(--s-5); align-items: start; margin-bottom: var(--s-4h); }
+.create-class-picker > header .quest-label { color: var(--point-arcane); }
+.create-class-picker > header strong { display: block; margin-top: 4px; font: 600 var(--t-lead)/1.25 "JetBrains Mono", Consolas, monospace; }
+.create-class-picker > header p { margin: var(--s-2) 0 0; color: var(--point-muted); font-size: var(--t-small); line-height: 1.4; }
+.create-class-picker > header em { color: var(--point-mana); font: 650 var(--t-small)/1 "JetBrains Mono", Consolas, monospace; }
+.create-class-layout { display: grid; grid-template-columns: minmax(0,1.15fr) minmax(220px,.85fr); gap: var(--s-4h); align-items: start; }
+.create-class-grid { display: grid; gap: var(--s-3); }
+.create-class-card {
+  display: grid;
+  grid-template-columns: 28px minmax(0,1fr);
+  gap: var(--s-4);
+  align-items: start;
+  padding: var(--s-4) var(--s-4h);
+  color: var(--point-primary);
+  background: var(--point-void);
+  border: 1px solid var(--point-border);
+  border-radius: var(--r-1);
+  text-align: left;
+ 
+}
+.create-class-card:hover { background: var(--point-raised); border-color: color-mix(in srgb, var(--point-ember) 45%, var(--point-border)); }
+.create-class-card.selected { border-color: var(--point-ember); background: var(--point-selected); box-shadow: inset 2px 0 0 var(--point-ember); }
+.create-class-card > span { display: grid; place-items: center; width: 26px; height: 26px; color: var(--point-arcane); border: 1px solid var(--point-arcane); font-size: var(--t-body); }
+.create-class-card.selected > span { color: var(--point-ember); border-color: var(--point-ember); }
+.create-class-card b, .create-class-card small, .create-class-card em { display: block; }
+.create-class-card b { font: 600 var(--t-body)/1.25 "JetBrains Mono", Consolas, monospace; }
+.create-class-card small { margin-top: var(--s-2); color: var(--point-muted); font-size: var(--t-tiny); line-height: 1.35; }
+.create-class-card em { margin-top: var(--s-3); color: var(--point-mana); font: 600 var(--t-micro)/1.2 "JetBrains Mono", Consolas, monospace; letter-spacing: .04em; }
+
+.create-class-preview {
+  display: grid;
+  gap: var(--s-4);
+  padding: var(--s-5);
+  background: var(--point-void);
+  border: 1px solid var(--point-border);
+  border-left: var(--edge-accent) solid var(--point-ember);
+ 
+}
+.create-class-preview.empty { border-left-color: var(--point-arcane); }
+.create-class-preview .quest-label { color: var(--point-ember); }
+.create-class-preview header { display: grid; gap: var(--s-2); }
+.create-class-preview header strong { font: 600 var(--t-lead)/1.2 "JetBrains Mono", Consolas, monospace; }
+.create-class-preview header em { color: var(--point-mana); font: 600 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace; }
+.create-class-preview > p { margin: 0; color: var(--point-muted); font-size: var(--t-small); line-height: 1.45; }
+.create-preview-facts { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 1px; padding: 1px; background: var(--point-border); }
+.create-preview-facts span { display: grid; gap: var(--s-2); padding: var(--s-4) var(--s-4); background: var(--point-panel); }
+.create-preview-facts small { color: var(--point-muted); font: 650 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace; letter-spacing: .06em; }
+.create-preview-facts b { font: 550 var(--t-body)/1 "JetBrains Mono", Consolas, monospace; }
+.create-preview-tools { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+.create-preview-tools span { padding: var(--s-2) var(--s-3); color: var(--point-mana); border: 1px solid color-mix(in srgb, var(--point-mana) 45%, var(--point-border)); font: 650 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace; }
+.create-preview-tools span.proof { color: var(--point-vital); border-color: color-mix(in srgb, var(--point-vital) 50%, var(--point-border)); }
+.create-class-preview ul { margin: 0; padding-left: 16px; color: var(--point-muted); font-size: var(--t-tiny); line-height: 1.45; }
+.create-class-preview .primary { justify-self: start; min-height: 32px; }
+
+.create-hire-summary {
+  display: grid;
+  gap: var(--s-4);
+  margin-top: 4px;
+  padding: var(--s-5);
+  background: color-mix(in srgb, var(--point-ember) 6%, var(--point-panel));
+  border: 1px solid color-mix(in srgb, var(--point-ember) 45%, var(--point-border));
+  border-radius: var(--r-1);
+ 
+}
+.create-hire-summary .quest-label { color: var(--point-ember); }
+.create-hire-summary strong { display: block; margin-top: var(--s-2); font: 600 var(--t-lead)/1.2 "JetBrains Mono", Consolas, monospace; }
+.create-hire-summary header small { display: block; margin-top: var(--s-2); color: var(--point-muted); }
+.create-summary-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 1px; padding: 1px; background: var(--point-border); }
+.create-summary-grid span { display: grid; gap: var(--s-2); padding: var(--s-4); background: var(--point-void); }
+.create-summary-grid small { color: var(--point-muted); font: 650 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace; }
+.create-summary-grid b { font: 550 var(--t-body)/1 "JetBrains Mono", Consolas, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.create-summary-tools { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+.create-summary-tools span { padding: var(--s-2) var(--s-3); color: var(--point-arcane); border: 1px solid color-mix(in srgb, var(--point-arcane) 45%, var(--point-border)); font: 650 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace; }
+.create-hire-summary p { margin: 0; font-size: var(--t-small); line-height: 1.4; }
+.create-hire-summary p.ok { color: var(--point-vital); }
+.create-hire-summary p.warn { color: var(--point-ember); }
+
+.create-flow-footer .create-quest-cta {
+ 
+}
+.tool-toggle.is-on { border-color: color-mix(in srgb, var(--point-ember) 50%, var(--point-border)); background: var(--point-selected); }
+.create-class-step { padding: 0; border: 0; background: transparent; }
+
+@media (max-width: 980px) {
+  .create-flow-hero, .create-flow-body.with-dossier, .create-class-layout { grid-template-columns: 1fr; }
+  .create-dossier { position: static; }
+  .create-summary-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+@media (max-width: 720px) {
+  .create-flow-hero { padding: var(--s-4h); }
+}

@@ -1,0 +1,1974 @@
+{
+  "name": "local-agent-workbench",
+  "displayName": "Point",
+  "description": "Лёгкая локальная IDE с быстрым переключением проектов и прозрачным coding-агентом.",
+  "version": "1.2.2",
+  "publisher": "local-agent",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "AI",
+    "Machine Learning",
+    "Other"
+  ],
+  "keywords": [
+    "agent",
+    "ollama",
+    "local",
+    "coding",
+    "ai"
+  ],
+  "main": "./extension.js",
+  "extensionKind": [
+    "ui"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "Онбординг и интерфейс доступны; запуск локального сервиса и инструментов требует доверия к рабочей папке."
+    },
+    "virtualWorkspaces": {
+      "supported": false
+    }
+  },
+  "activationEvents": [
+    "onCommand:localAgent.openAgentsHubWindow",
+    "onView:localAgent.companionChat",
+    "onView:localAgent.terminalTools",
+    "onView:localAgent.databaseTools",
+    "onView:localAgent.sshTools",
+    "onView:localAgent.gitTools",
+    "onView:localAgent.logTools",
+    "onCommand:localAgent.quickActions",
+    "onCommand:localAgent.startServer",
+    "onCommand:localAgent.open",
+    "onCommand:localAgent.openRoster",
+    "onCommand:localAgent.openChronicle",
+    "onCommand:localAgent.openConnections",
+    "onCommand:localAgent.openStatistics",
+    "onCommand:localAgent.openDocker",
+    "onCommand:localAgent.openDatabases",
+    "onCommand:localAgent.connectServer",
+    "onCommand:localAgent.openTerminal",
+    "onCommand:localAgent.newConsoleChannel",
+    "onCommand:localAgent.openHome",
+    "onCommand:localAgent.switchProject",
+    "onCommand:localAgent.searchEverywhere",
+    "onCommand:localAgent.goToDefinition",
+    "onCommand:localAgent.findUsages",
+    "onCommand:localAgent.findImplementations",
+    "onCommand:localAgent.languageSupport",
+    "onCommand:localAgent.openProcesses",
+    "onCommand:localAgent.showCoreChronicle",
+    "onCommand:localAgent.rebuildIndex",
+    "onCommand:localAgent.showIndexStatus",
+    "onCommand:localAgent.quickChat",
+    "onCommand:localAgent.openAgentComposer",
+    "onCommand:localAgent.askCompanion",
+    "onCommand:localAgent.askCompanionAbout",
+    "onCommand:localAgent.askCompanionFix",
+    "onCommand:localAgent.askCompanionAboutProblems",
+    "onCommand:localAgent.askCompanionAboutTerminal",
+    "onCommand:localAgent.openLogChat",
+    "onCommand:localAgent.askCompanionAboutDiff",
+    "onCommand:localAgent.askCompanionAboutRun",
+    "onCommand:localAgent.askCompanionAboutDebug",
+    "onCommand:localAgent.askCompanionAboutBlame",
+    "onCommand:localAgent.askCompanionAboutHistory",
+    "onCommand:localAgent.askCompanionAboutSaved",
+    "onCommand:localAgent.companionInbox",
+    "onCommand:localAgent.fileStructure",
+    "onCommand:localAgent.showOutline",
+    "onCommand:localAgent.openIdeSettings",
+    "onCommand:localAgent.revealInInventory",
+    "onCommand:localAgent.findInFolder",
+    "onCommand:localAgent.findAction",
+    "onCommand:localAgent.runWithoutDebug",
+    "onCommand:localAgent.startDebug",
+    "onCommand:localAgent.runFile",
+    "onCommand:localAgent.navigateFile",
+    "onCommand:localAgent.navigateClass",
+    "onCommand:localAgent.refactorThis",
+    "onCommand:localAgent.editRunConfigurations",
+    "onCommand:localAgent.selectRunConfiguration",
+    "onCommand:localAgent.toggleBookmark",
+    "onCommand:localAgent.showBookmarks",
+    "onCommand:localAgent.nextBookmark",
+    "onCommand:localAgent.previousBookmark",
+    "onCommand:localAgent.vcsCommit",
+    "onCommand:localAgent.vcsChanges",
+    "onCommand:localAgent.gitAnnotate",
+    "onCommand:localAgent.peekUsages",
+    "onCommand:localAgent.parameterHints",
+    "onCommand:localAgent.lastEditLocation",
+    "onCommand:localAgent.renameSymbol",
+    "onCommand:localAgent.optimizeImports",
+    "onCommand:localAgent.reformatCode",
+    "onCommand:localAgent.recentLocations",
+    "onCommand:localAgent.nextError",
+    "onCommand:localAgent.previousError",
+    "onCommand:localAgent.compareWithClipboard",
+    "onCommand:localAgent.showFileHistory",
+    "onCommand:localAgent.toggleZenMode",
+    "onCommand:localAgent.hideAllToolWindows",
+    "onCommand:localAgent.selectNextOccurrence",
+    "onCommand:localAgent.runAnything",
+    "onCommand:localAgent.vcsRollback",
+    "onCommand:localAgent.vcsShowDiff",
+    "onCommand:localAgent.vcsPush",
+    "onCommand:localAgent.vcsPull",
+    "onCommand:localAgent.copyReference",
+    "onCommand:localAgent.newScratch",
+    "onCommand:localAgent.compareWithFile",
+    "onCommand:localAgent.focusBreadcrumbs",
+    "onCommand:localAgent.goToTypeDefinition",
+    "onCommand:localAgent.moveStatementUp",
+    "onCommand:localAgent.moveStatementDown",
+    "onCommand:localAgent.openProjectGallery",
+    "onCommand:localAgent.openProjectInIde"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "localAgent.openAgentsHubWindow",
+        "title": "Point: Открыть окно агентов",
+        "category": "Point",
+        "enablement": "isSessionsWindow"
+      },
+      {
+        "command": "localAgent.quickActions",
+        "title": "Point — Быстрые действия",
+        "category": "Point",
+        "icon": "$(rocket)"
+      },
+      {
+        "command": "localAgent.openHome",
+        "title": "Point — Главная",
+        "category": "Point",
+        "icon": "$(home)"
+      },
+      {
+        "command": "localAgent.switchProject",
+        "title": "Point — Переключить проект (мир)",
+        "category": "Point",
+        "icon": "$(folder-opened)"
+      },
+      {
+        "command": "localAgent.searchEverywhere",
+        "title": "Поиск везде (как Double Shift)",
+        "category": "Point",
+        "icon": "$(search)"
+      },
+      {
+        "command": "localAgent.findAction",
+        "title": "Найти действие (как Ctrl+Shift+A)",
+        "category": "Point",
+        "icon": "$(zap)"
+      },
+      {
+        "command": "localAgent.fileStructure",
+        "title": "Структура файла (как Ctrl+F12)",
+        "category": "Point",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "localAgent.focusBreadcrumbs",
+        "title": "Навигационная строка (как Alt+Home)",
+        "category": "Point",
+        "icon": "$(breadcrumb)"
+      },
+      {
+        "command": "localAgent.goToTypeDefinition",
+        "title": "Перейти к типу (как Ctrl+Shift+B)",
+        "category": "Point",
+        "icon": "$(symbol-class)"
+      },
+      {
+        "command": "localAgent.moveStatementUp",
+        "title": "Переместить строки вверх (как Ctrl+Shift+↑)",
+        "category": "Point",
+        "icon": "$(arrow-up)"
+      },
+      {
+        "command": "localAgent.moveStatementDown",
+        "title": "Переместить строки вниз (как Ctrl+Shift+↓)",
+        "category": "Point",
+        "icon": "$(arrow-down)"
+      },
+      {
+        "command": "localAgent.showOutline",
+        "title": "Структура — Outline (как Alt+7)",
+        "category": "Point",
+        "icon": "$(symbol-class)"
+      },
+      {
+        "command": "localAgent.revealInInventory",
+        "title": "Показать в Инвентаре (как Alt+F1)",
+        "category": "Point",
+        "icon": "$(folder-active)"
+      },
+      {
+        "command": "localAgent.findInFolder",
+        "title": "Найти в папке",
+        "category": "Point",
+        "icon": "$(search)"
+      },
+      {
+        "command": "localAgent.coreStatusAction",
+        "title": "Состояние ядра Point",
+        "category": "Point",
+        "icon": "$(server-process)"
+      },
+      {
+        "command": "localAgent.openIdeSettings",
+        "title": "Настройки IDE (как Ctrl+Alt+S)",
+        "category": "Point",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "localAgent.runWithoutDebug",
+        "title": "Запуск без отладки (как Shift+F10)",
+        "category": "Point",
+        "icon": "$(play)"
+      },
+      {
+        "command": "localAgent.startDebug",
+        "title": "Отладка (как Shift+F9)",
+        "category": "Point",
+        "icon": "$(debug-alt)"
+      },
+      {
+        "command": "localAgent.runFile",
+        "title": "Запустить файл",
+        "category": "Point",
+        "icon": "$(play)"
+      },
+      {
+        "command": "localAgent.goToDefinition",
+        "title": "Перейти к определению",
+        "category": "Point",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "localAgent.findUsages",
+        "title": "Найти использования",
+        "category": "Point",
+        "icon": "$(references)"
+      },
+      {
+        "command": "localAgent.findImplementations",
+        "title": "Найти реализации",
+        "category": "Point",
+        "icon": "$(symbol-interface)"
+      },
+      {
+        "command": "localAgent.languageSupport",
+        "title": "Поддержка языков",
+        "category": "Point",
+        "icon": "$(extensions)"
+      },
+      {
+        "command": "localAgent.openProcesses",
+        "title": "Процессы",
+        "category": "Point",
+        "icon": "$(server-process)"
+      },
+      {
+        "command": "localAgent.showCoreChronicle",
+        "title": "Хроника ядра",
+        "category": "Point",
+        "icon": "$(output)"
+      },
+      {
+        "command": "localAgent.rebuildIndex",
+        "title": "Перестроить индекс",
+        "category": "Point",
+        "icon": "$(database)"
+      },
+      {
+        "command": "localAgent.showIndexStatus",
+        "title": "Статус индекса",
+        "category": "Point",
+        "icon": "$(info)"
+      },
+      {
+        "command": "localAgent.quickChat",
+        "title": "Быстрый чат с помощником",
+        "category": "Point",
+        "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "localAgent.openAgentComposer",
+        "title": "Новая задача агенту (Agents Hub)",
+        "category": "Point",
+        "icon": "$(sparkle)"
+      },
+      {
+        "command": "localAgent.askCompanion",
+        "title": "Открыть помощника Point",
+        "category": "Point",
+        "icon": "$(comment-unresolved)"
+      },
+      {
+        "command": "localAgent.askCompanionAbout",
+        "title": "Обсудить с помощником",
+        "category": "Point",
+        "icon": "$(comment-unresolved)"
+      },
+      {
+        "command": "localAgent.askCompanionFix",
+        "title": "Помощник: подготовить исправление",
+        "category": "Point",
+        "icon": "$(wrench)"
+      },
+      {
+        "command": "localAgent.askCompanionAboutProblems",
+        "title": "Помощник: разобрать Problems",
+        "category": "Point",
+        "icon": "$(warning)"
+      },
+      {
+        "command": "localAgent.askCompanionAboutTerminal",
+        "title": "Помощник: разобрать терминал",
+        "category": "Point",
+        "icon": "$(terminal)"
+      },
+      {
+        "command": "localAgent.openLogChat",
+        "title": "Логи: отдельный чат с помощником",
+        "category": "Point",
+        "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "localAgent.askCompanionAboutDiff",
+        "title": "Помощник: разобрать diff",
+        "category": "Point",
+        "icon": "$(diff)"
+      },
+      {
+        "command": "localAgent.askCompanionAboutRun",
+        "title": "Помощник: разобрать запуск",
+        "category": "Point",
+        "icon": "$(play)"
+      },
+      {
+        "command": "localAgent.askCompanionAboutDebug",
+        "title": "Помощник: разобрать отладку",
+        "category": "Point",
+        "icon": "$(debug-alt)"
+      },
+      {
+        "command": "localAgent.askCompanionAboutBlame",
+        "title": "Помощник: разобрать blame",
+        "category": "Point",
+        "icon": "$(git-compare)"
+      },
+      {
+        "command": "localAgent.askCompanionAboutHistory",
+        "title": "Помощник: разобрать историю файла",
+        "category": "Point",
+        "icon": "$(history)"
+      },
+      {
+        "command": "localAgent.askCompanionAboutSaved",
+        "title": "Помощник: разобрать несохранённое",
+        "category": "Point",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "localAgent.companionInbox",
+        "title": "Помощник: входящие",
+        "category": "Point",
+        "icon": "$(inbox)"
+      },
+      {
+        "command": "localAgent.open",
+        "title": "Открыть доску квестов",
+        "category": "Point",
+        "icon": "$(sparkle)"
+      },
+      {
+        "command": "localAgent.openRoster",
+        "title": "Открыть ростер Гильдии",
+        "category": "Point",
+        "icon": "$(organization)"
+      },
+      {
+        "command": "localAgent.openChronicle",
+        "title": "Открыть Летопись Git",
+        "category": "Point",
+        "icon": "$(source-control)"
+      },
+      {
+        "command": "localAgent.gitClone",
+        "title": "Клонировать Git-проект…",
+        "category": "Point",
+        "icon": "$(repo-clone)"
+      },
+      {
+        "command": "localAgent.openConnections",
+        "title": "Открыть подключения",
+        "category": "Point",
+        "icon": "$(plug)"
+      },
+      {
+        "command": "localAgent.openStatistics",
+        "title": "Открыть статистику проекта",
+        "category": "Point",
+        "icon": "$(graph)"
+      },
+      {
+        "command": "localAgent.openDocker",
+        "title": "Открыть Docker",
+        "category": "Point",
+        "icon": "$(server)"
+      },
+      {
+        "command": "localAgent.openDatabases",
+        "title": "Открыть базы данных",
+        "category": "Point",
+        "icon": "$(database)"
+      },
+      {
+        "command": "localAgent.connectServer",
+        "title": "Подключиться к серверу",
+        "category": "Point",
+        "icon": "$(remote)"
+      },
+      {
+        "command": "localAgent.startServer",
+        "title": "Запустить локальный сервис",
+        "category": "Point",
+        "icon": "$(debug-start)"
+      },
+      {
+        "command": "localAgent.stopServer",
+        "title": "Остановить локальный сервис",
+        "category": "Point",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "localAgent.restartServer",
+        "title": "Перезапустить локальный сервис",
+        "category": "Point",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "localAgent.openSettings",
+        "title": "Настроить модель агента",
+        "category": "Point",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "localAgent.openTerminal",
+        "title": "Открыть консольный канал",
+        "category": "Point",
+        "icon": "$(terminal)"
+      },
+      {
+        "command": "localAgent.newConsoleChannel",
+        "title": "Новый консольный канал",
+        "category": "Point",
+        "icon": "$(add)"
+      },
+      {
+        "command": "localAgent.showWalkthrough",
+        "title": "Показать обучение",
+        "category": "Point",
+        "icon": "$(question)"
+      },
+      {
+        "command": "localAgent.navigateFile",
+        "title": "Перейти к файлу (как Ctrl+Shift+N)",
+        "category": "Point",
+        "icon": "$(file)"
+      },
+      {
+        "command": "localAgent.navigateClass",
+        "title": "Перейти к классу / символу (как Ctrl+N в JB)",
+        "category": "Point",
+        "icon": "$(symbol-class)"
+      },
+      {
+        "command": "localAgent.refactorThis",
+        "title": "Refactor This… (как Ctrl+Alt+Shift+T)",
+        "category": "Point",
+        "icon": "$(tools)"
+      },
+      {
+        "command": "localAgent.editRunConfigurations",
+        "title": "Изменить конфигурации запуска",
+        "category": "Point",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "localAgent.selectRunConfiguration",
+        "title": "Конфигурации запуска (как Alt+Shift+F10)",
+        "category": "Point",
+        "icon": "$(list-unordered)"
+      },
+      {
+        "command": "localAgent.toggleBookmark",
+        "title": "Переключить закладку",
+        "category": "Point",
+        "icon": "$(bookmark)"
+      },
+      {
+        "command": "localAgent.showBookmarks",
+        "title": "Показать закладки",
+        "category": "Point",
+        "icon": "$(bookmark)"
+      },
+      {
+        "command": "localAgent.nextBookmark",
+        "title": "Следующая закладка",
+        "category": "Point",
+        "icon": "$(arrow-down)"
+      },
+      {
+        "command": "localAgent.previousBookmark",
+        "title": "Предыдущая закладка",
+        "category": "Point",
+        "icon": "$(arrow-up)"
+      },
+      {
+        "command": "localAgent.vcsCommit",
+        "title": "Коммит (как Ctrl+K)",
+        "category": "Point",
+        "icon": "$(git-commit)"
+      },
+      {
+        "command": "localAgent.vcsChanges",
+        "title": "Изменения (Git-панель: папки, отметки, коммит)",
+        "category": "Point",
+        "icon": "$(source-control)"
+      },
+      {
+        "command": "localAgent.gitAnnotate",
+        "title": "Аннотации / Blame",
+        "category": "Point",
+        "icon": "$(git-compare)"
+      },
+      {
+        "command": "localAgent.peekUsages",
+        "title": "Показать использования (peek, как Ctrl+Alt+F7)",
+        "category": "Point",
+        "icon": "$(eye)"
+      },
+      {
+        "command": "localAgent.parameterHints",
+        "title": "Подсказки параметров (как Ctrl+P)",
+        "category": "Point",
+        "icon": "$(info)"
+      },
+      {
+        "command": "localAgent.lastEditLocation",
+        "title": "Последнее место правки",
+        "category": "Point",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "localAgent.renameSymbol",
+        "title": "Переименовать (как Shift+F6)",
+        "category": "Point",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "localAgent.optimizeImports",
+        "title": "Оптимизировать импорты (как Ctrl+Alt+O)",
+        "category": "Point",
+        "icon": "$(organization)"
+      },
+      {
+        "command": "localAgent.reformatCode",
+        "title": "Реформатировать код (как Ctrl+Alt+L)",
+        "category": "Point",
+        "icon": "$(symbol-ruler)"
+      },
+      {
+        "command": "localAgent.recentLocations",
+        "title": "Недавние места (как Ctrl+Shift+E)",
+        "category": "Point",
+        "icon": "$(history)"
+      },
+      {
+        "command": "localAgent.nextError",
+        "title": "Следующая ошибка (как F2)",
+        "category": "Point",
+        "icon": "$(error)"
+      },
+      {
+        "command": "localAgent.previousError",
+        "title": "Предыдущая ошибка (как Shift+F2)",
+        "category": "Point",
+        "icon": "$(error)"
+      },
+      {
+        "command": "localAgent.compareWithClipboard",
+        "title": "Сравнить с буфером обмена",
+        "category": "Point",
+        "icon": "$(diff)"
+      },
+      {
+        "command": "localAgent.compareWithFile",
+        "title": "Сравнить с файлом",
+        "category": "Point",
+        "icon": "$(diff)"
+      },
+      {
+        "command": "localAgent.copyReference",
+        "title": "Копировать ссылку (файл:строка)",
+        "category": "Point",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "localAgent.newScratch",
+        "title": "Черновик (Scratch)",
+        "category": "Point",
+        "icon": "$(note)"
+      },
+      {
+        "command": "localAgent.showFileHistory",
+        "title": "История файла / Timeline (Local History)",
+        "category": "Point",
+        "icon": "$(history)"
+      },
+      {
+        "command": "localAgent.toggleZenMode",
+        "title": "Режим без отвлечений (Zen / Distraction Free)",
+        "category": "Point",
+        "icon": "$(screen-full)"
+      },
+      {
+        "command": "localAgent.hideAllToolWindows",
+        "title": "Скрыть все окна инструментов (как Ctrl+Shift+F12)",
+        "category": "Point",
+        "icon": "$(layout)"
+      },
+      {
+        "command": "localAgent.selectNextOccurrence",
+        "title": "Выделить следующее вхождение (как Alt+J)",
+        "category": "Point",
+        "icon": "$(selection)"
+      },
+      {
+        "command": "localAgent.runAnything",
+        "title": "Run Anything… (npm / go / tasks)",
+        "category": "Point",
+        "icon": "$(rocket)"
+      },
+      {
+        "command": "localAgent.vcsRollback",
+        "title": "Откатить изменения файла (Rollback)",
+        "category": "Point",
+        "icon": "$(discard)"
+      },
+      {
+        "command": "localAgent.vcsShowDiff",
+        "title": "Показать diff файла",
+        "category": "Point",
+        "icon": "$(diff)"
+      },
+      {
+        "command": "localAgent.vcsPush",
+        "title": "Push (отправить в remote)",
+        "category": "Point",
+        "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "localAgent.vcsPull",
+        "title": "Pull (забрать из remote)",
+        "category": "Point",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "localAgent.openProjectGallery",
+        "title": "Point — Галерея миров (проекты)",
+        "category": "Point",
+        "icon": "$(folder-library)"
+      },
+      {
+        "command": "localAgent.openProjectInIde",
+        "title": "Point — Открыть проект в редакторе",
+        "category": "Point",
+        "icon": "$(window)"
+      }
+    ],
+    "configuration": {
+      "title": "Point",
+      "properties": {
+        "localAgent.autoStart": {
+          "type": "boolean",
+          "default": true,
+          "description": "Автоматически запускать локальный Go-сервис при открытии панели агента."
+        },
+        "localAgent.autoIndex": {
+          "type": "boolean",
+          "default": true,
+          "description": "Автоматически строить и точечно обновлять локальный индекс проекта при сохранении и изменении файлов. Поиск не делает полный rebuild из‑за одного файла."
+        },
+        "localAgent.indexDebounceMs": {
+          "type": "number",
+          "default": 5000,
+          "minimum": 200,
+          "maximum": 60000,
+          "description": "Максимальная пауза (мс) перед обновлением индекса после пачки файловых событий. Сохранение одного файла индексируется быстрее."
+        },
+        "localAgent.backendPath": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "description": "Необязательный абсолютный путь к локальному ядру Point. По умолчанию используется встроенный бинарник."
+        },
+        "localAgent.sandboxBackend": {
+          "type": "string",
+          "enum": [
+            "filtered-copy",
+            "docker"
+          ],
+          "default": "filtered-copy",
+          "description": "Граница исполнения команд агента. filtered-copy — процесс Point на хосте; docker — контейнер с изоляцией процесса и сети (нужны Docker Desktop и локальный образ sandbox). Запись файлов по умолчанию идёт в открытый проект независимо от этого выбора."
+        },
+        "localAgent.sandboxImage": {
+          "type": "string",
+          "default": "",
+          "description": "Необязательный образ Docker для sandbox (POINT_SANDBOX_IMAGE). Пусто — образ по умолчанию ядра."
+        },
+        "localAgent.liveWorkspace": {
+          "type": "boolean",
+          "default": true,
+          "description": "Агент пишет файлы сразу в открытый проект (как Cursor). Выключите, чтобы вернуть изолированную копию до Apply Change Set."
+        },
+        "localAgent.ollamaBaseUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:11434",
+          "description": "Адрес Ollama для профиля по умолчанию."
+        },
+        "localAgent.logLevel": {
+          "type": "string",
+          "enum": [
+            "debug",
+            "info",
+            "warn",
+            "error"
+          ],
+          "default": "info",
+          "description": "Уровень логов ядра Point. info подходит для обычной работы; debug включайте временно для диагностики. Активный point-core.log и три архива ограничены 4 МБ каждый."
+        },
+        "localAgent.logFormat": {
+          "type": "string",
+          "enum": [
+            "text",
+            "json"
+          ],
+          "default": "text",
+          "description": "Формат логов ядра Point. text — читаемый в «Хроника ядра»; json — для разбора скриптами."
+        },
+        "localAgent.cursorCommand": {
+          "type": "string",
+          "default": "cursor-agent",
+          "scope": "machine",
+          "description": "Команда запуска Cursor Agent CLI в интерактивном терминале. На Windows с установкой в WSL можно указать собственную команду-обёртку."
+        },
+        "localAgent.quickChatDefaultProfileId": {
+          "type": "string",
+          "default": "",
+          "description": "ID агента по умолчанию для команды «Новая задача агенту». Пусто — текущий/первый готовый персонаж."
+        },
+        "localAgent.formatOnSave": {
+          "type": "boolean",
+          "default": false,
+          "description": "Форматировать текущий файл при сохранении, если для языка есть formatter."
+        },
+        "localAgent.organizeImportsOnSave": {
+          "type": "boolean",
+          "default": false,
+          "description": "Оптимизировать импорты при сохранении, если language server это умеет."
+        }
+      }
+    },
+    "configurationDefaults": {
+      "go.diagnostic.vulncheck": "Off",
+      "workbench.secondarySideBar.showLabels": false
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "pointGit",
+          "title": "Git",
+          "icon": "$(source-control)"
+        }
+      ],
+      "panel": [
+        {
+          "id": "pointRun",
+          "title": "Запуск",
+          "icon": "media/terminal.svg"
+        },
+        {
+          "id": "pointServices",
+          "title": "Службы",
+          "icon": "media/database.svg"
+        },
+        {
+          "id": "pointLogs",
+          "title": "Логи",
+          "icon": "media/logs.svg"
+        }
+      ],
+      "secondarySidebar": [
+        {
+          "id": "pointCompanion",
+          "title": "Помощник Point",
+          "icon": "media/agent.svg"
+        }
+      ]
+    },
+    "views": {
+      "pointCompanion": [
+        {
+          "id": "localAgent.companionChat",
+          "name": "Диалог",
+          "type": "webview"
+        }
+      ],
+      "pointRun": [
+        {
+          "id": "localAgent.terminalTools",
+          "name": "Запуск и консоли",
+          "type": "webview"
+        }
+      ],
+      "pointServices": [
+        {
+          "id": "localAgent.databaseTools",
+          "name": "Базы данных",
+          "type": "webview"
+        },
+        {
+          "id": "localAgent.sshTools",
+          "name": "Серверы SSH",
+          "type": "webview"
+        }
+      ],
+      "pointGit": [
+        {
+          "id": "localAgent.gitTools",
+          "name": "Git",
+          "type": "webview"
+        }
+      ],
+      "pointLogs": [
+        {
+          "id": "localAgent.logTools",
+          "name": "Логи и диагностика",
+          "type": "webview"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "explorer",
+        "contents": "Папка проекта — это мир Point.\n[Открыть проект](command:vscode.openFolder)\n[Недавние миры](command:localAgent.switchProject)",
+        "when": "workbenchState == empty"
+      },
+      {
+        "view": "localAgent.companionChat",
+        "contents": "Откройте папку проекта, чтобы начать диалог.\n[Открыть проект](command:vscode.openFolder)",
+        "when": "workbenchState == empty"
+      },
+      {
+        "view": "localAgent.companionChat",
+        "contents": "Спросите про файл, ошибку или запуск.\n[Открыть помощника](command:localAgent.askCompanion)\n[Открыть Agent Hub](command:localAgent.open)",
+        "when": "workbenchState != empty"
+      }
+    ],
+    "menus": {
+      "commandCenter": [
+        {
+          "command": "localAgent.searchEverywhere",
+          "group": "navigation@1"
+        },
+        {
+          "command": "localAgent.runWithoutDebug",
+          "group": "navigation@2"
+        },
+        {
+          "command": "localAgent.startDebug",
+          "group": "navigation@3"
+        },
+        {
+          "command": "localAgent.askCompanion",
+          "group": "navigation@4"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "localAgent.askCompanionAboutProblems",
+          "when": "view == workbench.panel.markers",
+          "group": "navigation@0"
+        },
+        {
+          "command": "localAgent.askCompanionFix",
+          "when": "view == workbench.panel.markers",
+          "group": "navigation@1"
+        },
+        {
+          "command": "localAgent.restartServer",
+          "when": "view == localAgent.companionChat",
+          "group": "navigation@1"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "localAgent.goToDefinition",
+          "when": "editorTextFocus",
+          "group": "navigation@0"
+        },
+        {
+          "command": "localAgent.goToTypeDefinition",
+          "when": "editorTextFocus",
+          "group": "navigation@0.6"
+        },
+        {
+          "command": "localAgent.findUsages",
+          "when": "editorTextFocus",
+          "group": "navigation@1"
+        },
+        {
+          "command": "localAgent.findImplementations",
+          "when": "editorTextFocus",
+          "group": "navigation@2"
+        },
+        {
+          "command": "localAgent.fileStructure",
+          "when": "editorTextFocus",
+          "group": "navigation@3"
+        },
+        {
+          "command": "localAgent.focusBreadcrumbs",
+          "when": "editorTextFocus",
+          "group": "navigation@3.5"
+        },
+        {
+          "command": "localAgent.revealInInventory",
+          "when": "editorTextFocus",
+          "group": "navigation@4"
+        },
+        {
+          "command": "localAgent.findInFolder",
+          "when": "editorTextFocus",
+          "group": "navigation@4.5"
+        },
+        {
+          "command": "localAgent.refactorThis",
+          "when": "editorTextFocus",
+          "group": "1_modification@0"
+        },
+        {
+          "command": "localAgent.renameSymbol",
+          "when": "editorTextFocus",
+          "group": "1_modification@1"
+        },
+        {
+          "command": "localAgent.optimizeImports",
+          "when": "editorTextFocus && !editorReadonly",
+          "group": "1_modification@2"
+        },
+        {
+          "command": "localAgent.reformatCode",
+          "when": "editorTextFocus && !editorReadonly",
+          "group": "1_modification@3"
+        },
+        {
+          "command": "localAgent.compareWithClipboard",
+          "when": "editorTextFocus",
+          "group": "1_modification@4"
+        },
+        {
+          "command": "localAgent.compareWithFile",
+          "when": "editorTextFocus",
+          "group": "1_modification@4.5"
+        },
+        {
+          "command": "localAgent.copyReference",
+          "when": "editorTextFocus",
+          "group": "9_cutcopypaste@4"
+        },
+        {
+          "command": "localAgent.showFileHistory",
+          "when": "editorTextFocus",
+          "group": "navigation@5.5"
+        },
+        {
+          "command": "localAgent.toggleBookmark",
+          "when": "editorTextFocus",
+          "group": "navigation@5"
+        },
+        {
+          "command": "localAgent.peekUsages",
+          "when": "editorTextFocus",
+          "group": "navigation@1.5"
+        },
+        {
+          "command": "localAgent.gitAnnotate",
+          "when": "editorTextFocus",
+          "group": "navigation@6"
+        },
+        {
+          "command": "localAgent.askCompanionAboutBlame",
+          "when": "editorTextFocus",
+          "group": "navigation@6.5"
+        },
+        {
+          "command": "localAgent.askCompanionAboutHistory",
+          "when": "editorTextFocus",
+          "group": "navigation@6.6"
+        },
+        {
+          "command": "localAgent.askCompanionAbout",
+          "when": "editorTextFocus && editorHasSelection",
+          "group": "1_modification@5"
+        },
+        {
+          "command": "localAgent.askCompanionFix",
+          "when": "editorTextFocus && editorHasSelection",
+          "group": "1_modification@6"
+        },
+        {
+          "command": "localAgent.runFile",
+          "when": "editorTextFocus && resourceExtname =~ /\\.(go|py|js|mjs|cjs|rs)$/",
+          "group": "1_modification@7"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "localAgent.findInFolder",
+          "when": "explorerResourceIsFolder || explorerResourceIsFile",
+          "group": "4_search@1"
+        },
+        {
+          "command": "localAgent.askCompanionAbout",
+          "when": "explorerResourceIsFile",
+          "group": "4_search@2"
+        },
+        {
+          "command": "localAgent.askCompanionFix",
+          "when": "explorerResourceIsFile",
+          "group": "4_search@3"
+        },
+        {
+          "command": "localAgent.runFile",
+          "when": "explorerResourceIsFile && resourceExtname =~ /\\.(go|py|js|mjs|cjs|rs)$/",
+          "group": "navigation@0"
+        },
+        {
+          "command": "localAgent.compareWithFile",
+          "when": "explorerResourceIsFile",
+          "group": "3_compare@1"
+        },
+        {
+          "command": "localAgent.newScratch",
+          "group": "navigation@9"
+        }
+      ],
+      "terminal/title": [
+        {
+          "command": "localAgent.askCompanionAboutTerminal",
+          "group": "navigation@0"
+        }
+      ],
+      "terminal/context": [
+        {
+          "command": "localAgent.askCompanionAboutTerminal",
+          "group": "navigation@0"
+        }
+      ],
+      "scm/resourceState/context": [
+        {
+          "command": "localAgent.askCompanionAboutDiff",
+          "when": "scmProvider == git",
+          "group": "inline@0"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "localAgent.quickActions",
+          "group": "navigation@0",
+          "when": "resourceScheme == file || resourceScheme == untitled"
+        },
+        {
+          "command": "localAgent.askCompanionAbout",
+          "group": "navigation@1",
+          "when": "(resourceScheme == file || resourceScheme == untitled) && editorHasSelection"
+        },
+        {
+          "command": "localAgent.askCompanionFix",
+          "group": "navigation@2",
+          "when": "(resourceScheme == file || resourceScheme == untitled) && editorHasSelection"
+        },
+        {
+          "command": "localAgent.runFile",
+          "group": "navigation@3",
+          "when": "resourceScheme == file && resourceExtname =~ /\\.(go|py|js|mjs|cjs|rs)$/"
+        }
+      ],
+      "MenubarGoMenu": [
+        {
+          "command": "localAgent.searchEverywhere",
+          "group": "1_point_nav@1"
+        },
+        {
+          "command": "localAgent.fileStructure",
+          "group": "1_point_nav@2"
+        },
+        {
+          "command": "localAgent.focusBreadcrumbs",
+          "group": "1_point_nav@2.5"
+        },
+        {
+          "command": "localAgent.goToTypeDefinition",
+          "group": "1_point_nav@2.6"
+        },
+        {
+          "command": "localAgent.findUsages",
+          "group": "1_point_nav@3"
+        },
+        {
+          "command": "localAgent.revealInInventory",
+          "group": "1_point_nav@4"
+        },
+        {
+          "command": "localAgent.findInFolder",
+          "group": "1_point_nav@4.5"
+        },
+        {
+          "command": "localAgent.navigateClass",
+          "group": "1_point_nav@0"
+        },
+        {
+          "command": "localAgent.navigateFile",
+          "group": "1_point_nav@0.5"
+        },
+        {
+          "command": "localAgent.showBookmarks",
+          "group": "1_point_nav@5"
+        },
+        {
+          "command": "localAgent.lastEditLocation",
+          "group": "1_point_nav@6"
+        },
+        {
+          "command": "localAgent.recentLocations",
+          "group": "1_point_nav@7"
+        },
+        {
+          "command": "localAgent.nextError",
+          "group": "1_point_nav@8"
+        }
+      ],
+      "CommandPalette": [
+        {
+          "command": "localAgent.quickActions"
+        },
+        {
+          "command": "localAgent.searchEverywhere"
+        },
+        {
+          "command": "localAgent.findAction"
+        },
+        {
+          "command": "localAgent.fileStructure"
+        },
+        {
+          "command": "localAgent.focusBreadcrumbs"
+        },
+        {
+          "command": "localAgent.goToTypeDefinition"
+        },
+        {
+          "command": "localAgent.moveStatementUp"
+        },
+        {
+          "command": "localAgent.moveStatementDown"
+        },
+        {
+          "command": "localAgent.showOutline"
+        },
+        {
+          "command": "localAgent.openIdeSettings"
+        },
+        {
+          "command": "localAgent.revealInInventory"
+        },
+        {
+          "command": "localAgent.findInFolder"
+        },
+        {
+          "command": "localAgent.runWithoutDebug"
+        },
+        {
+          "command": "localAgent.startDebug"
+        },
+        {
+          "command": "localAgent.runFile"
+        },
+        {
+          "command": "localAgent.navigateFile"
+        },
+        {
+          "command": "localAgent.navigateClass"
+        },
+        {
+          "command": "localAgent.refactorThis"
+        },
+        {
+          "command": "localAgent.editRunConfigurations"
+        },
+        {
+          "command": "localAgent.selectRunConfiguration"
+        },
+        {
+          "command": "localAgent.toggleBookmark"
+        },
+        {
+          "command": "localAgent.showBookmarks"
+        },
+        {
+          "command": "localAgent.nextBookmark"
+        },
+        {
+          "command": "localAgent.previousBookmark"
+        },
+        {
+          "command": "localAgent.vcsCommit"
+        },
+        {
+          "command": "localAgent.vcsChanges"
+        },
+        {
+          "command": "localAgent.gitAnnotate"
+        },
+        {
+          "command": "localAgent.peekUsages"
+        },
+        {
+          "command": "localAgent.parameterHints"
+        },
+        {
+          "command": "localAgent.lastEditLocation"
+        },
+        {
+          "command": "localAgent.renameSymbol"
+        },
+        {
+          "command": "localAgent.optimizeImports"
+        },
+        {
+          "command": "localAgent.reformatCode"
+        },
+        {
+          "command": "localAgent.recentLocations"
+        },
+        {
+          "command": "localAgent.nextError"
+        },
+        {
+          "command": "localAgent.previousError"
+        },
+        {
+          "command": "localAgent.compareWithClipboard"
+        },
+        {
+          "command": "localAgent.compareWithFile"
+        },
+        {
+          "command": "localAgent.copyReference"
+        },
+        {
+          "command": "localAgent.newScratch"
+        },
+        {
+          "command": "localAgent.showFileHistory"
+        },
+        {
+          "command": "localAgent.toggleZenMode"
+        },
+        {
+          "command": "localAgent.hideAllToolWindows"
+        },
+        {
+          "command": "localAgent.selectNextOccurrence"
+        },
+        {
+          "command": "localAgent.runAnything"
+        },
+        {
+          "command": "localAgent.vcsRollback"
+        },
+        {
+          "command": "localAgent.vcsShowDiff"
+        },
+        {
+          "command": "localAgent.vcsPush"
+        },
+        {
+          "command": "localAgent.vcsPull"
+        },
+        {
+          "command": "localAgent.askCompanion"
+        },
+        {
+          "command": "localAgent.askCompanionAbout"
+        },
+        {
+          "command": "localAgent.askCompanionFix"
+        },
+        {
+          "command": "localAgent.askCompanionAboutProblems"
+        },
+        {
+          "command": "localAgent.askCompanionAboutTerminal"
+        },
+        {
+          "command": "localAgent.askCompanionAboutDiff"
+        },
+        {
+          "command": "localAgent.companionInbox"
+        },
+        {
+          "command": "localAgent.askCompanionAboutRun"
+        },
+        {
+          "command": "localAgent.askCompanionAboutDebug"
+        },
+        {
+          "command": "localAgent.askCompanionAboutBlame"
+        },
+        {
+          "command": "localAgent.askCompanionAboutHistory"
+        },
+        {
+          "command": "localAgent.askCompanionAboutSaved"
+        }
+      ],
+      "MenubarEditMenu": [
+        {
+          "command": "localAgent.refactorThis",
+          "group": "5_point_refactor@1"
+        },
+        {
+          "command": "localAgent.renameSymbol",
+          "group": "5_point_refactor@2"
+        },
+        {
+          "command": "localAgent.optimizeImports",
+          "group": "5_point_refactor@3"
+        },
+        {
+          "command": "localAgent.reformatCode",
+          "group": "5_point_refactor@4"
+        }
+      ],
+      "MenubarRunMenu": [
+        {
+          "command": "localAgent.runAnything",
+          "group": "1_point_run@0"
+        },
+        {
+          "command": "localAgent.selectRunConfiguration",
+          "group": "1_point_run@1"
+        },
+        {
+          "command": "localAgent.editRunConfigurations",
+          "group": "1_point_run@2"
+        },
+        {
+          "command": "localAgent.runWithoutDebug",
+          "group": "1_point_run@3"
+        },
+        {
+          "command": "localAgent.startDebug",
+          "group": "1_point_run@4"
+        },
+        {
+          "command": "localAgent.runFile",
+          "group": "1_point_run@5"
+        },
+        {
+          "command": "localAgent.askCompanionAboutRun",
+          "group": "1_point_run@6"
+        }
+      ],
+      "debug/callstack/context": [
+        {
+          "command": "localAgent.askCompanionAboutDebug",
+          "group": "navigation@0"
+        }
+      ],
+      "scm/title": [
+        {
+          "command": "localAgent.vcsCommit",
+          "group": "navigation@0",
+          "when": "scmProvider == git"
+        },
+        {
+          "command": "localAgent.vcsShowDiff",
+          "group": "navigation@1",
+          "when": "scmProvider == git"
+        },
+        {
+          "command": "localAgent.vcsPush",
+          "group": "navigation@2",
+          "when": "scmProvider == git"
+        },
+        {
+          "command": "localAgent.vcsPull",
+          "group": "navigation@3",
+          "when": "scmProvider == git"
+        },
+        {
+          "command": "localAgent.gitAnnotate",
+          "group": "navigation@4"
+        },
+        {
+          "command": "localAgent.askCompanionAboutDiff",
+          "group": "navigation@5",
+          "when": "scmProvider == git"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "localAgent.quickChat",
+        "key": "ctrl+shift+l",
+        "mac": "cmd+shift+l",
+        "when": "!quickInputVisible"
+      },
+      {
+        "command": "localAgent.askCompanion",
+        "key": "ctrl+alt+;",
+        "mac": "cmd+alt+;",
+        "when": "!quickInputVisible"
+      },
+      {
+        "command": "localAgent.askCompanionAbout",
+        "key": "ctrl+alt+shift+;",
+        "mac": "cmd+alt+shift+;",
+        "when": "editorTextFocus && !quickInputVisible"
+      },
+      {
+        "command": "localAgent.companionInbox",
+        "key": "ctrl+alt+'",
+        "mac": "cmd+alt+'",
+        "when": "!quickInputVisible"
+      },
+      {
+        "command": "localAgent.askCompanionFix",
+        "key": "ctrl+alt+.",
+        "mac": "cmd+alt+.",
+        "when": "editorTextFocus && !quickInputVisible"
+      },
+      {
+        "command": "localAgent.navigateFile",
+        "key": "ctrl+shift+n",
+        "mac": "cmd+shift+o",
+        "when": "!quickInputVisible"
+      },
+      {
+        "command": "workbench.action.showCommands",
+        "key": "ctrl+shift+a",
+        "mac": "cmd+shift+a",
+        "when": "!quickInputVisible"
+      },
+      {
+        "command": "localAgent.quickActions",
+        "key": "alt+shift+a",
+        "mac": "alt+shift+a",
+        "when": "!quickInputVisible"
+      },
+      {
+        "command": "workbench.action.replaceInFiles",
+        "key": "ctrl+shift+r",
+        "mac": "cmd+shift+r"
+      },
+      {
+        "command": "localAgent.findUsages",
+        "key": "alt+f7",
+        "mac": "alt+f7",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "localAgent.findImplementations",
+        "key": "ctrl+alt+b",
+        "mac": "cmd+alt+b",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "localAgent.goToDefinition",
+        "key": "ctrl+b",
+        "mac": "cmd+b",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "localAgent.goToDefinition",
+        "key": "f12",
+        "mac": "f12",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "localAgent.fileStructure",
+        "key": "ctrl+f12",
+        "mac": "cmd+f12",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "localAgent.focusBreadcrumbs",
+        "key": "alt+home",
+        "mac": "alt+home",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "localAgent.goToTypeDefinition",
+        "key": "ctrl+shift+b",
+        "mac": "cmd+shift+b",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "localAgent.moveStatementUp",
+        "key": "ctrl+shift+up",
+        "mac": "cmd+shift+up",
+        "when": "editorTextFocus && !editorReadonly"
+      },
+      {
+        "command": "localAgent.moveStatementDown",
+        "key": "ctrl+shift+down",
+        "mac": "cmd+shift+down",
+        "when": "editorTextFocus && !editorReadonly"
+      },
+      {
+        "command": "localAgent.showOutline",
+        "key": "alt+7",
+        "mac": "cmd+7"
+      },
+      {
+        "command": "localAgent.openIdeSettings",
+        "key": "ctrl+alt+s",
+        "mac": "cmd+alt+s"
+      },
+      {
+        "command": "localAgent.revealInInventory",
+        "key": "alt+f1",
+        "mac": "alt+f1",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "localAgent.findInFolder",
+        "key": "shift+alt+f",
+        "mac": "shift+alt+f",
+        "when": "!filesExplorerFocus"
+      },
+      {
+        "command": "filesExplorer.findInFolder",
+        "key": "shift+alt+f",
+        "mac": "shift+alt+f",
+        "when": "filesExplorerFocus && explorerResourceIsFolder"
+      },
+      {
+        "command": "localAgent.renameSymbol",
+        "key": "shift+f6",
+        "mac": "shift+f6",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "localAgent.optimizeImports",
+        "key": "ctrl+alt+o",
+        "mac": "ctrl+alt+o",
+        "when": "editorTextFocus && !editorReadonly"
+      },
+      {
+        "command": "localAgent.reformatCode",
+        "key": "ctrl+alt+l",
+        "mac": "cmd+alt+l",
+        "when": "editorTextFocus && !editorReadonly"
+      },
+      {
+        "command": "localAgent.nextError",
+        "key": "f2",
+        "mac": "f2",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "localAgent.previousError",
+        "key": "shift+f2",
+        "mac": "shift+f2",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "localAgent.selectNextOccurrence",
+        "key": "alt+j",
+        "mac": "ctrl+g",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "localAgent.hideAllToolWindows",
+        "key": "ctrl+shift+f12",
+        "mac": "cmd+shift+f12"
+      },
+      {
+        "command": "localAgent.recentLocations",
+        "key": "ctrl+shift+e",
+        "mac": "cmd+shift+e",
+        "when": "!quickInputVisible"
+      },
+      {
+        "command": "localAgent.copyReference",
+        "key": "ctrl+alt+shift+c",
+        "mac": "cmd+alt+shift+c",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "localAgent.newScratch",
+        "key": "ctrl+alt+shift+insert",
+        "mac": "cmd+alt+shift+n"
+      },
+      {
+        "command": "editor.showTypeHierarchy",
+        "key": "ctrl+h",
+        "mac": "ctrl+h",
+        "when": "editorTextFocus && editorHasTypeHierarchyProvider"
+      },
+      {
+        "command": "editor.showCallHierarchy",
+        "key": "ctrl+alt+h",
+        "mac": "ctrl+alt+h",
+        "when": "editorTextFocus && editorHasCallHierarchyProvider"
+      },
+      {
+        "command": "editor.action.quickFix",
+        "key": "alt+enter",
+        "mac": "alt+enter",
+        "when": "editorHasCodeActionsProvider && editorTextFocus && !editorReadonly"
+      },
+      {
+        "command": "editor.action.triggerParameterHints",
+        "key": "ctrl+p",
+        "mac": "cmd+p",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "editor.action.copyLinesDownAction",
+        "key": "ctrl+d",
+        "mac": "cmd+d",
+        "when": "editorTextFocus && !editorReadonly"
+      },
+      {
+        "command": "editor.action.deleteLines",
+        "key": "ctrl+y",
+        "mac": "cmd+y",
+        "when": "editorTextFocus && !editorReadonly"
+      },
+      {
+        "command": "editor.action.smartSelect.expand",
+        "key": "ctrl+w",
+        "mac": "alt+up",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "editor.action.smartSelect.shrink",
+        "key": "ctrl+shift+w",
+        "mac": "alt+down",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "workbench.action.closeActiveEditor",
+        "key": "ctrl+f4",
+        "mac": "cmd+w"
+      },
+      {
+        "command": "localAgent.recentLocations",
+        "key": "ctrl+e",
+        "mac": "cmd+e",
+        "when": "!quickInputVisible"
+      },
+      {
+        "command": "workbench.action.quickOpenRecent",
+        "key": "ctrl+alt+e",
+        "mac": "cmd+alt+e",
+        "when": "!quickInputVisible"
+      },
+      {
+        "command": "workbench.action.navigateBack",
+        "key": "ctrl+alt+left",
+        "mac": "cmd+alt+left"
+      },
+      {
+        "command": "workbench.action.navigateForward",
+        "key": "ctrl+alt+right",
+        "mac": "cmd+alt+right"
+      },
+      {
+        "command": "workbench.view.explorer",
+        "key": "alt+1",
+        "mac": "cmd+1"
+      },
+      {
+        "command": "workbench.action.findInFiles",
+        "key": "alt+3",
+        "mac": "cmd+3"
+      },
+      {
+        "command": "workbench.view.extension.pointRun",
+        "key": "alt+4",
+        "mac": "cmd+4"
+      },
+      {
+        "command": "workbench.view.debug",
+        "key": "alt+5",
+        "mac": "cmd+5"
+      },
+      {
+        "command": "workbench.actions.view.problems",
+        "key": "alt+6",
+        "mac": "cmd+6"
+      },
+      {
+        "command": "workbench.view.extension.pointServices",
+        "key": "alt+8",
+        "mac": "cmd+8"
+      },
+      {
+        "command": "localAgent.openChronicle",
+        "key": "alt+9",
+        "mac": "cmd+9"
+      },
+      {
+        "command": "localAgent.vcsChanges",
+        "key": "alt+0",
+        "mac": "cmd+0"
+      },
+      {
+        "command": "localAgent.open",
+        "key": "ctrl+alt+i",
+        "mac": "cmd+alt+i"
+      },
+      {
+        "command": "localAgent.openTerminal",
+        "key": "alt+f12",
+        "mac": "alt+f12"
+      },
+      {
+        "command": "localAgent.runWithoutDebug",
+        "key": "shift+f10",
+        "mac": "ctrl+r"
+      },
+      {
+        "command": "localAgent.startDebug",
+        "key": "shift+f9",
+        "mac": "shift+f9"
+      },
+      {
+        "command": "editor.debug.action.toggleBreakpoint",
+        "key": "ctrl+f8",
+        "mac": "cmd+f8",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "localAgent.switchProject",
+        "key": "ctrl+alt+p",
+        "mac": "cmd+alt+p"
+      },
+      {
+        "command": "localAgent.openRoster",
+        "key": "ctrl+alt+shift+i",
+        "mac": "cmd+alt+shift+i"
+      },
+      {
+        "command": "localAgent.openHome",
+        "key": "ctrl+shift+1",
+        "mac": "cmd+shift+1"
+      },
+      {
+        "key": "ctrl+n",
+        "command": "-workbench.action.files.newUntitledFile"
+      },
+      {
+        "key": "ctrl+p",
+        "command": "-workbench.action.quickOpen"
+      },
+      {
+        "key": "ctrl+b",
+        "command": "-workbench.action.toggleSidebarVisibility"
+      },
+      {
+        "key": "ctrl+k",
+        "command": "-workbench.action.terminal.clear"
+      },
+      {
+        "key": "ctrl+y",
+        "command": "-redo"
+      },
+      {
+        "key": "ctrl+shift+e",
+        "command": "-workbench.view.explorer"
+      },
+      {
+        "key": "ctrl+shift+l",
+        "command": "-editor.action.selectHighlights"
+      },
+      {
+        "key": "ctrl+h",
+        "command": "-editor.action.startFindReplaceAction"
+      },
+      {
+        "key": "f2",
+        "command": "-editor.action.rename"
+      },
+      {
+        "key": "alt+f12",
+        "command": "-editor.action.peekDefinition"
+      },
+      {
+        "key": "ctrl+d",
+        "command": "-editor.action.addSelectionToNextFindMatch"
+      },
+      {
+        "key": "ctrl+w",
+        "command": "-workbench.action.closeActiveEditor"
+      },
+      {
+        "command": "localAgent.refactorThis",
+        "key": "ctrl+alt+shift+t",
+        "mac": "cmd+alt+shift+t",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "localAgent.selectRunConfiguration",
+        "key": "alt+shift+f10",
+        "mac": "alt+shift+f10"
+      },
+      {
+        "command": "localAgent.editRunConfigurations",
+        "key": "ctrl+alt+shift+f10",
+        "mac": "cmd+alt+shift+f10"
+      },
+      {
+        "command": "localAgent.toggleBookmark",
+        "key": "ctrl+f11",
+        "mac": "cmd+f11",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "localAgent.showBookmarks",
+        "key": "ctrl+shift+f11",
+        "mac": "cmd+shift+f11"
+      },
+      {
+        "command": "localAgent.nextBookmark",
+        "key": "alt+f11",
+        "mac": "alt+f11"
+      },
+      {
+        "command": "localAgent.previousBookmark",
+        "key": "alt+shift+f11",
+        "mac": "alt+shift+f11"
+      },
+      {
+        "key": "ctrl+shift+g",
+        "command": "-workbench.view.scm"
+      },
+      {
+        "command": "localAgent.vcsChanges",
+        "key": "ctrl+shift+g"
+      },
+      {
+        "command": "localAgent.vcsCommit",
+        "key": "ctrl+k",
+        "mac": "cmd+k",
+        "when": "!terminalFocus && !inlineChatFocused && !editorHasMultipleSelections"
+      },
+      {
+        "command": "localAgent.peekUsages",
+        "key": "ctrl+alt+f7",
+        "mac": "cmd+alt+f7",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "localAgent.lastEditLocation",
+        "key": "ctrl+shift+backspace",
+        "mac": "cmd+shift+backspace"
+      }
+    ],
+    "themes": [
+      {
+        "label": "Point Dark",
+        "uiTheme": "vs-dark",
+        "path": "./themes/point-dark-color-theme.json"
+      }
+    ],
+    "walkthroughs": [
+      {
+        "id": "localAgent.gettingStarted",
+        "title": "Начало работы с Point",
+        "description": "Подключите модель и выполните первую безопасную задачу.",
+        "steps": [
+          {
+            "id": "localAgent.openFolder",
+            "title": "Откройте папку проекта",
+            "description": "Агент работает только внутри открытого проекта (мира). [Открыть проект](command:workbench.action.files.openFolder)",
+            "media": {
+              "markdown": "walkthrough/open-folder.md"
+            }
+          },
+          {
+            "id": "localAgent.startBackend",
+            "title": "Запустите локальный сервис",
+            "description": "Сервис хранит историю локально и выполняет безопасные инструменты. [Запустить](command:localAgent.startServer)",
+            "media": {
+              "markdown": "walkthrough/start-backend.md"
+            }
+          },
+          {
+            "id": "localAgent.configureModel",
+            "title": "Подключите Ollama или OpenAI-совместимую модель",
+            "description": "Настройте endpoint и модель; API-ключ остаётся только в памяти. [Настроить](command:localAgent.openSettings)",
+            "media": {
+              "markdown": "walkthrough/configure-model.md"
+            }
+          },
+          {
+            "id": "localAgent.firstTask",
+            "title": "Поставьте первую задачу",
+            "description": "Все команды и изменения появятся в панели до применения. [Открыть агента](command:localAgent.open)",
+            "media": {
+              "markdown": "walkthrough/first-task.md"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "scripts": {
+    "test:tool-windows": "node ../scripts/smoke-point-tool-windows.mjs",
+    "build:css": "node ui/build.mjs",
+    "build:js": "node ui/build-js.mjs",
+    "build:runtime": "node runtime/build.mjs",
+    "build": "npm run build:css && npm run build:js && npm run build:runtime",
+    "check": "node ../scripts/check-docs.mjs && node ../scripts/check-release-contracts.mjs && node ../scripts/test-patch-point-chat-hub.js && npm run build && node ui/contracts.mjs && node ui/plural.mjs && node ui/alphabet.mjs && node ui/contrast.mjs && node ui/type-scale.mjs && node ../scripts/check-shell-tokens.mjs && node ../scripts/check-shell-scales.mjs && node --check extension.js && node --check core-stream.js && node --check extension-utils.js && node --check master-work-order-watch.js && node --check backup-controller.js && node --check run-config-utils.js && node --check ide-navigation-utils.js && node --check companion-controller.js && node --check ui/client/project-gallery-views.js && node --check core-warm-pool.js && node --check project-registry.js && node --check ide-action-controller.js && node --check ide-navigation-controller.js && node --check ssh-utils.js && node --check cursor-runtime.js && node --check ui/client/main.js && node --check ui/client/master-thread-views.js && node --check ui/client/master-hiring-card.js && node --check ui/client/master-agent-card.js && node --check ui/client/master-brief-panel.js && node --check ui/client/master-questions-views.js && node --check ui/client/master-session-ui.js && node --check ui/client/master-session-views.js && node --check ui/client/task-brief-views.js && node --check ui/client/master-compose.js && node --check ui/client/master-feed.js && node --check chat-documents.js && node --check ui/client/agent-work-transcript.js && node --check ui/client/quest-overview-views.js && node --check ui/client/quest-runtime-views.js && node --check ui/client/hall-onboarding-views.js && node --check ui/client/agent-workflow-editors.js && node --check ui/client/view-runtime.js && node --check media/main.js && node ../scripts/test-extension-utils.js && node ../scripts/smoke-backup-restore-controller.js && node ../scripts/smoke-webview-persisted-state.js && node ../scripts/test-cursor-runtime.js && node ../scripts/smoke-bootstrap-patching.js && node ../scripts/smoke-point-performance-controls.js && node ../scripts/smoke-point-editor-daily.js && node ../scripts/smoke-point-run-configurations.js && node ../scripts/smoke-chat-markup-escaping.js && node ../scripts/smoke-git-workflow.js && node ../scripts/smoke-point-multi-project.js && node ../scripts/smoke-point-warm-cores.js && node ../scripts/smoke-companion-ide-routing.js && node ../scripts/smoke-agent-studio-ui.js && node ../scripts/smoke-system-health-ui.js && node ../scripts/smoke-agent-profile-memory.js && node ../scripts/smoke-point-daily-workbench.mjs && node ../scripts/smoke-point-console-runtime.js && node ../scripts/smoke-point-ssh.js && node ../scripts/run-hub-smokes.mjs && node ../scripts/check-point-navigation.mjs --source-only",
+    "package": "npm run build && vsce package --allow-missing-repository --out ../build/vsix/point-ide-1.2.2.vsix",
+    "package:verify": "powershell -NoProfile -ExecutionPolicy Bypass -File ../scripts/smoke-vsix-runtime.ps1 -VsixPath ../build/vsix/point-ide-1.2.2.vsix",
+    "build:core": "node ../scripts/build-core.mjs",
+    "precheck": "npm run build:core",
+    "prepackage": "npm run build:core"
+  },
+  "devDependencies": {
+    "@cursor/sdk": "1.0.28",
+    "@vscode/vsce": "^3.9.2",
+    "esbuild": "^0.25.12"
+  },
+  "dependencies": {
+    "@cursor/sdk-win32-x64": "1.0.28"
+  }
+}

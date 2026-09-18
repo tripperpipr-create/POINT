@@ -1,0 +1,78 @@
+/* Chronicle — aligned to Point tokens (rpg-tokens.css). Floor type: --t-micro. */
+* { box-sizing: border-box; }
+html, body { width: 100%; min-width: 620px; min-height: 100%; margin: 0; background: var(--void); color: var(--primary); font-family: var(--font-ui); }
+button { color: inherit; font: inherit; cursor: pointer; }
+.chronicle { min-height: 100vh; padding: var(--s-5) var(--s-5); background: var(--void); }
+.chronicle > header { display: grid; grid-template-columns: minmax(0,1fr) auto auto; align-items: center; gap: var(--s-4h); min-height: 48px; padding: 0 var(--s-1) var(--s-4h); border-bottom: 1px solid var(--border); }
+.chronicle > header span { color: var(--mana); font: 700 var(--t-micro)/1 var(--font-mono); letter-spacing: var(--tracking-label); }
+.chronicle h1 { margin: var(--s-3) 0 0; font: 550 var(--t-title)/1 var(--font-mono); }
+.chronicle > header label { display: flex; align-items: center; gap: var(--s-4); color: var(--muted); font: 650 var(--t-micro)/1 var(--font-mono); letter-spacing: .07em; }
+.chronicle > header label strong { padding: var(--s-4) var(--s-4h); color: var(--ember); background: var(--panel); border: 1px solid var(--border); font-size: var(--t-micro); letter-spacing: 0; }
+.chronicle > header button, .working-tree button, .chronicle-state button { min-height: var(--control-lg); padding: var(--s-3) var(--s-5); color: var(--ember); background: transparent; border: 1px solid var(--ember); border-radius: var(--r-1); font: 650 var(--t-micro)/1 var(--font-mono); letter-spacing: .04em; }
+.chronicle > header button:hover, .working-tree button:hover, .chronicle-state button:hover { background: var(--selected); border-color: var(--ember); color: var(--primary); }
+.working-tree { display: grid; grid-template-columns: minmax(180px,1fr) repeat(3,minmax(90px,auto)) auto; align-items: stretch; gap: 1px; margin: var(--s-5) 0; padding: 1px; background: var(--border); }
+.working-tree > div, .working-tree > span { display: grid; gap: var(--s-2); padding: var(--s-4h) var(--s-5); background: var(--panel); }
+.working-tree small { color: var(--muted); font: 650 var(--t-micro)/1 var(--font-mono); letter-spacing: var(--tracking-label); }
+.working-tree strong { font: 550 var(--t-base)/1.2 var(--font-mono); }
+.working-tree > span { grid-template-columns: auto auto; align-items: center; justify-content: center; color: var(--muted); font-size: var(--t-micro); white-space: nowrap; }
+.working-tree > span b { color: var(--primary); font: 550 var(--t-lead)/1 var(--font-mono); }
+.working-tree button { border: 0; border-left: 1px solid var(--ember); color: var(--void); background: var(--ember); }
+.chronicle-layout { display: grid; grid-template-columns: minmax(300px,.9fr) minmax(420px,1.55fr); gap: 1px; min-height: calc(100vh - 140px); padding: 1px; background: var(--border); }
+.commit-list, .commit-detail { min-width: 0; background: var(--panel); }
+.commit-list { display: flex; flex-direction: column; }
+.commit-list > header, .changed-files > header, .diff-scroll > header { display: flex; align-items: center; justify-content: space-between; min-height: 38px; padding: 0 var(--s-5); color: var(--muted); background: var(--raised); border-bottom: 1px solid var(--border); font: 650 var(--t-micro)/1 var(--font-mono); letter-spacing: var(--tracking-label); }
+.commit-list > header span, .changed-files > header span { color: var(--mana); }
+.commit-list > div { flex: 1; min-height: 0; padding: var(--s-4); overflow: auto; }
+.commit-row { position: relative; display: grid; grid-template-columns: 22px minmax(0,1fr) auto; grid-template-rows: auto auto; gap: var(--s-1) var(--s-4); width: 100%; min-height: 44px; padding: var(--s-3) var(--s-4); color: var(--primary); background: var(--void); border: 1px solid var(--border); border-radius: var(--r-1); text-align: left; }
+.commit-row + .commit-row { margin-top: var(--s-2); }
+.commit-row:hover { background: var(--raised); border-color: var(--border); }
+.commit-row.selected { background: var(--selected); border-color: var(--ember); box-shadow: inset 2px 0 0 var(--ember); }
+.commit-row strong { overflow: hidden; color: var(--primary); font: 550 var(--t-body)/1.3 var(--font-mono); text-overflow: ellipsis; white-space: nowrap; }
+.commit-row code { color: var(--muted); font: 550 var(--t-micro)/1.3 var(--font-mono); }
+.commit-row small, .commit-row time { overflow: hidden; color: var(--muted); font-size: var(--t-micro); text-overflow: ellipsis; white-space: nowrap; }
+.commit-row time { text-align: right; }
+.graph-node { position: relative; grid-row: 1 / -1; display: grid; place-items: center; width: 24px; }
+.graph-node::before { position: absolute; top: -9px; bottom: -9px; left: 11px; width: 1px; background: var(--ember); content: ''; opacity: .55; }
+.graph-node i { position: relative; z-index: 1; width: 9px; height: 9px; background: var(--void); border: 2px solid var(--ember); transform: rotate(45deg); }
+.graph-node.tone-1::before { background: var(--vital); }.graph-node.tone-1 i { border-color: var(--vital); }
+.graph-node.tone-2::before { background: var(--mana); }.graph-node.tone-2 i { border-color: var(--mana); }
+.graph-node.tone-3::before { background: var(--mana); }.graph-node.tone-3 i { border-color: var(--mana); }
+.commit-detail { display: grid; grid-template-rows: auto auto minmax(260px,1fr); }
+.commit-detail > header { padding: var(--s-6) var(--s-6); border-bottom: 1px solid var(--border); }
+.commit-detail > header > span { color: var(--ember); font: 650 var(--t-micro)/1 var(--font-mono); letter-spacing: .09em; }
+.commit-detail h2 { margin: var(--s-4) 0 var(--s-5); font: 500 var(--t-lead)/1.35 var(--font-mono); }
+.commit-detail > header > div { display: grid; grid-template-columns: auto minmax(0,1fr) auto minmax(70px,auto) auto minmax(120px,auto); gap: var(--s-2) var(--s-4h); align-items: center; }
+.commit-detail > header small { color: var(--muted); font: 650 var(--t-micro)/1 var(--font-mono); }
+.commit-detail > header strong, .commit-detail > header code, .commit-detail > header time { overflow: hidden; color: var(--hub-text-3, var(--primary)); font-size: var(--t-micro); text-overflow: ellipsis; white-space: nowrap; }
+.commit-detail > header code { color: var(--mana); font-family: var(--font-mono); }
+.changed-files { min-width: 0; min-height: 0; border-bottom: 1px solid var(--border); }
+.changed-files > div { display: grid; grid-template-columns: minmax(0,1fr); gap: var(--s-2); max-height: 220px; padding: var(--s-4h); overflow: auto; }
+.changed-files button { display: grid; grid-template-columns: 36px minmax(0,1fr); align-items: center; gap: var(--s-4h); min-height: 34px; padding: var(--s-3) var(--s-4h); color: var(--primary); background: var(--void); border: 1px solid var(--border); border-radius: var(--r-1); text-align: left; }
+.changed-files button:hover { background: var(--raised); border-color: var(--hub-border-loud, var(--border)); }
+.changed-files button:focus-visible,
+.changed-files button[aria-current="true"],
+.changed-files button.selected { background: var(--selected); border-color: var(--ember); box-shadow: inset 2px 0 0 var(--ember); }
+.changed-files button strong { overflow: hidden; color: var(--primary); font: 550 var(--t-body)/1.35 var(--font-mono); text-overflow: ellipsis; white-space: nowrap; }
+.file-status { display: grid; place-items: center; min-width: 28px; min-height: 20px; padding: 0 var(--s-2); color: var(--ember); border: 1px solid currentColor; border-radius: var(--r-1); font: 650 var(--t-micro)/1 var(--font-mono); letter-spacing: .02em; }
+.file-status.status-A { color: var(--vital); }.file-status.status-D { color: var(--wound); }.file-status.status-R { color: var(--mana); }
+.diff-scroll { display: flex; min-width: 0; min-height: 0; overflow: hidden; flex-direction: column; }
+.diff-scroll > header span { color: var(--mana); }
+.diff-scroll pre { flex: 1; width: 100%; min-width: 0; max-width: 100%; min-height: 240px; margin: 0; padding: var(--s-4h) 0; overflow: auto; color: var(--hub-text-4, var(--muted)); background: var(--void); font: 500 var(--t-micro)/1.55 var(--font-mono); tab-size: 2; }
+.diff-scroll pre span { display: block; min-width: max-content; padding: 0 var(--s-5); }
+.diff-scroll pre .add { color: var(--vital); background: color-mix(in srgb, var(--vital) 9%, transparent); }
+.diff-scroll pre .remove { color: var(--wound); background: color-mix(in srgb, var(--wound) 10%, transparent); }
+.diff-scroll pre .hunk { color: var(--mana); background: color-mix(in srgb, var(--mana) 8%, transparent); }
+.diff-scroll pre .file { color: var(--mana); }
+.chronicle > footer { display: flex; justify-content: space-between; gap: var(--s-5); padding: var(--s-4h) var(--s-2) 0; color: var(--muted); font: 500 var(--t-micro)/1 var(--font-mono); }
+.chronicle-state { display: grid; place-content: center; justify-items: center; min-height: 100vh; padding: var(--s-7); text-align: center; }
+.chronicle-state > span { display: grid; place-items: center; width: 52px; height: 52px; margin-bottom: var(--s-6); color: var(--mana); border: 1px solid var(--mana); font: 600 var(--t-title)/1 var(--font-mono); transform: rotate(45deg); }
+.chronicle-state > strong { font: 600 var(--t-base)/1 var(--font-mono); letter-spacing: var(--tracking-label); }
+.chronicle-state > small, .chronicle-state > p { max-width: 440px; margin-top: var(--s-4h); color: var(--muted); line-height: 1.5; }
+.chronicle-state > div { display: flex; gap: var(--s-4); margin-top: var(--s-6); }
+.empty-chronicle { display: grid; place-items: center; color: var(--muted); }
+@media (max-width: 900px) {
+  .chronicle-layout { grid-template-columns: minmax(290px,.8fr) minmax(390px,1.2fr); }
+  .working-tree { grid-template-columns: 1fr repeat(3,auto); }
+  .working-tree button { grid-column: 1 / -1; }
+  .commit-detail > header > div { grid-template-columns: auto 1fr; }
+}

@@ -1,0 +1,355 @@
+/* Галерея миров — домашний экран Чертога.
+ *
+ * Собственное пространство имён `point-gallery-` взято не для красоты: слои
+ * ниже держат правила с !important на общих именах вроде `.primary` и `.card`,
+ * и переиспользованное имя проиграло бы им независимо от специфичности.
+ * Единственное чужое имя здесь — `hall-wordmark`: словесный знак остался на
+ * месте, он просто стал кнопкой, и вид ему задаёт всё тот же слой 05.
+ *
+ * Значений вне шкал в этом слое нет ни одного — только токены из ui/tokens.css.
+ * Трещотка в ui/build.mjs умеет идти лишь вниз, и новый слой не имеет права
+ * поднимать её счётчик. */
+
+.point-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+  height: 100%;
+  min-height: 0;
+  padding: var(--s-7);
+  background: var(--hub-void);
+  color: var(--hub-text);
+}
+
+.point-gallery-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-5);
+  flex-wrap: wrap;
+}
+
+.point-gallery-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+}
+
+.point-gallery-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--hit);
+  height: var(--hit);
+  border: 1px solid var(--hub-border-strong);
+  border-radius: var(--r-2);
+  color: var(--ember);
+  font-size: var(--t-lead);
+}
+
+.point-gallery-title {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+
+.point-gallery-title b {
+  font-size: var(--t-title);
+  letter-spacing: .12em;
+}
+
+.point-gallery-title small {
+  font-size: var(--t-micro);
+  letter-spacing: .18em;
+  color: var(--hub-muted-2);
+}
+
+.point-gallery-head-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  flex-wrap: wrap;
+}
+
+.point-gallery-btn {
+  min-height: var(--hit);
+  padding-inline: var(--s-5);
+  border: 1px solid var(--hub-border-strong);
+  border-radius: var(--r-1);
+  background: var(--hub-raised);
+  color: var(--hub-text-2);
+  font-size: var(--t-small);
+  letter-spacing: .04em;
+  cursor: pointer;
+}
+
+.point-gallery-btn:hover {
+  border-color: var(--hub-border-loud);
+  color: var(--hub-text);
+}
+
+.point-gallery-btn.is-primary {
+  border-color: var(--ember);
+  background: var(--ember-wash);
+  color: var(--ember);
+}
+
+.point-gallery-filter {
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+}
+
+.point-gallery-search {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: var(--hit);
+  padding-inline: var(--s-5);
+  border: 1px solid var(--hub-border);
+  border-radius: var(--r-1);
+  background: var(--hub-panel);
+  color: var(--hub-text);
+  font-size: var(--t-body);
+}
+
+.point-gallery-search:focus-visible {
+  outline: none;
+  border-color: var(--mana);
+}
+
+.point-gallery-count {
+  flex: 0 0 auto;
+  font-size: var(--t-micro);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--hub-muted-2);
+}
+
+.point-gallery-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.point-gallery-row {
+  display: flex;
+  align-items: stretch;
+  gap: var(--s-2);
+  border: 1px solid var(--hub-border-soft);
+  border-radius: var(--r-2);
+  background: var(--hub-panel);
+}
+
+.point-gallery-row:hover {
+  border-color: var(--hub-border-loud);
+  background: var(--hub-raised);
+}
+
+.point-gallery-row.is-active {
+  border-color: var(--ember);
+}
+
+.point-gallery-row.is-pinned .point-gallery-tool[data-action="gallery-pin"] {
+  color: var(--caution);
+}
+
+.point-gallery-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s-2) var(--s-5);
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: var(--s-5);
+  border: 0;
+  border-radius: var(--r-2);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.point-gallery-card:focus-visible {
+  outline: 1px solid var(--mana);
+  outline-offset: calc(var(--s-1) * -1);
+}
+
+.point-gallery-name {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--t-base);
+  color: var(--hub-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.point-gallery-dot {
+  width: var(--s-3);
+  height: var(--s-3);
+  border-radius: var(--r-full);
+  background: var(--ember);
+}
+
+.point-gallery-path {
+  grid-column: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--t-small);
+  color: var(--hub-muted-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.point-gallery-marks {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.point-gallery-marks em {
+  font-size: var(--t-micro);
+  font-style: normal;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--hub-faint);
+}
+
+.point-gallery-branch {
+  padding-inline: var(--s-3);
+  border: 1px solid var(--hub-border-soft);
+  border-radius: var(--r-full);
+  color: var(--arcane);
+}
+
+.point-gallery-core.is-running { color: var(--vital); }
+.point-gallery-core.is-warm { color: var(--caution); }
+.point-gallery-slow { color: var(--wound); }
+
+.point-gallery-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  padding-inline-end: var(--s-4);
+}
+
+.point-gallery-tool {
+  min-width: var(--hit);
+  min-height: var(--hit);
+  border: 0;
+  border-radius: var(--r-1);
+  background: transparent;
+  color: var(--hub-faint);
+  font-size: var(--t-body);
+  cursor: pointer;
+}
+
+.point-gallery-tool:hover {
+  background: var(--hub-selected);
+  color: var(--hub-text);
+}
+
+.point-gallery-empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  align-items: center;
+  justify-content: center;
+  flex: 1 1 auto;
+  padding: var(--s-8);
+  border: 1px dashed var(--hub-border);
+  border-radius: var(--r-2);
+  text-align: center;
+}
+
+.point-gallery-empty strong {
+  font-size: var(--t-lead);
+  color: var(--hub-text);
+}
+
+.point-gallery-empty p {
+  max-width: var(--measure-narrow);
+  margin: 0;
+  font-size: var(--t-body);
+  color: var(--hub-muted-2);
+}
+
+.point-gallery-foot small {
+  font-size: var(--t-micro);
+  color: var(--hub-faint-2);
+}
+
+/* Чип активного мира в шапке Чертога. Вид словесного знака остаётся за слоем
+ * 05: здесь добавлена только сама возможность нажать. */
+.point-gallery-chip {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.point-gallery-chip:hover b {
+  color: var(--ember);
+}
+
+/* Пока мир подключается. Кнопок нет намеренно: ядро не отдыхает, оно
+ * поднимается, и предлагать «Пробудить ядро» в этот момент — врать. */
+.point-gallery-switch {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+  padding: var(--s-8);
+}
+
+.point-gallery-switch-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+}
+
+.point-gallery-switch-head strong {
+  font-size: var(--t-title);
+  color: var(--hub-text);
+}
+
+.point-gallery-switch-head small {
+  font-size: var(--t-micro);
+  letter-spacing: .18em;
+  color: var(--hub-muted-2);
+}
+
+.point-gallery-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.point-gallery-skeleton span {
+  height: var(--s-8);
+  border-radius: var(--r-2);
+  background: linear-gradient(90deg, var(--hub-panel), var(--hub-raised), var(--hub-panel));
+  background-size: 200% 100%;
+  animation: point-gallery-shimmer 1.4s linear infinite;
+}
+
+@keyframes point-gallery-shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .point-gallery-skeleton span { animation: none; }
+}

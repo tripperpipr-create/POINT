@@ -1,0 +1,1840 @@
+/* «ЧЕРТОГ» — компоненты Агент-Хаба v2.
+   ----------------------------------------------------------------------------
+   Слой переводит инлайновые стили макета `Agent Hall v2.dc.html` в классы.
+   Числовые значения берутся из шкал ui/tokens.css, цвета — из регистра Хаба,
+   поэтому смена акцента или плотности не требует правки разметки.
+
+   Идёт под номером 05, то есть до исторических слоёв: «Чертог» задаёт основу,
+   а не переопределяет накопленное поверх. Всё, что он должен победить,
+   побеждается точностью селектора, а не порядком и не.
+
+   Шрифты: макет обещал Space Grotesk, в поставке — бандл Inter (media/fonts)
+   через --font-ui. CSP разрешает font-src с webview; внешний Google Fonts не
+   используется. */
+
+/* ── Каркас ───────────────────────────────────────────────────────────────── */
+.hall {
+  position: relative;
+  display: flex;
+  height: 100%;
+  overflow: hidden;
+  background: var(--hub-void);
+  color: var(--hub-text);
+  font-family: var(--font-ui);
+}
+
+/* Скан-линии — единственная декорация «Чертога». Не перехватывает события
+   и снимается настройкой, потому что на части матриц даёт муар. */
+.hall-scan {
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+  pointer-events: none;
+  background-image: var(--hall-scanlines);
+}
+.hall.is-no-scan .hall-scan { display: none; }
+
+/* ── Рейка ────────────────────────────────────────────────────────────────── */
+.hall-rail {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  width: var(--hall-rail-w);
+  min-width: 0;
+  border-right: 1px solid var(--hub-border);
+  background: var(--hub-panel);
+}
+.hall-rail-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-6) var(--s-5) var(--s-5);
+  border-bottom: 1px solid var(--hub-border);
+}
+.hall-mark {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border: 1px solid var(--ember);
+  color: var(--ember);
+  font: var(--fw-normal) var(--t-body) / 1 var(--font-mono);
+}
+.hall-wordmark { display: flex; flex-direction: column; gap: var(--s-1); min-width: 0; }
+.hall-wordmark b { font: var(--fw-bold) var(--t-base) / 1 var(--font-ui); letter-spacing: .04em; }
+.hall-wordmark span {
+  font: var(--fw-medium) var(--t-micro) / 1 var(--font-mono);
+  letter-spacing: .16em;
+  color: var(--hub-faint);
+}
+
+.hall-nav { display: flex; flex-direction: column; gap: var(--s-1); padding: var(--s-5) var(--s-4); }
+.hall-nav button {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-4) var(--s-5);
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--hub-muted-2);
+  font: var(--fw-medium) var(--t-small) / 1 var(--font-mono);
+  letter-spacing: .12em;
+  cursor: pointer;
+  transition: background-color var(--motion-fast) var(--ease), color var(--motion-fast) var(--ease);
+}
+.hall-nav button:hover { color: var(--hub-text-3); background: rgba(255, 255, 255, .03); }
+.hall-nav button.is-active {
+  background: rgba(255, 92, 71, .10);
+  border-color: var(--ember-line);
+  color: #FFF;
+}
+.hall-nav button:focus-visible { outline: 1px solid var(--ember); outline-offset: -2px; }
+.hall-nav i { width: 5px; height: 5px; flex: none; background: var(--hub-dot); }
+.hall-nav button.is-active i { background: var(--ember); }
+.hall-nav span { flex: 1; text-align: left; }
+.hall-nav b { font: var(--fw-semibold) var(--t-micro) / 1 var(--font-mono); color: var(--hub-counter); }
+/* Счётчик очереди — единственное место рейки, где акцент означает «горит». */
+.hall-nav button.is-urgent b { color: var(--ember); }
+
+.hall-rail-foot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  margin-top: auto;
+  padding: var(--s-5) var(--s-6);
+  border-top: 1px solid var(--hub-border);
+}
+.hall-rail-foot .row { display: flex; align-items: center; gap: var(--s-4); }
+.hall-rail-foot i { width: 5px; height: 5px; flex: none; background: var(--ember); }
+.hall-rail-foot b {
+  font: var(--fw-medium) var(--t-micro) / 1 var(--font-mono);
+  letter-spacing: .14em;
+  color: var(--hub-muted-2);
+}
+.hall-rail-foot small {
+  font: var(--fw-normal) var(--t-micro) / 1.5 var(--font-mono);
+  color: var(--hub-faint-2);
+}
+
+/* ── Шапка ────────────────────────────────────────────────────────────────── */
+.hall-main {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+.hall-head {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-4);
+  min-height: var(--hall-header-h);
+  padding: var(--s-4) var(--s-6);
+  border-bottom: 1px solid var(--hub-border);
+  background: var(--hub-panel);
+}
+.hall-crumb {
+  flex: 1 1 120px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font: var(--fw-medium) var(--t-tiny) / 1.4 var(--font-mono);
+  letter-spacing: .16em;
+  color: var(--hub-faint);
+}
+.hall-gauge {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--hub-border-strong);
+}
+.hall-gauge dt {
+  font: var(--fw-medium) var(--t-micro) / 1 var(--font-mono);
+  letter-spacing: .12em;
+  color: var(--hub-faint);
+}
+.hall-gauge dd {
+  margin: 0;
+  font: var(--fw-semibold) var(--t-tiny) / 1 var(--font-mono);
+  color: var(--hub-text);
+  white-space: nowrap;
+}
+
+/* Счётчик ожидания — намеренно самый громкий элемент шапки. */
+.hall-alarm {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--s-4);
+  min-height: var(--hit);
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--ember-line);
+  background: var(--ember-wash);
+}
+/* Тревога — кнопка: названная очередь и есть то место, куда она зовёт. Отклик
+   при наведении и кольцо фокуса обязательны именно поэтому — беззвучная кнопка
+   неотличима от надписи. */
+.hall-alarm:hover { border-color: var(--ember); }
+.hall-alarm:focus-visible { outline: 1px solid var(--ember); outline-offset: 2px; }
+.hall-alarm i {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--ember);
+  animation: hall-blink 1.6s steps(1) infinite;
+}
+/* Прописные — регистр Чертога, и задаются они здесь, а не строкой в разметке:
+   ту же метку показывает тихая шапка чата, где кричать нечему. */
+.hall-alarm span {
+  font: var(--fw-medium) var(--t-tiny) / 1 var(--font-mono);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--ember-light);
+  white-space: nowrap;
+}
+@keyframes hall-blink { 0%, 49% { opacity: 1 } 50%, 100% { opacity: 0 } }
+@media (prefers-reduced-motion: reduce) {
+  .hall-alarm i { animation: none; }
+}
+
+/* ── Сфокусированный режим ────────────────────────────────────────────────
+   Диалог с Мастером занимает экран целиком. Рейка и счётчики не прячутся ради
+   красоты: разговор с диспетчером — это работа, где чужие переключатели
+   отвлекают. Возврат остаётся одной кнопкой, а тревога очереди — единственное,
+   что имеет право остаться на виду. */
+.hall.is-focused .hall-main { max-width: var(--hall-focus-max); margin-inline: auto; }
+.hall-head-focused { justify-content: flex-start; }
+.hall-head-focused .hall-crumb { flex: 0 1 auto; }
+.hall-head-focused .hall-alarm { margin-left: auto; }
+
+/* Контейнер разделов — flex-колонка, а не блок.
+   Раздел объявляет прокрутку одной из двух идиом: `height: 100%` или
+   `flex: 1; min-height: 0`. В блочном родителе вторая молча не работает: раздел
+   растягивается под содержимое, `overflow: auto` остаётся без переполнения, а
+   лишнее обрезается здесь же. Так онбординг и оказался без прокрутки — экран не
+   вмещался, а прокрутить было нечего. Колонка чинит обе идиомы разом. */
+.hall-body { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
+.hall-body > * { min-height: 0; }
+.hall-page {
+  height: 100%;
+  overflow: auto;
+  /* Тот же ритм, что у Квестов, Агентов, Хроники и страниц Гильдии: при
+     переключении раздела контент не должен прыгать. */
+  padding: var(--s-6) var(--s-7) var(--s-8);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+}
+
+/* ── Диалог с Мастером ────────────────────────────────────────────────────
+   Реплики различаются положением и меткой, а не пузырями: разговор с
+   диспетчером — рабочая переписка, а не мессенджер. Поле ввода прижато к низу
+   и не уезжает вместе с лентой.
+
+   Всё, что приложено к реплике — основания, решённое предложение, уточняющие
+   вопросы, кнопки перехода, — встаёт под её текстом, а не под меткой
+   говорящего. Отступ считается из ширины колонки, а не вписан числом: вписанный
+   разошёлся с сеткой реплики на четыре пикселя и держался так, потому что
+   глазами это ловится только рядом. */
+.hall {
+  --hall-who-col: 72px;
+  --hall-msg-indent: calc(var(--hall-who-col) + var(--s-5));
+}
+.hall-dialogue {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.hall-thread {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  padding: var(--s-6) var(--s-7);
+}
+.hall-msg {
+  display: grid;
+  grid-template-columns: var(--hall-who-col) minmax(0, 1fr);
+  gap: var(--s-5);
+  align-items: start;
+}
+.hall-msg .who {
+  font: var(--fw-semibold) var(--t-micro) / 1.6 var(--font-mono);
+  letter-spacing: var(--tracking-label);
+  color: var(--ember-light);
+}
+.hall-msg.is-mine .who { color: var(--hub-muted-2); }
+.hall-msg .body {
+  min-width: 0;
+  font: var(--fw-normal) var(--t-small) / var(--lh-loose) var(--font-mono);
+  color: var(--hub-text-4);
+  overflow-wrap: anywhere;
+}
+.hall-msg .body.is-muted { color: var(--hub-faint); }
+.hall-msg.is-mine .body {
+  padding: var(--s-4) var(--s-5);
+  border: 1px solid var(--hub-border-strong);
+  background: var(--hub-raised);
+  color: var(--hub-text-2);
+}
+
+/* Кто ответил и на чём. Метка происхождения жила вообще без оформления:
+   браузерный <b> в системном шрифте посреди моноширинного разговора, крупнее
+   самой реплики, а модель приклеивалась к тексту без пробела —
+   «ответила модель мастераQwen3.6-35B-A3B». Здесь она становится подписью под
+   репликой: тот же отступ, что у текста, и тише его. */
+.hall-answer-badge {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-3);
+  margin-left: var(--hall-msg-indent);
+  color: var(--hub-faint-2);
+  font: var(--fw-normal) var(--t-micro) / 1.5 var(--font-mono);
+}
+.hall-answer-badge b {
+  color: var(--hub-muted-2);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+.hall-answer-badge.is-fallback b { color: var(--ember-light); }
+/* Откат — ответ хуже обещанного, и читаться он должен иначе. Прежде от
+   модельного ответа его отличал только цвет двух слов подписи. */
+.hall-answer-badge.is-fallback { padding-left: var(--s-3); border-left: 2px solid var(--ember-line); }
+.hall-answer-badge .hall-chip { cursor: pointer; }
+.hall-answer-badge span { min-width: 0; overflow-wrap: anywhere; }
+
+/* Ход целиком: реплика и то, что к ней приложено — основания, карточка квеста,
+   уточняющие вопросы. Внутри хода теснее, чем между ходами: приложенное должно
+   читаться как принадлежащее своей реплике, а не висеть между двумя. */
+.hall-turn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+/* Решённое предложение остаётся в разговоре строкой, а не карточкой: кнопок у
+   него больше нет, но и бесследно оно исчезнуть не может — реплика «квест
+   предложен и ждёт решения» повисла бы обещанием, которого в очереди уже нет. */
+.hall-msg-resolved {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-3);
+  /* Тот же отступ, что у оснований и вопросов: всё, что относится к реплике,
+     стоит под её текстом, а не под меткой говорящего. */
+  padding-left: var(--hall-msg-indent);
+  font: var(--fw-normal) var(--t-micro) / 1.4 var(--font-mono);
+  color: var(--hub-faint-2);
+}
+.hall-msg-resolved b {
+  font: var(--fw-semibold) var(--t-micro) / 1.4 var(--font-mono);
+  letter-spacing: var(--tracking-label);
+  color: var(--hub-muted-2);
+}
+
+.hall-objectives {
+  margin: 0;
+  padding-left: var(--s-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  font: var(--fw-normal) var(--t-small) / var(--lh-base) var(--font-mono);
+  color: var(--hub-text-3);
+}
+
+.hall-empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-8) 0;
+  text-align: center;
+}
+.hall-empty b { font: var(--fw-semibold) var(--t-lead) / 1.2 var(--font-ui); color: var(--hub-text-2); }
+.hall-empty span { font: var(--fw-normal) var(--t-small) / var(--lh-base) var(--font-mono); color: var(--hub-faint); }
+
+/* Состав отряда с причиной. Оценка справа и приглушена: она объясняет порядок,
+   но спорить человек будет с совпавшими терминами, а не с числом. */
+.hall-party { display: flex; flex-direction: column; gap: var(--s-3); }
+.hall-party-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 148px) minmax(0, 1fr) auto;
+  gap: var(--s-4);
+  align-items: center;
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--hub-border);
+  background: var(--hub-panel);
+}
+.hall-party-who { display: flex; flex-direction: column; gap: var(--s-1); min-width: 0; }
+/* Имя обрезается так же, как роль под ним. Роли обрезку задали, имени — нет, а
+   задаёт его человек в конструкторе и длину ему там не ограничивают: имя без
+   пробелов печаталось поверх причины неготовности, и обе строки становились
+   нечитаемыми, а лента разговора уезжала вбок. Полное имя остаётся в подсказке. */
+.hall-party-who b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: var(--fw-semibold) var(--t-small) / 1 var(--font-ui);
+}
+.hall-party-who span {
+  font: var(--fw-normal) var(--t-micro) / 1.3 var(--font-mono);
+  color: var(--hub-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hall-party-why {
+  min-width: 0;
+  font: var(--fw-normal) var(--t-micro) / 1.4 var(--font-mono);
+  color: var(--hub-muted-2);
+}
+/* Непригодность агента набирается акцентом: это не деталь подбора, а причина,
+   по которой квест не состоится. */
+.hall-party-why.is-blocking { color: var(--ember-light); }
+/* Оценка соответствия задаче — с подписью и шкалой.
+   Раньше это было голое число у правого края, а смысл жил только в подсказке
+   по наведению: «31» без единицы и без верхней границы. */
+.hall-party-score {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  font: var(--fw-semibold) var(--t-micro) / 1 var(--font-mono);
+  color: var(--hub-faint-2);
+  white-space: nowrap;
+}
+/* Размер задаётся явно: браузер уменьшает <small> относительно родителя, и
+   заданные шкалой 10px превращались в 8.33px — ниже пола. */
+.hall-party-score > small { font-size: var(--t-micro); letter-spacing: var(--tracking-label); }
+.hall-party-score > b { color: var(--hub-muted-2); font-size: var(--t-small); }
+.hall-party-score > i { font-size: var(--t-micro); font-style: normal; }
+
+/* Определение готовности — обещание, по которому потом судят результат. */
+.hall-dod { display: flex; flex-direction: column; gap: var(--s-2); }
+.hall-dod b {
+  font: var(--fw-medium) var(--t-micro) / 1 var(--font-mono);
+  letter-spacing: var(--tracking-label);
+  color: var(--ember-light);
+}
+.hall-dod ul {
+  margin: 0;
+  padding-left: var(--s-6);
+  font: var(--fw-normal) var(--t-micro) / var(--lh-base) var(--font-mono);
+  color: var(--hub-text-3);
+}
+
+/* Основание ответа: приглушённая строка фактов, а не карточка — она сообщает
+   контекст, но не должна спорить за внимание с самим ответом. */
+.hall-facts-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-4);
+  padding-left: var(--hall-msg-indent);
+  font: var(--fw-normal) var(--t-micro) / 1.4 var(--font-mono);
+  color: var(--hub-faint-2);
+}
+
+/* Уточняющие вопросы — чипы вариантов в ленте, без карточек-форм. */
+.hall-questions { display: grid; gap: var(--s-5); padding-left: var(--hall-msg-indent); }
+.hall-questions .hall-chip {
+  cursor: pointer;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+/* План работы: перечень с тремя состояниями.
+   Одна форма на две сущности — условия готовности до запуска и этапы прогона
+   после. Сделанное перечёркнуто и потушено, идущее набрано весом и единственным
+   цветным знаком, ждущее просто тише. Цвет тут ровно один и работает как точка
+   состояния, а не как раскраска перечня. */
+.hall-plan {
+  display: grid;
+  gap: var(--s-2);
+  margin: var(--s-4) 0;
+}
+.hall-plan-progress,
+.hall-plan-rest {
+  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui);
+  letter-spacing: normal;
+  color: var(--hub-muted);
+}
+.hall-plan-rest {
+  padding-left: var(--s-6);
+}
+.hall-plan-row {
+  display: grid;
+  grid-template-columns: var(--s-6) minmax(0, 1fr) auto;
+  gap: var(--s-3);
+  align-items: baseline;
+  font: var(--fw-normal) var(--t-body) / 1.45 var(--font-ui);
+  color: var(--hub-muted);
+}
+/* Знак состояния — моноширинный: в наборном шрифте галочка и рамка разной
+   ширины, и столбец знаков перестаёт быть столбцом. */
+.hall-plan-row > i {
+  font: var(--fw-normal) var(--t-small) / 1.45 var(--font-mono);
+  font-style: normal;
+  text-align: center;
+  color: var(--hub-faint);
+}
+.hall-plan-row > small {
+  font: var(--fw-normal) var(--t-small) / 1.45 var(--font-ui);
+  letter-spacing: normal;
+  color: var(--hub-muted);
+  white-space: nowrap;
+}
+.hall-plan-row.is-done > span {
+  text-decoration: line-through;
+}
+.hall-plan-row.is-now {
+  color: var(--hub-text);
+  font-weight: var(--fw-medium);
+}
+.hall-plan-row.is-now > i {
+  color: var(--ember);
+}
+
+.master-starters {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  margin-top: var(--s-5);
+  align-items: stretch;
+}
+.master-starters > small {
+  font: var(--fw-medium) var(--t-small) / 1 var(--font-ui);
+  letter-spacing: normal;
+  color: var(--hub-faint-2);
+}
+.master-starters > div { display: flex; flex-wrap: wrap; justify-content: flex-start; gap: var(--s-2); }
+.master-starters .hall-chip { cursor: pointer; }
+
+/* Что изменится от навыка или умения. Появление препятствия окрашено иначе,
+   чем снятие: человек должен различать «стало лучше» и «сломается» без чтения. */
+.hall-delta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin-top: var(--s-4);
+  padding: var(--s-4) var(--s-5);
+  border: 1px solid var(--vital);
+  background: rgba(91, 203, 138, .06);
+}
+.hall-delta.is-breaking { border-color: var(--ember-line-loud); background: var(--ember-wash); }
+.hall-delta b {
+  font: var(--fw-medium) var(--t-micro) / 1 var(--font-mono);
+  letter-spacing: var(--tracking-label);
+  color: var(--vital);
+}
+.hall-delta.is-breaking b { color: var(--ember-light); }
+.hall-delta span {
+  font: var(--fw-normal) var(--t-micro) / var(--lh-base) var(--font-mono);
+  color: var(--hub-text-3);
+}
+
+/* Обещано и получено. Подтверждённое отмечается галочкой, неподтверждённое —
+   точкой, а не крестом: пункт может быть просто непроверяемым автоматически,
+   и обвинять его в провале нечестно. */
+.hall-promise { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--s-4); align-items: start; }
+.hall-promise-mark {
+  width: 16px;
+  text-align: center;
+  font: var(--fw-semibold) var(--t-small) / 1.5 var(--font-mono);
+  color: var(--hub-faint-2);
+}
+.hall-promise-mark.is-met { color: var(--vital); }
+.hall-promise-body { display: flex; flex-direction: column; gap: var(--s-1); min-width: 0; }
+.hall-promise-body .text {
+  font: var(--fw-normal) var(--t-small) / var(--lh-base) var(--font-mono);
+  color: var(--hub-text-3);
+}
+.hall-promise-body .evidence {
+  font: var(--fw-normal) var(--t-micro) / 1.4 var(--font-mono);
+  color: var(--hub-faint-2);
+}
+.hall-promise-honest {
+  font: var(--fw-medium) var(--t-small) / var(--lh-base) var(--font-mono);
+  color: var(--hub-text-2);
+}
+
+/* Передача между агентами: кто кому что отдал. Файлы перечисляются явно —
+   именно по ним видно, получил ли следующий агент то, что ожидал. */
+.hall-handoff { display: flex; flex-direction: column; gap: var(--s-3); }
+.hall-handoff-who {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  font: var(--fw-semibold) var(--t-small) / 1 var(--font-ui);
+}
+.hall-handoff-who span { color: var(--ember); }
+.hall-handoff-summary {
+  font: var(--fw-normal) var(--t-micro) / var(--lh-base) var(--font-mono);
+  color: var(--hub-muted-2);
+}
+.hall-handoff-summary.is-muted { color: var(--hub-faint-2); }
+.hall-handoff-files { display: flex; flex-wrap: wrap; gap: var(--s-3); }
+.hall-handoff-files span {
+  padding: var(--s-1) var(--s-3);
+  border: 1px solid var(--hub-border);
+  font: var(--fw-normal) var(--t-micro) / 1.4 var(--font-mono);
+  color: var(--hub-text-3);
+}
+
+/* Что сможет агент. Блокирующее и предупреждения различаются цветом, но не
+   размером: и то и другое — факты о будущем поведении, а не тревога ради
+   тревоги. Блокирующее набрано акцентом, потому что без него запуска не будет. */
+.hall-cap-line {
+  font: var(--fw-normal) var(--t-small) / var(--lh-base) var(--font-mono);
+  color: var(--hub-text-3);
+}
+.hall-cap-line.is-blocking { color: var(--ember-light); }
+.hall-cap-line.is-warning { color: var(--caution); }
+
+.hall-compose {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding: var(--s-5) var(--s-7) var(--s-6);
+  border-top: 1px solid var(--hub-border);
+  background: var(--hub-panel);
+}
+.hall-compose textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 52px;
+  padding: var(--s-4) var(--s-5);
+  border: 1px solid var(--hub-border-strong);
+  background: var(--hub-raised);
+  color: var(--hub-text);
+  font: var(--fw-normal) var(--t-small) / var(--lh-base) var(--font-mono);
+}
+.hall-compose textarea:focus-visible { outline: none; border-color: var(--ember); }
+.hall-compose-actions { display: flex; align-items: center; gap: var(--s-4); }
+.hall-compose-actions small {
+  font: var(--fw-normal) var(--t-micro) / 1 var(--font-mono);
+  color: var(--hub-faint-2);
+}
+.hall-compose-actions button { margin-left: auto; }
+
+/* ── Кнопки ───────────────────────────────────────────────────────────────── */
+.hall-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--hit);
+  padding: var(--s-3) var(--s-6);
+  background: transparent;
+  border: 1px solid var(--hub-border-loud);
+  color: var(--hub-text-3);
+  font: var(--fw-semibold) var(--t-tiny) / 1 var(--font-mono);
+  letter-spacing: .14em;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color var(--motion-fast) var(--ease), background-color var(--motion-fast) var(--ease);
+}
+.hall-btn:hover { border-color: rgba(255, 255, 255, .4); }
+.hall-btn:focus-visible { outline: 1px solid var(--ember); outline-offset: 2px; }
+.hall-btn.is-primary { background: var(--ember); border-color: var(--ember); color: var(--hub-panel); }
+.hall-btn.is-primary:hover { background: var(--ember-hover); border-color: var(--ember-hover); }
+.hall-btn.is-accent { border-color: var(--ember-line-loud); color: var(--ember-light); }
+.hall-btn.is-accent:hover { background: var(--ember-wash-strong); }
+.hall-btn.is-sm { padding: var(--s-3) var(--s-5); font-size: var(--t-micro); letter-spacing: .1em; }
+.hall-btn.is-dashed { border-style: dashed; color: var(--hub-muted-2); }
+/* Необратимое действие держит свой цвет: удаление квеста не должно читаться
+   как соседняя кнопка «открыть». */
+.hall-btn.is-danger { border-color: color-mix(in srgb, var(--wound) 55%, var(--hub-border-loud)); color: var(--wound); }
+.hall-btn.is-danger:hover { border-color: var(--wound); background: var(--wound-wash); }
+
+/* ── Чипы состояния ───────────────────────────────────────────────────────── */
+.hall-chip {
+  padding: var(--s-2) var(--s-3);
+  /* Фон назван, а не оставлен по умолчанию. Чип бывает и <span>, и <button>: у
+     кнопки браузер подставляет свой серый, если его не назвать, — в тёмной
+     панели это светлая плашка, на которой мелкий текст чипа не добирает
+     контраста. Кнопкой чип бывает ровно в одном месте продукта — уточняющий
+     вопрос Мастера, — поэтому промах и держался незамеченным. */
+  background: transparent;
+  border: 1px solid var(--hub-border-loud);
+  color: var(--hub-text-3);
+  font: var(--fw-semibold) var(--t-micro) / 1 var(--font-mono);
+  letter-spacing: .08em;
+  white-space: nowrap;
+}
+.hall-chip.is-hot { border-color: var(--ember-line-loud); background: var(--ember-wash-strong); color: var(--ember-light); }
+.hall-chip.is-dim { border-color: rgba(255, 255, 255, .1); color: var(--hub-faint); }
+
+/* ── Портреты: процедурная штриховка вместо картинок ──────────────────────── */
+.hall-portrait {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--hub-border-strong);
+  background-color: var(--hall-portrait-bg);
+  background-image: var(--hall-stripes);
+}
+.hall-portrait.is-sm { width: 20px; height: 20px; }
+.hall-portrait.is-md { width: 28px; height: 28px; }
+.hall-portrait.is-lg { width: 32px; height: 32px; }
+
+/* ── Индикаторы ───────────────────────────────────────────────────────────── */
+.hall-track { height: 3px; background: var(--hall-track); }
+.hall-track.is-thick { height: 6px; }
+.hall-track > i { display: block; height: 100%; background: var(--ember); }
+.hall-track > i.is-quiet { background: var(--hub-muted-2); }
+
+/* Вложение контекста: путь, его доля и полоса под ними. Доля важнее размера в
+   килобайтах — вопрос всегда «что съело контекст», а не «сколько там байт». */
+.hall-context-item { display: flex; flex-direction: column; gap: var(--s-3); }
+/* Путь и процент стоят по общей базовой линии: цифра справа мельче пути, и по
+   центру она вставала выше строки. */
+.hall-context-item > .hall-spread { align-items: baseline; }
+/* Путь длиннее колонки — обычное дело, а раздвинуть узкую боковую панель
+   нечем: обрезаем его, а не панель. */
+.hall-context-path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: var(--fw-medium) var(--t-tiny) / 1 var(--font-mono);
+  color: var(--hub-text-3);
+}
+.hall-context-share { font: var(--fw-medium) var(--t-micro) / 1 var(--font-mono); color: var(--hub-faint-2); }
+
+/* ── Панели ───────────────────────────────────────────────────────────────── */
+.hall-panel { background: var(--hub-raised); border: 1px solid var(--hub-border); }
+.hall-panel > header,
+.hall-queue > header {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-5) var(--s-6);
+  border-bottom: 1px solid var(--hub-border);
+}
+.hall-panel > header b,
+.hall-queue > header b {
+  font: var(--fw-medium) var(--t-tiny) / 1 var(--font-mono);
+  letter-spacing: .18em;
+  color: var(--hub-muted-2);
+}
+.hall-panel > header small,
+.hall-queue > header small {
+  margin-left: auto;
+  font: var(--fw-medium) var(--t-micro) / 1 var(--font-mono);
+  color: var(--hub-faint-3);
+}
+/* Узкое окно: название панели со счётчиком не переносится, а подсказка справа
+   уступает — обрезается многоточием. Иначе шапка очереди решений на 1024px
+   разъезжалась в две строки и переставала совпадать по высоте с соседней. */
+.hall-panel > header > b,
+.hall-queue > header > b { white-space: nowrap; }
+.hall-panel > header > small,
+.hall-queue > header > small { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.hall-panel-row {
+  padding: var(--s-5) var(--s-6);
+  border-bottom: 1px solid var(--hub-border-soft);
+}
+.hall-panel-row:last-child { border-bottom: 0; }
+/* Строка панели колонкой: заголовок предложения, список целей, состав отряда
+   идут друг под другом, а не в ряд. Раньше это писалось инлайном в каждой
+   такой строке, и шаг между кусками расходился — s-5 в одном месте, s-3 в
+   соседнем, без причины. */
+.hall-panel-row.is-stack { display: flex; flex-direction: column; gap: var(--s-5); }
+/* Плотный вариант — для строк одного рода, где промежуток в полшага читается
+   как список, а не как разные блоки. */
+.hall-panel-row.is-stack.is-tight { gap: var(--s-3); }
+/* Строка исполнения: сама строка сверху, управление прогоном под ней. В колонке
+   Обзора шириной в половину страницы пауза, стоп, контекст, откат и два поля
+   ввода в один ряд с задачей не встают — а терять их ради краткости нельзя. */
+.hall-panel-row.is-stack > .hall-item { width: 100%; }
+/* Ряд кнопок решения. Перенос обязателен: три действия и подпись справа на
+   узком окне в строку не встают. */
+.hall-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-4); }
+
+/* Тревожная панель — «ждёт вас». Рамка акцентом, а не заливкой целиком. */
+.hall-panel.is-alarm { border-color: rgba(255, 92, 71, .4); background: rgba(255, 92, 71, .05); }
+.hall-panel.is-alarm > header { border-bottom-color: var(--ember-line-soft); }
+
+.hall-count {
+  font: var(--fw-semibold) var(--t-numeral) / 1 var(--font-ui);
+  color: var(--ember);
+}
+
+/* Строка панели как единица содержания: значок или чип слева, двухстрочный
+   текст посередине, действие справа. До этого три панели Обзора — «идёт
+   сейчас», «здоровье» и «изменено, не проверено» — повторяли одну и ту же
+   раскладку тремя разными наборами инлайн-стилей и расходились в мелочах:
+   у одной был отступ строк, у другой нет, длинные строки обрезались только
+   в одной из трёх. */
+.hall-item { display: flex; align-items: center; gap: var(--s-5); }
+.hall-item-text { display: flex; flex-direction: column; gap: var(--s-2); flex: 1; min-width: 0; }
+/* Чип и кнопка по краям строки не сжимаются: сжимается только текст.
+   Значок состояния `.status` ведёт себя так же, но правило для него лежит в
+   20-rpg-semantics.css: имя `status` принадлежит тому слою, и сборка CSS не
+   пускает его в канон. */
+.hall-item > .hall-chip,
+.hall-item > .hall-btn { flex: none; }
+/* Обрезка обязательна на обеих строках: задача агента и путь файла бывают
+   длиннее панели, а панель стоит в колонке сетки и раздвинуть её нечем. */
+.hall-item-text b,
+.hall-item-text small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hall-item-text b { font: var(--fw-medium) var(--t-body) / 1.2 var(--font-ui); color: var(--hub-text-2); }
+.hall-item-text small { font: var(--fw-normal) var(--t-micro) / 1.4 var(--font-mono); color: var(--hub-faint); }
+/* Путь к файлу — моноширинный: это код, а не название. */
+.hall-item.is-path .hall-item-text b { font: var(--fw-medium) var(--t-small) / 1.2 var(--font-mono); }
+/* Справа в строке бывает не кнопка, а пометка «действия нет»: «необратимо»
+   стоит там же, где стояла бы «ОТКАТИТЬ», и так же не сжимается. */
+.hall-item-flag {
+  flex: none;
+  font: var(--fw-normal) var(--t-micro) / 1 var(--font-mono);
+  color: var(--hub-faint-3);
+}
+
+/* Строка-переход. Была `div` с `cursor:pointer` — мышью работала, с клавиатуры
+   не существовала. Кнопка снимает и это, и отсутствующий фокус. */
+button.hall-panel-row {
+  width: 100%;
+  border-left: 0;
+  border-right: 0;
+  border-top: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+button.hall-panel-row:hover { background: rgba(255, 255, 255, .03); }
+button.hall-panel-row:focus-visible { outline: 1px solid var(--ember); outline-offset: -2px; }
+
+/* Ссылка «все →» в шапке панели. Тоже была `small` с `cursor:pointer`. */
+.hall-panel > header .hall-more {
+  margin-left: auto;
+  /* Отбивка задана по вертикали отдельно: с общими 4px цель выходила 39×17,
+     то есть меньше минимума, который продукт держит для иконочных кнопок. */
+  padding: var(--s-4) var(--s-3);
+  border: 0;
+  background: none;
+  font: var(--fw-medium) var(--t-micro) / 1 var(--font-mono);
+  letter-spacing: .1em;
+  color: var(--ember);
+  cursor: pointer;
+}
+.hall-panel > header .hall-more:hover { color: var(--ember-light); }
+.hall-panel > header .hall-more:focus-visible { outline: 1px solid var(--ember); outline-offset: 2px; }
+
+/* Действие в шапке панели всегда прижато к правому краю. */
+.hall-panel > header > .hall-btn { margin-left: auto; }
+
+/* Заголовок тревоги: счёт, название очереди, причина. */
+.hall-panel.is-alarm > header { gap: var(--s-7); }
+.hall-alarm-text { display: flex; flex-direction: column; gap: var(--s-3); }
+.hall-panel > header .hall-alarm-text b { color: var(--ember-light); letter-spacing: .2em; }
+.hall-panel > header .hall-alarm-text small { margin: 0; color: var(--hub-muted-2); }
+
+/* Приглушённая служебная строка внутри панели: оговорка к числу, пояснение
+   к состоянию. Тише основного текста и всегда моноширинная. */
+.hall-meta { font: var(--fw-normal) var(--t-micro) / 1.4 var(--font-mono); color: var(--hub-faint-3); }
+
+/* Крупное число внутри строки панели — расход, счётчики сводки. */
+.hall-figure { font: var(--fw-semibold) var(--t-numeral-sm) / 1 var(--font-ui); color: var(--hub-text-2); }
+
+/* Сводка Обзора: здоровье занимает свободное место, расход — карточка
+   постоянной ширины. В общей сетке `is-two` одинокий расход растягивался на всю
+   строку, и одна цифра занимала полосу во всю ширину окна. */
+.hall-summary { display: flex; flex-wrap: wrap; align-items: start; gap: var(--s-6); }
+.hall-summary > .hall-health { flex: 1 1 340px; min-width: 0; }
+.hall-summary > .hall-spend { flex: 0 1 292px; min-width: 244px; }
+
+/* Обзор — секция внутри Чертога, а не отдельная прокручиваемая страница:
+   высоту и прокрутку задаёт .hall-body, свои здесь только мешают. */
+.hall-page.is-stacked { height: auto; overflow: visible; padding: 0 0 var(--s-6); }
+
+/* Строка «слева содержание, справа мера»: чип и время ожидания, автор и риск.
+   Раньше края разводились пустым `<span style="flex:1">` — распорка в разметке
+   там, где это работа раскладки. */
+.hall-spread { display: flex; align-items: center; justify-content: space-between; gap: var(--s-4); }
+/* Строка итогов под заголовком: несколько коротких «сколько чего». Не
+   таблица и не карточки — счётчики читаются одной строкой. */
+.hall-tally {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-6);
+  font: var(--fw-medium) var(--t-tiny) / 1 var(--font-mono);
+  color: var(--hub-faint-2);
+}
+
+/* Первая строка блока — то, ради чего его открыли: название предложенного
+   квеста, заголовок решения. Крупнее строки списка, но это не заголовок
+   страницы: у страницы свой набор. */
+.hall-lead { font: var(--fw-semibold) var(--t-lead) / 1.3 var(--font-ui); }
+
+/* Мелкая приписка: оговорка под блоком, потолок расхода, «решение за вами».
+   Не пояснение пустого состояния (.hall-note) и не подпись строки — это
+   ремарка, и она везде набирается одинаково. */
+.hall-fineprint { font: var(--fw-normal) var(--t-micro) / 1.5 var(--font-mono); color: var(--hub-faint); }
+/* Приписка, прижатая к правому краю ряда действий, звучит тише кнопок рядом. */
+.hall-fineprint.is-trailing { margin-left: auto; line-height: 1.4; color: var(--hub-faint-3); }
+
+/* Время ожидания. Акцент означает ровно одно: агент из-за этого простаивает. */
+.hall-wait { font: var(--fw-semibold) var(--t-tiny) / 1 var(--font-mono); color: var(--hub-faint-2); }
+.hall-wait.is-blocking { color: var(--ember); }
+
+/* Пояснение под заголовком пустого или неизвестного состояния. Ширина строки
+   ограничена по числу знаков, а не по пикселям: так она не зависит от того,
+   насколько широко разъехалась колонка. */
+.hall-note {
+  max-width: 52ch;
+  font: var(--fw-normal) var(--t-small) / var(--lh-loose) var(--font-mono);
+  color: var(--hub-faint);
+}
+/* Пояснение под схемой шире объяснения пустого состояния: оно читается вместе
+   с ней, а не вместо неё, и перенос по словам здесь важнее узкой колонки. */
+.hall-note.is-wide { max-width: none; font-size: var(--t-tiny); text-wrap: pretty; }
+
+/* Панель, идущая под другой панелью или под заголовком: отбивка сверху нужна
+   ей самой, а не месту, где её поставили. */
+.hall-panel.is-stacked { margin-top: var(--s-5); }
+
+/* Панель со схемой: строка панели становится колонкой — схема, под ней разбор. */
+.hall-panel.is-graph { margin-top: var(--s-5); }
+/* Продолжение карточки, а не соседний раздел: граф описывает цепочку набора,
+   стоящего над ним. Примыкает вплотную и с отступом слева — так видно, что он
+   принадлежит карточке выше, а не разделяет две. */
+.hall-panel.is-graph.is-continuation {
+  margin-top: 0;
+  margin-left: var(--s-6);
+  border-top: 0;
+}
+/* Одинокая подпись выравнивается по левому краю: у секции с двумя элементами
+   header раздвигает их по краям, и оставшийся один уезжал вправо — оторванным
+   от того, что подписывает. */
+.hall-panel.is-graph.is-continuation > header {
+  justify-content: flex-start;
+  padding-bottom: var(--s-3);
+  color: var(--hub-faint-2);
+}
+/* Общее правило шапки панели отжимает второй элемент вправо через margin-left:
+   auto. Здесь элемент один, и это отжатие уносило подпись на другой конец
+   строки — оторванной от того, что она подписывает. */
+.hall-panel.is-graph.is-continuation > header > small { margin-left: 0; }
+.hall-panel.is-graph > .hall-panel-row { display: flex; flex-direction: column; gap: var(--s-6); }
+
+/* Полоса отказа над списком: сообщение и повтор запроса. Тем же семейством,
+   что и тревожная панель, — отказ и тревога говорят одним голосом. */
+.hall-strip {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-4) var(--s-6);
+  border: 1px solid var(--ember-line-soft);
+  background: var(--ember-wash);
+}
+/* Внутри очереди полоса стоит над списком и рамку слева, справа и сверху делит
+   с панелью: своя читалась бы как вторая коробка внутри первой. */
+.hall-queue > .hall-strip { border-width: 0 0 1px; }
+.hall-strip > span { font: var(--fw-normal) var(--t-small) / var(--lh-base) var(--font-ui); color: var(--hub-text); }
+.hall-strip > .hall-btn { margin-left: auto; flex: none; }
+/* «Ещё не пришло» — не отказ. Три состояния данных — загрузка, отказ и
+   несвежесть — печатались одним и тем же приглушённым абзацем и были
+   неотличимы ни друг от друга, ни от обычного текста страницы. Полоса общая,
+   тревога остаётся признаком отказа. */
+.hall-strip.is-quiet { border-color: var(--hub-border); background: var(--hub-panel); }
+.hall-strip.is-quiet > span { color: var(--hub-muted); }
+/* Значок состояния — элемент, а не класс: `hall-mark` уже занят ромбом рейки. */
+.hall-strip > i { flex: none; width: 5px; height: 5px; background: var(--ember); }
+.hall-strip.is-quiet > i { background: var(--hub-muted-2); }
+
+.session-keep-undo {
+  flex-wrap: wrap;
+  align-items: flex-start;
+  margin: 0 auto var(--s-4);
+  width: calc(100% - 48px);
+  max-width: 800px;
+}
+.session-keep-undo-body {
+  display: grid;
+  gap: var(--s-2);
+  min-width: 0;
+  flex: 1 1 240px;
+}
+.session-keep-undo-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.session-keep-undo-files > li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  max-width: 100%;
+}
+.session-keep-undo-files .hall-chip {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.session-run-pending {
+  color: var(--ember);
+  font: var(--fw-normal) var(--t-micro) / 1 var(--font-ui);
+  font-style: normal;
+}
+.session-keep-undo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin-left: auto;
+}
+.session-run-files {
+  flex-wrap: wrap;
+  margin: var(--s-4) 0 0;
+}
+.session-run-files-label {
+  flex: none;
+  color: var(--hub-muted);
+  font: var(--fw-medium) var(--t-micro) / 1 var(--font-ui);
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.session-run-files-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+/* Правая колонка очереди: прокручивается сама, чтобы вердикт снизу оставался
+   на месте, пока читают основания. */
+.hall-detail { display: flex; flex-direction: column; min-height: 0; overflow: auto; }
+/* Полоса действий стоит под разбором, а не в конце пустоты.
+   `flex: 1` растягивал разбор на всю высоту и уносил кнопки к нижнему краю: у
+   короткого решения содержимое кончалось на 244px, а «Принять» ждало на 807 —
+   563px пустоты между вопросом и ответом. Полоса осталась липкой, поэтому у
+   длинного разбора она по-прежнему держится внизу. */
+.hall-detail-body { display: flex; flex-direction: column; flex: 0 1 auto; gap: var(--s-6); padding: var(--s-7); }
+
+/* ── Очередь решений ──────────────────────────────────────────────────────── */
+.hall-split {
+  display: grid;
+  grid-template-columns: var(--hall-queue-w) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  height: 100%;
+  overflow: hidden;
+}
+.hall-queue {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--hub-border);
+  background: var(--hub-panel);
+}
+.hall-queue-list { flex: 1; min-height: 0; overflow: auto; }
+.hall-queue-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  width: 100%;
+  padding: var(--s-5) var(--s-6);
+  border: 0;
+  border-bottom: 1px solid var(--hub-border-soft);
+  border-left: var(--edge-accent) solid transparent;
+  background: transparent;
+  min-width: 0;
+  text-align: left;
+  cursor: pointer;
+}
+.hall-queue-item:hover { background: rgba(255, 255, 255, .03); }
+.hall-queue-item.is-active { border-left-color: var(--ember); background: var(--ember-wash); }
+.hall-queue-item .title {
+  font: var(--fw-medium) var(--t-body) / 1.35 var(--font-ui);
+  color: var(--hub-text);
+}
+/* Путь к файлу в строке очереди — моноширинный и на шаг мельче: моноширинный
+   знак шире, и путь в 12px не помещается в колонку очереди. Это объяснённое
+   исключение, а не случайное число — до сих пор оно жило инлайном в разметке.
+   Переносится по любому знаку: пробелов в пути нет, и без этого
+   internal/billing/webhook_test.go выходил за колонку на узком окне. */
+.hall-queue-item.is-path .title {
+  font: var(--fw-medium) var(--t-small) / 1.35 var(--font-mono);
+  overflow-wrap: anywhere;
+}
+.hall-queue-item .who { font: var(--fw-normal) var(--t-micro) / 1 var(--font-mono); color: var(--hub-faint-2); }
+
+/* Подсказки клавиш: экран рассчитан на клавиатуру, мышь здесь — регресс.
+   Жили отдельной полосой под очередью и повторяли A и R, уже стоящие на
+   кнопках. Теперь это конец полосы действий: одно обещание на одну клавишу. */
+.hall-verdict-keys {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin-left: auto;
+}
+.hall-verdict-keys kbd {
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--hub-border-loud);
+  font: var(--fw-semibold) var(--t-micro) / 1 var(--font-mono);
+  color: var(--hub-text-3);
+}
+.hall-verdict-keys em {
+  font: var(--fw-normal) var(--t-micro) / 1 var(--font-mono);
+  font-style: normal;
+  color: var(--hub-faint-2);
+}
+
+/* ── Разбор решения: что просят / чем рискует / чем обосновано ────────────── */
+.hall-triad {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: var(--s-5);
+}
+.hall-facet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding: var(--s-6);
+  border: 1px solid rgba(255, 255, 255, .09);
+  background: var(--hub-raised);
+}
+.hall-facet dt {
+  font: var(--fw-medium) var(--t-micro) / 1 var(--font-mono);
+  letter-spacing: .16em;
+  color: var(--hub-faint-2);
+}
+.hall-facet dd {
+  margin: 0;
+  font: var(--fw-normal) var(--t-small) / 1.6 var(--font-mono);
+  color: var(--hub-text-3);
+  text-wrap: pretty;
+}
+.hall-facet.is-risk { border-color: rgba(255, 92, 71, .3); background: rgba(255, 92, 71, .05); }
+.hall-facet.is-risk dt { color: var(--ember-light); }
+.hall-facet.is-risk dd { color: var(--ember-prose); }
+
+/* Факты осмотра — таблица «ключ → значение», значение моноширинное. */
+.hall-facts { display: grid; }
+.hall-fact {
+  display: grid;
+  grid-template-columns: minmax(96px, 132px) minmax(0, 1fr);
+  gap: var(--s-6);
+  align-items: baseline;
+  padding: var(--s-4) var(--s-6);
+  border-bottom: 1px solid var(--hub-border-soft);
+}
+.hall-fact dt {
+  font: var(--fw-medium) var(--t-micro) / 1.4 var(--font-mono);
+  letter-spacing: .1em;
+  color: var(--hub-faint-2);
+}
+.hall-fact dd {
+  margin: 0;
+  font: var(--fw-normal) var(--t-small) / 1.6 var(--font-mono);
+  color: var(--hub-text-3);
+  overflow-wrap: anywhere;
+}
+.hall-fact dd.is-code { color: var(--hub-text-2); }
+.hall-fact dd.is-danger { color: var(--ember-light); }
+
+/* ── Диф ──────────────────────────────────────────────────────────────────── */
+.hall-diff { padding: var(--s-5) 0; overflow-x: auto; }
+.hall-diff-row { display: flex; gap: var(--s-5); padding: 1px var(--s-6); }
+.hall-diff-row .n {
+  width: 38px;
+  flex: none;
+  text-align: right;
+  font: var(--fw-medium) var(--t-tiny) / 1.7 var(--font-mono);
+  color: var(--hub-faint-4);
+}
+.hall-diff-row .l {
+  white-space: pre;
+  font: var(--fw-normal) var(--t-small) / 1.7 var(--font-mono);
+  color: var(--hub-muted);
+}
+.hall-diff-row.is-add { background: var(--ember-wash); }
+.hall-diff-row.is-add .l { color: var(--ember-code); }
+.hall-diff-row.is-del { background: rgba(255, 255, 255, .04); }
+.hall-diff-row.is-del .l { color: var(--hub-muted-2); }
+
+/* Панель решения липнет к низу: действие всегда достижимо без прокрутки. */
+.hall-verdict {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-5) var(--s-7);
+  border-top: 1px solid var(--hub-border);
+  background: var(--hub-panel);
+}
+.hall-verdict small {
+  font: var(--fw-normal) var(--t-micro) / 1.4 var(--font-mono);
+  color: var(--hub-faint-3);
+}
+
+/* ── Доказательство завершения ────────────────────────────────────────────
+   Ключевой элемент продукта: завершение показывается фактом верификатора,
+   а не словом «готово». */
+.hall-proof {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-4) var(--s-5);
+  border: 1px solid rgba(255, 92, 71, .3);
+  background: rgba(255, 92, 71, .05);
+}
+.hall-proof b {
+  font: var(--fw-medium) var(--t-micro) / 1 var(--font-mono);
+  letter-spacing: .14em;
+  color: var(--ember-light);
+}
+.hall-proof span { font: var(--fw-normal) var(--t-tiny) / 1.6 var(--font-mono); color: var(--hub-text-2); }
+.hall-proof.is-verified { border-color: rgba(91, 203, 138, .35); background: rgba(91, 203, 138, .06); }
+.hall-proof.is-verified b { color: var(--vital); }
+
+/* ── Граф наборов изменений ───────────────────────────────────────────────── */
+.hall-graph { display: flex; align-items: stretch; flex-wrap: wrap; gap: var(--s-4) 0; }
+/* Звено цепочки — карточка постоянного размера, а не колонка сетки: с `flex: 1`
+   два набора растягивались на всю панель, и три короткие строки занимали блок
+   в 570px шириной. Цепочка читается слева направо и переносится по мере роста. */
+.hall-graph-cell { display: flex; align-items: center; flex: 0 1 288px; min-width: 0; }
+.hall-node {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--s-3);
+  min-width: 0;
+  padding: var(--s-5);
+  border: 1px solid var(--hub-border-strong);
+  background: var(--hub-panel);
+}
+.hall-node.is-pending { border-color: var(--ember-line); background: var(--ember-wash); }
+.hall-node .id { font: var(--fw-medium) var(--t-micro) / 1 var(--font-mono); color: var(--hub-faint-2); }
+.hall-node .name { font: var(--fw-medium) var(--t-body) / 1.2 var(--font-ui); }
+.hall-node .hall-meta { font: var(--fw-normal) var(--t-micro) / 1.3 var(--font-mono); color: var(--hub-faint); }
+.hall-link { width: 18px; height: 1px; flex: none; background: var(--hub-border-loud); }
+
+/* ── Сетки страниц ────────────────────────────────────────────────────────── */
+.hall-grid { display: grid; gap: var(--s-6); align-items: start; }
+.hall-grid.is-two { grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }
+.hall-grid.is-cards { grid-template-columns: repeat(auto-fill, minmax(232px, 1fr)); gap: var(--s-5); }
+.hall-grid.is-tiles { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+
+.hall-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding: var(--s-6);
+  border: 1px solid var(--hub-border);
+  background: var(--hub-raised);
+}
+.hall-card:hover { border-color: var(--hub-border-strong); }
+.hall-card .glyph { color: var(--ember); font: var(--fw-medium) var(--t-base) / 1 var(--font-mono); }
+.hall-card .name { font: var(--fw-semibold) var(--t-base) / 1 var(--font-ui); }
+.hall-card .desc { font: var(--fw-normal) var(--t-tiny) / 1.5 var(--font-mono); color: var(--hub-faint); text-wrap: pretty; }
+.hall-card .touched { font: var(--fw-normal) var(--t-micro) / 1 var(--font-mono); color: var(--hub-faint-3); }
+
+/* ── Заголовки экранов ────────────────────────────────────────────────────── */
+.hall-title { display: flex; flex-direction: column; gap: var(--s-3); min-width: 0; }
+/* Заголовок разбора — это заголовок страницы для своей половины сплита, и
+   набираться он обязан так же, как заголовок обычной страницы Хаба. Было два
+   набора на одну роль: канон (`.hub-page-head`, `.changes-heading`) — 18px и
+   метка 9px/600 с трекингом .08em; здесь — 22px и метка 10px/500 с .2em.
+   Замер повторов показал это прямо: одно и то же название стояло в списке в
+   12px и в разборе в 22px, а на соседних страницах заголовок был 18px.
+   Цвет у обоих наборов и так один: --text-faint в широком регистре — это
+   --hub-faint. */
+.hall-title .kicker {
+  font: var(--fw-semibold) var(--t-micro) / 1 var(--font-mono);
+  letter-spacing: var(--tracking-label);
+  color: var(--hub-faint);
+}
+.hall-title h1 {
+  margin: 0;
+  font: var(--fw-semibold) var(--t-title) / 1.15 var(--font-ui);
+  letter-spacing: -.01em;
+}
+.hall-title h1.is-mono { font-family: var(--font-mono); }
+
+/* Глиф раздела виден только в свёрнутой рейке: в развёрнутой хватает подписи. */
+.hall-glyph { display: none; font-style: normal; }
+
+/* ── Узкие окна: рейка сворачивается в полосу глифов ──────────────────────────
+   Обещание «полосы глифов» долго не выполнялось: подписи скрывались, а вместо
+   глифов оставались шесть одинаковых точек 5×5. Отличить ОБЗОР от ГИЛЬДИИ было
+   нельзя — навигация выглядела сломанной, хотя кнопки работали. Порог опущен до
+   760px: панель шириной 800px спокойно держит подписи и сворачиваться ей незачем. */
+@media (max-width: 760px) {
+  .hall-rail { width: 56px; }
+  .hall-rail-head { justify-content: center; padding: var(--s-5) 0; }
+  .hall-wordmark,
+  .hall-rail-foot small,
+  .hall-nav i,
+  .hall-nav span { display: none; }
+  .hall-nav .hall-glyph {
+    display: block;
+    font: var(--fw-semibold) var(--t-small) / 1 var(--font-mono);
+  }
+  .hall-nav button { justify-content: center; gap: var(--s-2); padding: var(--s-4) 0; }
+  .hall-nav button.is-active .hall-glyph { color: var(--ember); }
+  .hall-split { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ── Разбор квеста: поток слева, надзорная панель справа ──────────────────
+   Панель сводит вместе то, что раньше жило на трёх экранах: что агент видел,
+   чем кончились прошлые попытки и кто в отряде. На узком окне она уезжает
+   вниз, а не сжимается: колонка уже 260 px перестаёт читаться. */
+.hall-quest-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--hall-aside-w);
+  gap: var(--s-6);
+  align-items: start;
+}
+.hall-quest-main { min-width: 0; }
+
+.hall-quest-aside {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  min-width: 0;
+}
+.hall-quest-aside > section {
+  border: 1px solid var(--hub-border);
+  background: var(--hub-panel);
+}
+.hall-quest-aside > section > header {
+  padding: var(--s-5) var(--s-6);
+  border-bottom: 1px solid var(--hub-border);
+}
+.hall-quest-aside > section > header b {
+  font: var(--fw-medium) var(--t-tiny) / 1 var(--font-mono);
+  letter-spacing: .16em;
+  color: var(--hub-muted-2);
+}
+/* Содержимое секции боковой панели: отбивка секции и вертикальный ритм в
+   одном месте. До этого каждая секция задавала их своим набором инлайн-стилей
+   и они расходились — одна стопка шла с шагом s-5, соседняя с s-4. */
+.hall-aside-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  padding: var(--s-6);
+}
+/* Стопка из одних кнопок стоит теснее: у кнопок своя внутренняя отбивка. */
+.hall-aside-stack.is-tight { gap: var(--s-4); }
+
+@media (max-width: 1100px) {
+  .hall-quest-split { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ── Предложение найма в чате Мастера ─────────────────────────────────────────
+   Пустой ростер — не тупик: Мастер называет роль, объясняет выбор и даёт
+   кнопку, которая ведёт прямо в конструктор с этой ролью. */
+.hall-hire { margin-top: var(--s-5); }
+.hall-hire-who { display: flex; align-items: baseline; gap: var(--s-4); flex-wrap: wrap; }
+/* Имя чертежа приходит из каталога, где его длину никто не ограничивал: без
+   переноса оно выезжало за карточку и уводило ленту в горизонтальную прокрутку.
+   Переносим по буквам — обрезать имя тут негде, оно здесь главное. */
+.hall-hire-who b {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font: var(--fw-semibold) var(--t-body) / 1.2 var(--font-mono);
+  color: var(--hub-text-2);
+}
+.hall-hire-who span { color: var(--hub-faint-2); font-size: var(--t-small); }
+.hall-hire-why { margin: var(--s-3) 0 0; color: var(--hub-text-3); font-size: var(--t-small); line-height: var(--lh-base); }
+.hall-hire-tools { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-top: var(--s-4); }
+.hall-hire-tools span {
+  padding: var(--s-1) var(--s-3);
+  border: 1px solid var(--hub-border);
+  color: var(--hub-faint-2);
+  font: var(--fw-medium) var(--t-micro) / 1.4 var(--font-mono);
+}
+.hall-hire-actions { display: flex; flex-wrap: wrap; gap: var(--s-3); margin-top: var(--s-5); }
+.hall-hire-note { display: block; margin-top: var(--s-3); color: var(--hub-faint-2); font-size: var(--t-micro); }
+
+/* ── Карточка найма ───────────────────────────────────────────────────────────
+   Наблюдатель ростера показывает всю картину выбора: кто уже в наряде, кому не
+   хватает настройки, из какого чертежа завести исполнителя и чем закрыть роль,
+   которой нет. Прежняя карточка знала один чертёж и умещалась в три строки —
+   этой нужны разделители, иначе кандидаты, чертежи и форма сливаются в стену. */
+.hall-hire-selected > b,
+.hall-hire-considered > summary {
+  display: block;
+  color: var(--hub-faint-2);
+  font: var(--fw-medium) var(--t-micro) / 1.4 var(--font-ui);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.hall-hire-selected { margin-top: var(--s-4); }
+.hall-hire-candidate { padding: var(--s-4) 0; border-top: 1px solid var(--hub-border); }
+.hall-hire-selected > b + .hall-hire-candidate { border-top: 0; }
+/* Готовность — единственное, что решает судьбу запуска, поэтому она стоит
+   рядом с именем и раскрашена состоянием, а не тоном текста. */
+.hall-hire-who i {
+  font-style: normal;
+  color: var(--hub-faint-2);
+  font: var(--fw-medium) var(--t-micro) / 1.4 var(--font-mono);
+}
+.hall-hire-candidate.is-blocked .hall-hire-who i { color: var(--caution); }
+.hall-hire-candidate.is-degraded .hall-hire-who i { color: var(--hub-muted); }
+.hall-hire-blocking { margin: var(--s-3) 0 0; padding-left: var(--s-5); color: var(--hub-text-3); font-size: var(--t-small); }
+.hall-hire-blocking li { margin-top: var(--s-2); }
+.hall-hire-form { margin-top: var(--s-4); display: grid; gap: var(--s-3); }
+.hall-hire-form label { display: grid; gap: var(--s-2); }
+.hall-hire-form label > span { color: var(--hub-faint-2); font-size: var(--t-micro); }
+.hall-hire-form input,
+.hall-hire-form textarea {
+  width: 100%;
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--hub-border);
+  background: transparent;
+  color: var(--hub-text-2);
+  font: var(--fw-normal) var(--t-small) / var(--lh-base) var(--font-ui);
+}
+.hall-hire-form textarea { resize: vertical; }
+.hall-hire-blueprints { margin-top: var(--s-4); display: grid; gap: var(--s-4); }
+.hall-hire-blueprints article,
+.hall-hire-subagent { padding-top: var(--s-4); border-top: 1px solid var(--hub-border); }
+.hall-hire-blueprints article > button { margin-top: var(--s-4); }
+.hall-hire-considered { margin-top: var(--s-4); }
+.hall-hire-considered > summary { cursor: pointer; }
+
+
+/* Редактор предложения живёт прямо в разговоре: название, критерии и отряд
+   меняются до Start без похода в другой раздел. */
+.proposal-editor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, .45fr);
+  gap: var(--s-4);
+  width: 100%;
+  padding: var(--s-5);
+  border: 1px solid var(--hub-border-strong);
+  background: var(--hub-raised);
+}
+.proposal-editor > label,
+.proposal-editor > fieldset { display: flex; flex-direction: column; gap: var(--s-2); min-width: 0; }
+.proposal-editor > label:nth-of-type(n+3),
+.proposal-editor > fieldset { grid-column: 1 / -1; }
+.proposal-editor input,
+.proposal-editor select,
+.proposal-editor textarea {
+  width: 100%;
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--hub-border-strong);
+  background: var(--hub-panel);
+  color: var(--hub-text);
+  font: var(--fw-normal) var(--t-small) / var(--lh-base) var(--font-mono);
+}
+.proposal-editor textarea { resize: vertical; }
+.proposal-editor fieldset { margin: 0; padding: var(--s-4); border: 1px solid var(--hub-border); }
+.proposal-editor fieldset > small { color: var(--hub-faint-2); font-size: var(--t-micro); }
+.proposal-team-grid label { align-items: flex-start; }
+.proposal-team-grid label > span { display: flex; flex-direction: column; min-width: 0; }
+.proposal-team-grid label small { color: var(--hub-faint-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+@media (max-width: 760px) {
+  .proposal-editor { grid-template-columns: minmax(0, 1fr); }
+  .proposal-editor > label,
+  .proposal-editor > fieldset { grid-column: 1; }
+}
+
+/* Действия под ответом Мастера: разговор — это место, где решают, куда идти.
+   Равняются по тексту реплики, как основания и вопросы: у края ленты они
+   читались как ничьи. Отступ сверху задаёт сама лента — свой складывался бы
+   с её промежутком, и строка кнопок отходила бы дальше остальных. */
+.hall-chat-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  padding-left: var(--hall-msg-indent);
+}
+
+/* ── Список квестов проекта ───────────────────────────────────────────────────
+   Раздел «Квесты» показывал только форму создания нового: существующие квесты
+   не было видно нигде, хотя счётчик в рейке их считал. */
+.hall-quest-list { margin-bottom: var(--s-5); }
+.hall-quest-row { border-top: 1px solid var(--hub-border); }
+.hall-quest-row:first-of-type { border-top: 0; }
+.hall-quest-head {
+  display: grid;
+  grid-template-columns: minmax(88px, auto) minmax(0, 1fr) minmax(0, auto);
+  gap: var(--s-4);
+  align-items: baseline;
+  width: 100%;
+  padding: var(--s-4) var(--s-5);
+  background: transparent;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+}
+.hall-quest-head:hover { background: rgba(255, 255, 255, .03); }
+.hall-quest-head b { min-width: 0; color: var(--hub-text-2); font: var(--fw-medium) var(--t-body) / 1.3 var(--font-ui); }
+.hall-quest-head small { color: var(--hub-faint-2); font-size: var(--t-small); }
+.hall-quest-status {
+  color: var(--hub-faint-2);
+  font: var(--fw-semibold) var(--t-micro) / 1 var(--font-mono);
+  letter-spacing: .1em;
+}
+.hall-quest-status.is-active { color: var(--ember); }
+.hall-quest-status.is-completed { color: var(--vital); }
+.hall-quest-row.is-open { background: rgba(255, 255, 255, .02); }
+
+/* Работа по квесту: прогоны и изменения рядом со сверкой обещаний.
+   Раскрытый квест отвечал на «выполнено ли обещанное», но не на «как идёт
+   работа»: кто её вёл и что уже лежит на ревью. */
+.hall-quest-work { display: grid; gap: var(--s-5); padding: 0 var(--s-5) var(--s-5); }
+.hall-quest-block { display: grid; gap: var(--s-3); }
+.hall-quest-block-label {
+  color: var(--hub-faint);
+  font: var(--fw-semibold) var(--t-micro) / 1 var(--font-mono);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+.hall-quest-line {
+  display: grid;
+  grid-template-columns: minmax(96px, auto) minmax(0, 1fr) minmax(0, auto);
+  gap: var(--s-4);
+  align-items: baseline;
+  padding: var(--s-3) 0;
+  border-top: 1px solid var(--hub-border);
+}
+.hall-quest-line b { color: var(--hub-faint-2); font: var(--fw-semibold) var(--t-micro) / 1.3 var(--font-mono); letter-spacing: .08em; }
+.hall-quest-line span { min-width: 0; color: var(--hub-text-3); font-size: var(--t-small); }
+.hall-quest-line small { color: var(--hub-faint-2); font-size: var(--t-micro); }
+.hall-quest-empty { color: var(--hub-faint-2); font-size: var(--t-small); }
+.hall-quest-work .hall-btn { justify-self: start; margin-top: var(--s-3); }
+
+/* Что мешает квесту двигаться. Раскрытый квест был отчётом: показывал
+   состояние, но действовать из него было нельзя. */
+.hall-quest-blocker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  padding: var(--s-4) var(--s-5);
+  border: 1px solid var(--ember-line);
+  background: var(--ember-wash);
+}
+.hall-quest-blocker span { color: var(--ember-light); font-size: var(--t-small); }
+
+/* Решение без пути разрешения: кнопки заперты, причина названа. Живая кнопка,
+   молча не делающая ничего, читается как поломка продукта. */
+.hall-verdict-dead {
+  padding: var(--s-4);
+  border: 1px solid var(--ember-line);
+  background: var(--ember-wash);
+  color: var(--ember-light);
+  font-size: var(--t-small);
+  line-height: var(--lh-base);
+}
+
+/* A reading surface for the master conversation. Other Hub pages keep their
+   existing density; code samples retain the monospace typeface. */
+.hall.is-focused .hall-scan { display: none; }
+.hall.is-focused .hall-main { background: var(--hub-panel); }
+.hall-chat-heading { display: flex; flex-direction: column; gap: var(--s-2); min-width: 0; }
+.hall-chat-heading strong { font: var(--fw-semibold) var(--t-lead) / 1.2 var(--font-ui); color: var(--hub-text); }
+.hall-chat-heading span { font: var(--fw-normal) var(--t-body) / 1.4 var(--font-ui); color: var(--hub-muted); }
+.hall-head-focused .hall-chat-settings { margin-left: auto; font-family: var(--font-ui); letter-spacing: normal; }
+.hall-head-focused .hall-chat-settings + .hall-alarm { margin-left: 0; }
+/* Диалог Мастера — плотность и тишина как у Cursor Agent chat. */
+.hall-dialogue { --hall-who-col: 40px; --hall-msg-indent: calc(40px + var(--s-4)); }
+.hall-dialogue .hall-thread { gap: var(--s-5); padding-block: var(--s-6) var(--s-5); scrollbar-gutter: stable; }
+.hall-dialogue .hall-thread > * { width: 100%; max-width: 760px; margin-inline: auto; box-sizing: border-box; flex-shrink: 0; }
+.hall-dialogue .hall-turn { gap: var(--s-2); }
+.hall-dialogue .hall-msg { gap: var(--s-4); }
+.hall-dialogue .hall-msg .who { display: flex; flex-direction: column; align-items: center; gap: var(--s-2); color: var(--hub-muted); font-size: var(--t-micro); letter-spacing: normal; }
+.hall-speaker-avatar { display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid var(--hub-border); border-radius: 4px; background: var(--hub-selected); color: var(--hub-muted); font: var(--fw-semibold) var(--t-small) / 1 var(--font-ui); }
+.hall-msg.is-mine .hall-speaker-avatar { background: var(--hub-selected); border-color: transparent; color: var(--hub-muted); }
+.hall-dialogue .hall-msg .body { font: var(--fw-normal) var(--t-base) / 1.55 var(--font-ui); color: var(--hub-text); padding-block: var(--s-1); }
+.hall-dialogue .hall-msg .body > :first-child { margin-top: 0; }
+.hall-dialogue .hall-msg .body > :last-child { margin-bottom: 0; }
+.hall-dialogue .hall-msg.is-mine .body { padding: var(--s-4) var(--s-5); background: color-mix(in srgb, var(--hub-selected) 72%, transparent); border: 0; border-radius: 4px; color: var(--hub-text); }
+.hall-dialogue .hall-msg .body pre { max-width: 100%; overflow: auto; padding: var(--s-5); border: 1px solid color-mix(in srgb, var(--hub-border) 80%, transparent); border-radius: 4px; background: color-mix(in srgb, var(--hub-void) 88%, var(--hub-raised)); font: var(--fw-normal) var(--t-body) / 1.5 var(--font-mono); }
+.hall-dialogue .hall-msg .body code { font-family: var(--font-mono); font-size: var(--t-body); }
+.hall-dialogue .hall-msg .body table { display: block; max-width: 100%; overflow-x: auto; }
+.hall-dialogue .hall-msg .body blockquote { margin-inline: 0; padding-left: var(--s-5); border-left: 2px solid color-mix(in srgb, var(--hub-border-loud) 80%, transparent); color: var(--hub-muted); }
+.hall-dialogue .hall-msg-tools { gap: var(--s-2); opacity: 1; }
+.hall-dialogue .hall-msg-tools > button { min-height: 24px; padding: var(--s-1) var(--s-2); border-radius: 4px; font: var(--fw-normal) var(--t-small) / 1.3 var(--font-ui); letter-spacing: normal; color: var(--hub-faint-2); }
+.hall-dialogue .hall-msg-tools > button:hover,
+.hall-dialogue .hall-msg-tools > button:focus-visible { background: var(--hub-selected); color: var(--hub-text); }
+.hall-dialogue .hall-msg-tools > button.is-on { background: var(--ember-wash); color: var(--ember); }
+.hall-dialogue .hall-answer-badge { align-items: center; font-family: var(--font-ui); font-size: var(--t-small); color: var(--hub-faint-2); }
+.hall-dialogue .hall-answer-badge b { font-weight: var(--fw-medium); letter-spacing: normal; text-transform: none; }
+.hall-dialogue .hall-answer-badge:not(.is-fallback) > span { padding: var(--s-1) var(--s-3); border: 1px solid color-mix(in srgb, var(--hub-border) 70%, transparent); border-radius: 2px; background: transparent; font-family: var(--font-mono); }
+.hall-dialogue .hall-answer-badge.is-fallback { padding: var(--s-4) var(--s-5); background: var(--ember-wash); border-radius: 4px; }
+.hall-dialogue .hall-compose { box-sizing: border-box; width: calc(100% - 32px); max-width: 760px; margin: var(--s-3) auto var(--s-5); padding: var(--s-4) var(--s-5); gap: var(--s-3); border: 1px solid color-mix(in srgb, var(--hub-border-loud) 70%, transparent); border-radius: 4px; background: color-mix(in srgb, var(--hub-raised) 55%, var(--hub-void)); box-shadow: none; }
+.hall-dialogue .hall-compose:focus-within { border-color: color-mix(in srgb, var(--vscode-focusBorder, var(--ember)) 55%, var(--hub-border)); box-shadow: none; }
+.hall-compose-label { font: var(--fw-medium) var(--t-body) / 1.4 var(--font-ui); color: var(--hub-muted); }
+.hall-dialogue #master-discussion-context:empty { display: none; }
+.hall-dialogue .hall-compose textarea { box-sizing: border-box; min-height: 44px; max-height: min(200px, 28vh); resize: vertical; padding: var(--s-2) 0; border: 0; background: transparent; font: var(--fw-normal) var(--t-base) / 1.5 var(--font-ui); }
+.hall-dialogue .hall-compose textarea::placeholder { color: var(--hub-muted-2); }
+.hall-dialogue .hall-compose-actions { display: flex; flex-wrap: wrap; gap: var(--s-3); padding-top: var(--s-3); border-top: 1px solid color-mix(in srgb, var(--hub-border) 65%, transparent); }
+.hall-dialogue .hall-compose-actions .hall-compose-model { flex: 1 1 100%; min-width: 0; font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui); color: var(--hub-faint-2); overflow-wrap: anywhere; }
+.hall-dialogue .hall-compose-hint { margin-left: 0; margin-right: auto; font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui); color: var(--hub-faint-2); white-space: normal; }
+.hall-dialogue .hall-compose-actions .hall-btn { min-height: 28px; border-radius: 2px; font-family: var(--font-ui); letter-spacing: normal; }
+.hall-dialogue .hall-compose-actions .hall-btn.is-primary { margin-left: auto; }
+.hall-dialogue .hall-panel.is-alarm { border: 1px solid var(--hub-border-loud); border-top: 2px solid var(--ember-line); border-radius: 8px; background: var(--hub-raised); overflow: hidden; }
+.hall-dialogue .hall-panel .hall-lead { font: var(--fw-semibold) var(--t-lead) / var(--lh-base) var(--font-ui); }
+.hall-dialogue .hall-objectives,
+.hall-dialogue .hall-dod ul { font: var(--fw-normal) var(--t-base) / var(--lh-loose) var(--font-ui); }
+.hall-dialogue .hall-panel .hall-fineprint { font: var(--fw-normal) var(--t-small) / var(--lh-base) var(--font-ui); }
+.hall-dialogue .hall-party-row { border-radius: 4px; }
+.hall-dialogue .hall-panel .hall-actions .hall-btn { border-radius: 4px; font-family: var(--font-ui); letter-spacing: normal; }
+/* Одна вертикаль текста на всю ленту.
+   Реплика Мастера начиналась у самого края колонки, текст в пузыре — на 12px
+   правее (отступ пузыря), текст карточки — на 17px (рамка плюс её отступ).
+   Три начала на одном экране: глаз идёт сверху вниз и на каждой смене рода
+   блока спотыкается. Отступ теперь один и берётся ступенью: фон пузыря и
+   рамка карточки остаются на краю колонки, а текст внутри них встаёт на ту же
+   вертикаль, что и обычная реплика. */
+.hall-dialogue { --hall-text-inset: var(--s-5); }
+.hall-dialogue .hall-msg .body,
+.hall-dialogue .hall-facts-line,
+.hall-dialogue .hall-answer-badge,
+.hall-dialogue .hall-msg-tools,
+.hall-dialogue .hall-day { padding-inline: var(--hall-text-inset); }
+.hall-dialogue .hall-msg.is-mine .body { padding: var(--s-4) var(--hall-text-inset); }
+/* У карточки свой минус: рамка в пиксель — часть её левого края. */
+.hall-dialogue .hall-panel .hall-panel-row,
+.hall-dialogue .hall-panel > header { padding-inline: calc(var(--hall-text-inset) - 1px); }
+.hall-dialogue .hall-msg-waiting .body { padding: var(--s-2) 0; color: var(--hub-muted); font-size: var(--t-small); }
+.hall-dialogue .hall-chat-welcome { align-items: flex-start; justify-content: flex-start; flex: 1; gap: var(--s-4); padding-block: var(--s-7); text-align: left; }
+.hall-welcome-mark { display: grid; place-items: center; width: 28px; height: 28px; border: 0; border-radius: 4px; color: var(--hub-muted); background: var(--hub-selected); font: var(--fw-semibold) var(--t-base) / 1 var(--font-ui); }
+.hall-dialogue .hall-chat-welcome > b { font: var(--fw-semibold) var(--t-title) / 1.3 var(--font-ui); color: var(--hub-text); }
+.hall-dialogue .hall-chat-welcome > span { max-width: 52ch; color: var(--hub-muted); font: var(--fw-normal) var(--t-base) / 1.5 var(--font-ui); }
+.hall-dialogue .master-starters { width: 100%; max-width: 420px; margin-top: var(--s-4); }
+.hall-dialogue .master-starters > div { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s-2); }
+/* Быстрый старт — список, а не четыре карточки. Залитые плашки читались как
+   четыре равных предложения продукта; у эталона это тихие строки, которые не
+   спорят с пустым полем ввода. Заливка остаётся только под указателем. */
+.hall-dialogue .master-starters .hall-chip { display: flex; flex-direction: column; align-items: stretch; gap: var(--s-1); padding: var(--s-3) 0; text-align: left; white-space: normal; border: 0; border-bottom: 1px solid var(--hub-border-soft); border-radius: 0; background: none; }
+.hall-dialogue .master-starters .hall-chip:last-child { border-bottom: 0; }
+.hall-dialogue .master-starters .hall-chip:hover { border-color: var(--hub-border-soft); background: none; }
+.hall-dialogue .master-starters .hall-chip:hover strong { color: var(--hub-text); }
+.hall-dialogue .master-starters strong { display: flex; justify-content: space-between; gap: var(--s-4); color: var(--hub-text-2); font: var(--fw-medium) var(--t-small) / 1.35 var(--font-ui); }
+.hall-dialogue .master-starters strong i { color: var(--hub-muted); font-style: normal; }
+.hall-dialogue .master-starters .hall-chip > span { color: var(--hub-faint-2); font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui); }
+@media (max-width: 640px) {
+  .hall-head-focused .hall-chat-heading span { display: none; }
+  .hall-head-focused { flex-wrap: wrap; gap: var(--s-4); }
+  .hall-dialogue { --hall-who-col: 32px; --hall-msg-indent: calc(32px + var(--s-4)); }
+  .hall-dialogue .hall-thread { padding: var(--s-5); gap: var(--s-5); }
+  .hall-dialogue .hall-msg .who { font-size: var(--t-micro); }
+  .hall-dialogue .hall-compose { width: calc(100% - 16px); margin-bottom: var(--s-4); padding: var(--s-4); }
+  .hall-dialogue .master-starters > div { grid-template-columns: minmax(0, 1fr); }
+  .hall-dialogue .hall-compose-hint { flex: 1 1 100%; }
+  .hall-dialogue .hall-party-row { grid-template-columns: auto minmax(0, 1fr); gap: var(--s-3) var(--s-4); }
+  .hall-dialogue .hall-party-why,
+  .hall-dialogue .hall-party-score { grid-column: 2; justify-self: start; }
+}
+
+/* Conversation controls stay outside the scrolling message log. */
+.hall-dialogue .hall-sessions { flex: 0 0 auto; border-bottom: 1px solid color-mix(in srgb, var(--hub-border) 60%, transparent); padding: var(--s-3) var(--s-6); }
+.hall-dialogue .hall-session-toolbar, .hall-dialogue .hall-session-modes { display: flex; align-items: center; gap: var(--s-4); flex-wrap: wrap; }
+.hall-dialogue .hall-session-toolbar > span { flex: 1; min-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hall-dialogue .hall-session-modes { margin-top: var(--s-4); }
+.hall-dialogue .hall-session-modes [aria-pressed="true"], .hall-dialogue .hall-session-list [aria-current="true"] { background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); }
+.hall-dialogue .hall-session-panel { max-height: 240px; overflow: auto; padding: var(--s-5) 0; }
+.hall-dialogue .hall-session-panel[hidden], .hall-dialogue .hall-session-list button[hidden] { display: none; }
+.hall-dialogue .hall-session-panel label, .hall-dialogue .hall-question label { display: grid; gap: var(--s-4); }
+.hall-dialogue .hall-session-panel input, .hall-dialogue .hall-session-panel textarea { box-sizing: border-box; width: 100%; font: inherit; padding: var(--s-4); background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border, var(--vscode-panel-border)); border-radius: 4px; }
+.hall-dialogue .hall-session-panel small { display: block; margin: var(--s-4) 0; }
+.hall-dialogue .hall-session-list { display: grid; gap: var(--s-2); margin: var(--s-4) 0; }
+.hall-dialogue .hall-session-list button { text-align: left; }
+.hall-dialogue .hall-questions {
+  display: grid;
+  gap: var(--s-5);
+  margin: var(--s-2) 0 var(--s-4);
+  padding: 0;
+  max-width: 560px;
+}
+.hall-dialogue .hall-question {
+  display: grid;
+  gap: var(--s-3);
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.hall-dialogue .hall-question-prompt {
+  margin: 0;
+  font: var(--fw-medium) var(--t-base) / 1.4 var(--font-ui);
+  color: var(--hub-text);
+}
+.hall-dialogue .hall-question-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+.hall-dialogue .hall-option {
+  min-height: 28px;
+  padding: var(--s-2) var(--s-4);
+  border: 1px solid color-mix(in srgb, var(--hub-border) 80%, transparent);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--hub-muted);
+  font: var(--fw-normal) var(--t-small) / 1.3 var(--font-ui);
+  cursor: pointer;
+}
+.hall-dialogue .hall-option:hover {
+  color: var(--hub-text);
+  border-color: var(--hub-border-loud);
+  background: var(--hub-selected);
+}
+.hall-dialogue .hall-option.is-on {
+  color: var(--hub-text);
+  border-color: color-mix(in srgb, var(--vscode-focusBorder, var(--ember)) 45%, var(--hub-border));
+  background: var(--hub-selected);
+}
+.hall-dialogue .hall-question-extra {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 32px;
+  padding: var(--s-3) 0;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--hub-border) 70%, transparent);
+  border-radius: 0;
+  background: transparent;
+  color: var(--hub-text);
+  font: var(--fw-normal) var(--t-base) / 1.4 var(--font-ui);
+}
+.hall-dialogue .hall-question-extra:focus-visible {
+  outline: none;
+  border-bottom-color: var(--vscode-focusBorder, var(--ember));
+}
+.hall-dialogue .hall-questions-send {
+  justify-self: start;
+  min-height: 28px;
+  margin-top: var(--s-2);
+  padding: var(--s-2) var(--s-5);
+  border-radius: 2px;
+  font: var(--fw-medium) var(--t-small) / 1.3 var(--font-ui);
+  letter-spacing: normal;
+  text-transform: none;
+}
+.hall-dialogue .hall-sessions .hall-chip { min-height: 28px; padding: var(--s-2) var(--s-4); font: var(--fw-normal) var(--t-body) / 1.4 var(--font-ui); letter-spacing: normal; border-radius: 4px; }
+.hall-dialogue .hall-session-modes [aria-pressed="true"], .hall-dialogue .hall-session-list [aria-current="true"] { color: var(--ember); border-color: var(--ember-line); background: var(--ember-wash); }
+
+/* Focused chat workspace: neutral surfaces and a dedicated conversation rail.
+   Ширина рельсы объявлена дважды намеренно: отступом раздела и переменной
+   --hall-rail-offset. Композер Мастера вынут из потока и лежит поверх ленты
+   (07-master-quiet.css), а абсолютный потомок считает left от padding-box —
+   то есть от внешнего края, под которым и стоит рельса. Обе цифры держатся
+   на одной строке, чтобы правка рельсы не оставила композер на прежнем месте. */
+/* Приглушённые ступени переезжают вместе с остальными. Пока они оставались
+   тёплыми ступенями Чертога (#8A8780 / #838079 / #7E7B74), на нейтральных
+   поверхностях тихого регистра они давали 2.95–4.3 при пороге 4.5 — и
+   аудит находил это по одному месту за раз: метка происхождения ответа,
+   довод шага, путь вложения, стрелка отправки. Причина у всех одна, и
+   чинится она здесь, а не в каждом правиле отдельно. Четвёртая ступень —
+   линии, а не буквы, и остаётся собой. */
+.hall.is-focused { --hub-panel: var(--ui-panel); --hub-raised: var(--ui-raised); --hub-void: var(--ui-void); --hub-selected: var(--ui-selected); --hub-text: var(--ui-text); --hub-text-2: var(--ui-text); --hub-muted: var(--ui-muted); --hub-faint: var(--ui-faint); --hub-faint-2: var(--ui-faint); --hub-faint-3: var(--ui-faint); --hub-border: var(--ui-border); --hub-border-strong: var(--ui-border); --hub-border-loud: var(--ui-border); }
+.hall.is-focused .hall-main { max-width: none; width: 100%; }
+.hall.is-focused .hall-head-focused { padding: var(--s-5) var(--s-7); background: var(--ui-panel); }
+.hall-dialogue { position: relative; box-sizing: border-box; padding-left: 200px; --hall-rail-offset: 200px; --hall-quest-offset: 0px; --hall-quest-width: clamp(320px, 24vw, 380px); }
+.hall-conversations { position: absolute; inset: 0 auto 0 0; width: 200px; box-sizing: border-box; display: flex; flex-direction: column; gap: var(--s-5); padding: var(--s-6) var(--s-5); background: var(--ui-void); border-right: 1px solid var(--hub-border); }
+.hall-conversations header { display: flex; align-items: center; justify-content: space-between; font: var(--fw-medium) var(--t-base) / 1.5 var(--font-ui); }
+.hall-conversations input { box-sizing: border-box; width: 100%; padding: var(--s-4); border: 1px solid var(--hub-border); border-radius: 8px; background: var(--hub-raised); color: var(--hub-text); font: var(--fw-normal) var(--t-body) / 1.5 var(--font-ui); }
+.hall-conversation-items { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: var(--s-2); }
+.hall-conversation-items button { display: flex; align-items: center; gap: var(--s-4); text-align: left; min-height: 36px; padding: var(--s-4); color: var(--hub-muted); background: transparent; border: 1px solid transparent; border-radius: 8px; font: var(--fw-normal) var(--t-base) / 1.5 var(--font-ui); }
+.hall-conversation-items button span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hall-conversation-items button[aria-current="true"], .hall-conversation-items button:hover { color: var(--hub-text); background: var(--hub-selected); }
+.hall-conversation-items button[hidden] { display: none; }
+.hall-conversations footer { font: var(--fw-normal) var(--t-small) / 1.6 var(--font-ui); color: var(--hub-muted); }
+.hall-dialogue .hall-sessions { padding: var(--s-3) var(--s-6); border-bottom-color: color-mix(in srgb, var(--hub-border) 60%, transparent); }
+.hall-dialogue .hall-session-toolbar > span { font: var(--fw-medium) var(--t-base) / 1.5 var(--font-ui); }
+.hall-dialogue .hall-session-modes .hall-chip { min-height: 26px; border-radius: 2px; border-color: transparent; background: transparent; color: var(--hub-muted); }
+.hall-dialogue .hall-session-modes .hall-chip[aria-pressed="true"] { background: var(--hub-selected); color: var(--hub-text); border-color: var(--hub-border); }
+.hall-dialogue .hall-msg-tools > button { text-transform: none; }
+.hall-dialogue .hall-thread { padding-top: var(--s-5); }
+.hall-dialogue .hall-compose { border-radius: 4px; padding: var(--s-4) var(--s-5); margin-bottom: var(--s-5); }
+.hall-dialogue .hall-compose-label { display: none; }
+.hall-dialogue .hall-compose textarea { min-height: 44px; }
+.hall-dialogue .hall-msg .body pre { max-height: 320px; }
+.hall-context { display: flex; align-items: center; flex-wrap: wrap; gap: var(--s-4); font: var(--fw-normal) var(--t-small) / 1.5 var(--font-ui); }
+.hall-context small { color: var(--hub-muted); }
+.hall-context-add, .hall-context-file { display: inline-flex; align-items: center; gap: var(--s-3); padding: var(--s-2) var(--s-4); border: 1px solid var(--hub-border); border-radius: 8px; color: var(--hub-text); background: var(--hub-selected); font: inherit; }
+.hall-context-file { max-width: 100%; overflow-wrap: anywhere; }
+.hall-context-file button { border: 0; background: transparent; color: var(--hub-muted); font: inherit; }
+@media (max-width: 800px) { .hall-dialogue { padding-left: 0; --hall-rail-offset: 0px; padding-right: 0; --hall-quest-offset: 0px; } .hall-conversations { display: none; } .hall-dialogue .hall-sessions { padding-inline: var(--s-5); } }
+
+.hall-dialogue.history-hidden { padding-left: 0; --hall-rail-offset: 0px; }
+.hall-dialogue.history-hidden .hall-conversations { display: none; }
+.hall-dialogue .hall-msg .body, .hall-dialogue .hall-compose textarea { font-size: var(--t-base); line-height: 1.55; }
+.hall-dialogue { --t-base: 13px; --t-small: 11px; }
+.hall-dialogue .hall-compose > label.hall-compose-label { display: none; }
+.hall-dialogue .hall-speaker-avatar { background: var(--hub-selected); color: var(--hub-muted); border-color: var(--hub-border); }
+.hall-dialogue .hall-msg-tools { opacity: 0; transition: opacity .12s; }
+.hall-dialogue .hall-turn:hover .hall-msg-tools, .hall-dialogue .hall-turn:focus-within .hall-msg-tools { opacity: 1; }
+.hall-composer-controls, .hall-work-modes { display: flex; align-items: center; flex-wrap: wrap; gap: var(--s-3); }
+.hall-composer-controls { color: var(--hub-muted); font: var(--fw-normal) var(--t-small) / 1.5 var(--font-ui); gap: var(--s-2); }
+.hall-composer-controls .hall-chip,
+.hall-composer-controls summary {
+  font: inherit;
+  letter-spacing: normal;
+  text-transform: none;
+  min-height: 26px;
+  padding: var(--s-2) var(--s-3);
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: var(--hub-muted);
+  cursor: pointer;
+  list-style: none;
+}
+.hall-composer-controls summary::-webkit-details-marker { display: none; }
+.hall-composer-controls .hall-chip:hover,
+.hall-composer-controls summary:hover,
+.hall-composer-controls details[open] > summary {
+  color: var(--hub-text);
+  background: var(--hub-selected);
+}
+.hall-composer-controls .hall-chip[aria-pressed="true"] { background: var(--hub-selected); color: var(--hub-text); }
+.hall-work-menu > div,
+.hall-answer-style > :not(summary) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin-top: var(--s-2);
+}
+.hall-work-modes [aria-pressed="true"] { background: var(--hub-selected); color: var(--hub-text); }
+.hall-answer-style { position: relative; }
+.hall-answer-style summary { cursor: pointer; padding: var(--s-3); }
+.hall-model-choice { margin-left: auto; max-width: 100%; overflow-wrap: anywhere; }
+.hall-stream { font: var(--fw-normal) var(--t-base) / 1.5 var(--font-ui); padding: var(--s-5) 0; }
+.hall-stream small { color: var(--hub-muted); font-size: var(--t-small); }
+.hall-stream-text { white-space: pre-wrap; overflow-wrap: anywhere; margin-top: var(--s-4); }
+.hall-memory-entry { padding: var(--s-5) 0; border-bottom: 1px solid var(--hub-border); }
+.hall-memory-entry > div { display: flex; flex-wrap: wrap; gap: var(--s-4); margin-top: var(--s-4); }
+.hall-message-context { margin-top: var(--s-4); font: var(--fw-normal) var(--t-small) / 1.5 var(--font-ui); }
+.hall-message-context pre { max-height: 240px; overflow: auto; white-space: pre-wrap; }
+.hall-message-context img { display: block; max-width: 100%; max-height: 320px; object-fit: contain; }
+.hall-dialogue :focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: 2px; }
+@media (max-width: 800px) {
+ .hall-dialogue.history-open .hall-conversations { display: flex; z-index: 20; width: min(280px, 85%); box-shadow: 8px 0 24px var(--hub-void); }
+ .hall-dialogue .hall-msg-tools { opacity: 1; }
+ .hall-dialogue .hall-session-toolbar > small { display: none; }
+}

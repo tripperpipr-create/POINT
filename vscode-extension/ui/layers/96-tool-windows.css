@@ -1,0 +1,1209 @@
+/* Native right-side Point tool windows. Each surface keeps its own interaction
+   model while sharing the quiet IDE register and compact vertical rhythm. */
+body[data-layout^='tool-'],
+body[data-layout^='tool-'] #root { height: 100vh; min-height: 0; overflow: hidden; }
+
+.point-tool-app {
+  background: var(--ui-panel);
+  color: var(--ui-text);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.point-tool-page,
+.point-tool-app .hub-page {
+  background: var(--ui-panel);
+  box-sizing: border-box;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--s-5);
+  min-height: 0;
+  overflow: auto;
+  padding: var(--s-5);
+  width: 100%;
+}
+.point-tool-head,
+.point-tool-app .hub-page-head {
+  align-items: flex-start;
+  border-bottom: 1px solid var(--ui-border);
+  display: grid;
+  gap: var(--s-4);
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  margin: 0;
+  padding: 0 0 var(--s-5);
+}
+.point-tool-head > div,
+.point-tool-app .hub-page-head > div { min-width: 0; }
+.point-tool-head span,
+.point-tool-app .hub-page-head span {
+  color: var(--ui-muted);
+  display: block;
+  font: var(--fw-semibold) var(--t-micro)/1 var(--font-mono);
+  letter-spacing: .08em;
+}
+.point-tool-head h1,
+.point-tool-app .hub-page-head h1,
+.point-tool-app .hub-page-head h2 {
+  color: var(--ui-text);
+  font: var(--fw-semibold) var(--t-lead)/1.3 var(--font-sans);
+  margin: var(--s-2) 0;
+}
+.point-tool-head p,
+.point-tool-app .hub-page-head p {
+  color: var(--ui-muted);
+  font: var(--fw-normal) var(--t-small)/1.45 var(--font-sans);
+  margin: 0;
+}
+.point-tool-head em,
+.point-tool-app .hub-page-head em {
+  background: var(--ui-raised);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--r-1);
+  color: var(--ui-text);
+  font: var(--fw-semibold) var(--t-tiny)/1 var(--font-mono);
+  min-width: var(--s-7);
+  padding: var(--s-3);
+  text-align: center;
+}
+.point-tool-refresh { align-self: start; }
+.point-tool-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+}
+.point-tool-actions > button { flex: 1 1 auto; min-height: var(--s-8); }
+.point-tool-actions.primary-row > button:first-child { flex-basis: 100%; }
+
+.point-tool-metrics {
+  display: grid;
+  gap: var(--s-3);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.point-tool-metrics > span,
+.point-tool-metrics > button {
+  background: var(--ui-raised);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--r-1);
+  color: var(--ui-text);
+  display: grid;
+  gap: var(--s-2);
+  min-width: 0;
+  padding: var(--s-4);
+  text-align: left;
+}
+.point-tool-metrics > button { cursor: pointer; }
+.point-tool-metrics > button:hover,
+.point-tool-metrics > button.active { border-color: var(--mana); }
+.point-tool-metrics small {
+  color: var(--ui-muted);
+  font: var(--fw-semibold) var(--t-micro)/1 var(--font-mono);
+}
+.point-tool-metrics b { font: var(--fw-semibold) var(--t-title)/1 var(--font-mono); }
+.point-tool-metrics .danger b,
+.point-tool-metrics .danger { color: var(--wound); }
+
+.point-tool-list {
+  border: 1px solid var(--ui-border);
+  border-radius: var(--r-1);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.point-tool-list > header {
+  align-items: center;
+  background: var(--ui-raised);
+  border-bottom: 1px solid var(--ui-border);
+  display: flex;
+  gap: var(--s-4);
+  justify-content: space-between;
+  padding: var(--s-4);
+}
+.point-tool-list > header strong { font: var(--fw-semibold) var(--t-small)/1 var(--font-sans); }
+.point-tool-list > header small { color: var(--ui-muted); font-size: var(--t-tiny); }
+.point-tool-empty {
+  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  justify-content: center;
+  min-height: 160px;
+  padding: var(--s-6);
+}
+.point-tool-empty.compact { min-height: 80px; }
+.point-tool-empty strong { font-size: var(--t-base); }
+.point-tool-empty p { color: var(--ui-muted); font-size: var(--t-small); line-height: 1.45; margin: 0; }
+.point-tool-loading { align-items: center; color: var(--ui-muted); display: flex; gap: var(--s-4); padding: var(--s-7) var(--s-4); }
+
+/* Git-панель: дерево изменений и коммит.
+
+   Регистр — IDE, а не Чертог: плотно, тихо, без украшений. Разговор идёт о
+   файлах и папках, поэтому цветом отмечена ровно одна вещь — что случилось с
+   файлом. Буква статуса красится, имя файла — нет: панель живёт и в светлой
+   теме редактора, где цветной текст перестаёт читаться, а фишка со своим
+   фоном остаётся разборчивой в обеих. */
+/* ── Git-панель по макету Nocturne ───────────────────────────────────────────
+   Метрики и цвета перенесены из `Git Panel.dc.html` один к одному через токены
+   `--nc-*` (объявлены в ui/tokens.css вместе с их происхождением). Панель
+   держит собственный грунт: макет нарисован на сине-фиолетовой шкале, и
+   пересадка её на серо-оранжевую шкалу оболочки давала другой продукт.
+
+   Пространство имён `nc-` тоже осознанное: слои Point полны правил на общие
+   имена, и панель, собранная из чужих `.point-*`, разъезжалась от каждой
+   правки в соседнем слое. */
+.nc-app {
+  background: var(--nc-bg);
+  color: var(--nc-text);
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-ui);
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+.nc-app * { box-sizing: border-box; }
+.nc-gap { flex: 1 1 auto; }
+.nc-icon { fill: none; flex: 0 0 auto; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.6; }
+.nc-scroll { overflow: auto; scrollbar-color: var(--nc-line-soft) transparent; scrollbar-width: thin; }
+.nc-sep { background: var(--nc-line-soft); flex: 0 0 auto; height: var(--nc-6); width: 1px; }
+
+/* Полка инструментов: значок, имя, вкладки, ветка, счётчики, действия. */
+/* Шапка — одна строка: имя окна, вкладки, обновление. Раньше она переносилась
+   на три ряда (ветка, счётчики ↑↓, создание ветки, fetch), и на узкой панели
+   от заголовка папки оставалось «И…». Всё это теперь живёт в верхней панели
+   IDE — в жетоне ветки и меню «Git», — а здесь только то, ради чего панель
+   открывают: список изменений и коммит. */
+.nc-head {
+  align-items: center;
+  background: var(--nc-panel);
+  border-bottom: 1px solid var(--nc-line);
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  gap: var(--nc-2);
+  min-height: var(--nc-head-h);
+  padding: var(--nc-1) var(--nc-3);
+}
+.nc-brand { align-items: center; color: var(--nc-accent); display: flex; flex: 0 0 auto; gap: var(--nc-2); }
+.nc-brand b { color: var(--nc-text); font: 500 var(--nc-t-lead)/1 var(--font-ui); letter-spacing: .02em; }
+.nc-tabs { display: flex; flex: 0 1 auto; gap: var(--nc-1); min-width: 0; order: 0; }
+.nc-tab {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: var(--nc-r);
+  color: var(--nc-dim);
+  cursor: pointer;
+  display: flex;
+  flex: 0 1 auto;
+  min-width: 0;
+  font: 400 var(--nc-t-small)/1 var(--font-ui);
+  gap: var(--nc-2);
+  justify-content: center;
+  /* Цель указателя, а не только надпись: с одной отбивкой --nc-1 вкладка
+     выходила 19px в высоту. Первый замер окон инструментов (цикл 34) нашёл
+     двенадцать таких целей в одном только окне Git. */
+  min-height: var(--s-7);
+  padding: var(--nc-1) var(--nc-3);
+}
+/* Подпись вкладки уходит первой, когда панель совсем узкая: значок вкладки
+   опознаёт её и сам, а обрезанные подписи не читаются вовсе. */
+.nc-tab > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nc-tab:hover { color: var(--nc-text-2); }
+.nc-tab.is-active { background: var(--nc-row-select); color: var(--nc-text); }
+.nc-branch {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--nc-accent-800);
+  border-radius: var(--nc-r-chip);
+  color: var(--nc-accent-300);
+  cursor: pointer;
+  display: flex;
+  flex: 0 1 auto;
+  font: 400 var(--nc-t-small)/1 var(--font-ui);
+  gap: var(--nc-2);
+  max-width: 46%;
+  min-height: var(--s-7);
+  min-width: 0;
+  padding: var(--nc-1) var(--nc-3);
+}
+.nc-branch span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nc-branch:hover:not(:disabled) { background: var(--nc-accent-hover); }
+.nc-track { display: flex; flex: 0 0 auto; gap: var(--nc-1); }
+.nc-track b { font: 500 var(--nc-t-num)/1 var(--nc-mono); }
+.nc-icon-btn {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: var(--nc-r);
+  color: var(--nc-faint);
+  cursor: pointer;
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--nc-1);
+  justify-content: center;
+  min-height: var(--s-7);
+  min-width: var(--s-7);
+  padding: 0 var(--nc-1);
+}
+.nc-icon-btn:hover:not(:disabled) { background: var(--nc-row-hover); color: var(--nc-text); }
+.nc-icon-btn.is-on { background: var(--nc-accent-wash); color: var(--nc-accent-200); }
+.nc-icon-btn:disabled { cursor: default; opacity: var(--disabled-opacity); }
+
+.nc-body { display: flex; flex: 1 1 auto; min-height: 0; }
+.nc-list { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; min-width: 0; }
+.nc-sub {
+  align-items: center;
+  border-bottom: 1px solid var(--nc-line);
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--nc-2);
+  min-height: var(--nc-sub-h);
+  padding: 0 var(--nc-3) 0 var(--nc-4);
+}
+.nc-sub > span {
+  color: var(--nc-dim);
+  font: 400 var(--nc-t-label)/1 var(--font-ui);
+  letter-spacing: .09em;
+  /* Заголовок раздела — одна строка. С кнопками обмена справа он переносился
+     на две, и строка раздела вырастала вдвое; при нехватке места обрезается
+     он, а не разъезжается вёрстка: это вывеска, её узнают по началу. */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.nc-sub > .nc-icon-btn { flex: 0 0 auto; }
+.nc-sub > .nc-sep { flex: 0 0 auto; }
+/* Путь файла — не заголовок раздела: прописными он превращается в вывеску, а
+   читать его надо как путь. Специфичность подняли намеренно, иначе правило
+   заголовка `.nc-sub > span` перекрывает регистр. */
+.nc-sub > .nc-path {
+  color: var(--nc-muted);
+  font: 400 var(--nc-t-small)/1.4 var(--nc-mono);
+  letter-spacing: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
+}
+/* Различия помещаются только в широкой панели. В боковой рейке их место
+   занимает редактор: щелчок по файлу открывает штатное сравнение. */
+.nc-diff { display: none; }
+@media (min-width: 640px) {
+  .nc-head { flex-wrap: nowrap; padding: 0 var(--nc-4) 0 var(--nc-6); }
+  .nc-tabs { flex: 0 0 auto; order: 0; }
+  .nc-tab { flex: 0 0 auto; }
+  /* Вкладка изменений — одна колонка во всю ширину: сравнение открывается в
+     редакторе, и делить панель больше не с чем. Карточка коммита и записи
+     полки живут справа, там колонка списка держит ширину из макета. */
+  .nc-list { flex: 0 0 var(--nc-list-w); }
+  .nc-body.is-single .nc-list { flex: 1 1 auto; }
+  .nc-diff {
+    border-left: 1px solid var(--nc-line);
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+    min-width: 0;
+  }
+}
+.nc-seg { border: 1px solid var(--nc-line-soft); border-radius: var(--nc-r); display: flex; flex: 0 0 auto; overflow: hidden; }
+.nc-seg button {
+  background: transparent;
+  border: 0;
+  color: var(--nc-dim);
+  cursor: pointer;
+  font: 400 var(--nc-t-label)/1 var(--font-ui);
+  padding: var(--nc-1) var(--nc-4);
+}
+.nc-seg button.is-on { background: var(--nc-accent-wash); color: var(--nc-accent-200); }
+.nc-banner {
+  align-items: center;
+  background: var(--nc-warn-bg);
+  border-bottom: 1px solid var(--nc-line);
+  color: var(--nc-warn);
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--nc-4);
+  padding: var(--nc-2) var(--nc-4);
+}
+.nc-banner p { color: var(--nc-text-2); font-size: var(--nc-t-small); margin: 0; }
+.nc-diff-body { flex: 1 1 auto; min-height: 0; }
+
+/* Список изменений. Строка файла — три пикселя сверху и снизу, отступ уровня
+   в четырнадцать: ровно как в макете. */
+.nc-group { flex: 0 0 auto; }
+/* Между списками изменений нужен воздух: без него шапка «Вне репозитория»
+   читается как ещё одна папка предыдущего списка. Волосяная линия ставится
+   сверху и только у второго и следующих — над первым списком линия была бы
+   вторым подчёркиванием под панелью вкладок. */
+.nc-group + .nc-group { border-top: 1px solid var(--nc-line); margin-top: var(--nc-2); padding-top: var(--nc-2); }
+.nc-group > header {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  gap: var(--nc-1);
+  padding: var(--nc-2) var(--nc-3);
+  user-select: none;
+}
+.nc-group > header:hover { background: var(--nc-row-hover); }
+/* Папка под перетаскиваемым файлом. Подсвечена вся группа, а не только шапка:
+   отпускать можно куда угодно внутри неё, и это должно быть видно. */
+.nc-group.is-drop { background: var(--nc-accent-hover); box-shadow: inset 2px 0 0 var(--nc-accent); }
+.nc-twist {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: var(--nc-dim);
+  cursor: pointer;
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: center;
+  /* Треугольник раскрытия рисуется в 12px, но попасть в 12×12 мышью нельзя:
+     цель расширена отбивкой, знак остался прежнего размера. */
+  min-height: var(--s-7);
+  padding: 0;
+  width: var(--s-7);
+}
+.nc-group-main {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  flex: 1 1 auto;
+  gap: var(--nc-2);
+  min-height: 22px;
+  min-width: 0;
+  padding: 0;
+  text-align: left;
+}
+.nc-group-main strong { flex: 0 1 auto; }
+.nc-group-main em { flex: 0 0 auto; }
+.nc-group-main strong {
+  color: var(--nc-text);
+  font: 500 var(--nc-t-lead)/1.35 var(--font-ui);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nc-group-main em { color: var(--nc-faint); font: 400 var(--nc-t-label)/1 var(--font-ui); font-style: normal; }
+/* Чип состояния — надпись, а не кнопка: рамка вокруг «АКТИВНАЯ» в узкой панели
+   читалась как ещё один элемент управления рядом с настоящими. */
+.nc-chip {
+  border: 0;
+  color: var(--nc-accent-400);
+  flex: 0 0 auto;
+  font: 400 var(--nc-t-chip)/1.6 var(--font-ui);
+  letter-spacing: .06em;
+  padding: 0;
+  text-transform: uppercase;
+}
+.nc-chip.is-warn { border-color: var(--nc-warn-line); color: var(--nc-warn); font-size: var(--nc-t-num); }
+.nc-box-dot { background: var(--nc-line-soft); display: block; flex: 0 0 auto; height: 1px; width: 12px; }
+.nc-clean {
+  align-items: center;
+  color: var(--nc-dim);
+  display: grid;
+  gap: var(--nc-3);
+  justify-items: center;
+  padding: var(--nc-8) var(--nc-6);
+  text-align: center;
+}
+.nc-clean strong { color: var(--nc-text); font: 500 var(--nc-t-lead)/1.3 var(--font-ui); }
+.nc-clean p { font-size: var(--nc-t-small); line-height: 1.5; margin: 0; max-width: 34ch; }
+.nc-clean .nc-icon { color: var(--nc-add); }
+.nc-empty { color: var(--nc-faint); font-size: var(--nc-t-label); line-height: 1.5; margin: 0; padding: var(--nc-2) var(--nc-6); }
+.nc-cut { border-top: 1px solid var(--nc-line); }
+
+/* Папка — строка дерева JetBrains: стрелка, галочка, значок, имя, счётчик.
+   Отступ даёт вложенность разметки. Галочка отмечает всю папку
+   целиком — как в Commit tool window IntelliJ. */
+/* Шаг уровня и цвет направляющей — единственные две величины, которыми
+   настраивается дерево. Направляющая на `--nc-line-soft` (#2b2b2b на #191919)
+   не читалась вовсе: линия была, но её не видел никто.
+
+   ВАЖНО: отступ уровня считает вложенность разметки (`.nc-dir-files`), а не
+   глубина в переменной строки. Вебвью отдаётся с CSP `style-src` без
+   `'unsafe-inline'`, то есть атрибут `style=` он выбрасывает целиком: строки
+   с `style="--nc-depth:5"` получали padding по запасному значению, дерево
+   вставало в одну колонку, а файл — на 16px левее своей папки, потому что у
+   него нет стрелки. На стенде (страница без CSP) это не воспроизводилось.
+   Проверка живьём: `scripts/probe-point-git-panel.mjs` печатает
+   `инлайн.применён` — если там `0px`, инлайновые стили снова мертвы. */
+.point-git-tree {
+  /* Список тянется на всю оставшуюся высоту. Без этого он жался по
+     содержимому: под коротким списком стояла мёртвая полоса, а меню строки
+     обрезалось нижним краем прокрутки — доводить `scrollIntoView` там было
+     нечего, прокрутки не существовало. */
+  flex: 1 1 auto;
+  min-height: 0;
+  --nc-glyph: 24px;
+  --nc-step: 18px;
+  /* Левое поле строки и занимаемое место стрелки. Из этих двух величин
+     считаются отступ файла, направляющая и цель клика стрелки — раньше 4, 16
+     и 12 повторялись литералами в четырёх местах и разъезжались поодиночке. */
+  --nc-row-pad: 4px;
+  --nc-twist: 16px;
+  --nc-rail: color-mix(in srgb, var(--nc-dim) 26%, transparent);
+}
+.nc-dir {
+  align-items: center;
+  color: var(--nc-text-2);
+  cursor: pointer;
+  display: flex;
+  gap: var(--nc-1);
+  min-height: 24px;
+  padding: 0 var(--nc-2) 0 var(--nc-row-pad);
+  width: 100%;
+}
+.nc-dir:hover { color: var(--nc-text); }
+.nc-dir:hover .nc-more,
+.nc-dir:focus-within .nc-more { opacity: 1; }
+/* Цель клика — 24×24, занимаемое место — прежние 16px: ширина растёт наружу
+   отрицательными полями, поэтому центр значка и весь отступ дерева стоят там
+   же, где стояли. Было 16×22 — мимо стрелки промахивались, а строка под ней
+   уезжала на пиксель. */
+.nc-dir-twist {
+  align-items: center;
+  align-self: stretch;
+  background: transparent;
+  border: 0;
+  color: var(--nc-dim);
+  cursor: pointer;
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: center;
+  margin: 0 calc(-1 * var(--nc-row-pad));
+  min-height: 24px;
+  padding: 0;
+  width: calc(var(--nc-twist) + 2 * var(--nc-row-pad));
+}
+.nc-dir-twist:hover { color: var(--nc-text); }
+/* Кнопка занимает всю высоту строки, а не высоту своего текста: строка
+   выглядит целью в 24px, а попадала в 18px. */
+.nc-dir-main {
+  align-items: center;
+  align-self: stretch;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  flex: 1 1 auto;
+  gap: var(--nc-2);
+  min-height: 24px;
+  min-width: 0;
+  padding: 0;
+  text-align: left;
+}
+.nc-dir-main > .nc-icon { color: var(--nc-dim); flex: 0 0 auto; }
+.nc-dir-main > span {
+  flex: 0 1 auto;
+  font: 400 var(--t-base)/1.4 var(--font-ui);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Проходные уровни склеенной папки: путь виден, но имя папки читается первым. */
+/* Проходные уровни ушли на ступень ниже имени папки: `--nc-ghost` отличался
+   от `--nc-dim` на десятую долю прозрачности, и после приглушения папок весь
+   склеенный путь стал одного тона — последний сегмент перестал читаться. */
+/* 55% давали контраст 2.75 при пороге 4.5: проходные уровни не читались
+   вовсе, а не «читались вторыми». Нижняя граница здесь — порог, а не вкус:
+   85% от --nc-dim на --nc-bg дают 4.77, и ступень до имени папки (6.09)
+   сохраняется. При наведении обе части поднимаются на ступень вместе. */
+.nc-dir-lead { color: color-mix(in srgb, var(--nc-dim) 85%, var(--nc-bg)); font-style: normal; }
+.nc-dir:hover .nc-dir-lead { color: var(--nc-dim); }
+/* Папка тише файла на ступень. В дереве изменений действуют над файлами, а
+   папка — адрес; равная яркость заставляла вычитывать каждую строку заново. */
+.nc-dir-main > span { color: var(--nc-dim); }
+.nc-dir:hover .nc-dir-main > span { color: var(--nc-text); }
+/* Сколько файлов внутри — как «9 files» в дереве JetBrains. */
+.nc-dir-main > em {
+  color: var(--nc-faint);
+  flex: 0 0 auto;
+  font: 400 var(--nc-t-label)/1 var(--font-ui);
+  font-style: normal;
+  margin-left: var(--nc-1);
+}
+
+/* Строка файла: галочка, бейдж типа, имя. Стрелки у файла нет, поэтому её
+   место (16px) он занимает отступом — иначе галочка файла встаёт левее
+   галочки своей папки, и содержимое читается как сосед папки, а не как её
+   содержимое. В плоском списке уровней нет, и запас не нужен. */
+.nc-file {
+  align-items: center;
+  display: flex;
+  gap: var(--nc-1);
+  min-height: 24px;
+  padding: 0 var(--nc-2) 0 calc(var(--nc-row-pad) + var(--nc-twist) + var(--nc-1));
+}
+.point-git-tree.is-flat .nc-file { padding-left: var(--nc-row-pad); }
+/* Обёртка содержимого папки и есть уровень: она сдвигает всё, что внутри, на
+   один шаг. Направляющая рисуется слоем под стрелкой своей папки — она и
+   держит вложенность на глаз. Наведение подсвечивает всю цепочку папок над
+   строкой: всплытие события красит направляющие всех предков разом. */
+.nc-dir-files { min-width: 0; padding-left: var(--nc-step, 18px); position: relative; }
+.nc-dir-files::before {
+  background: var(--nc-rail, var(--nc-line-soft));
+  bottom: 0;
+  content: '';
+  left: calc(var(--nc-row-pad) + var(--nc-twist) / 2);
+  position: absolute;
+  top: 0;
+  transition: background var(--motion-fast) var(--ease);
+  width: 1px;
+}
+.nc-dir-files:hover::before { background: var(--nc-accent-800); }
+/* Наведение на строку — единственный признак, что по ней можно щёлкнуть.
+   `--nc-row-hover` берётся из темы (`list.hoverBackground`) и в тёмной теме
+   отличается от фона на один тон: строка не отзывалась вовсе. Подмешиваем
+   собственный слой от цвета текста — он виден на любой теме. */
+.nc-file:hover,
+.nc-dir:hover { background: color-mix(in srgb, var(--nc-text) 8%, var(--nc-row-hover)); }
+.nc-file-main {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  flex: 1 1 auto;
+  gap: var(--nc-2);
+  min-height: 22px;
+  min-width: 0;
+  padding: 0;
+  text-align: left;
+}
+/* Значок папки стоит в той же колонке, что фишка типа файла, и той же ширины:
+   иначе на одном уровне дерева имя папки и имя файла начинались с разного
+   места — папка на 14 пикселей, файл на 22, — и уровень приходилось искать
+   глазами заново. Обёртка — `<i>`, а не `<span>`: правило `.nc-dir-main > span`
+   держит имя папки и по частностям сильнее одного класса, поэтому ширину
+   колонки оно бы забрало себе. */
+.nc-dir-glyph {
+  align-items: center;
+  color: var(--nc-dim);
+  display: inline-flex;
+  flex: 0 0 var(--nc-glyph, 24px);
+  justify-content: center;
+}
+/* Бейдж типа файла вместо буквы статуса — как иконка языка в JetBrains.
+   Цвета только из канонической палитры: акцент / success / warn / muted. */
+/* Фон у бейджа прозрачный: своя плашка цвета `--nc-panel` совпадала с цветом
+   подсветки строки и на наведении превращалась в дырку посреди полосы. */
+.nc-file-badge {
+  align-items: center;
+  background: transparent;
+  width: var(--nc-glyph, 24px);
+  border: 1px solid var(--nc-line-soft);
+  border-radius: var(--nc-r-chip);
+  color: var(--nc-text-2);
+  display: inline-flex;
+  flex: 0 0 auto;
+  font: 600 var(--nc-t-chip)/1 var(--nc-mono);
+  height: 14px;
+  justify-content: center;
+  letter-spacing: -.02em;
+  overflow: hidden;
+  padding: 0;
+  text-transform: uppercase;
+}
+.nc-file-badge.ext-php,
+.nc-file-badge.ext-kt,
+.nc-file-badge.ext-vue,
+.nc-file-badge.ext-svg,
+.nc-file-badge.ext-png,
+.nc-file-badge.ext-jpg,
+.nc-file-badge.ext-jpeg { color: var(--arcane); border-color: color-mix(in srgb, var(--arcane) 40%, transparent); }
+.nc-file-badge.ext-js,
+.nc-file-badge.ext-jsx,
+.nc-file-badge.ext-ts,
+.nc-file-badge.ext-tsx,
+.nc-file-badge.ext-go,
+.nc-file-badge.ext-css,
+.nc-file-badge.ext-scss { color: var(--mana); border-color: color-mix(in srgb, var(--mana) 40%, transparent); }
+.nc-file-badge.ext-py,
+.nc-file-badge.ext-java,
+.nc-file-badge.ext-html,
+.nc-file-badge.ext-htm,
+.nc-file-badge.ext-sh,
+.nc-file-badge.ext-ps1 { color: var(--ember); border-color: color-mix(in srgb, var(--ember) 40%, transparent); }
+.nc-file-badge.ext-rs,
+.nc-file-badge.ext-sql { color: var(--vital); border-color: color-mix(in srgb, var(--vital) 40%, transparent); }
+.nc-file-badge.is-untracked { background: transparent; color: var(--nc-dim); }
+.nc-file.is-modified .nc-file-badge { border-color: color-mix(in srgb, var(--nc-accent-400) 55%, transparent); }
+.nc-file.is-added .nc-file-badge { border-color: color-mix(in srgb, var(--nc-add) 60%, transparent); }
+.nc-file.is-deleted .nc-file-badge { border-color: color-mix(in srgb, var(--nc-del) 60%, transparent); }
+.nc-file.is-conflict .nc-file-badge { border-color: color-mix(in srgb, var(--nc-warn) 70%, transparent); }
+.nc-file.is-renamed .nc-file-badge { border-color: color-mix(in srgb, var(--nc-accent-300) 60%, transparent); }
+/* Имя файла сжимается последним: у него нет запаса роста, поэтому свободное
+   место забирает `.nc-gap`, а тесноту первым отдаёт путь или прежнее имя. */
+.nc-file-main strong {
+  color: var(--nc-text-2);
+  flex: 0 1 auto;
+  font: 400 var(--t-base)/1.4 var(--font-ui);
+  min-width: 3ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nc-file-main small {
+  color: var(--nc-ghost);
+  flex: 0 4 auto;
+  font-size: var(--nc-t-num);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nc-renamed-from { opacity: .7; }
+/* Плюс и минус — две колонки одной ширины по правому краю. Раньше ширину
+   держал только минус, и у строк без него плюс уезжал вправо: правый край
+   списка сыпался. Цвет приглушён — знак стоит у каждой строки, и в полную
+   силу зелёный с красным спорили с именами файлов. */
+.nc-plus,
+.nc-minus {
+  flex: 0 0 auto;
+  font: 400 var(--nc-t-num)/1 var(--nc-mono);
+  min-width: 24px;
+  text-align: right;
+}
+.nc-plus { color: color-mix(in srgb, var(--nc-add) 82%, transparent); }
+.nc-minus { color: color-mix(in srgb, var(--nc-del) 82%, transparent); }
+.nc-file:hover .nc-plus,
+.nc-file.is-selected .nc-plus { color: var(--nc-add); }
+.nc-file:hover .nc-minus,
+.nc-file.is-selected .nc-minus { color: var(--nc-del); }
+.nc-warn-mark { align-items: center; color: var(--nc-warn); display: flex; flex: 0 0 auto; }
+.nc-file.is-deleted .nc-file-main strong { text-decoration: line-through; }
+.nc-file:not(.is-checked) .nc-file-main strong { color: var(--nc-faint); }
+/* Выбранная строка — серая заливка во всю ширину, как в дереве JetBrains. */
+.nc-file.is-selected { background: var(--nc-row-select); }
+.nc-file.is-selected .nc-file-main strong { color: var(--nc-text); }
+.nc-file.is-dragging { opacity: var(--disabled-opacity); }
+/* Меню строки — всплывающий слой, а не блок в потоке.
+   Имена `point-git-menu*` остались от первой версии панели, и правил под них не
+   написали вовсе: меню рисовалось системными кнопками прямо в строке, раздвигая
+   её на треть высоты панели и закрывая имя файла. Теперь оно живёт в
+   пространстве `nc-` и выглядит как контекстное меню JetBrains: плотный
+   столбец, разделы подписаны, опасное действие красное. */
+.nc-menu { display: flex; flex: 0 0 auto; position: relative; }
+.nc-menu-body {
+  background: var(--nc-panel);
+  border: 1px solid var(--nc-line-soft);
+  border-radius: var(--r-3);
+  box-shadow: 0 8px 24px rgb(0 0 0 / .5);
+  display: grid;
+  max-height: 60vh;
+  max-width: 260px;
+  min-width: 184px;
+  overflow: auto;
+  padding: var(--nc-1) 0;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 2px);
+  z-index: 30;
+}
+.nc-app .nc-menu-body button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  color: var(--nc-text-2);
+  cursor: pointer;
+  display: flex;
+  font: 400 var(--nc-t-body)/1.2 var(--font-ui);
+  gap: var(--nc-2);
+  justify-content: space-between;
+  min-height: var(--hit);
+  overflow: hidden;
+  padding: 0 var(--nc-4);
+  text-align: left;
+  white-space: nowrap;
+  width: 100%;
+}
+.nc-app .nc-menu-body button > span {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nc-app .nc-menu-body button > kbd {
+  color: var(--nc-faint);
+  flex: 0 0 auto;
+  font: 400 var(--nc-t-num)/1 var(--font-ui);
+  letter-spacing: .02em;
+  margin-left: var(--nc-4);
+}
+.nc-app .nc-menu-body button:hover:not(:disabled) { background: var(--nc-row-hover); color: var(--nc-text); }
+.nc-app .nc-menu-body button.is-on { color: var(--nc-accent-200); }
+.nc-app .nc-menu-body button.danger { color: var(--nc-del); }
+.nc-app .nc-menu-body button.danger:hover:not(:disabled) { background: var(--nc-del-bg); }
+.nc-menu-body small {
+  color: var(--nc-faint);
+  font: 400 var(--nc-t-chip)/1.6 var(--font-ui);
+  letter-spacing: .06em;
+  padding: var(--nc-2) var(--nc-4) var(--nc-1);
+  text-transform: uppercase;
+}
+/* Раздел, кроме первого, отбит линией: без неё не видно, где кончаются
+   действия над файлом и начинается список папок. */
+.nc-menu-body small:not(:first-child) { border-top: 1px solid var(--nc-line); margin-top: var(--nc-1); padding-top: var(--nc-2); }
+/* Меню подвала открывается вверх: вниз ему некуда — там край панели. Слева
+   стоит «Прошлые», и её меню растёт вправо; меню ветки — наоборот. */
+.nc-commit .nc-menu-body { bottom: calc(100% + 2px); top: auto; }
+.nc-commit .nc-menu:has(> .nc-ghost) .nc-menu-body { left: 0; right: auto; }
+
+.nc-more { opacity: 0; }
+.nc-file:hover .nc-more,
+.nc-file:focus-within .nc-more,
+.nc-dir:hover .nc-more,
+.nc-dir:focus-within .nc-more,
+.nc-group:hover .nc-more,
+.nc-group:focus-within .nc-more { opacity: 1; }
+
+/* Галочка нарисована рамками: картинки политика вебвью не пропускает. */
+/* Цель — вся высота строки дерева, коробка — прежние 14px. Флажок 14×14 внутри
+   22-пиксельной строки требовал точности, которой у мыши нет; рисует коробку
+   `::before`, поэтому размер цели вырос, а вид не изменился. */
+.nc-app input[type="checkbox"] {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  flex: 0 0 auto;
+  height: 22px;
+  margin: 0;
+  padding: 0;
+  position: relative;
+  width: 22px;
+}
+.nc-app input[type="checkbox"]::before {
+  border: 1px solid var(--nc-ghost);
+  border-radius: var(--nc-r-chip);
+  content: '';
+  height: 14px;
+  left: 4px;
+  position: absolute;
+  top: 4px;
+  width: 14px;
+}
+.nc-app input[type="checkbox"]:hover::before { border-color: var(--nc-accent); }
+.nc-app input[type="checkbox"]:checked::before { background: var(--nc-check); border-color: var(--nc-check); }
+.nc-app input[type="checkbox"]:checked::after {
+  border: solid var(--nc-text);
+  border-width: 0 2px 2px 0;
+  content: '';
+  height: 7px;
+  left: 8px;
+  position: absolute;
+  top: 5px;
+  transform: rotate(45deg);
+  width: 3px;
+}
+.nc-app input[type="checkbox"]:indeterminate::before { background: color-mix(in srgb, var(--nc-check) 60%, transparent); border-color: var(--nc-check); }
+.nc-app input[type="checkbox"]:indeterminate::after {
+  background: var(--nc-text);
+  content: '';
+  height: 2px;
+  left: 6px;
+  position: absolute;
+  top: 9px;
+  width: 8px;
+}
+.nc-app input[type="checkbox"]:focus-visible { outline: 2px solid var(--nc-accent); outline-offset: 1px; }
+
+/* Строки истории и полки. */
+.nc-row {
+  background: transparent;
+  border: 0;
+  color: var(--nc-text-2);
+  cursor: pointer;
+  display: flex;
+  gap: var(--nc-3);
+  padding: var(--nc-3) var(--nc-4);
+  text-align: left;
+  width: 100%;
+}
+.nc-row:hover { background: var(--nc-row-hover); }
+.nc-row.is-selected { background: var(--nc-row-select); }
+.nc-row > span { display: grid; gap: var(--nc-1); min-width: 0; }
+.nc-row strong {
+  color: var(--nc-text);
+  font: 400 var(--nc-t-body)/1.35 var(--font-ui);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nc-row small { align-items: center; color: var(--nc-faint); display: flex; font-size: var(--nc-t-num); gap: var(--nc-3); overflow: hidden; }
+.nc-hash { color: var(--nc-accent-300); font: 400 var(--nc-t-num)/1 var(--nc-mono); }
+.nc-dot {
+  background: var(--nc-ghost);
+  border-radius: 50%;
+  display: block;
+  flex: 0 0 auto;
+  height: 7px;
+  margin-top: var(--nc-2);
+  width: 7px;
+}
+.nc-row.is-selected .nc-dot { background: var(--nc-accent); }
+.nc-stash > .nc-icon { color: var(--nc-dim); margin-top: var(--nc-1); }
+
+/* Различия. */
+.nc-diff-rows { font: 400 var(--nc-t-body)/var(--nc-diff-line) var(--nc-mono); min-width: 100%; width: max-content; }
+.nc-pair { display: flex; min-width: 100%; }
+.nc-pair.is-head .nc-cell.side-r { display: none; }
+.nc-pair.is-head .nc-cell.side-l { border-right: 0; flex: 1 1 100%; }
+.nc-cell { display: flex; flex: 1 1 50%; gap: var(--nc-4); min-width: 0; padding: 0 var(--nc-3); }
+.nc-cell.side-l { border-right: 1px solid var(--nc-line); }
+.nc-num { color: var(--nc-ghost); flex: 0 0 auto; text-align: right; user-select: none; width: 30px; }
+.nc-code { min-width: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.nc-sign { color: var(--nc-faint); flex: 0 0 auto; width: 12px; }
+.nc-uni { display: flex; gap: var(--nc-3); padding: 0 var(--nc-4); }
+.nc-cell.is-same, .nc-uni.is-same { color: var(--nc-muted); }
+.nc-cell.is-head, .nc-uni.is-head { background: var(--nc-accent-wash-soft); color: var(--nc-accent-300); }
+.nc-cell.is-add, .nc-uni.is-add { background: var(--nc-add-bg); color: var(--nc-add); }
+.nc-cell.is-del, .nc-uni.is-del { background: var(--nc-del-bg); color: var(--nc-del); }
+.nc-cell.is-conflict, .nc-uni.is-conflict { background: var(--nc-warn-bg); color: var(--nc-warn); }
+.nc-cell.is-blank { background: color-mix(in srgb, #000 22%, transparent); color: transparent; }
+
+/* Карточка коммита и записи полки. */
+.nc-detail { display: grid; gap: var(--nc-4); max-width: 620px; padding: var(--nc-6); }
+.nc-detail > strong { color: var(--nc-text); font: 500 var(--nc-t-title)/1.3 var(--font-ui); }
+.nc-detail-meta { color: var(--nc-dim); display: flex; flex-wrap: wrap; font-size: var(--nc-t-small); gap: var(--nc-6); }
+.nc-rule { background: linear-gradient(90deg, var(--nc-line-soft), transparent); height: 1px; }
+.nc-detail-stats { align-items: center; color: var(--nc-dim); display: flex; font-size: var(--nc-t-small); gap: var(--nc-3); margin: 0; }
+.nc-detail-files { display: grid; }
+.nc-detail-file {
+  align-items: center;
+  color: var(--nc-muted);
+  display: flex;
+  font: 400 var(--nc-t-small)/1.9 var(--nc-mono);
+  gap: var(--nc-3);
+  padding: 0 var(--nc-2);
+}
+.nc-detail-file > b { color: var(--nc-accent-400); flex: 0 0 auto; font-size: var(--nc-t-num); width: 12px; }
+.nc-detail-actions { display: flex; gap: var(--nc-3); padding-top: var(--nc-2); }
+
+/* Панель коммита — как в JetBrains Commit tool window:
+   Amend + история сообщений сверху, textarea, кнопки Commit / Commit and Push. */
+.nc-commit {
+  background: var(--nc-foot);
+  border-top: 1px solid var(--nc-line);
+  display: grid;
+  flex: 0 0 auto;
+  gap: var(--nc-2);
+  padding: var(--nc-3) var(--nc-4);
+}
+.nc-commit-head {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nc-3);
+}
+.nc-commit-head small { color: var(--nc-ghost); font-size: var(--nc-t-num); }
+.nc-commit-chips {
+  align-items: center;
+  display: flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  gap: var(--nc-1);
+  min-width: 0;
+}
+/* Приставки сообщения — подписи, а не четыре кнопки в рамках. Рядом с ними
+   уже стоят «Дополнить» и «История», и пять обведённых элементов над полем
+   спорили за внимание с самим полем. Рамка появляется под указателем. */
+.nc-chip-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--nc-r);
+  color: var(--nc-ghost);
+  cursor: pointer;
+  font: 400 var(--nc-t-num)/1 var(--font-ui);
+  padding: var(--nc-1) var(--nc-2);
+}
+.nc-chip-btn:hover { background: var(--nc-row-hover); color: var(--nc-text-2); }
+/* Поле отделено от подвала собственным грунтом — рамка в покое ему не нужна
+   и только добавляла третий прямоугольник к панели. Рамка приходит под
+   указателем и на фокусе; в покое она прозрачная, чтобы не прыгала высота. */
+.nc-commit textarea {
+  background: var(--nc-field);
+  border: 1px solid transparent;
+  border-radius: var(--nc-r);
+  color: var(--nc-text);
+  font: 400 var(--nc-t-lead)/1.45 var(--font-ui);
+  height: 72px;
+  outline: none;
+  padding: var(--nc-3) var(--nc-4);
+  resize: none;
+  width: 100%;
+}
+.nc-commit textarea:hover:not(:focus) { border-color: var(--nc-line-soft); }
+.nc-commit textarea:focus { border-color: var(--nc-accent); }
+.nc-commit textarea::placeholder { color: var(--nc-ghost); }
+.nc-commit-foot {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nc-3);
+  padding-top: var(--nc-1);
+}
+.nc-commit-foot small { color: var(--nc-faint); font-size: var(--nc-t-num); }
+/* Из двух действий рамку носит одно. «Коммит» — тихая кнопка, «Коммит и пуш»
+   остаётся главной: две одинаково обведённые кнопки рядом заставляли читать
+   обе, чтобы понять, которая обычная. */
+#git-commit-submit { border-color: transparent; }
+#git-commit-submit:hover:not(:disabled) { border-color: var(--nc-line-soft); }
+#git-commit-submit:disabled { border-color: transparent; }
+.nc-commit-actions {
+  align-items: center;
+  display: flex;
+  flex: 1 1 auto;
+  gap: var(--nc-2);
+  justify-content: flex-end;
+  min-width: 0;
+}
+.nc-amend { align-items: center; color: var(--nc-muted); cursor: pointer; display: flex; flex: 0 0 auto; font-size: var(--nc-t-small); gap: var(--nc-2); }
+.nc-ghost,
+.nc-target,
+.nc-btn {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--nc-line-soft);
+  border-radius: var(--nc-r);
+  color: var(--nc-text-2);
+  cursor: pointer;
+  display: flex;
+  flex: 0 0 auto;
+  font: 400 var(--nc-t-small)/1 var(--font-ui);
+  gap: var(--nc-2);
+  padding: 5px var(--nc-4);
+}
+.nc-ghost { border-color: transparent; color: var(--nc-dim); }
+.nc-ghost:hover:not(:disabled) { border-color: var(--nc-line-soft); }
+.nc-target { color: var(--nc-text-2); max-width: 34ch; min-width: 0; }
+.nc-target span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nc-target .nc-icon:first-child { color: var(--nc-accent-400); }
+.nc-btn { font-size: var(--nc-t-body); padding: 5px var(--nc-6); }
+.nc-btn.is-primary { background: var(--nc-accent-wash-soft); border-color: var(--nc-accent); color: var(--nc-accent-200); }
+.nc-ghost:hover:not(:disabled),
+.nc-btn:hover:not(:disabled),
+.nc-target:hover:not(:disabled) { background: var(--nc-accent-hover); }
+/* Недоступная кнопка теряет заливку и остаётся контуром — то же решение, что
+   принято для Чертога в цикле 17. Прозрачность гасит заливку и подпись на ней
+   вместе: «Коммит и пуш» давал контраст 3.18, а подпись недоступной кнопки как
+   раз и объясняет, почему она недоступна. Цвет назван явно, чтобы его можно
+   было померить. */
+.nc-ghost:disabled,
+.nc-btn:disabled {
+  background: transparent;
+  border-color: var(--nc-line-soft);
+  color: var(--nc-dim);
+  cursor: default;
+  opacity: 1;
+}
+.nc-ghost:disabled:hover,
+.nc-btn:disabled:hover { background: transparent; border-color: var(--nc-line-soft); color: var(--nc-dim); }
+
+/* ── Узкая рейка ─────────────────────────────────────────────────────────────
+   Макет нарисован на панель в 940 пикселей. В боковой рейке её триста, и
+   раскладка «в строку» перестаёт работать: заголовок расползается на три ряда,
+   вкладки обрезаются, панель коммита превращается в лесенку из пяти этажей.
+   Здесь тот же набор, собранный под ширину: слово «Git» уходит (раздел и так
+   подписан оболочкой), вкладки делят строку поровну, кнопки коммита — пополам. */
+@media (max-width: 639px) {
+  .nc-brand b { display: none; }
+  .nc-tab { font-size: var(--nc-t-label); gap: var(--nc-1); min-width: 0; padding: var(--nc-1) var(--nc-2); }
+  .nc-tab span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* Значок вкладки уходит раньше подписи: три подписи и значка в триста
+     пикселей не помещаются, и обрезалось как раз слово — «Измен…», «Ист…».
+     Слово опознаёт вкладку, значок рядом с ним ничего не добавляет. */
+  .nc-tab > .nc-icon { display: none; }
+  /* «Прошлые» встают в строку с «Дополнить последний коммит», а не отдельным
+     этажом: подвал коммита и так в четыре ряда. Со словом кнопка в строку не
+     влезала — остаётся значок часов, а слово живёт в подсказке. */
+  .nc-ghost { margin-left: auto; padding: 5px var(--nc-2); }
+  .nc-ghost > span { display: none; }
+  .nc-branch { max-width: 38%; }
+  /* Подпись раздела в узкой панели повторяет активную вкладку строкой выше и
+     обрезается до «ЛОКАЛЬНЫЕ ИЗМЕНЕН…». Остаются действия — ровно панель
+     инструментов JetBrains. Подпись правой колонки (.nc-path) остаётся: она
+     говорит о другом содержимом. */
+  .nc-list .nc-sub > span:not(.nc-path) { display: none; }
+  /* Плюс-минус строк уходит вместе с подписью раздела. В триста пикселей эта
+     колонка стоила полсотни — ровно те, из-за которых от «template.php»
+     оставалось «template.p…». Размер правки — справка, имя файла — то, ради
+     чего в список смотрят; в дереве изменений JetBrains этой колонки нет
+     вовсе. На широкой панели она возвращается. */
+  .nc-file .nc-plus,
+  .nc-file .nc-minus { display: none; }
+  .nc-commit { padding: var(--nc-3) var(--nc-4); }
+  .nc-commit-head small { white-space: nowrap; }
+  .nc-commit-chips { display: none; }
+  .nc-commit-foot { gap: var(--nc-2); }
+  .nc-commit-actions { flex: 1 1 100%; }
+  .nc-target { flex: 1 1 100%; max-width: none; }
+  .nc-btn { flex: 1 1 auto; justify-content: center; padding: 5px var(--nc-3); white-space: nowrap; }
+}
+.nc-group-main { flex: 1 1 auto; min-width: 0; }
+.nc-group-main em { white-space: nowrap; }
+/* Правило про рост имени файла жило здесь и спорило с `.nc-file-main strong`
+   выше: имя растягивалось во всю строку и уносило прежнее имя к самому краю.
+   Ширину теперь держит одно правило — там же, где остальной вид строки. */
+
+.nc-notice {
+  align-items: center;
+  background: var(--nc-panel);
+  border-top: 1px solid var(--nc-line);
+  color: var(--nc-accent);
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--nc-3);
+  padding: var(--nc-2) var(--nc-6);
+}
+.nc-notice p { color: var(--nc-text-2); font-size: var(--nc-t-small); margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nc-notice.is-error { color: var(--nc-warn); }
+.nc-notice > button { margin-left: auto; transform: rotate(45deg); }
+
+
+.point-run-card {
+  background: var(--ui-raised);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--r-1);
+  display: grid;
+  gap: var(--s-4);
+  padding: var(--s-5);
+}
+.point-run-card > span { color: var(--ui-muted); font: var(--fw-semibold) var(--t-micro)/1 var(--font-mono); }
+.point-run-card > strong { font-size: var(--t-base); }
+.point-run-card > p { color: var(--ui-muted); font-size: var(--t-small); margin: 0; }
+.point-run-card > p.danger-copy { color: var(--wound); }
+.point-run-card footer { display: flex; flex-wrap: wrap; gap: var(--s-3); }
+.point-terminal-card { align-items: center; border-bottom: 1px solid var(--ui-border-soft); display: flex; gap: var(--s-4); padding: var(--s-4); }
+.point-terminal-card.active { box-shadow: inset var(--s-1) 0 0 var(--vital); }
+.point-terminal-card i { color: var(--mana); font: var(--fw-semibold) var(--t-base)/1 var(--font-mono); }
+.point-terminal-card strong,
+.point-terminal-card small { display: block; }
+.point-terminal-card small { color: var(--ui-muted); font-size: var(--t-tiny); margin-top: var(--s-2); }
+
+.point-log-stream { border: 1px solid var(--ui-border); border-radius: var(--r-1); min-height: 160px; overflow: auto; }
+.point-log-row {
+  border-bottom: 1px solid var(--ui-border-soft);
+  display: grid;
+  gap: var(--s-2) var(--s-4);
+  grid-template-columns: auto auto minmax(0, 1fr);
+  padding: var(--s-4);
+}
+.point-log-row > span { color: var(--ui-muted); font: var(--fw-normal) var(--t-micro)/1.3 var(--font-mono); grid-column: 1 / -1; }
+.point-log-row > b { color: var(--ui-muted); font: var(--fw-semibold) var(--t-micro)/1.4 var(--font-mono); text-transform: uppercase; }
+.point-log-row > em { color: var(--mana); font: var(--fw-medium) var(--t-tiny)/1.4 var(--font-mono); }
+.point-log-row > p { font: var(--fw-normal) var(--t-tiny)/1.45 var(--font-mono); margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.point-log-row.level-error { box-shadow: inset var(--s-1) 0 0 var(--wound); }
+.point-log-row.level-error > b { color: var(--wound); }
+.point-log-row.level-warning { box-shadow: inset var(--s-1) 0 0 var(--caution); }
+.point-log-row.level-warning > b { color: var(--caution); }
+.point-log-path { color: var(--ui-muted); font: var(--fw-normal) var(--t-micro)/1.3 var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.point-tool-status {
+  align-items: center;
+  background: var(--ui-void);
+  border-top: 1px solid var(--ui-border);
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--s-4);
+  justify-content: space-between;
+  min-height: var(--s-7);
+  padding: 0 var(--s-4);
+}
+.point-tool-status span { align-items: center; color: var(--ui-muted); display: flex; font-size: var(--t-micro); gap: var(--s-3); min-width: 0; }
+.point-tool-status i { background: var(--ui-muted); border-radius: var(--r-full); height: var(--s-2); width: var(--s-2); }
+.point-tool-status i.live { background: var(--vital); }
+/* Показание индекса в подвале — кнопка: по ней открывают состояние индекса.
+   Цель у неё была 65×11 при полосе в 24px: надпись в 9px с интерлиньяжем 1 и
+   без отбивки. Первый же замер окон инструментов (цикл 34) нашёл её в каждом
+   из пяти. Кнопка занимает полосу по высоте целиком; отрицательная отбивка
+   справа возвращает надпись на прежнее место — иначе она уехала бы внутрь на
+   ширину новой отбивки, а левая половина полосы её не имеет. */
+.point-tool-status button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: var(--ui-muted);
+  cursor: pointer;
+  display: inline-flex;
+  font: var(--fw-medium) var(--t-micro)/1 var(--font-mono);
+  margin-right: calc(var(--s-3) * -1);
+  min-height: var(--s-7);
+  padding: 0 var(--s-3);
+}
+
+/* Infrastructure views share the full Hub implementation, but collapse to a
+   single readable column inside a 300–420 px tool window. */
+.point-tool-app .hub-page .connection-list,
+.point-tool-app .hub-page .settings-grid { grid-template-columns: minmax(0, 1fr); }
+.point-tool-app .hub-page .hub-card,
+.point-tool-app .hub-page .connection-form,
+.point-tool-app .hub-page .connection-secret-note,
+.point-tool-app .hub-page .db-query-result,
+.point-tool-app .hub-page .db-schema { border-radius: var(--r-1); margin: 0; padding: var(--s-5); }
+.point-tool-app .hub-page .hub-card-footer { align-items: stretch; display: grid; gap: var(--s-3); grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.point-tool-app .hub-page .hub-card-footer > button:first-child { grid-column: 1 / -1; }
+.point-tool-app .hub-page .hub-transitional { display: none; }
+.point-tool-app .hub-page input,
+.point-tool-app .hub-page select,
+.point-tool-app .hub-page textarea { width: 100%; }
+
+@media (max-width: 340px) {
+  /* На узкой панели шаг уровня уступает имени файла: глубокий путь съедал бы
+     столько, что от имени оставался бы огрызок. Ступень видно и на 14px. */
+  .point-git-tree { --nc-step: 14px; }
+  .point-tool-metrics { grid-template-columns: minmax(0, 1fr); }
+  .point-git-commit > footer { align-items: stretch; flex-direction: column; }
+  .point-tool-app .hub-page .hub-card-footer { grid-template-columns: minmax(0, 1fr); }
+  .point-tool-app .hub-page .hub-card-footer > button:first-child { grid-column: auto; }
+}
+
+/* ── Широкая форма: окна инструментов в нижней панели ────────────────────────
+   Запуск, Службы и Логи переехали из правой рейки вниз (docs/IDE-DESIGN.md),
+   и форма у них перевернулась: было узко и высоко, стало широко и низко.
+   Вертикальный поток в такой коробке даёт колонку в треть ширины и полосу
+   прокрутки при пустом месте справа — читать приходится через скролл там, где
+   всё помещается рядом.
+
+   Порог 720px разделяет две формы сам: правая панель и рейка столько не
+   занимают (стенд меряет их на 420, 300 и 255), а нижняя панель почти всегда
+   шире. Отдельного признака «я внизу» у вебвью нет — он и не нужен: решает
+   не место, а ширина коробки.
+
+   Широкими остаются блоки, которым ширина и нужна: шапка, пояснение,
+   ряд действий, метрики, лента логов, таблица результата и подвал. Остальное —
+   карточки, формы, списки — встаёт в две колонки в порядке разметки. */
+@media (min-width: 720px) {
+  body[data-layout^='tool-'] .point-tool-page,
+  body[data-layout^='tool-'] .point-tool-app .hub-page {
+    align-content: start;
+    column-gap: var(--s-5);
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  body[data-layout^='tool-'] .point-tool-page > .point-tool-head,
+  body[data-layout^='tool-'] .point-tool-page > .point-tool-actions,
+  body[data-layout^='tool-'] .point-tool-page > .point-tool-metrics,
+  body[data-layout^='tool-'] .point-tool-page > .point-log-stream,
+  body[data-layout^='tool-'] .point-tool-page > .point-log-path,
+  body[data-layout^='tool-'] .point-tool-page > .error-banner,
+  body[data-layout^='tool-'] .point-tool-app .hub-page > .hub-page-head,
+  body[data-layout^='tool-'] .point-tool-app .hub-page > .connection-secret-note,
+  body[data-layout^='tool-'] .point-tool-app .hub-page > .safety-note,
+  body[data-layout^='tool-'] .point-tool-app .hub-page > .db-query-result,
+  body[data-layout^='tool-'] .point-tool-app .hub-page > .db-schema,
+  body[data-layout^='tool-'] .point-tool-app .hub-page > .hub-transitional { grid-column: 1 / -1; }
+}

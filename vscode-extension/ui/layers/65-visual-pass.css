@@ -1,0 +1,259 @@
+/* Point visual pass — Hub atmosphere only.
+   Shell / companion stay JetBrains-quiet: no radial washes, corner ticks, or
+   avatar glow. Hub layouts (wide | statistics | docker) keep light brand depth. */
+
+/* ── Shell: flat panel, no product glow ─────────────────────────────────── */
+.app {
+  background: var(--point-panel);
+}
+.brand {
+  position: relative;
+  background: var(--point-void);
+}
+.brand::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: var(--border);
+  pointer-events: none;
+}
+.brand-mark {
+  background-image: url('./point-icon.png');
+  background-size: cover;
+  background-position: center;
+}
+
+/* ── Hub-only atmosphere ────────────────────────────────────────────────── */
+body[data-layout="wide"] .app,
+body[data-layout="statistics"] .app,
+body[data-layout="docker"] .app {
+  background:
+    radial-gradient(920px 320px at 0% -8%, color-mix(in srgb, var(--ember) 6%, transparent), transparent 58%),
+    radial-gradient(820px 280px at 100% 0%, color-mix(in srgb, var(--mana) 5%, transparent), transparent 55%),
+    var(--point-panel);
+}
+body[data-layout="wide"] .brand,
+body[data-layout="statistics"] .brand,
+body[data-layout="docker"] .brand {
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--ember) 10%, transparent), transparent 36%, transparent 64%, color-mix(in srgb, var(--mana) 8%, transparent)),
+    var(--point-void);
+}
+body[data-layout="wide"] .brand::after,
+body[data-layout="statistics"] .brand::after,
+body[data-layout="docker"] .brand::after {
+  background: linear-gradient(90deg, var(--ember), transparent 42%, transparent 58%, var(--mana));
+}
+body[data-layout="wide"] .hub-shell-8.tabs,
+body[data-layout="statistics"] .hub-shell-8.tabs,
+body[data-layout="docker"] .hub-shell-8.tabs {
+  background: linear-gradient(180deg, var(--void), color-mix(in srgb, var(--panel) 72%, var(--void)));
+}
+body[data-layout="wide"] .hub-shell-8.tabs > button.active,
+body[data-layout="wide"] .hub-shell.tabs > button.active,
+body[data-layout="statistics"] .hub-shell-8.tabs > button.active,
+body[data-layout="statistics"] .hub-shell.tabs > button.active,
+body[data-layout="docker"] .hub-shell-8.tabs > button.active,
+body[data-layout="docker"] .hub-shell.tabs > button.active {
+  color: var(--ember);
+  background: color-mix(in srgb, var(--ember) 11%, var(--selected));
+  border-color: color-mix(in srgb, var(--ember) 55%, var(--border));
+  box-shadow: inset 0 -2px 0 var(--ember);
+}
+body[data-layout="wide"] .command-center,
+body[data-layout="statistics"] .command-center,
+body[data-layout="docker"] .command-center {
+  background-image:
+    radial-gradient(760px 260px at 8% 0%, color-mix(in srgb, var(--mana) 5%, transparent), transparent 70%),
+    radial-gradient(640px 220px at 92% 0%, color-mix(in srgb, var(--ember) 4%, transparent), transparent 68%);
+}
+body[data-layout="wide"] .hub-page,
+body[data-layout="statistics"] .hub-page,
+body[data-layout="docker"] .hub-page {
+  background-image:
+    radial-gradient(700px 220px at 0% 0%, color-mix(in srgb, var(--mana) 4%, transparent), transparent 70%);
+}
+body[data-layout="wide"] .hub-current-quest.featured,
+body[data-layout="statistics"] .hub-current-quest.featured,
+body[data-layout="docker"] .hub-current-quest.featured {
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--ember) 14%, transparent);
+}
+body[data-layout="wide"] .command-center-hero,
+body[data-layout="statistics"] .command-center-hero,
+body[data-layout="docker"] .command-center-hero {
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--mana) 8%, transparent), transparent 36%),
+    linear-gradient(180deg, color-mix(in srgb, var(--mana) 6%, var(--panel)), var(--panel));
+}
+body[data-layout="wide"] .command-center-hero.tone-alert,
+body[data-layout="statistics"] .command-center-hero.tone-alert,
+body[data-layout="docker"] .command-center-hero.tone-alert {
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--ember) 12%, transparent), transparent 40%),
+    linear-gradient(180deg, color-mix(in srgb, var(--ember) 8%, var(--panel)), var(--panel));
+}
+body[data-layout="wide"] .command-center-hero.tone-ready,
+body[data-layout="statistics"] .command-center-hero.tone-ready,
+body[data-layout="docker"] .command-center-hero.tone-ready {
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--vital) 10%, transparent), transparent 40%),
+    linear-gradient(180deg, color-mix(in srgb, var(--vital) 6%, var(--panel)), var(--panel));
+}
+body[data-layout="wide"] .command-center-hero.tone-next,
+body[data-layout="statistics"] .command-center-hero.tone-next,
+body[data-layout="docker"] .command-center-hero.tone-next {
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--mana) 10%, transparent), transparent 40%),
+    linear-gradient(180deg, color-mix(in srgb, var(--mana) 6%, var(--panel)), var(--panel));
+}
+body[data-layout="wide"] .command-center-hero h1,
+body[data-layout="statistics"] .command-center-hero h1,
+body[data-layout="docker"] .command-center-hero h1,
+body[data-layout="wide"] .hub-page-head h1,
+body[data-layout="statistics"] .hub-page-head h1,
+body[data-layout="docker"] .hub-page-head h1 {
+  font: 520 var(--t-title)/1.15 var(--font-mono);
+}
+body[data-layout="wide"] .system-agent-card,
+body[data-layout="statistics"] .system-agent-card,
+body[data-layout="docker"] .system-agent-card {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--mana) 4%, var(--panel)), var(--panel));
+}
+body[data-layout="wide"] .system-agent-card.orchestrator,
+body[data-layout="statistics"] .system-agent-card.orchestrator,
+body[data-layout="docker"] .system-agent-card.orchestrator {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--vital) 5%, var(--panel)), var(--panel));
+}
+
+/* Corner ticks only on Hub empty frames — not companion / tool windows */
+body[data-layout="wide"] .point-frame,
+body[data-layout="statistics"] .point-frame,
+body[data-layout="docker"] .point-frame {
+  position: relative;
+}
+body[data-layout="wide"] .point-frame::before,
+body[data-layout="statistics"] .point-frame::before,
+body[data-layout="docker"] .point-frame::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(var(--mana), var(--mana)),
+    linear-gradient(var(--mana), var(--mana)),
+    linear-gradient(var(--mana), var(--mana)),
+    linear-gradient(var(--mana), var(--mana)),
+    linear-gradient(var(--ember), var(--ember)),
+    linear-gradient(var(--ember), var(--ember)),
+    linear-gradient(var(--ember), var(--ember)),
+    linear-gradient(var(--ember), var(--ember));
+  background-size: 11px 1px, 1px 11px, 11px 1px, 1px 11px, 11px 1px, 1px 11px, 11px 1px, 1px 11px;
+  background-position: top left, top left, top right, top right, bottom left, bottom left, bottom right, bottom right;
+  background-repeat: no-repeat;
+}
+
+/* ── Companion: quiet IDE chrome (no glow / mana washes) ────────────────── */
+.companion-studio,
+.companion-studio-hero,
+.companion-rail {
+  background: var(--vscode-sideBar-background, var(--raised));
+  box-shadow: none;
+}
+.companion-studio-hero::after { content: none; }
+.companion-rail.collapsed {
+  background: transparent;
+  box-shadow: none;
+}
+.companion-avatar {
+  background: var(--void);
+  box-shadow: none;
+}
+.companion-studio.has-thread .companion-avatar {
+  box-shadow: none;
+  border-color: var(--border);
+}
+.companion-thread {
+  background: var(--vscode-editor-background, var(--void));
+  border-color: var(--border);
+}
+.companion-thread::-webkit-scrollbar { width: 8px; }
+.companion-thread::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border: 2px solid var(--void);
+}
+.companion-msg {
+  position: relative;
+  box-shadow: none;
+}
+.companion-msg.user {
+  background: var(--panel);
+}
+.companion-msg.assistant {
+  background: var(--raised);
+}
+.companion-msg header small {
+  font: 700 var(--t-micro)/1 var(--font-mono);
+  letter-spacing: .08em;
+}
+.companion-msg.thinking {
+  border-style: dashed;
+  background: var(--panel);
+  animation: none;
+}
+.companion-msg.thinking p::after {
+  border-radius: 0;
+  transform: rotate(45deg);
+}
+.companion-empty {
+  background: transparent;
+}
+.companion-empty > span {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--border);
+  background: var(--void);
+  box-shadow: none;
+}
+.companion-compose.console textarea {
+  min-height: 62px;
+  padding: var(--s-4) var(--s-4h);
+  border-color: var(--border);
+  background: var(--void);
+  font-size: var(--t-base);
+  line-height: 1.45;
+}
+.companion-compose.console textarea:focus {
+  border-color: var(--mana);
+  outline-color: var(--mana);
+}
+.companion-quick-prompts button,
+.companion-question-chips button,
+.companion-focus-chip {
+  border-radius: var(--r-1);
+  letter-spacing: .02em;
+}
+.companion-quick-prompts button {
+  color: var(--text-primary);
+  background: var(--void);
+  border: 1px solid var(--border);
+}
+.companion-quick-prompts button:hover {
+  background: var(--selected);
+  border-color: var(--mana);
+}
+.companion-rail-last {
+  background: var(--void);
+}
+@keyframes companion-shimmer {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 100% 50%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .companion-msg.thinking { animation: none; }
+}

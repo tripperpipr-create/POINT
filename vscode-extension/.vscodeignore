@@ -1,0 +1,32 @@
+.vscode/**
+*.vsix
+**/*.map
+# Исходники дизайн-системы. В поставку едет только результат сборки:
+# media/style.css, media/rpg-tokens.css и media/main.js (см. ui/build*.mjs).
+ui/**
+runtime/**
+bin/data/**
+bin/**/*.db
+bin/**/*.db-shm
+bin/**/*.db-wal
+node_modules/**/test/**
+node_modules/**/tests/**
+node_modules/**/*.md
+node_modules/**/docs/**
+# VS Code loads this CommonJS extension with require(). Cursor ships a second
+# ESM build plus TypeScript declarations; neither is used at runtime.
+node_modules/@cursor/sdk/dist/esm/**
+node_modules/**/*.d.ts
+node_modules/**/*.d.ts.map
+node_modules/**/*.d.cts
+node_modules/**/*.d.mts
+# Open-source JS dependencies are bundled into dist/cursor-deps.cjs. Cursor's
+# own code stays byte-for-byte intact in dist/cursor-sdk; only its small native
+# platform package remains a production dependency.
+node_modules/@bufbuild/**
+node_modules/@connectrpc/**
+node_modules/@cursor/sdk/**
+node_modules/@fastify/**
+node_modules/@statsig/**
+node_modules/undici/**
+node_modules/zod/**

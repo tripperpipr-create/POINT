@@ -1,0 +1,817 @@
+/* Hub overhaul: five primary tabs, flat hierarchy, drawers for detail. */
+.hub-shell.tabs { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--s-1); padding: 0 var(--s-4) var(--s-4); }
+.hub-shell-8.tabs { grid-template-columns: repeat(8, minmax(0, 1fr)); padding: var(--s-3) var(--s-4) var(--s-4); }
+.hub-shell-8.tabs > button { display: grid; justify-items: center; gap: var(--s-2); min-height: 44px; padding: var(--s-3) var(--s-2) var(--s-4); font-size: var(--t-small); letter-spacing: 0; }
+.hub-shell-8.tabs > button b { font: 650 var(--t-small)/1.1 var(--font-ui); }
+.hub-shell-8.tabs > button small { color: var(--muted); font: 650 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace; letter-spacing: .04em; text-transform: uppercase; }
+.hub-shell-8.tabs > button em { min-width: 16px; padding: 1px var(--s-3); color: var(--void); background: var(--ember); font: 700 var(--t-micro)/1.2 "JetBrains Mono", Consolas, monospace; font-style: normal; }
+.hub-shell-8.tabs > button.has-alert em { background: var(--wound); color: #fff; }
+.hub-shell.tabs > button:focus-visible, .hub-jumps button:focus-visible, .hub-card:focus-visible { outline: 1px solid var(--ember); outline-offset: 2px; }
+.command-center { display: grid; gap: var(--s-5); padding: var(--s-4h) var(--s-5) var(--s-6); align-content: start; flex: 1; min-height: 0; overflow: auto; }
+.command-center-hero { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s-5); padding: var(--s-5) var(--s-6); border: 1px solid var(--border); border-left: var(--edge-accent) solid var(--mana); border-radius: var(--r-1); background: linear-gradient(180deg, color-mix(in srgb, var(--mana) 7%, var(--panel)), var(--panel)); }
+.command-center-hero.tone-alert { border-left-color: var(--ember); background: linear-gradient(180deg, color-mix(in srgb, var(--ember) 10%, var(--panel)), var(--panel)); }
+.command-center-hero.tone-live { border-left-color: var(--ember); }
+.command-center-hero.tone-ready { border-left-color: var(--vital); background: linear-gradient(180deg, color-mix(in srgb, var(--vital) 7%, var(--panel)), var(--panel)); }
+.command-center-hero.tone-next { border-left-color: var(--mana); background: linear-gradient(180deg, color-mix(in srgb, var(--mana) 8%, var(--panel)), var(--panel)); }
+.command-center-hero span { color: var(--mana); font: 650 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace; letter-spacing: .1em; }
+.command-center-hero h1 { margin: var(--s-2) 0; font-size: var(--t-display); letter-spacing: -.02em; }
+.command-center-hero p { margin: 0; color: var(--muted); font-size: var(--t-body); line-height: 1.45; }
+.command-center-hero-actions { display: flex; flex-wrap: wrap; gap: var(--s-4); }
+.command-center-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-4h); align-items: start; }
+.hub-card, .hub-current-quest, .hub-party, .hub-statistics, .hub-changesets, .companion-panel, .active-quest, .hub-sandbox-boundary { padding: var(--s-5); border: 1px solid var(--border); border-radius: var(--r-1); background: var(--raised); transition: border-color var(--motion-base) var(--ease), transform var(--motion-base) var(--ease), background-color var(--motion-base) var(--ease); }
+.hub-card.accent-ember { border-left: var(--edge-accent) solid var(--ember); }
+.hub-card.accent-mana { border-left: var(--edge-accent) solid var(--mana); }
+.hub-card.accent-arcane { border-left: var(--edge-accent) solid var(--arcane); }
+.hub-card.featured { background: linear-gradient(165deg, color-mix(in srgb, var(--ember) 8%, var(--raised)), var(--raised)); }
+.hub-card.live { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ember) 18%, transparent); }
+.hub-card[data-action], .system-agent-card { cursor: pointer; }
+.hub-card[data-action]:hover, .system-agent-card:hover, .hub-party-grid button:hover { border-color: color-mix(in srgb, var(--mana) 45%, var(--border)); background: color-mix(in srgb, var(--selected) 70%, var(--raised)); transform: none; }
+.hub-card.empty { color: var(--muted); }
+.hub-current-quest h2, .hub-party h2 { margin: var(--s-3) 0; font-size: var(--t-lead); }
+.hub-current-quest header, .hub-party header, .hub-changesets header { display: flex; align-items: center; justify-content: space-between; gap: var(--s-4); }
+.hub-stat-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-4); }
+.hub-stat-grid span { display: grid; gap: var(--s-1); padding: var(--s-3) var(--s-4); border: 1px solid var(--border); background: var(--panel); }
+.hub-stat-grid small { color: var(--muted); font-size: var(--t-micro); letter-spacing: .06em; }
+.hub-stat-grid b { font-size: var(--t-lead); }
+.hub-budget-phases { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-3); margin-top: var(--s-4); }
+.hub-budget-phases span { display: grid; gap: var(--s-1); padding: var(--s-3); border: 1px solid var(--border); background: var(--void); }
+.hub-budget-phases small { color: var(--muted); font-size: var(--t-micro); letter-spacing: .06em; }
+.hub-budget-phases > .hall-fineprint { grid-column: 1 / -1; }
+.statistics-budget-phases { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s-3); margin-top: var(--s-3); }
+.statistics-budget-phases span { display: grid; gap: 2px; }
+.hub-party-grid { display: grid; gap: var(--s-3); margin: var(--s-4) 0; }
+.hub-party-grid span, .hub-party-grid button { display: grid; gap: var(--s-1); padding: var(--s-4) var(--s-4); border: 1px solid var(--border); background: var(--panel); color: inherit; text-align: left; }
+.hub-party-grid strong, .hub-party-grid small { display: block; }
+.hub-party-grid small { color: var(--muted); font-size: var(--t-tiny); }
+.hub-exec-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: var(--s-4); align-items: center; padding: var(--s-4); border: 1px solid var(--border); background: var(--panel); margin-bottom: 6px; }
+.hub-exec-actions { display: flex; gap: var(--s-2); }
+.companion-panel { grid-column: 1 / -1; }
+.quest-progress-rail { position: relative; height: 6px; margin: var(--s-4) 0 var(--s-4h); background: color-mix(in srgb, var(--border) 70%, transparent); border-radius: 0; overflow: hidden; }
+.quest-progress-rail i { display: block; height: 100%; background: var(--ember); }
+.quest-progress-rail small { position: absolute; right: 0; top: -16px; font-size: var(--t-small); opacity: 0.7; }
+.party-status-strip { display: flex; flex-wrap: wrap; gap: var(--s-3); margin-bottom: 8px; }
+.quest-status-strip {
+  align-items: center;
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--border);
+  background: var(--raised);
+}
+.quest-status-strip .quest-progress-rail {
+  flex: 1 1 160px;
+  min-width: 120px;
+  margin: 0;
+}
+.quest-status-blocker {
+  color: var(--ember);
+  font: var(--fw-normal) var(--t-small) / var(--lh-base) var(--font-ui);
+}
+.quest-status-approvals {
+  margin-left: auto;
+  color: var(--muted);
+  font: 650 var(--t-micro)/1 var(--font-mono);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.quest-status-approvals em {
+  color: var(--ember);
+  font-style: normal;
+}
+.party-status { border: 1px solid var(--border); padding: var(--s-2) var(--s-4); display: grid; gap: var(--s-1); background: var(--panel); }
+.party-status.running, .party-status.waiting_approval { border-color: var(--ember); color: var(--ember); animation: hub-pulse 1.6s ease-in-out infinite; }
+.hub-flow-approvals { padding: var(--s-4h); border: 1px solid var(--border); border-radius: var(--r-1); background: var(--raised); }
+.hub-sandbox-boundary.limited { border-color: color-mix(in srgb, var(--ember) 60%, var(--border)); }
+.hub-sandbox-boundary > div { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-3); margin: var(--s-4) 0; }
+.hub-sandbox-boundary > div > span { display: grid; grid-template-columns: auto 1fr; gap: 1px var(--s-3); align-items: center; padding: var(--s-3); border: 1px solid var(--border); background: var(--panel); }
+.hub-sandbox-boundary > div > span b { grid-row: 1 / 3; color: var(--accent, var(--vital)); }
+.hub-sandbox-boundary > div > span.unavailable b { color: var(--ember); }
+.hub-sandbox-boundary > div > span em { color: var(--muted); font-size: var(--t-micro); font-style: normal; }
+.hub-sandbox-boundary p { margin: 0; color: var(--muted); font-size: var(--t-tiny); }
+.team-form, .team-agent-pick { display: grid; gap: var(--s-3); margin-bottom: 12px; }
+/* Карточка отряда отвечает на «какая партия работает».
+   Раньше в ней были только имя, описание и фишки участников: отряд без единого
+   квеста и отряд, ведущий работу сейчас, выглядели одинаково. */
+.hub-team-card > header { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-3); }
+.hub-team-active {
+  flex: none;
+  color: var(--ember);
+  font: 650 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace;
+  font-style: normal;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.hub-team-facts {
+  margin: var(--s-3) 0 0;
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--point-border);
+  color: var(--muted);
+  font: var(--fw-normal) var(--t-micro) / 1.4 "JetBrains Mono", Consolas, monospace;
+}
+.quest-proposal-list { display: grid; gap: var(--s-4); margin-top: var(--s-4h); }
+.quest-proposal-card {
+  border: 1px solid color-mix(in srgb, var(--mana, var(--mana)) 18%, var(--border));
+  padding: var(--s-4h);
+  background: color-mix(in srgb, var(--vscode-editor-background, var(--panel, var(--raised))) 94%, var(--mana, var(--mana)));
+}
+.quest-proposal-card.draft-sheet-card,
+.quest-proposal-list.draft-sheet .quest-proposal-card {
+  border-style: dashed;
+}
+.quest-proposal-card header { display: flex; justify-content: space-between; gap: var(--s-4); }
+.quest-proposal-card header em { color: var(--muted); font: 650 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace; font-style: normal; letter-spacing: .06em; text-transform: uppercase; }
+.quest-proposal-card p { margin: var(--s-3) 0; line-height: 1.45; }
+/* Мета и распоряжение Дирижёра — две отдельные строки, а не один поток: <small>
+   строчный по умолчанию, поэтому они склеивались в «критериев готовности: 2
+   Распоряжение: …». В доке это было не видно — карточку резало выше. */
+.quest-proposal-card > small { display: block; line-height: 1.45; }
+.quest-proposal-card > small + small { margin-top: var(--s-2); }
+.quest-proposal-card footer { display: flex; flex-wrap: wrap; gap: var(--s-3); margin-top: 8px; }
+.quest-proposal-card.intervention-critical { border-color: color-mix(in srgb, var(--ember) 40%, var(--border)); }
+.quest-proposal-card.intervention-warning { border-color: color-mix(in srgb, var(--mana) 32%, var(--border)); }
+.companion-review-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-4);
+  margin-bottom: 8px;
+}
+.companion-review-head .draft-eyebrow {
+  color: var(--muted);
+  font: 700 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.skill-equip-confirm { border: 1px solid var(--border); padding: var(--s-4h); margin-bottom: 12px; background: var(--raised); }
+.model-provider-groups { display: grid; gap: var(--s-4); margin: var(--s-4) 0 var(--s-5); }
+.model-group summary { cursor: pointer; font-weight: 600; }
+.model-group div { display: grid; gap: var(--s-2); margin-top: 6px; }
+.model-pick { text-align: left; display: grid; gap: var(--s-1); padding: var(--s-3) var(--s-4); border: 1px solid var(--border); background: transparent; color: inherit; cursor: pointer; }
+.model-pick.selected { border-color: var(--accent, var(--vital)); }
+.companion-thread-wrap { position: relative; min-height: 0; }
+.companion-thread { display: grid; align-content: start; gap: var(--s-4h); max-height: min(46vh, 520px); min-height: 200px; overflow: auto; margin: var(--s-4) 0; padding: var(--s-5); border: 1px solid color-mix(in srgb, var(--border) 80%, var(--mana)); background: var(--vscode-editor-background, var(--void)); scroll-behavior: smooth; }
+.companion-scroll-latest { position: absolute; right: 14px; bottom: 14px; z-index: 3; min-height: 28px; padding: var(--s-2) var(--s-4); box-shadow: 0 4px 14px color-mix(in srgb, #000 42%, transparent); font-size: var(--t-tiny); }
+.companion-scroll-latest[hidden] { display: none; }
+.companion-msg { display: grid; gap: var(--s-3); max-width: min(92%, 720px); padding: var(--s-4h) var(--s-5); border: 1px solid var(--border); background: var(--panel); }
+.companion-msg.user { justify-self: end; border-color: color-mix(in srgb, var(--mana) 42%, var(--border)); background: color-mix(in srgb, var(--mana) 9%, var(--panel)); }
+.companion-msg.assistant { justify-self: start; border-color: color-mix(in srgb, var(--ember) 34%, var(--border)); background: color-mix(in srgb, var(--ember) 6%, var(--panel)); }
+.companion-msg.thinking { opacity: .88; }
+.companion-msg header { display: flex; align-items: center; gap: var(--s-3); }
+.companion-msg header b { color: var(--mana); font-size: var(--t-small); }
+.companion-msg.assistant header b { color: var(--ember); }
+.companion-msg p { margin: 0; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.companion-msg-body { margin: 0; line-height: 1.5; overflow-wrap: anywhere; border-left: var(--edge-accent) solid var(--ember); padding-left: 8px; }
+.companion-msg-body p { margin: 0 0 var(--s-4); white-space: normal; border: 0; padding: 0; }
+.companion-msg-body p:last-child { margin-bottom: 0; }
+.companion-msg-body ul, .companion-msg-body ol { margin: 0 0 var(--s-4); padding-left: 18px; }
+.companion-msg-body code { font-family: "JetBrains Mono", Consolas, monospace; font-size: var(--t-body); padding: 1px var(--s-2); border: 1px solid var(--border); background: color-mix(in srgb, var(--void) 70%, var(--panel)); }
+.companion-code-wrap { display: grid; margin: var(--s-4) 0; border: 1px solid var(--border); background: var(--void); }
+.companion-code-actions { display: flex; justify-content: flex-end; gap: var(--s-3); padding: var(--s-3); border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--panel) 88%, var(--mana)); }
+.companion-code-actions .companion-open-file { margin: 0 auto 0 0; }
+.companion-code-actions button { min-height: 23px; padding: var(--s-1) var(--s-4); font-size: var(--t-micro); }
+.companion-msg-body .companion-code { margin: 0; padding: var(--s-4); border: 0; background: transparent; overflow: auto; }
+.companion-msg-body .companion-code code { display: block; padding: 0; border: 0; background: transparent; white-space: pre; }
+.companion-msg-body .companion-open-file { display: inline-flex; margin-bottom: 6px; min-height: 22px; padding: var(--s-1) var(--s-4); font-size: var(--t-tiny); }
+.companion-file-link { appearance: none; border: 0; background: transparent; color: var(--mana); text-decoration: underline; cursor: pointer; padding: 0; font: inherit; }
+.companion-stream-cursor {
+  display: inline-block;
+  width: 7px;
+  height: 1em;
+  margin-left: var(--s-2);
+  vertical-align: text-bottom;
+  background: var(--ember);
+  animation: hub-pulse 1s ease-in-out infinite;
+}
+.companion-msg.streaming { border-style: dashed; }
+.companion-msg.user p { border-left: var(--edge-accent) solid var(--mana); padding-left: 8px; }
+.companion-msg.assistant p { border-left: var(--edge-accent) solid var(--ember); padding-left: 8px; }
+.companion-msg.assistant .companion-msg-body + .companion-questions,
+.companion-msg.assistant .companion-msg-body + .companion-trace { margin-left: var(--s-4h); }
+.companion-msg small { color: var(--muted); font-size: var(--t-micro); letter-spacing: .06em; }
+.companion-msg.thinking p::after { content: ''; display: inline-block; width: 6px; height: 6px; margin-left: var(--s-4); border-radius: 50%; background: var(--ember); animation: hub-pulse 1s ease-in-out infinite; }
+.companion-empty { display: grid; justify-items: center; gap: var(--s-3); padding: 28px var(--s-6) 22px; text-align: center; color: var(--muted); }
+.companion-empty span { color: var(--mana); font-size: var(--t-display); }
+.companion-empty strong { color: inherit; font-size: var(--t-base); }
+.companion-empty p { margin: 0; max-width: 360px; font-size: var(--t-small); line-height: 1.45; }
+.companion-history-actions { display: flex; justify-content: flex-end; }
+.companion-intervention-toolbar { display: flex; align-items: center; justify-content: space-between; gap: var(--s-4); margin-bottom: 6px; padding: var(--s-3) var(--s-4); border: 1px dashed var(--border); color: var(--muted); }
+.companion-intervention-toolbar button { min-height: 24px; padding: var(--s-2) var(--s-4); }
+.companion-trace { margin: var(--s-3) 0 var(--s-1) var(--s-4h); color: var(--muted); font-size: var(--t-tiny); }
+.companion-trace summary { cursor: pointer; color: var(--mana); }
+.companion-trace p { border: 0; padding-left: 0; margin: var(--s-3) 0; }
+.companion-trace ul { margin: var(--s-3) 0 0; padding-left: 18px; overflow-wrap: anywhere; }
+.companion-questions { margin: var(--s-3) 0 var(--s-2) var(--s-4h); padding: var(--s-4) var(--s-4h); border-left: var(--edge-accent) solid var(--ember); background: color-mix(in srgb, var(--ember) 7%, var(--raised)); }
+.companion-questions strong { font-size: var(--t-tiny); color: var(--ember); }
+.companion-questions ul { margin: var(--s-3) 0 0; padding-left: 18px; }
+.companion-questions li { margin: var(--s-2) 0; line-height: 1.35; }
+.companion-question-chips { display: flex; flex-wrap: wrap; gap: var(--s-3); margin-top: 6px; }
+.companion-question-chips button { min-height: 26px; padding: var(--s-2) var(--s-4); font-size: var(--t-tiny); text-align: left; }
+.companion-quick-prompts { display: flex; flex-wrap: wrap; gap: var(--s-3); margin: var(--s-3) 0 var(--s-4); }
+.companion-quick-prompts button { min-height: 26px; padding: var(--s-2) var(--s-4); font-size: var(--t-tiny); border-radius: var(--r-1); }
+.companion-quick-prompts.compact { margin: var(--s-2) 0 var(--s-3); }
+.companion-quick-prompts.compact button { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.companion-action-list { display: grid; gap: var(--s-4); margin-top: 8px; }
+.companion-action-card { border-color: color-mix(in srgb, var(--mana) 55%, var(--border)); }
+.companion-flow-preview { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-3); margin: var(--s-4) 0; }
+.companion-flow-preview span { display: grid; gap: var(--s-1); padding: var(--s-3); border: 1px solid var(--border); background: var(--void); }
+.companion-flow-preview small { color: var(--muted); font-size: var(--t-micro); }
+.companion-action-card ol { display: grid; gap: var(--s-2); margin: var(--s-4) 0; padding-left: 22px; }
+.companion-action-card li small { display: block; color: var(--muted); }
+.companion-agent-summary { display: grid; gap: var(--s-3); margin: var(--s-4) 0; padding: var(--s-4); border: 1px solid var(--border); background: var(--void); }
+.companion-agent-summary small { color: var(--muted); }
+.companion-skill-instructions { white-space: pre-wrap; }
+.companion-agent-summary p { display: flex; flex-wrap: wrap; gap: var(--s-2); margin: 0; }
+.companion-agent-summary code { padding: var(--s-1) var(--s-2); border: 1px solid var(--border); color: var(--mana); }
+.companion-team-members { display: grid; gap: var(--s-3); margin: var(--s-4) 0; }
+.companion-team-members span { display: grid; gap: var(--s-1); padding: var(--s-3) var(--s-4); border: 1px solid var(--border); background: var(--void); }
+.companion-team-members small { color: var(--muted); }
+.companion-action-editor { display: grid; gap: var(--s-4); margin: var(--s-4) 0; padding: var(--s-4); border: 1px dashed var(--border); }
+.check-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  gap: var(--s-2);
+  margin-top: var(--s-2);
+}
+.check-grid label {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  min-width: 0;
+  /* Кликают по всей строке, а не по 13px отметке — строка и держит порог. */
+  min-height: var(--hit);
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--border);
+  background: var(--void);
+  cursor: pointer;
+}
+/* Размер отметки здесь задавали отступом: `--s-4` — это 8px из шкалы полей, а
+   не размер контрола. В «Чертоге» ширину потом возвращал `width: auto`, и
+   отметка выходила прямоугольником 13×8 — единственная во всём продукте, все
+   остальные ровно 13×13. Размер снят совсем: браузерная отметка одинакова
+   везде, а `flex: 0 0 auto` по-прежнему не даёт ей сжаться в строке. */
+.check-grid input[type="checkbox"] {
+  flex: 0 0 auto;
+  margin: var(--s-1) 0 0;
+}
+.companion-compose { display: grid; gap: var(--s-4); }
+.companion-compose textarea { min-height: 58px; max-height: 180px; resize: vertical; field-sizing: content; }
+.companion-compose-meta { display: flex; justify-content: space-between; align-items: center; gap: var(--s-4); }
+.companion-compose-meta small { color: var(--muted); font-size: var(--t-micro); }
+.companion-rail {
+  display: grid;
+  gap: var(--s-4);
+  margin: 0 0 var(--s-4h);
+  padding: var(--s-4) var(--s-4h);
+  border: 1px solid color-mix(in srgb, var(--vscode-panel-border, var(--border)) 80%, var(--mana) 20%);
+  background: color-mix(in srgb, var(--vscode-sideBar-background, var(--raised)) 92%, var(--mana, var(--mana)));
+  border-radius: var(--r-1);
+}
+.companion-rail.collapsed {
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  background: transparent;
+  border-color: color-mix(in srgb, var(--border) 85%, transparent);
+}
+.companion-rail.expanded.has-reply { border-color: color-mix(in srgb, var(--ember) 28%, var(--border)); }
+.companion-rail header { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: var(--s-4); align-items: center; }
+.companion-rail header span { display: block; color: var(--mana); font: 700 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace; letter-spacing: .08em; }
+.companion-rail header strong { display: block; margin: var(--s-1) 0; font: 650 var(--t-base)/1.2 "JetBrains Mono", Consolas, monospace; }
+.companion-rail header small { color: var(--muted); font-size: var(--t-tiny); }
+.companion-rail-speak { display: flex; flex-wrap: wrap; gap: var(--s-3); align-items: center; }
+.companion-rail-speak-chip {
+  padding: var(--s-2) var(--s-4);
+  border: 1px solid color-mix(in srgb, var(--mana) 36%, var(--border));
+  background: color-mix(in srgb, var(--mana) 8%, transparent);
+  color: inherit;
+  font: 650 var(--t-tiny)/1.2 "JetBrains Mono", Consolas, monospace;
+  cursor: pointer;
+}
+.companion-rail-speak-chip.intervention-critical {
+  border-color: color-mix(in srgb, var(--ember) 45%, var(--border));
+}
+.companion-rail-speak-dismiss { min-height: 24px; padding: var(--s-1) var(--s-4); }
+.companion-rail-collapse-actions { display: flex; gap: var(--s-3); }
+.companion-rail-last { display: grid; gap: var(--s-2); width: 100%; padding: var(--s-4) var(--s-4); text-align: left; color: inherit; background: color-mix(in srgb, var(--ember) 5%, var(--void)); border: 1px solid color-mix(in srgb, var(--ember) 22%, var(--border)); cursor: pointer; }
+.companion-rail-last.thinking { border-style: dashed; }
+.companion-rail-last:hover { border-color: var(--mana); }
+.companion-rail-last small { color: var(--muted); font: 700 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace; letter-spacing: .06em; }
+.companion-rail-last p { margin: 0; color: inherit; font-size: var(--t-small); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.companion-rail-last em { color: var(--mana); font: 650 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace; font-style: normal; }
+.companion-ide-now { display: flex; flex-wrap: wrap; gap: var(--s-3); margin: 0; padding: var(--s-3); border: 1px solid color-mix(in srgb, var(--mana) 28%, var(--border)); background: color-mix(in srgb, var(--mana) 10%, var(--void)); color: var(--mana); font: 650 var(--t-tiny)/1.35 "JetBrains Mono", Consolas, monospace; border-radius: var(--r-1); }
+.companion-ide-now.muted { color: var(--muted); border-color: var(--border); background: transparent; }
+.companion-focus-chip { min-height: var(--control-sm); padding: var(--s-2) var(--s-4); border: 1px solid color-mix(in srgb, var(--mana) 35%, var(--border)); background: color-mix(in srgb, var(--mana) 8%, var(--void)); color: var(--mana); font: inherit; cursor: pointer; }
+.companion-focus-chip.meta { cursor: default; color: var(--muted); border-color: var(--border); background: transparent; }
+.companion-focus-chip.warn { color: var(--ember); border-color: color-mix(in srgb, var(--ember) 40%, var(--border)); background: color-mix(in srgb, var(--ember) 8%, var(--void)); }
+.companion-focus-chip.fail { color: var(--ember); border-color: color-mix(in srgb, var(--ember) 55%, var(--border)); background: color-mix(in srgb, var(--ember) 10%, var(--void)); }
+.companion-focus-chip.run { color: var(--vital); border-color: color-mix(in srgb, var(--vital) 40%, var(--border)); background: color-mix(in srgb, var(--vital) 8%, var(--void)); }
+.companion-focus-chip:hover { filter: brightness(1.08); }
+.companion-focus-chip.meta:hover { filter: none; }
+.companion-chat-workspace > header .companion-ide-now { margin-top: 6px; }
+.companion-avatar.compact { width: 28px; height: 28px; font-size: var(--t-base); }
+.companion-rail-alert { display: grid; gap: var(--s-3); padding: var(--s-4); border: 1px solid var(--border); background: var(--void); }
+.companion-rail-alert.intervention-critical { border-color: color-mix(in srgb, var(--ember) 55%, var(--border)); }
+.companion-rail-alert.intervention-warning { border-color: color-mix(in srgb, var(--ember) 35%, var(--border)); }
+.companion-rail-alert p { margin: var(--s-2) 0 0; color: var(--muted); font-size: var(--t-small); }
+.companion-rail-alert footer, .companion-rail-alert + .companion-compose { display: flex; flex-wrap: wrap; gap: var(--s-3); }
+.companion-compose.compact { grid-template-columns: minmax(0, 1fr) auto; align-items: end; }
+.companion-compose.compact textarea { min-height: 44px; }
+.companion-studio { padding: 0; overflow: hidden; border-color: color-mix(in srgb, var(--mana) 35%, var(--border)); }
+.companion-studio.has-thread, .command-center.companion-live .companion-studio { grid-column: 1 / -1; }
+.companion-studio.setup-active { grid-column: 1 / -1; }
+.companion-studio.setup-active .companion-chat-workspace { display: grid; }
+.companion-msg.warning { border-color: color-mix(in srgb, var(--ember) 55%, var(--border)); background: color-mix(in srgb, var(--ember) 10%, var(--panel)); }
+.command-center.companion-live .command-center-hero { padding: var(--s-4h) var(--s-5); }
+.command-center.companion-setup-only { display: grid; min-height: 0; overflow: hidden; }
+.command-center.companion-setup-only .companion-studio { min-height: 0; max-height: none; height: 100%; overflow: hidden; }
+.command-center.companion-setup-only .companion-studio.setup-active { max-height: none; }
+.tabs button:disabled { opacity: var(--disabled-opacity); cursor: not-allowed; }
+.companion-studio-hero { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: var(--s-4); align-items: center; padding: var(--s-4) var(--s-4h); background: color-mix(in srgb, var(--vscode-sideBar-background, var(--raised)) 94%, var(--mana)); border-bottom: 1px solid var(--border); }
+.companion-studio-hero.compact { padding: var(--s-3) var(--s-4h); }
+.companion-studio-hero.compact .companion-avatar { width: 28px; height: 28px; font-size: var(--t-body); }
+.companion-avatar { display: grid; place-items: center; width: 42px; height: 42px; color: var(--text-primary); border: 1px solid var(--border); background: var(--void); box-shadow: none; font: 700 var(--t-title)/1 var(--font-mono); border-radius: var(--r-1); }
+.companion-studio-hero > div:nth-child(2) { min-width: 0; }
+.companion-studio-hero strong { display: block; margin: var(--s-1) 0; font: 650 var(--t-base)/1.2 "JetBrains Mono", Consolas, monospace; }
+.companion-studio-hero small { color: var(--muted); font-size: var(--t-tiny); }
+.companion-studio-health { display: grid; justify-items: end; gap: var(--s-3); }
+.companion-chat-toolbar { display: flex; justify-content: space-between; gap: var(--s-4); align-items: baseline; margin-bottom: 4px; }
+.companion-chat-toolbar small { color: var(--muted); font-size: var(--t-tiny); margin-left: 6px; }
+.companion-chat-workspace.dialogue-first { display: grid; gap: var(--s-4); align-content: start; }
+.companion-chat-workspace.dialogue-first #companion-review { margin-top: 2px; }
+.companion-studio-health > span { color: var(--vital); font: 700 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace; letter-spacing: .07em; }
+.companion-studio-health > span.local { color: var(--mana); }
+.companion-setup-shell { display: grid; grid-template-columns: minmax(156px, 196px) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); min-height: min(72vh, 640px); background: var(--void); contain: layout; }
+.companion-setup-bar { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: var(--s-5); padding: var(--s-4h) 14px; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--panel) 88%, var(--void)); }
+.companion-setup-bar > div { display: grid; gap: var(--s-1); min-width: 0; }
+.companion-setup-bar span { color: var(--mana); font: 650 var(--t-tiny)/1 "JetBrains Mono", Consolas, monospace; letter-spacing: .08em; text-transform: uppercase; }
+.companion-setup-bar strong { font-size: var(--t-lead); }
+.companion-setup-bar small { color: var(--muted); font-size: var(--t-small); }
+.companion-setup-stage { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; min-height: 0; overflow: hidden; contain: layout; }
+.companion-setup-shell.has-dock .companion-setup-stage { grid-template-columns: minmax(0, 1fr) minmax(240px, 300px); }
+.companion-setup-steps { display: grid; align-content: start; gap: var(--s-2); padding: var(--s-5) var(--s-4h); background: color-mix(in srgb, var(--panel) 88%, var(--void)); border-right: 1px solid var(--border); }
+.companion-setup-steps button { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: var(--s-4); align-items: center; min-height: 52px; padding: var(--s-4); color: var(--muted); background: transparent; border: 1px solid transparent; text-align: left; }
+.companion-setup-steps button:hover { color: inherit; background: var(--selected); }
+.companion-setup-steps button.active { color: inherit; background: color-mix(in srgb, var(--mana) 12%, var(--raised)); border-color: color-mix(in srgb, var(--mana) 50%, var(--border)); box-shadow: inset 3px 0 0 var(--mana); }
+.companion-setup-steps button.complete b { color: var(--vital); border-color: color-mix(in srgb, var(--vital) 45%, var(--border)); }
+.companion-setup-steps b { display: grid; place-items: center; width: 26px; height: 26px; border: 1px solid var(--border); color: var(--mana); font: 700 var(--t-tiny)/1 "JetBrains Mono", Consolas, monospace; }
+.companion-setup-steps strong, .companion-setup-steps small { display: block; }
+.companion-setup-steps strong { font-size: var(--t-body); }
+.companion-setup-steps small { margin-top: 2px; font-size: var(--t-tiny); color: var(--muted); }
+.companion-setup-content { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; min-width: 0; min-height: 0; padding: var(--s-6) 18px; overflow: auto; }
+.companion-setup-panel { align-self: start; min-width: 0; }
+@keyframes companion-step-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.companion-step-enter { animation: companion-step-in .22s ease; }
+.companion-step-heading { display: grid; gap: var(--s-2); margin-bottom: 16px; }
+.companion-step-heading h3 { margin: 0; font-size: var(--t-title); }
+.companion-step-heading p { margin: 0; color: var(--muted); font-size: var(--t-body); line-height: 1.45; }
+.companion-setup-status { margin: 0 0 var(--s-5); padding: var(--s-4) var(--s-4h); font-size: var(--t-body); }
+.companion-setup-status.error { color: var(--ember); border: 1px solid color-mix(in srgb, var(--ember) 45%, var(--border)); background: color-mix(in srgb, var(--ember) 7%, var(--panel)); }
+.companion-setup-status.ok { color: var(--vital); border: 1px solid color-mix(in srgb, var(--vital) 45%, var(--border)); background: color-mix(in srgb, var(--vital) 7%, var(--panel)); }
+.companion-setup-footer { display: flex; align-items: center; gap: var(--s-4); padding-top: 14px; margin-top: 16px; border-top: 1px solid var(--border); }
+.companion-setup-footer > span { flex: 1; }
+.system-agents-pair { grid-column: 1 / -1; display: grid; gap: var(--s-4); }
+.system-agents-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-4); }
+.system-agent-card { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: var(--s-4h); align-items: start; padding: var(--s-5); border: 1px solid var(--border); background: var(--panel); }
+.system-agent-card.companion { border-left: var(--edge-accent) solid var(--mana); }
+.system-agent-card.orchestrator { border-left: var(--edge-accent) solid var(--vital); }
+.system-agent-card > span { display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid color-mix(in srgb, var(--mana) 55%, var(--border)); color: var(--mana); }
+.system-agent-card.orchestrator > span { color: var(--vital); border-color: color-mix(in srgb, var(--vital) 55%, var(--border)); }
+.system-agent-card small { display: block; color: var(--muted); font: 650 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace; letter-spacing: .08em; }
+.system-agent-card strong { display: block; margin: var(--s-2) 0 var(--s-2); font-size: var(--t-base); }
+.system-agent-card p { margin: 0 0 var(--s-3); color: var(--muted); font-size: var(--t-tiny); line-height: 1.45; }
+.system-agent-card em { color: var(--mana); font: 650 var(--t-micro)/1.2 "JetBrains Mono", Consolas, monospace; font-style: normal; text-transform: uppercase; }
+.orchestrator-preset-studio button { min-height: 92px; }
+.companion-mode-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-4); margin-bottom: 12px; }
+.companion-mode-card { display: grid; align-content: start; gap: var(--s-4); min-height: 170px; padding: 14px; color: inherit; background: var(--panel); border: 1px solid var(--border); text-align: left; transition: border-color var(--motion-fast) var(--ease), background-color var(--motion-fast) var(--ease); }
+.companion-mode-card:hover { border-color: color-mix(in srgb, var(--mana) 50%, var(--border)); }
+.companion-mode-card.selected { background: linear-gradient(145deg, color-mix(in srgb, var(--mana) 11%, var(--panel)), var(--panel)); border-color: var(--mana); box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--mana) 75%, transparent); }
+.companion-mode-card > span { display: grid; place-items: center; width: 34px; height: 34px; color: var(--mana); border: 1px solid color-mix(in srgb, var(--mana) 55%, var(--border)); font-size: var(--t-title); }
+.companion-mode-card strong { font-size: var(--t-body); }
+.companion-mode-card p { margin: 0; color: var(--muted); font-size: var(--t-tiny); line-height: 1.45; }
+.companion-mode-card small { margin-top: auto; color: var(--mana); font: 650 var(--t-micro)/1.2 "JetBrains Mono", Consolas, monospace; text-transform: uppercase; }
+.companion-mode-switch { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-1); margin-bottom: 14px; padding: var(--s-2); background: var(--panel); border: 1px solid var(--border); }
+.companion-mode-seg { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: var(--s-1) var(--s-4); align-items: center; min-height: 56px; padding: var(--s-4h) var(--s-5); color: var(--muted); background: transparent; border: 0; text-align: left; }
+.companion-mode-seg > span { grid-row: 1 / 3; color: var(--mana); font-size: var(--t-lead); }
+.companion-mode-seg strong { font-size: var(--t-base); color: inherit; }
+.companion-mode-seg small { grid-column: 2; color: var(--muted); font-size: var(--t-small); line-height: 1.35; }
+.companion-mode-seg.selected { color: inherit; background: color-mix(in srgb, var(--mana) 12%, var(--selected)); box-shadow: inset 0 -2px 0 var(--mana); }
+.companion-safety-strip { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--s-4); align-items: center; margin-top: 12px; padding: var(--s-4) var(--s-4h); border: 1px solid color-mix(in srgb, var(--vital) 35%, var(--border)); background: color-mix(in srgb, var(--vital) 5%, var(--panel)); }
+.companion-safety-strip b { color: var(--vital); font-size: var(--t-tiny); text-transform: uppercase; }
+.companion-safety-strip span { color: var(--muted); font-size: var(--t-small); line-height: 1.4; }
+.companion-local-ready { display: grid; grid-template-columns: 46px minmax(0, 1fr); gap: var(--s-5); align-items: start; padding: 18px; border: 1px solid color-mix(in srgb, var(--vital) 48%, var(--border)); background: color-mix(in srgb, var(--vital) 6%, var(--panel)); }
+.companion-local-ready > span { display: grid; place-items: center; width: 44px; height: 44px; color: var(--vital); border: 1px solid currentColor; font-size: var(--t-title); }
+.companion-local-ready h3 { margin: var(--s-1) 0 var(--s-3); }
+.companion-local-ready p { margin: 0 0 var(--s-4); line-height: 1.5; }
+.companion-local-ready small { color: var(--muted); line-height: 1.45; }
+.companion-connection-switch { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-1); margin-bottom: 12px; padding: var(--s-1); background: var(--panel); border: 1px solid var(--border); }
+.companion-connection-switch button { min-height: 36px; color: var(--muted); background: transparent; border: 0; font-size: var(--t-body); }
+.companion-connection-switch button.active { color: inherit; background: var(--selected); box-shadow: inset 0 -2px 0 var(--mana); }
+.companion-connection-list { display: grid; gap: var(--s-3); max-height: 190px; overflow: auto; }
+.companion-connection-card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: var(--s-4); align-items: center; min-height: 52px; padding: var(--s-4) var(--s-4h); color: inherit; background: var(--panel); border: 1px solid var(--border); text-align: left; }
+.companion-connection-card.selected { border-color: var(--mana); background: color-mix(in srgb, var(--mana) 8%, var(--panel)); }
+.companion-connection-card strong, .companion-connection-card small { display: block; }
+.companion-connection-card small { margin-top: var(--s-2); color: var(--muted); font-size: var(--t-small); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.companion-connection-card em { color: var(--muted); font: 650 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace; font-style: normal; }
+/* inline-block обязателен: ширина и высота не действуют на инлайновый элемент.
+   В карточках компаньона орб — flex-элемент и потому размер получал, а внутри
+   заголовка схлопывался в полоску 2×19 и слипался с названием. */
+.connection-orb { display: inline-block; flex: none; width: 9px; height: 9px; margin-right: var(--s-3); border: 1px solid var(--muted); border-radius: 50%; vertical-align: middle; }
+.connection-orb.connected { border-color: var(--vital); background: var(--vital); box-shadow: 0 0 8px color-mix(in srgb, var(--vital) 55%, transparent); }
+.connection-orb.error { border-color: var(--ember); background: var(--ember); }
+/* disconnected и probing раньше выглядели как «неизвестно»: цвет задан только
+   для двух состояний из пяти. Разводим их формой, а не оттенком — оттенок и был
+   тем единственным признаком, который не всем виден. */
+.connection-orb.disconnected { border-color: var(--muted); background: transparent; }
+.connection-orb.probing { border-style: dashed; }
+.companion-selected-connection { display: flex; align-items: center; justify-content: space-between; gap: var(--s-4); margin-top: 8px; padding: var(--s-4h); background: color-mix(in srgb, var(--mana) 5%, var(--panel)); border: 1px solid color-mix(in srgb, var(--mana) 28%, var(--border)); }
+.companion-selected-connection strong, .companion-selected-connection small { display: block; }
+.companion-selected-connection small { margin-top: 2px; color: var(--muted); font-size: var(--t-small); }
+.companion-connection-lead { margin: 0 0 var(--s-4h); color: var(--muted); font-size: var(--t-body); line-height: 1.45; }
+.companion-connect-strip-head { display: flex; justify-content: space-between; gap: var(--s-4); align-items: baseline; }
+.companion-connect-strip-head strong { font: 650 var(--t-tiny)/1 "JetBrains Mono", Consolas, monospace; letter-spacing: .06em; text-transform: uppercase; color: var(--mana); }
+.companion-connect-strip-head small { color: var(--muted); font-size: var(--t-tiny); }
+.companion-connect-strip { display: grid; gap: var(--s-4h); }
+.companion-probe-cta { min-height: 38px; justify-self: start; }
+.companion-provider-picker { display: grid; gap: var(--s-4h); }
+.companion-provider-picker section { display: grid; gap: var(--s-3); }
+.companion-provider-picker header { display: flex; justify-content: space-between; gap: var(--s-4); align-items: baseline; }
+.companion-provider-picker header strong { font-size: var(--t-tiny); letter-spacing: .06em; text-transform: uppercase; color: var(--mana); }
+.companion-provider-picker header small { color: var(--muted); font-size: var(--t-tiny); }
+.companion-provider-picker section > div { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: var(--s-3); }
+.companion-provider-card { display: grid; gap: var(--s-2); min-height: 52px; padding: var(--s-4) var(--s-4h); color: inherit; background: var(--void); border: 1px solid var(--border); text-align: left; }
+.companion-provider-card:hover { border-color: color-mix(in srgb, var(--mana) 50%, var(--border)); }
+.companion-provider-card.selected { border-color: var(--mana); background: color-mix(in srgb, var(--mana) 8%, var(--panel)); box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--mana) 70%, transparent); }
+.companion-provider-card.featured-llmux { min-height: 56px; padding: var(--s-4h) var(--s-5); border-color: color-mix(in srgb, var(--mana) 55%, var(--border)); background: color-mix(in srgb, var(--mana) 7%, var(--panel)); }
+.companion-provider-card.featured-llmux strong { font-size: var(--t-base); }
+.companion-other-gateway { border: 0; padding: 0; }
+.companion-other-gateway > summary { cursor: pointer; color: var(--muted); font: 650 var(--t-small)/1.4 var(--font-ui); }
+.companion-other-gateway-body { display: grid; gap: var(--s-4h); margin-top: 8px; }
+.companion-provider-card strong { font-size: var(--t-body); }
+.companion-provider-card small { color: var(--muted); font-size: var(--t-small); line-height: 1.35; }
+.companion-token-field { display: grid; gap: var(--s-3); }
+.companion-token-field input { min-height: 36px; letter-spacing: .04em; }
+.companion-optional-token { padding: 0; border: 0; }
+.companion-optional-token summary { cursor: pointer; color: var(--muted); font-size: var(--t-small); }
+.companion-new-connection { display: grid; gap: var(--s-5); }
+/* Атрибут hidden обязан прятать. Правило с классом ниже перебивает его по
+   силе селектора, и поле, помеченное скрытым, оставалось на виду: форма
+   подключения спрашивала адрес и ключ у локального CLI, а «Версия API»
+   висела у всех, кроме Azure, кому она одна и нужна. */
+.companion-new-connection label[hidden], .companion-new-connection p[hidden], .connection-form label[hidden], .connection-form p[hidden] { display: none; }
+.companion-new-connection label, .companion-model-field, .companion-response-tuning > label { display: grid; gap: var(--s-3); color: var(--muted); font-size: var(--t-small); }
+.companion-new-connection label small, .companion-model-field small, .companion-response-tuning label small { color: var(--muted); font-size: var(--t-small); line-height: 1.4; }
+.companion-no-key { padding: var(--s-4) var(--s-4); color: var(--vital); border: 1px solid color-mix(in srgb, var(--vital) 35%, var(--border)); font-size: var(--t-small); }
+.companion-probe-note { margin: var(--s-4h) 0 0; color: var(--muted); font-size: var(--t-small); }
+.companion-probe-result { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: var(--s-4); align-items: center; margin-top: var(--s-4h); padding: var(--s-4h); border: 1px solid var(--border); background: var(--panel); }
+.companion-probe-result > b { display: grid; place-items: center; width: 22px; height: 22px; color: var(--vital); border: 1px solid currentColor; }
+.companion-probe-result strong, .companion-probe-result small { display: block; }
+.companion-probe-result small { margin-top: 2px; color: var(--muted); font-size: var(--t-small); }
+.companion-probe-result.success { border-color: color-mix(in srgb, var(--vital) 48%, var(--border)); background: color-mix(in srgb, var(--vital) 7%, var(--panel)); }
+.companion-probe-result.error { border-color: color-mix(in srgb, var(--ember) 45%, var(--border)); }
+.companion-probe-result.error > b { color: var(--ember); }
+.companion-probe-result.loading i { width: 18px; height: 18px; border: 2px solid var(--border); border-top-color: var(--mana); border-radius: 50%; animation: spin .8s linear infinite; }
+.companion-model-pills { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-top: 8px; }
+.companion-model-pills button { padding: var(--s-3) var(--s-4); color: var(--mana); background: transparent; border: 1px solid color-mix(in srgb, var(--mana) 38%, var(--border)); font: 600 var(--t-small)/1.2 "JetBrains Mono", Consolas, monospace; }
+.companion-model-pills button:hover { background: color-mix(in srgb, var(--mana) 10%, var(--panel)); }
+.companion-model-field { margin-top: 12px; }
+.companion-model-tip { color: var(--mana); font-weight: 650; }
+.companion-preset-studio { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-4); }
+.companion-preset-studio.extra { margin-top: 8px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.companion-preset-more { margin-top: 12px; }
+.companion-preset-more > summary { cursor: pointer; color: var(--muted); font: 650 var(--t-small)/1.4 var(--font-ui); }
+.companion-preset-choice { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: var(--s-1) var(--s-4); min-height: 68px; padding: var(--s-4h); color: inherit; background: var(--panel); border: 1px solid var(--border); text-align: left; transition: border-color var(--motion-base) var(--ease), background-color var(--motion-base) var(--ease); }
+.companion-preset-choice:hover { border-color: color-mix(in srgb, var(--mana) 50%, var(--border)); }
+.companion-preset-choice > span { grid-row: 1 / 3; display: grid; place-items: center; width: 26px; height: 26px; color: var(--mana); border: 1px solid color-mix(in srgb, var(--mana) 40%, var(--border)); }
+.companion-preset-choice strong { font-size: var(--t-body); }
+.companion-preset-choice small { color: var(--muted); font-size: var(--t-small); line-height: 1.35; }
+.companion-preset-choice.selected { border-color: var(--mana); background: color-mix(in srgb, var(--mana) 8%, var(--panel)); box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--mana) 70%, transparent); }
+.companion-does { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+.companion-does em { padding: var(--s-2) var(--s-3); color: var(--mana); border: 1px solid color-mix(in srgb, var(--mana) 35%, var(--border)); font: 650 var(--t-micro)/1.2 "JetBrains Mono", Consolas, monospace; font-style: normal; letter-spacing: .03em; text-transform: uppercase; }
+.companion-does.mini { grid-column: 1 / -1; margin-top: 4px; }
+.companion-scene-picker { display: flex; flex-wrap: wrap; gap: var(--s-3); margin: var(--s-5) 0 0; align-items: center; }
+.companion-scene-picker > span { width: 100%; color: var(--muted); font: 650 var(--t-tiny)/1 "JetBrains Mono", Consolas, monospace; letter-spacing: .06em; text-transform: uppercase; }
+.companion-scene-picker button { display: inline-flex; align-items: center; gap: var(--s-3); min-height: 36px; padding: var(--s-3) var(--s-4h); color: inherit; background: var(--panel); border: 1px solid var(--border); text-align: left; }
+.companion-scene-picker button.selected { border-color: var(--mana); background: color-mix(in srgb, var(--mana) 8%, var(--panel)); }
+.companion-scene-picker b { color: var(--mana); font-size: var(--t-base); font-weight: 500; }
+.companion-scene-picker strong { font-size: var(--t-body); }
+.companion-scene-picker small { display: none; }
+.companion-role-showcase { display: grid; gap: var(--s-4h); margin-top: 14px; padding: 0; border: 0; background: transparent; }
+.companion-role-showcase header { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: var(--s-4h); align-items: center; }
+.companion-role-showcase header > span { display: grid; place-items: center; width: 30px; height: 30px; color: var(--mana); border: 1px solid color-mix(in srgb, var(--mana) 45%, var(--border)); }
+.companion-sample-dialogue { display: grid; gap: var(--s-3); }
+.companion-sample-dialogue .you, .companion-sample-dialogue .them { display: grid; gap: var(--s-2); padding: var(--s-4) var(--s-4h); border: 1px solid var(--border); }
+.companion-sample-dialogue .you { background: var(--void); }
+.companion-sample-dialogue .them { background: color-mix(in srgb, var(--ember) 7%, var(--panel)); border-color: color-mix(in srgb, var(--ember) 28%, var(--border)); }
+.companion-sample-dialogue small { color: var(--muted); font: 650 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace; letter-spacing: .06em; }
+.companion-sample-dialogue p { margin: 0; font-size: var(--t-body); line-height: 1.45; }
+.companion-sample-dialogue .act { color: var(--mana); font: 650 var(--t-tiny)/1.3 "JetBrains Mono", Consolas, monospace; letter-spacing: .04em; text-transform: uppercase; }
+.companion-sample-dialogue.compact p { font-size: var(--t-small); }
+.companion-mode-can { display: grid; gap: var(--s-2); margin: 0; padding: 0; list-style: none; color: var(--muted); font-size: var(--t-small); }
+.companion-mode-can li { position: relative; padding-left: var(--s-4h); }
+.companion-mode-can li::before { content: '·'; position: absolute; left: 0; color: var(--mana); }
+.companion-act-compare { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-4); margin-top: var(--s-4h); }
+.companion-act-compare > button { display: grid; gap: var(--s-3); min-height: 100px; padding: var(--s-5); color: inherit; background: var(--panel); border: 1px solid var(--border); text-align: left; }
+.companion-act-compare > button.on { border-color: var(--mana); background: color-mix(in srgb, var(--mana) 8%, var(--panel)); box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--mana) 70%, transparent); }
+.companion-act-compare b { font-size: var(--t-base); }
+.companion-act-compare p { margin: 0; color: var(--muted); font-size: var(--t-small); line-height: 1.4; }
+.companion-act-compare footer { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+.companion-act-compare footer span { padding: var(--s-1) var(--s-3); color: var(--mana); border: 1px solid color-mix(in srgb, var(--mana) 35%, var(--border)); font: 650 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace; }
+.companion-predicted { padding: var(--s-4h); border-left: var(--edge-accent) solid var(--mana); background: color-mix(in srgb, var(--mana) 6%, var(--panel)); }
+.companion-predicted strong { color: var(--mana); font-size: var(--t-tiny); letter-spacing: .05em; text-transform: uppercase; }
+.companion-predicted p { margin: var(--s-3) 0 0; font-size: var(--t-body); line-height: 1.45; }
+.companion-predicted small { display: block; margin-top: 6px; color: var(--muted); font-size: var(--t-small); line-height: 1.35; }
+.companion-trait-live { margin: var(--s-3) 0 0; color: var(--ember); font-size: var(--t-body); line-height: 1.4; }
+.companion-personality-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(210px, .8fr); gap: var(--s-5); margin-top: var(--s-4h); }
+.companion-personality-layout.single { grid-template-columns: 1fr; }
+.companion-personality-controls { display: grid; gap: var(--s-4); }
+/* Минимумы ряда должны помещаться в узкую колонку, а не задавать ей ширину.
+   Было 140+160+42 плюс два зазора = 382px в колонке 347px: ряды вылезали
+   вправо и уходили под карточку предпросмотра, вместе со значением, которое
+   человек в этот момент и выставляет. */
+.companion-range { display: grid; grid-template-columns: minmax(104px, 1fr) minmax(92px, 1.2fr) 42px; gap: var(--s-4); align-items: center; padding: var(--s-4h) var(--s-5); border: 1px solid var(--border); background: var(--panel); }
+/* Ползунок черты: подпись, дорожка, значение.
+   В одну строку это влезает только на широком экране. В колонке настройки
+   характера дорожке доставалось 135px при нужных 175 — ползунок сжимался до
+   18px и им нельзя было пользоваться, а подписи «Осторожно / Инициативно»
+   вылезали за край. Поэтому по умолчанию две строки: подпись со значением
+   сверху, дорожка во всю ширину под ними. Одна строка — только когда места
+   действительно хватает, и решает это ширина самого столбца, а не окна. */
+.companion-personality-controls { container-type: inline-size; container-name: companion-traits; }
+.companion-range {
+  grid-template-areas: "label value" "track track";
+  grid-template-columns: minmax(0, 1fr) 42px;
+}
+.companion-range > :first-child { grid-area: label; }
+.companion-range > .companion-range-track { grid-area: track; }
+.companion-range > output { grid-area: value; }
+@container companion-traits (min-width: 560px) {
+  .companion-range {
+    grid-template-areas: "label track value";
+    grid-template-columns: minmax(104px, 1fr) minmax(210px, 1.2fr) 42px;
+  }
+}
+.companion-range-track { display: grid; grid-template-columns: auto minmax(96px, 1fr) auto; gap: var(--s-3); align-items: center; }
+.companion-range-track em { color: var(--muted); font: 650 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace; font-style: normal; letter-spacing: .04em; text-transform: uppercase; }
+.companion-range strong, .companion-range small { display: block; }
+.companion-range strong { font-size: var(--t-body); }
+.companion-range small { margin-top: 2px; color: var(--muted); font-size: var(--t-small); }
+.companion-range output { color: var(--mana); font: 650 var(--t-body)/1 "JetBrains Mono", Consolas, monospace; text-align: right; }
+.companion-live-preview, .companion-persona-dock { align-self: start; display: grid; gap: var(--s-4h); padding: var(--s-5); border: 1px solid color-mix(in srgb, var(--ember) 38%, var(--border)); background: linear-gradient(145deg, color-mix(in srgb, var(--ember) 7%, var(--panel)), var(--panel)); }
+.companion-setup-stage > .companion-persona-dock { position: sticky; top: 12px; margin: var(--s-6) var(--s-6) var(--s-6) 0; }
+.companion-live-preview header, .companion-persona-dock header { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: var(--s-4); align-items: center; }
+.companion-live-preview header > span, .companion-persona-dock header > span { display: grid; place-items: center; width: 30px; height: 30px; color: var(--ember); border: 1px solid color-mix(in srgb, var(--ember) 48%, var(--border)); }
+.companion-live-preview strong, .companion-live-preview small, .companion-persona-dock strong, .companion-persona-dock small { display: block; }
+.companion-live-preview small, .companion-persona-dock small { margin-top: 2px; color: var(--muted); font-size: var(--t-small); }
+.companion-live-preview ul, .companion-persona-dock ul { display: grid; gap: var(--s-3); margin: 0; padding: 0; list-style: none; }
+.companion-live-preview li, .companion-persona-dock li { position: relative; padding-left: 12px; color: var(--muted); font-size: var(--t-small); line-height: 1.4; }
+.companion-live-preview li::before, .companion-persona-dock li::before { content: '›'; position: absolute; left: 0; color: var(--ember); }
+.companion-live-preview.compact, .companion-persona-dock.compact { margin-top: var(--s-4h); }
+.companion-live-preview.compact ul, .companion-persona-dock.compact ul { grid-template-columns: 1fr; }
+.companion-trait-bars { display: grid; gap: var(--s-3); }
+.companion-trait-bars span { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: var(--s-3); align-items: center; }
+.companion-trait-bars small { margin: 0; font-size: var(--t-micro); letter-spacing: .04em; text-transform: uppercase; }
+.companion-trait-bars i { display: block; height: 4px; background: color-mix(in srgb, var(--border) 80%, var(--void)); overflow: hidden; }
+.companion-trait-bars b { display: block; height: 100%; background: color-mix(in srgb, var(--ember) 75%, var(--mana)); transition: width var(--motion-base) var(--ease); }
+.companion-boundary-layout { display: grid; gap: var(--s-4h); }
+.companion-response-tuning { display: grid; gap: var(--s-4); }
+.companion-response-tuning > label { padding: var(--s-4h); border: 1px solid var(--border); background: var(--panel); }
+.companion-response-tuning output { color: var(--mana); font: 650 var(--t-small)/1 "JetBrains Mono", Consolas, monospace; }
+.companion-auto-act { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: var(--s-4h); }
+.companion-auto-act.featured { padding: 14px; border: 1px solid color-mix(in srgb, var(--mana) 40%, var(--border)); background: color-mix(in srgb, var(--mana) 6%, var(--panel)); }
+.companion-auto-act input { margin-top: 2px; }
+.companion-auto-act strong, .companion-auto-act small { display: block; }
+.companion-auto-act strong { color: inherit; font-size: var(--t-base); }
+.companion-auto-act small { margin-top: var(--s-2); color: var(--muted); font-size: var(--t-small); line-height: 1.4; }
+.companion-advanced-model { margin-top: 14px; padding: var(--s-4h) var(--s-5); border: 1px dashed var(--border); }
+.companion-advanced-model > summary { cursor: pointer; color: var(--muted); font: 650 var(--t-small)/1.4 var(--font-ui); }
+.companion-advanced-model .companion-response-tuning { margin-top: 8px; }
+.companion-orchestration-note { margin: 0 0 var(--s-5); color: var(--muted); font-size: var(--t-body); line-height: 1.45; }
+.companion-guardrails { display: grid; gap: var(--s-4); padding: var(--s-5); border: 1px solid color-mix(in srgb, var(--vital) 35%, var(--border)); background: color-mix(in srgb, var(--vital) 4%, var(--panel)); }
+.companion-guardrails > strong { color: var(--vital); font-size: var(--t-small); text-transform: uppercase; }
+.companion-guardrails span { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: var(--s-4); align-items: start; }
+.companion-guardrails b { color: var(--vital); font: 650 var(--t-tiny)/1.3 "JetBrains Mono", Consolas, monospace; }
+.companion-guardrails small { color: var(--muted); font-size: var(--t-small); line-height: 1.4; }
+.companion-final-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; padding: 1px; margin-bottom: 12px; background: var(--border); }
+.companion-final-summary span { display: grid; gap: var(--s-2); min-width: 0; padding: var(--s-4h); background: var(--panel); }
+.companion-final-summary small { color: var(--muted); font: 650 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace; }
+.companion-final-summary strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--t-body); }
+.companion-scenario-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--s-3); }
+.companion-scenario { display: grid; align-content: start; gap: var(--s-3); min-height: 120px; padding: var(--s-4h); color: inherit; background: var(--panel); border: 1px solid var(--border); text-align: left; }
+.companion-scenario > span { color: var(--mana); font-size: var(--t-lead); }
+.companion-scenario strong { font-size: var(--t-body); }
+.companion-scenario p { margin: 0; color: var(--muted); font-size: var(--t-small); line-height: 1.35; }
+.companion-scenario small { margin-top: auto; color: var(--mana); font-size: var(--t-tiny); line-height: 1.3; text-transform: uppercase; }
+.companion-scenario.selected { border-color: var(--mana); background: color-mix(in srgb, var(--mana) 8%, var(--panel)); }
+.companion-test-console { display: grid; gap: var(--s-4); margin-top: 12px; padding: var(--s-5); color: var(--vscode-terminal-foreground, inherit); background: var(--vscode-terminal-background, var(--void)); border: 1px solid var(--border); }
+.companion-test-console > header { display: flex; justify-content: space-between; gap: var(--s-4); color: var(--mana); font: 650 var(--t-tiny)/1 "JetBrains Mono", Consolas, monospace; }
+.companion-test-console em { color: var(--muted); font-style: normal; }
+.companion-test-console > p { margin: 0; font: 500 var(--t-body)/1.5 "JetBrains Mono", Consolas, monospace; }
+.companion-test-console > button { justify-self: start; min-height: 38px; }
+.companion-test-answer { padding: var(--s-4); border-left: var(--edge-accent) solid var(--ember); background: color-mix(in srgb, var(--ember) 5%, var(--panel)); }
+.companion-test-answer strong { color: var(--ember); font-size: var(--t-small); }
+.companion-test-answer p { margin: var(--s-3) 0 0; line-height: 1.45; }
+.companion-test-answer.fallback { border-left-color: color-mix(in srgb, var(--ember) 70%, var(--mana)); }
+.companion-test-fallback { display: grid; gap: var(--s-2); padding: var(--s-4h); border: 1px solid color-mix(in srgb, var(--ember) 50%, var(--border)); background: color-mix(in srgb, var(--ember) 10%, var(--panel)); }
+.companion-test-fallback strong { color: var(--ember); font-size: var(--t-body); }
+.companion-test-fallback p { margin: 0; font-size: var(--t-body); line-height: 1.45; word-break: break-word; }
+.companion-test-fallback small { color: var(--muted); font-size: var(--t-small); line-height: 1.4; }
+.companion-chat-workspace { display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; padding: var(--s-5); }
+.companion-chat-workspace > header { display: flex; justify-content: space-between; gap: var(--s-4); align-items: flex-start; }
+.companion-chat-workspace > header strong, .companion-chat-workspace > header small { display: block; }
+.companion-chat-workspace > header small { margin-top: 2px; color: var(--muted); font-size: var(--t-micro); }
+.companion-chat-workspace > header > span { color: var(--muted); font: 650 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace; }
+.companion-chat-workspace.setup-open { background: color-mix(in srgb, var(--panel) 45%, var(--raised)); }
+.companion-chat-workspace.setup-open .companion-thread { max-height: 150px; min-height: 0; }
+.companion-studio.has-thread .companion-thread { max-height: min(52vh, 580px); min-height: 260px; }
+.changeset-card { padding: var(--s-4h); border: 1px solid var(--border); background: var(--panel); margin-bottom: 8px; }
+.changeset-card header { display: flex; justify-content: space-between; gap: var(--s-4); margin-bottom: 4px; }
+.changeset-card footer { display: flex; gap: var(--s-3); margin-top: 8px; }
+.changeset-lineage { display: block; margin-top: 4px; color: var(--vscode-textLink-foreground, var(--mana)); }
+.changeset-card.status-superseded { opacity: .78; }
+.changeset-card.status-superseded > header span { color: var(--muted); }
+.connection-secret-note { display: flex; gap: var(--s-4); align-items: flex-start; padding: var(--s-4) var(--s-4h); margin-bottom: var(--s-4h); border: 1px solid var(--mana); background: color-mix(in srgb, var(--mana) 8%, var(--panel)); }
+/* Заголовок и пояснение — разные строки. Блочность жила только в канонном слое
+   Чертога (`body[data-layout="wide"]`), и в окне инструмента правило не
+   срабатывало: «…postgres · mysql» и «Для удалённых хостов…» слипались в одну
+   строку без пробела. Структура принадлежит компоненту, а не регистру; цвет и
+   мера строки остались за регистром. */
+.connection-secret-note > div { min-width: 0; }
+.connection-secret-note strong { display: block; margin-bottom: var(--s-2); }
+.connection-secret-note small { display: block; line-height: 1.4; }
+.connection-form, .hub-skill-list, .memory-card, .hub-team-card, .connection-list article, .skill-form { display: grid; gap: var(--s-4); padding: var(--s-4h); border: 1px solid var(--border); background: var(--raised); margin-bottom: 8px; }
+/* ── Подключения и выбор модели ─────────────────────────────────────────────
+   Один контрол на все экраны: подключение и модель сверху, тонкая настройка
+   свёрнута. Всё остальное — подписи о том, откуда взялось значение: без них
+   «много настроек» снова становится «непонятно». */
+.connection-manager { display: grid; gap: var(--s-4h); }
+.connection-card.is-default { border-color: color-mix(in srgb, var(--ember) 42%, var(--border)); }
+/* Подключение по умолчанию отличается меткой, а не только цветом: цвет один и
+   тот же у выбранного и у ошибочного, а прочитать нужно разное. */
+.connection-card.is-default > header::after {
+  content: 'ПО УМОЛЧАНИЮ';
+  align-self: center;
+  padding: 1px var(--s-3);
+  color: var(--ember);
+  border: 1px solid color-mix(in srgb, var(--ember) 45%, transparent);
+  font: 650 var(--t-micro)/1.6 "JetBrains Mono", Consolas, monospace;
+  letter-spacing: .06em;
+}
+.connection-form-actions { display: flex; flex-wrap: wrap; gap: var(--s-4); }
+.model-choice { display: grid; gap: var(--s-4); }
+.model-facts { color: var(--muted); font-size: var(--t-small); line-height: 1.45; }
+/* Незнакомая модель — не ошибка, но и не норма: приглушённый текст здесь
+   прочитали бы как «всё в порядке», а значение придётся вводить руками. */
+.model-facts.is-unknown { color: var(--ember-prose, var(--ember)); }
+.model-tuning-advanced > summary { cursor: pointer; color: var(--muted); font-size: var(--t-small); }
+.model-tuning-advanced[open] > summary { margin-bottom: var(--s-4); color: var(--text-primary, inherit); }
+.model-tuning-advanced .model-tuning { margin-top: 0; }
+.skill-form h3 { margin: 0; font-size: var(--t-lead); }
+.skill-form-hint, .skill-card-attach { margin: 0; color: var(--muted); font-size: var(--t-small); line-height: 1.4; }
+.skill-form-actions { display: flex; flex-wrap: wrap; gap: var(--s-4); }
+.skill-tool-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: var(--s-3); }
+.skill-equip-option { display: flex; gap: var(--s-4); align-items: flex-start; padding: var(--s-4); border: 1px solid var(--border); background: var(--panel); }
+.skill-equip-option span { display: grid; gap: var(--s-1); }
+.skill-equip-option small { color: var(--muted); }
+.skill-card-tools { display: flex; flex-wrap: wrap; gap: var(--s-2); margin: 0; }
+.hub-skill-card header { display: flex; justify-content: space-between; gap: var(--s-4); align-items: baseline; }
+.equip-off { color: var(--muted); font: 650 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace; font-style: normal; letter-spacing: .06em; }
+/* Полоса перехода в смежные разделы. Это навигация, а не действия над
+   содержимым страницы, поэтому она подписана: без подписи ряд одинаковых
+   кнопок под карточками читался как продолжение работы на экране. Один
+   примитив на весь Хаб — Обзор держал для того же свою копию. */
+.hub-transitional { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-4); margin-top: var(--s-4h); }
+.hub-transitional > b {
+  font: var(--fw-medium) var(--t-micro) / 1 var(--font-mono);
+  letter-spacing: .18em;
+  color: var(--hub-faint-3);
+}
+.hub-teams, .hub-skills, .hub-memory, .hub-connections, .hub-changesets-page, .hub-journal, .hub-page { padding: var(--s-4h) var(--s-5) var(--s-6); display: grid; gap: var(--s-4h); align-content: start; flex: 1; min-height: 0; overflow: auto; }
+.memory-card.pinned { border-color: var(--ember); }
+@media (max-width: 900px) {
+  .command-center-grid { grid-template-columns: 1fr; }
+  .hub-shell-8.tabs { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .companion-setup-shell { grid-template-columns: 1fr; grid-template-rows: auto auto minmax(0, 1fr); }
+  .companion-setup-stage, .companion-setup-shell.has-dock .companion-setup-stage { grid-template-columns: 1fr; }
+  .companion-setup-stage > .companion-persona-dock { position: static; margin: 0 14px 14px; }
+  .companion-setup-steps { display: flex; gap: var(--s-2); padding: var(--s-4) var(--s-4h); border-right: 0; border-bottom: 1px solid var(--border); overflow-x: auto; }
+  .companion-setup-steps button { flex: 1 1 0; grid-template-columns: 1fr; justify-items: center; min-height: 44px; min-width: 56px; text-align: center; padding: var(--s-3) var(--s-2); }
+  .companion-setup-steps button.active { box-shadow: inset 0 -3px 0 var(--mana); }
+  .companion-setup-steps button span { min-width: 0; max-width: 100%; }
+  .companion-setup-steps button span strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--t-small); }
+  .companion-setup-steps button span small { display: none; }
+  .companion-setup-steps button:not(.active) span strong { display: none; }
+  .companion-personality-layout, .companion-boundary-layout, .companion-act-compare { grid-template-columns: 1fr; }
+  .companion-mode-switch { grid-template-columns: 1fr; }
+  .companion-scenario-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 620px) {
+  .companion-studio-hero { grid-template-columns: auto minmax(0, 1fr); }
+  .companion-studio-health { grid-column: 1 / -1; justify-items: stretch; }
+  .companion-mode-grid, .companion-preset-studio, .system-agents-grid { grid-template-columns: 1fr; }
+  .companion-preset-studio { max-height: 240px; overflow: auto; }
+  .companion-scenario-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .companion-final-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .companion-live-preview.compact ul { grid-template-columns: 1fr; }
+  .companion-range { grid-template-columns: minmax(100px, 1fr) minmax(90px, 1fr) 32px; }
+  .companion-rail header { grid-template-columns: auto minmax(0, 1fr); }
+  .companion-rail header > button { grid-column: 1 / -1; }
+}
+.hub-shell.tabs > button { min-height: 44px; padding: var(--s-3) var(--s-2); font: 650 var(--t-small)/1 var(--font-ui); letter-spacing: 0; border-radius: var(--r-1); }
+.hub-shell.tabs > button.active { color: var(--ember); background: var(--selected); border-color: var(--ember); box-shadow: inset 0 -2px 0 var(--ember); }
+.hub-page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s-5); padding: var(--s-2) 0 var(--s-4); }
+/* Второй заголовок на той же странице отбивается от блока над ним: сверху у
+   заголовка страницы отбивки нет, она ему нужна только когда он не первый. */
+.hub-page-head.is-stacked { margin-top: var(--s-7); }
+.hub-page-head span { color: var(--mana); font: 650 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace; letter-spacing: .12em; }
+.hub-page-head h1 { margin: var(--s-2) 0 var(--s-2); font-size: var(--t-display); letter-spacing: -.02em; }
+.hub-page-head p { margin: 0; max-width: 520px; color: var(--muted); font-size: var(--t-body); line-height: 1.45; }
+.hub-page-head em { color: var(--muted); font: 650 var(--t-title)/1 "JetBrains Mono", Consolas, monospace; font-style: normal; }
+.brand-mark.live i { background: var(--vital); animation: hub-pulse 1.8s ease-in-out infinite; }
+.index-chip { min-height: 28px; padding: 0 var(--s-4); color: var(--muted); background: var(--raised); border: 1px solid var(--border); font: 650 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace; letter-spacing: .06em; }
+.index-chip:hover { color: var(--primary); border-color: var(--mana); }
+.index-chip.ready { color: var(--vital); border-color: color-mix(in srgb, var(--vital) 50%, var(--border)); }
+.index-chip.stale { color: var(--ember); border-color: color-mix(in srgb, var(--ember) 50%, var(--border)); }
+@keyframes hub-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .45; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .brand-mark.live i, .party-status.running, .party-status.waiting_approval { animation: none; }
+}
+.cursor-login { display: flex; align-items: center; justify-content: space-between; gap: var(--s-4h); padding: var(--s-4) var(--s-4h); border: 1px solid var(--mana); border-radius: var(--r-1); background: color-mix(in srgb, var(--mana) 7%, var(--panel)); }
+.cursor-login strong, .cursor-login small { display: block; }
+.cursor-login small { margin-top: 2px; color: var(--muted); }
+.quest-primary { display: grid; gap: var(--s-4); }
+.quest-primary > label > span, .quest-advanced > summary { color: var(--mana); font: 650 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace; letter-spacing: .1em; }
+.quest-primary #task { min-height: 74px; font-size: var(--t-base); }
+.quest-advanced { display: grid; gap: var(--s-4); padding: var(--s-4) 0 0; border-top: 1px solid var(--border); }
+.quest-advanced:not([open]) > :not(summary) { display: none; }
+.quest-advanced summary { cursor: pointer; list-style: none; }
+.tool-advanced { display: grid; gap: var(--s-4); padding: var(--s-4); border: 1px solid var(--border); border-radius: var(--r-1); background: var(--raised); }
+.tool-advanced summary { color: var(--muted); cursor: pointer; font-size: var(--t-tiny); }
+.workflow-split { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(230px, .75fr); gap: var(--s-4h); align-items: start; }
+.workflow-step[draggable="true"] { cursor: grab; }
+.workflow-step[draggable="true"]:active { cursor: grabbing; opacity: .7; }
+.workflow-visual { position: sticky; top: 8px; display: grid; gap: var(--s-4); padding: var(--s-4h); background: var(--void); border: 1px solid var(--border); border-radius: var(--r-1); }
+.workflow-visual > strong { color: var(--mana); font: 650 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace; letter-spacing: .1em; }
+.hybrid-flows .workflow-timeline { display: grid; gap: 0; }
+.hybrid-flows .workflow-stage { position: relative; }
+.hybrid-flows .workflow-stage:not(:last-child)::after { content: ''; position: absolute; left: 14px; top: 100%; width: 1px; height: 10px; background: var(--border); }
+.onboarding-ready { display: grid; align-content: start; gap: 14px; padding: 14px; }
+.onboarding-ready-facts { display: grid; gap: var(--s-4); max-width: 420px; }
+.onboarding-ready-facts span { display: grid; grid-template-columns: 18px 1fr; gap: var(--s-3); color: var(--muted); font-size: var(--t-body); }
+.onboarding-ready-facts i { color: var(--vital); font-style: normal; font-weight: 700; }
+.onboarding-ready-actions { display: flex; flex-wrap: wrap; gap: var(--s-4); }
+
+/* Неудачная проверка связи читается как неудача, а не как нейтральная заметка. */
+.provider-probe-status.failure { color: var(--wound); }
+
+/* Готовые стили поведения — крупный шаг того же выбора, что и черты характера,
+   поэтому стоят прямо над слайдерами, а не на предыдущем экране под чужим
+   заголовком «Ещё роли». */
+.companion-style-presets { display: grid; gap: var(--s-4); margin-bottom: var(--s-5); }
+.companion-style-label {
+  color: var(--muted);
+  font: var(--fw-medium) var(--t-micro) / 1 var(--font-mono);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+/* ── Блок кода в ленте Мастера ────────────────────────────────────────────── */
+/* Шапка блока светилась примесью --mana: бирюзовая полоса над серым кодом была
+   самым ярким местом спокойной ленты — и всё ради одной кнопки копирования.
+   Правила живут здесь, а не в слое тихого регистра: имя `companion-code-*`
+   принадлежит этому слою, и оттуда его перебило бы !important. */
+.hall-dialogue .companion-code-wrap {
+  border-color: color-mix(in srgb, var(--hub-border) 70%, transparent);
+}
+.hall-dialogue .companion-code-actions {
+  padding: var(--s-2) var(--s-3);
+  border-bottom-color: color-mix(in srgb, var(--hub-border) 55%, transparent);
+  background: color-mix(in srgb, var(--hub-raised) 30%, var(--hub-void));
+}
+.hall-dialogue .companion-code-actions button {
+  font: var(--fw-normal) var(--t-micro) / 1.2 var(--font-ui);
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--hub-faint-2);
+}
+.hall-dialogue .companion-code-actions button:hover { color: var(--hub-text-3); }
+/* Язык блока стоит слева и молчит: он подписывает код, а не спорит с ним. */
+.companion-code-lang {
+  margin-right: auto;
+  font: var(--fw-normal) var(--t-micro) / 1.2 var(--font-mono);
+  letter-spacing: var(--ls-caps);
+  color: var(--hub-faint-2);
+  text-transform: lowercase;
+}
+/* Рамка у блока одна. Обёртка уже очерчена, а `pre` в ленте Мастера приносил
+   свою: вокруг кода получалась двойная линия с полосой фона между ними. */
+/* Селектор длиннее нужного намеренно: рамку `pre` в ленте Мастера ставит
+   05-hall.css правилом той же силы, и правило короче этого не выигрывает —
+   двойная линия оставалась на месте. Имя `.body` сюда брать нельзя: оно
+   принадлежит слою Чертога, и сборка ловит такой захват. Равную силу добирает
+   тег `pre` с классом, а спор равных решает порядок слоёв. */
+.hall-dialogue .hall-msg pre.companion-code {
+  padding: var(--s-4) var(--s-5);
+  border: 0;
+  background: transparent;
+  font-size: var(--t-small);
+}

@@ -1,0 +1,494 @@
+/* Левая панель Чертога: чаты всех проектов.
+ *
+ * Слой держит собственное пространство имён `hall-chats-` / `hall-chat-`, и это
+ * не вкусовщина: исторические страты объявляют правила с !important на общих
+ * именах, и переиспользованное имя проиграет им независимо от специфичности.
+ * Правило записано в NAMESPACES (ui/build.mjs), так что сборка поймает промах
+ * раньше глаза.
+ *
+ * Значений вне шкал здесь нет ни одного — только токены из ui/tokens.css.
+ * Трещотка в ui/build.mjs умеет идти лишь вниз. */
+
+.is-chat {
+  display: grid;
+  grid-template-columns: clamp(220px, 18vw, 280px) minmax(0, 1fr);
+  /* Ряд задан явно. Неявный ряд сетки меряется по содержимому, поэтому лента
+     длинного разговора растягивала колонку на свою полную высоту: `.hall`
+     прячет переполнение, и хвост разговора вместе с карточкой ввода уходил за
+     нижний край окна — прокрутить к нему было нельзя, потому что прокручивать
+     было нечего. */
+  grid-template-rows: minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+}
+
+.is-chat .hall-main {
+  min-width: 0;
+  /* Та же причина с другой стороны: у элемента сетки `min-height` по умолчанию
+     `auto`, то есть «не меньше содержимого». Остальная цепочка до ленты уже
+     обнулена явно, эта колонка оставалась последней. */
+  min-height: 0;
+}
+
+/* Углы разговора. «Чертог» держит прямой угол как канон (ui/tokens.css), но
+   чат Мастера — поверхность иного регистра: лента, пузырь, карточка и поле
+   ввода уже скруглены числами в 05-hall.css, а рамки вокруг них оставались
+   острыми, и один экран читался как два. Шкала возвращается здесь целиком,
+   чтобы скругление бралось ступенью, а не подбиралось на глаз. */
+.is-chat {
+  --r-1: 2px;
+  --r-2: 4px;
+  --r-3: 8px;
+}
+
+.hall-chats {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  min-height: 0;
+  padding: var(--s-5) var(--s-4);
+  border-inline-end: 1px solid var(--hub-border-soft);
+  background: var(--hub-panel);
+}
+
+.hall-chats-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+/* Главное действие панели ровно одно, и только оно залито. */
+.hall-chats-new {
+  flex: 1 1 auto;
+  min-height: var(--hit);
+  border: 1px solid var(--ember);
+  border-radius: var(--r-1);
+  background: var(--ember-wash);
+  color: var(--ember);
+  font-size: var(--t-small);
+  letter-spacing: .04em;
+  cursor: pointer;
+}
+
+.hall-chats-new:disabled {
+  border-color: var(--hub-border);
+  background: transparent;
+  color: var(--hub-faint-4);
+  cursor: default;
+}
+
+.hall-chats-world-new {
+  flex: 0 0 auto;
+  width: var(--hit);
+  height: var(--hit);
+  border: 1px solid var(--hub-border-strong);
+  border-radius: var(--r-1);
+  background: transparent;
+  color: var(--hub-muted);
+  cursor: pointer;
+}
+
+.hall-chats-world-new:hover {
+  border-color: var(--hub-border-loud);
+  color: var(--hub-text);
+}
+
+.hall-chats > input[type="search"] {
+  min-height: var(--hit);
+  padding-inline: var(--s-4);
+  border: 1px solid var(--hub-border);
+  border-radius: var(--r-1);
+  background: var(--hub-void);
+  color: var(--hub-text);
+  font-size: var(--t-body);
+}
+
+.hall-chats > input[type="search"]:focus-visible {
+  outline: none;
+  border-color: var(--mana);
+}
+
+.hall-chats-groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.hall-chats-world {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: var(--hit);
+  margin: 0;
+  font-size: var(--t-micro);
+  font-weight: 400;
+}
+
+.hall-chats-world > button {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  flex: 1 1 auto;
+  min-width: 0;
+  /* Строка мира — кнопка на всю ширину, и нажимать её человек будет по всей
+     высоте строки, а не по тринадцати пикселям текста. */
+  min-height: var(--hit);
+  padding: 0 var(--s-2);
+  border: 0;
+  background: transparent;
+  color: var(--hub-muted-2);
+  font-size: var(--t-micro);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  text-align: left;
+  cursor: pointer;
+}
+
+.hall-chats-world > button:hover {
+  color: var(--hub-text-3);
+}
+
+.hall-chats-world span {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hall-chats-world b {
+  flex: 0 0 auto;
+  font-weight: 400;
+  color: var(--hub-faint-2);
+}
+
+.hall-chats-caret {
+  flex: 0 0 auto;
+  font-style: normal;
+  color: var(--hub-faint-3);
+}
+
+.hall-chats-add {
+  flex: 0 0 auto;
+  /* Цель указателя, а не значок: 22px замер ловит как недобор при пороге 24.
+     Ступень попадания уже есть — ею и меряем. */
+  width: var(--hit);
+  height: var(--hit);
+  border: 0;
+  border-radius: var(--r-1);
+  background: transparent;
+  color: var(--hub-faint-3);
+  cursor: pointer;
+  opacity: 0;
+}
+
+.hall-chats-group:hover .hall-chats-add,
+.hall-chats-add:focus-visible {
+  opacity: 1;
+}
+
+.hall-chats-add:hover {
+  background: var(--hub-selected);
+  color: var(--hub-text);
+}
+
+.hall-chats-items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  margin-block-start: var(--s-1);
+}
+
+.hall-chat-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  min-height: 28px;
+  border-inline-start: var(--edge-accent) solid transparent;
+}
+
+.hall-chat-row > button:first-child {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 28px;
+  padding-inline: var(--s-4);
+  border: 0;
+  border-radius: var(--r-1);
+  background: transparent;
+  color: var(--hub-text-3);
+  text-align: left;
+  cursor: pointer;
+}
+
+.hall-chat-row:hover > button:first-child {
+  background: var(--hub-raised);
+  color: var(--hub-text);
+}
+
+/* Активный разговор отмечен линией, а не заливкой: залитое в Чертоге — только
+ * главное действие, и второе пятно того же цвета спорило бы с ним. */
+.hall-chat-row.is-current {
+  border-inline-start-color: var(--ember);
+}
+
+.hall-chat-row.is-current > button:first-child {
+  background: var(--hub-selected);
+  color: var(--hub-text);
+}
+
+.hall-chat-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--t-body);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hall-chat-when {
+  flex: 0 0 auto;
+  font-size: var(--t-micro);
+  color: var(--hub-faint-2);
+}
+
+.hall-chat-live {
+  flex: 0 0 auto;
+  display: inline-flex;
+  width: var(--s-3);
+  height: var(--s-3);
+}
+
+.hall-chat-live i {
+  width: 100%;
+  height: 100%;
+  border-radius: var(--r-full);
+  background: var(--ember);
+  animation: hall-chat-pulse 1.6s ease-in-out infinite;
+}
+
+.hall-chat-row.is-loading .hall-chat-when {
+  color: var(--hub-faint-4);
+}
+
+.hall-chat-drop {
+  flex: 0 0 auto;
+  width: var(--hit);
+  height: var(--hit);
+  border: 0;
+  border-radius: var(--r-1);
+  background: transparent;
+  color: var(--hub-faint-3);
+  cursor: pointer;
+  opacity: 0;
+}
+
+.hall-chat-row:hover .hall-chat-drop,
+.hall-chat-drop:focus-visible {
+  opacity: 1;
+}
+
+.hall-chat-drop:hover {
+  color: var(--wound);
+}
+
+.hall-chats-archive {
+  margin-block-start: var(--s-2);
+}
+
+.hall-chats-archive summary {
+  padding-inline: var(--s-4);
+  font-size: var(--t-micro);
+  color: var(--hub-faint-2);
+  cursor: pointer;
+}
+
+.hall-chats-blank {
+  margin: 0;
+  padding: var(--s-3) var(--s-4);
+  font-size: var(--t-small);
+  color: var(--hub-faint-2);
+}
+
+.hall-chats-empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding: var(--s-6) var(--s-4);
+  text-align: center;
+}
+
+.hall-chats-empty strong {
+  font-size: var(--t-base);
+  color: var(--hub-text);
+}
+
+.hall-chats-empty p {
+  margin: 0;
+  font-size: var(--t-small);
+  color: var(--hub-muted-2);
+}
+
+.hall-chats-foot {
+  flex: 0 0 auto;
+}
+
+.hall-chats-temporary {
+  width: 100%;
+  min-height: var(--hit);
+  border: 1px solid var(--hub-border-soft);
+  border-radius: var(--r-1);
+  background: transparent;
+  color: var(--hub-muted-2);
+  font-size: var(--t-small);
+  cursor: pointer;
+}
+
+.hall-chats-temporary:hover {
+  border-color: var(--hub-border-strong);
+  color: var(--hub-text-3);
+}
+
+.hall-chats-temporary:disabled {
+  color: var(--hub-faint-4);
+  cursor: default;
+}
+
+/* Шапка чата. Пять управляющих элементов и два значка срочного — больше сюда
+ * не помещается, и не должно: спор за внимание выигрывает разговор. */
+.hall-head-chat {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  min-height: 40px;
+  padding-inline: var(--s-6);
+}
+
+.hall-head-chat .hall-chat-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.hall-head-chat .hall-chat-heading strong {
+  overflow: hidden;
+  font-size: var(--t-body);
+  color: var(--hub-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hall-head-chat .hall-chat-heading small {
+  font-size: var(--t-micro);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--hub-faint-2);
+}
+
+/* Второй значок срочного тише первого. Два алых пятна в одной шапке
+ * одинаково срочны, то есть одинаково незаметны: очередь решений держит
+ * агента, непроверенные изменения ждут. */
+.hall-alarm.is-quiet {
+  border-color: var(--hub-border-strong);
+  background: transparent;
+  color: var(--hub-muted);
+}
+
+.hall-alarm.is-quiet i {
+  background: var(--caution);
+}
+
+.hall-alarm.is-quiet:hover {
+  border-color: var(--hub-border-loud);
+  color: var(--hub-text);
+}
+
+/* Приглашение первого запуска. */
+.hall-chat-blank {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-7);
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: var(--s-8);
+}
+
+.hall-chat-blank-copy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  align-items: center;
+  max-width: var(--measure-narrow);
+  text-align: center;
+}
+
+.hall-chat-blank-copy h2 {
+  margin: 0;
+  font-size: var(--t-title);
+  color: var(--hub-text);
+}
+
+.hall-chat-blank-copy p {
+  margin: 0;
+  font-size: var(--t-body);
+  color: var(--hub-muted-2);
+}
+
+.hall-chat-blank .hall-chats-new {
+  flex: 0 0 auto;
+  padding-inline: var(--s-6);
+}
+
+.hall-compose.is-sealed {
+  width: 100%;
+  max-width: 760px;
+  opacity: .4;
+  pointer-events: none;
+}
+
+/* Широкое окно: список виден и прячется кнопкой. */
+.is-chat.is-chats-hidden {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.is-chat.is-chats-hidden .hall-chats {
+  display: none;
+}
+
+/* Узкое окно: умолчание обратное — разговору нужна вся ширина, и список
+ * вызывают кнопкой, после чего он ложится слоем поверх. Так же вела себя
+ * прежняя рейка истории разговоров. */
+@media (max-width: 860px) {
+  .is-chat {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .hall-chats {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: 0;
+    z-index: 4;
+    width: min(280px, 85%);
+    box-shadow: var(--e-2);
+    display: none;
+  }
+  .is-chat.is-chats-open .hall-chats {
+    display: flex;
+  }
+}
+
+@keyframes hall-chat-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hall-chat-live i { animation: none; }
+}

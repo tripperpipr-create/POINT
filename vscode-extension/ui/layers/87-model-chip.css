@@ -1,0 +1,194 @@
+/* Чип «подключение · модель» и его список.
+   Один элемент управления на два разговора — с Помощником и с Мастером.
+
+   Ставится он туда, где имя модели УЖЕ стояло: у Помощника вместо строки
+   «модель подключена / локальный режим», у Мастера вместо кнопки «Настройки
+   мастера». То же имя четвёртым местом ничего не сообщало бы, но занимало бы
+   строку — так уже было в композере Мастера, и оттуда его убрали. */
+
+.model-chip {
+  position: relative;
+}
+
+/* Кнопка тихая: это состояние, а не главное действие рядом с «Отправить».
+   Рамка появляется на наведении — до него чип читается как подпись. */
+.model-chip-button {
+  align-items: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--r-2);
+  color: var(--ui-muted);
+  cursor: pointer;
+  display: flex;
+  font: var(--fw-medium) var(--t-small) / 1 var(--font-sans);
+  gap: var(--s-2);
+  max-width: 100%;
+  min-height: 24px;
+  padding: var(--s-2) var(--s-3);
+  text-align: left;
+}
+.model-chip-button:hover {
+  background: var(--ui-raised);
+  border-color: var(--ui-border);
+  color: var(--ui-text);
+}
+.model-chip-button > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.model-chip-button > b {
+  color: var(--ui-faint);
+  font-size: var(--t-micro);
+}
+/* Точка слева — то же состояние связи, что у присутствия помощника: живая
+   связь горит, её отсутствие гаснет. Второго словаря для одного смысла нет. */
+.model-chip-button > i {
+  background: var(--ui-faint);
+  border-radius: 50%;
+  flex: 0 0 auto;
+  height: 6px;
+  width: 6px;
+}
+.model-chip.is-open .model-chip-button,
+.model-chip-button:focus-visible {
+  background: var(--ui-raised);
+  border-color: var(--ui-border);
+  color: var(--ui-text);
+}
+
+/* Список висит под чипом и не раздвигает шапку: раздвинутая шапка увела бы
+   ленту разговора вниз на каждое открытие. */
+.model-chip-list {
+  background: var(--ui-panel);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--r-2);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .45);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  left: 0;
+  max-height: 320px;
+  min-width: 260px;
+  overflow-y: auto;
+  padding: var(--s-3);
+  position: absolute;
+  top: calc(100% + 4px);
+  z-index: 30;
+}
+.model-chip-list > section {
+  display: flex;
+  flex-direction: column;
+}
+.model-chip-list > section > header {
+  align-items: baseline;
+  display: flex;
+  gap: var(--s-2);
+  justify-content: space-between;
+  padding: var(--s-2) var(--s-3);
+}
+.model-chip-list > section > header strong {
+  font: var(--fw-semibold) var(--t-tiny) / 1 var(--font-sans);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.model-chip-list > section > header em {
+  color: var(--ui-faint);
+  font: var(--fw-regular) var(--t-micro) / 1 var(--font-mono);
+  font-style: normal;
+}
+
+/* Строка модели — цель указателя, а не подпись: рост держится порогом. */
+.model-chip-row {
+  background: transparent;
+  border: 0;
+  border-radius: var(--r-2);
+  color: var(--ui-text);
+  cursor: pointer;
+  display: flex;
+  font: var(--fw-regular) var(--t-small) / 1.3 var(--font-mono);
+  min-height: 26px;
+  padding: var(--s-2) var(--s-3);
+  text-align: left;
+}
+.model-chip-row:hover { background: var(--ui-raised); }
+.model-chip-row.selected {
+  background: var(--ember-wash);
+  color: var(--ember-light);
+}
+.model-chip-row > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-chip-empty {
+  color: var(--ui-muted);
+  font-size: var(--t-small);
+  line-height: 1.45;
+  margin: 0;
+  padding: var(--s-2) var(--s-3);
+}
+
+/* Подвал говорит то, что иначе стало бы неожиданностью: выбор сохраняется, а
+   не действует «на этот разговор». Ядро читает настройку, а не запрос. */
+.model-chip-list > footer {
+  border-top: 1px solid var(--ui-border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin-top: var(--s-2);
+  padding-top: var(--s-3);
+}
+.model-chip-list > footer small {
+  color: var(--ui-faint);
+  font-size: var(--t-tiny);
+  line-height: 1.45;
+}
+
+/* Связь есть — точка горит. Пока модель не выбрана, отвечает движок Point, и
+   гаснущая точка говорит об этом раньше, чем прочитают подпись. */
+.model-chip-button.is-live > i { background: var(--ember); }
+
+/* В focused-шапке Мастера live-точка — нейтральный статус, без ember. */
+.hall-head-focused .model-chip-button.is-live > i {
+  background: var(--hub-muted);
+  box-shadow: none;
+  animation: none;
+}
+
+/* —— Чип модели в композере Мастера ——
+   Модель вернулась туда, где пишут: у эталона её выбирают там же, и два места
+   для одного имени — это два места, куда за ним идти. Здесь чип встаёт в один
+   ряд с режимом работы и подчиняется тому же уставу: кегль 11, тихий тон,
+   заливка только на наведении. Громкость в ряду одна, и она у режима.
+
+   Правила живут в этом слое, а не в 07-master-quiet: имена model-chip-*
+   объявлены здесь, а слой Мастера обязан держать своё пространство имён. Он к
+   тому же склеивается раньше — побеждал бы не он.  */
+.hall-dialogue .hall-composer-controls .model-chip-button {
+  min-height: var(--control-sm);
+  padding: var(--s-1) var(--s-4);
+  border: 0;
+  border-radius: var(--r-full);
+  background: transparent;
+  color: var(--hub-muted);
+  font: var(--fw-normal) var(--t-small) / 1.3 var(--font-ui);
+}
+.hall-dialogue .hall-composer-controls .model-chip-button:hover,
+.hall-dialogue .hall-composer-controls .model-chip-button:focus-visible {
+  background: var(--hall-slot-fill-hover);
+  border: 0;
+  color: var(--hub-text);
+  outline: none;
+}
+/* Список раскрывается вверх. В шапке он падал вниз, а здесь под композером
+   ничего нет: карточка стоит у нижнего края ленты. */
+.hall-dialogue .hall-composer-controls .model-chip-list {
+  top: auto;
+  bottom: calc(100% + var(--s-3));
+  border-radius: 8px;
+  border-color: color-mix(in srgb, var(--hub-text) 12%, transparent);
+  background: var(--hub-selected);
+  max-height: min(320px, 46vh);
+}

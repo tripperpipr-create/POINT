@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Стенд регрессий оформления</title>
+<link rel="stylesheet" href="../media/rpg-tokens.css">
+<link rel="stylesheet" href="../media/style.css">
+</head>
+<body>
+<!-- Фикстура содержит ровно те элементы, которые перечислены в
+     35-hub-rpg-canon.css. Слой больше ничего не трогает, поэтому сравнение
+     вычисленных стилей до и после его переработки исчерпывающе. -->
+<div id="fixture" hidden>
+  <div class="app"></div>
+  <div class="message"></div>
+  <div class="approval"></div>
+  <div class="patch"></div>
+  <div class="agent-preflight"></div>
+  <div class="run-diagnostics"><header><span></span><small></small></header></div>
+  <div class="run-snapshot"></div>
+  <div class="context-preview"></div>
+  <div class="context-chips"><span></span></div>
+  <div class="run-context"><span></span></div>
+  <div class="safe-mode-mark"></div>
+  <div class="safe-mode-facts"></div>
+  <details class="more-tabs"><div></div></details>
+  <div class="examples"><button></button></div>
+  <div class="notice"></div>
+  <div class="avatar"></div>
+  <div class="diagnostic-grid"><span></span></div>
+  <div class="agent-preflight-stats"><span></span></div>
+  <div class="agent-preflight-tools"><span></span></div>
+  <div class="agent-preflight-completion"></div>
+  <div class="status"><i></i></div>
+  <div class="brand-mark"><i></i></div>
+  <div class="orbit"></div>
+  <button class="primary"></button>
+  <button class="small-button"></button>
+  <div class="composer"><button class="send"></button></div>
+  <div class="composer-actions"><button class="send"></button></div>
+  <input><select></select><textarea></textarea>
+  <div class="tool-toggle"><em></em></div>
+  <div class="app"><small></small><label></label></div>
+  <div class="quest-label"></div>
+  <div class="brand"><small></small></div>
+  <div class="diagnostic-signals"><p></p></div>
+  <div class="context-toolbar"><span></span></div>
+  <div class="change-record"><header><small></small></header></div>
+  <div class="companion-trace"><p></p></div>
+
+  <!-- Элементы под оставшиеся принудительные правила: проверяем, что снятие
+       !important не меняет вычисленный стиль. -->
+  <div class="quest-brief-grid"><textarea></textarea></div>
+  <div class="tool-toggle"><span class="verify-mark"></span></div>
+  <div class="create-step-error"></div>
+  <div class="profile-step is-hidden"></div>
+  <div class="companion-peek"><div class="companion-studio-hero"></div></div>
+  <div class="create-class-step"></div>
+  <div class="companion-model-tip"></div>
+  <button class="companion-popup-close"></button>
+
+  <!-- Пять страниц Гильдии должны читаться как один продукт: одинаковые кегли,
+       цвета и поля. Расхождение означает, что исторический слой снова тянет
+       одеяло на себя. -->
+  <main class="hub-teams hub-page"><header class="hub-page-head"><div><span>РАЗДЕЛ</span><h1>Заголовок</h1><p>Описание.</p></div><em>3</em></header></main>
+  <main class="hub-skills hub-page"><header class="hub-page-head"><div><span>РАЗДЕЛ</span><h1>Заголовок</h1><p>Описание.</p></div><em>3</em></header></main>
+  <main class="hub-memory hub-page"><header class="hub-page-head"><div><span>РАЗДЕЛ</span><h1>Заголовок</h1><p>Описание.</p></div><em>3</em></header></main>
+  <main class="hub-connections hub-page"><header class="hub-page-head"><div><span>РАЗДЕЛ</span><h1>Заголовок</h1><p>Описание.</p></div><em>3</em></header></main>
+  <main class="hub-databases hub-page"><header class="hub-page-head"><div><span>РАЗДЕЛ</span><h1>Заголовок</h1><p>Описание.</p></div><em>3</em></header></main>
+</div>
+
+<pre id="out" style="font:12px/1.5 monospace;color:#ddd;background:#111;padding:12px"></pre>
+<script>
+// Снимаем вычисленные значения ровно тех свойств, которые навязывает слой.
+const PROPS = ['borderRadius', 'boxShadow', 'fontSize', 'lineHeight', 'color', 'backgroundColor', 'borderColor', 'display', 'minHeight', 'padding', 'borderWidth', 'width']
+const SELECTORS = [
+  '.app', '.message', '.approval', '.patch', '.agent-preflight', '.run-snapshot',
+  '.context-preview', '.context-chips > span', '.run-context > span', '.safe-mode-mark',
+  '.safe-mode-facts', '.more-tabs > div', '.examples button', '.notice', '.avatar',
+  '.diagnostic-grid > span', '.agent-preflight-stats span', '.agent-preflight-tools span',
+  '.agent-preflight-completion', '.run-diagnostics > header > span', '.status', '.brand-mark',
+  '.orbit', 'button', 'input', 'select', 'textarea', '.primary', '.small-button',
+  '.composer .send', '.composer-actions .send', '.tool-toggle em', '.brand small',
+  '.quest-label', '.app small', '.app label', '.diagnostic-signals p', '.context-toolbar span',
+  '.change-record header small', '.brand-mark i', '.status i', '.companion-trace p',
+  '.quest-brief-grid textarea', '.tool-toggle .verify-mark', '.create-step-error',
+  '.profile-step.is-hidden', '.companion-peek .companion-studio-hero',
+  '.create-class-step', '.companion-model-tip', '.companion-popup-close',
+]
+const fixture = document.getElementById('fixture')
+fixture.hidden = false
+const result = {}
+for (const sel of SELECTORS) {
+  const el = fixture.querySelector(sel)
+  if (!el) { result[sel] = 'НЕТ ЭЛЕМЕНТА'; continue }
+  const s = getComputedStyle(el)
+  result[sel] = PROPS.map(p => `${p}=${s[p]}`).join('; ')
+}
+fixture.hidden = true
+document.getElementById('out').textContent = JSON.stringify(result, null, 1)
+window.__probe = result
+</script>
+</body>
+</html>

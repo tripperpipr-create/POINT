@@ -1,0 +1,222 @@
+/* RPG semantic layer — based on Point's own design-system sheets. */
+:root {
+  --point-void: var(--surface-void);
+  --point-panel: var(--surface-panel);
+  --point-raised: var(--surface-raised);
+  --point-selected: var(--surface-selected);
+  --point-border: var(--surface-border);
+  --point-primary: var(--text-primary);
+  --point-muted: var(--text-muted);
+  --point-ember: var(--ember);
+  --point-arcane: var(--arcane);
+  --point-mana: var(--mana);
+  --point-vital: var(--vital);
+  --point-wound: var(--wound);
+  color-scheme: dark;
+  font-family: var(--font-ui);
+}
+
+body { color: var(--point-primary); background: var(--point-panel); }
+.app { background: var(--point-panel); font-size: var(--t-lead); }
+.brand {
+  min-height: 44px;
+  padding: var(--s-3) var(--s-4h);
+  background: var(--point-void);
+  border-bottom: 1px solid var(--point-border);
+}
+.brand strong, .tabs, .section-title, .quest-label, .character-card small, .active-quest small,
+.status, .run-heading, .composer > small, .tool-section > header, .workflow-steps > header {
+  font-family: "JetBrains Mono", Consolas, monospace;
+}
+.brand strong { color: var(--point-primary); font-size: var(--t-body); letter-spacing: .08em; }
+.brand small { color: var(--point-muted); font-size: var(--t-micro); letter-spacing: .08em; }
+.brand-mark { width: 28px; height: 28px; border: 1px solid var(--point-border); border-radius: var(--r-1); box-shadow: none; }
+.brand-mark i { right: 3px; top: 3px; width: 5px; height: 5px; border-radius: 0; background: var(--point-vital); box-shadow: none; transform: rotate(45deg); }
+
+.tabs { gap: var(--s-1); padding: var(--s-2) var(--s-4) var(--s-3); background: var(--point-void); border-bottom: 1px solid var(--point-border); }
+.tabs > button, .more-tabs > summary { min-height: 28px; border: 1px solid transparent; border-radius: var(--r-1); font-size: var(--t-tiny); letter-spacing: .02em; }
+.tabs > button:hover, .more-tabs > summary:hover { color: var(--point-primary); background: var(--point-raised); border-color: var(--point-border); }
+.tabs > button.active, .more-tabs.active > summary { color: var(--point-ember); background: var(--point-raised); border-color: var(--point-border); box-shadow: inset 0 -2px 0 var(--point-ember); }
+.more-tabs > div { top: 37px; padding: var(--s-2); background: var(--point-panel); border: 1px solid var(--point-border); border-radius: var(--r-1); box-shadow: none; }
+.more-tabs > div button { border-radius: var(--r-1); }
+
+.primary, .secondary, .danger-button, .small-button,
+.composer-actions button, .examples button, .run, .template-picker button,
+.workflow-history > button, input, select, textarea {
+  border-radius: var(--r-1);
+}
+.primary, .composer .send { color: var(--surface-void); background: var(--point-ember); border-color: var(--point-ember); }
+.primary:hover, .composer .send:hover { background: var(--ember-pressed, var(--ember-pressed)); border-color: var(--ember-hover); color: var(--surface-void); }
+.secondary, .small-button:not(.primary) { color: var(--text-primary); background: var(--point-raised); border-color: var(--point-border); }
+.secondary:hover, .small-button:not(.primary):hover { background: var(--point-selected); border-color: var(--point-border); }
+.danger-button { color: var(--point-wound); border-color: color-mix(in srgb, var(--point-wound) 62%, var(--point-border)); }
+input, select, textarea { color: var(--point-primary); background: var(--point-void); border-color: var(--point-border); }
+/* Поле отвечало только на фокус. Наведение — половина подтверждения, что перед
+   тобой поле, а не подпись: рамка делает один шаг, до акцента не доходя.
+   Стоит перед правилом фокуса, чтобы фокус побеждал при равной специфичности. */
+input:hover:not(:disabled), select:hover:not(:disabled), textarea:hover:not(:disabled) { border-color: var(--text-faint); }
+input:focus, select:focus, textarea:focus { border-color: var(--point-ember); box-shadow: none; outline: 1px solid var(--point-ember); }
+
+.chat-main, .history, .settings { background: var(--point-panel); }
+.chat-main { padding: var(--s-4); }
+.settings { overflow-x: hidden; }
+.settings form, .settings form > *, .settings-grid > *, .provider-probe > *, .tool-section, .workflow-step { min-width: 0; }
+.settings form > label > span,
+.settings form > label > small,
+.settings .section-title {
+  color: var(--point-muted);
+  font: 650 var(--t-micro)/1.2 "JetBrains Mono", Consolas, monospace;
+  letter-spacing: .06em;
+}
+.settings .tool-toggle {
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  background: var(--point-void);
+  border: 1px solid var(--point-border);
+  border-radius: var(--r-1);
+}
+.settings .tool-toggle:hover { background: var(--point-raised); }
+.settings input, .settings select, .settings textarea {
+  min-height: 28px;
+  padding: var(--s-2) var(--s-4);
+  font-size: var(--t-body);
+}
+.studio-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.studio-actions button { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.provider-probe { grid-template-columns: minmax(0, auto) minmax(0, 1fr); }
+.provider-probe button { max-width: 100%; white-space: normal; }
+.composer { gap: var(--s-4); padding: var(--s-4) var(--s-4) var(--s-4h); background: var(--point-void); border-top-color: var(--point-border); }
+.composer .preflight-button { color: var(--point-mana); background: rgba(70,216,232,.07); border-color: rgba(70,216,232,.48); }
+.composer .preflight-button:hover { background: rgba(70,216,232,.13); }
+.composer > small { color: var(--point-muted); font-size: var(--t-tiny); line-height: 1.45; }
+
+.quest-label { color: var(--point-ember); font-size: var(--t-micro); font-weight: 700; letter-spacing: .12em; }
+.orbit { border-color: var(--point-arcane); border-radius: var(--r-1); color: var(--point-arcane); transform: rotate(45deg); }
+.orbit::before { inset: 8px; border-color: rgba(150,118,255,.5); border-radius: 0; transform: none; }
+.orbit::after { top: 3px; right: 3px; border-radius: 0; background: var(--point-vital); box-shadow: 0 0 0 3px var(--point-panel); }
+.orbit span { transform: rotate(-45deg); }
+.quest-board { display: grid; gap: var(--s-4); }
+.quest-board .quest-label { margin-top: 4px; }
+.quest-board h3 { margin: var(--s-1) 0 0; font-size: var(--t-lead); line-height: 1.3; }
+.quest-board .empty-cta { margin-top: 8px; }
+.quest-board > p { margin: 0; color: var(--point-muted); font-size: var(--t-small); line-height: 1.4; }
+.examples { max-width: 310px; gap: var(--s-2); }
+.examples button { display: grid; grid-template-columns: 74px minmax(0,1fr) auto; min-height: 32px; padding: var(--s-3) var(--s-4); background: var(--point-void); border-color: var(--point-border); }
+.examples button span { color: var(--point-ember); font: 650 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace; letter-spacing: .06em; text-transform: uppercase; }
+.examples button:hover { background: var(--point-raised); border-color: var(--point-ember); transform: none; }
+
+.status { gap: var(--s-3); padding: var(--s-1) var(--s-3); border: 1px solid currentColor; border-radius: var(--r-1); font-size: var(--t-micro); font-weight: 650; letter-spacing: .035em; line-height: 1.4; }
+.status i { width: 5px; height: 5px; border-radius: 0; transform: rotate(45deg); }
+/* Значок состояния прогона стоит и в канонной строке исполнения — с цикла 30,
+   когда два списка исполнений на Обзоре свелись в один. По краям строки ничего
+   не сжимается: сжимается только текст задачи. */
+.hall-item > .status { flex: none; }
+.status-running, .status-waiting_approval { color: var(--point-ember); }
+.status-completed { color: var(--point-vital); }
+.status-failed, .status-cancelled, .status-interrupted { color: var(--point-wound); }
+
+.active-quest {
+  display: grid;
+  gap: var(--s-3);
+  margin-bottom: 8px;
+  padding: var(--s-4);
+  background: var(--point-void);
+  border: 1px solid var(--point-border);
+  border-left: var(--edge-accent) solid var(--point-ember);
+  border-radius: var(--r-1);
+}
+.active-quest > header { display: flex; align-items: center; justify-content: space-between; gap: var(--s-4); }
+.active-quest > header > span:first-child { color: var(--point-ember); font: 700 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace; letter-spacing: .08em; }
+.active-quest h3 { margin: 0; color: var(--point-primary); font-size: var(--t-base); line-height: 1.3; }
+.quest-agent { display: grid; grid-template-columns: 24px minmax(0,1fr); align-items: center; gap: var(--s-3); padding: var(--s-3) var(--s-3); background: var(--point-panel); border: 1px solid var(--point-border); }
+.quest-agent > span { display: grid; place-items: center; width: 22px; height: 22px; color: var(--point-arcane); border: 1px solid var(--point-arcane); font-size: var(--t-small); }
+.quest-agent small, .quest-agent strong { display: block; }
+.quest-agent small { color: var(--point-muted); font-size: var(--t-micro); letter-spacing: .06em; }
+.quest-agent strong { margin-top: 1px; font-size: var(--t-tiny); }
+.quest-progress { display: grid; gap: var(--s-2); }
+.quest-progress label { display: flex; justify-content: space-between; color: var(--point-muted); font: 600 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace; }
+.quest-progress label b { color: var(--point-primary); }
+.quest-progress small { color: var(--point-muted); font-size: var(--t-micro); text-align: right; }
+.quest-trace { display: flex; flex-wrap: wrap; gap: var(--s-2); padding: var(--s-3) var(--s-3); border: 1px solid var(--point-border); background: var(--point-void); }
+.quest-trace small { width: 100%; color: var(--point-muted); font-size: var(--t-micro); letter-spacing: .06em; }
+.quest-trace span { padding: var(--s-1) var(--s-2); color: var(--text-muted); border: 1px solid var(--point-border); font: var(--t-micro)/1.2 "JetBrains Mono", Consolas, monospace; }
+.quest-artifacts { display: grid; gap: var(--s-2); padding-top: var(--s-3); border-top: 1px solid var(--point-border); }
+.quest-artifacts > small { color: var(--point-muted); font-size: var(--t-micro); letter-spacing: .06em; }
+.quest-artifacts > span { overflow: hidden; color: var(--text-muted); font: var(--t-micro)/1.3 "JetBrains Mono", Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
+.active-quest > footer { display: grid; gap: var(--s-1); padding: var(--s-3) var(--s-3); color: var(--point-vital); background: rgba(91,203,138,.06); border: 1px solid rgba(91,203,138,.38); }
+.active-quest > footer small { font-size: var(--t-micro); letter-spacing: .06em; }
+.active-quest > footer strong { font-size: var(--t-tiny); }
+
+progress { display: block; width: 100%; height: 5px; overflow: hidden; border: 0; border-radius: 0; background: var(--surface-selected); color: var(--point-ember); }
+progress::-webkit-progress-bar { background: var(--surface-selected); }
+progress::-webkit-progress-value { background: var(--point-ember); }
+progress.vital::-webkit-progress-value { background: var(--point-vital); }
+progress.mana::-webkit-progress-value { background: var(--point-mana); }
+
+.character-card {
+  display: grid;
+  gap: var(--s-4h);
+  margin-bottom: var(--s-4h);
+  padding: var(--s-5);
+  background: var(--point-void);
+  border: 1px solid var(--point-border);
+  border-left: var(--edge-accent) solid var(--point-mana);
+  border-radius: var(--r-1);
+}
+.character-card > header { display: grid; grid-template-columns: 42px minmax(0,1fr) auto; align-items: center; gap: var(--s-4); }
+.character-avatar { display: grid; place-items: center; width: 40px; height: 40px; color: var(--point-mana); background:
+  linear-gradient(90deg, color-mix(in srgb, var(--point-mana) 14%, transparent) 1px, transparent 1px) 0 0 / 4px 4px,
+  linear-gradient(0deg, color-mix(in srgb, var(--point-mana) 14%, transparent) 1px, transparent 1px) 0 0 / 4px 4px,
+  var(--point-void);
+  border: 1px solid var(--point-mana); border-radius: var(--r-1); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--point-void) 70%, transparent); }
+.character-avatar span { font-size: var(--t-title); }
+.character-card header small, .character-card header strong, .character-card header p { display: block; margin: 0; }
+.character-card header small { color: var(--point-muted); font-size: var(--t-micro); letter-spacing: .06em; }
+.character-card header strong { margin-top: 2px; color: var(--point-primary); font-size: var(--t-lead); }
+.character-card header p { margin-top: 2px; color: var(--point-mana); font-size: var(--t-tiny); }
+.character-card header em { align-self: start; padding: var(--s-1) var(--s-3); color: var(--point-mana); border: 1px solid var(--point-mana); border-radius: var(--r-1); font: normal 650 var(--t-micro)/1.4 var(--font-mono); }
+.character-bars { display: grid; gap: var(--s-4); }
+.character-bars label { display: grid; grid-template-columns: 1fr auto; gap: var(--s-2); color: var(--point-muted); font: 600 var(--t-micro)/1 var(--font-mono); }
+.character-bars label b { color: var(--point-primary); }
+.character-bars progress { grid-column: 1 / -1; }
+/* Две колонки, а не три: третья была шире прочих под текст класса, а класс
+   переехал в шапку карточки — единственное место, где он не обрезается. */
+.character-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); background: var(--point-border); gap: 1px; border: 1px solid var(--point-border); }
+.character-facts > span { display: grid; gap: var(--s-1); min-width: 0; padding: var(--s-3); background: var(--point-panel); }
+.character-facts small { color: var(--point-muted); font-size: var(--t-micro); letter-spacing: .05em; }
+.character-facts b { overflow: hidden; color: var(--point-primary); font-size: var(--t-micro); text-overflow: ellipsis; white-space: nowrap; }
+.ability-chips { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+.ability-chips span { padding: var(--s-2) var(--s-3); color: var(--point-mana); border: 1px solid rgba(70,216,232,.45); border-radius: var(--r-1); font: 600 var(--t-micro)/1.3 "JetBrains Mono", Consolas, monospace; text-transform: uppercase; }
+.ability-chips span:nth-child(2n) { color: var(--point-arcane); border-color: rgba(150,118,255,.48); }
+.ability-chips .muted { color: var(--point-muted); border-color: var(--point-border); }
+.character-card > footer { color: var(--point-muted); font-size: var(--t-micro); line-height: 1.4; }
+
+.message, .run-snapshot, .run-diagnostics, .run-comparison, .run, .approval, .patch,
+.agent-preflight, .provider-probe, .template-picker, .tool-section, .custom-tool-presets,
+.tool-parameters, .tool-parameter, .tool-sandbox, .workflow-run-panel, .workflow-step,
+.workflow-launch, .workflow-history > button, .safe-mode-facts, .context-preview {
+  border-radius: var(--r-1);
+}
+.message { background: var(--point-void); border-color: var(--point-border); }
+.message.user { border-left: var(--edge-accent) solid var(--point-ember); border-color: var(--point-border); border-left-color: var(--point-ember); }
+.message.agent { border-left: var(--edge-accent) solid var(--point-arcane); }
+.avatar { color: var(--point-arcane); background: rgba(150,118,255,.08); border: 1px solid var(--point-arcane); border-radius: var(--r-1); }
+.tool { background: var(--point-void); border-left-color: var(--point-mana); }
+.notice { border: 1px solid currentColor; border-radius: var(--r-1); }
+.run-heading { font-size: var(--t-tiny); }
+.run-diagnostics { background: var(--point-void); border-left-width: var(--edge-accent); }
+.diagnostic-grid > span, .diagnostic-tools span { background: var(--point-panel); border-radius: 0; }
+.section-title { color: var(--point-primary); font-size: var(--t-tiny); letter-spacing: .08em; }
+.section-title::before { content: none; margin: 0; }
+.section-title span { margin-right: auto; }
+.run { background: var(--point-void); border-color: var(--point-border); }
+.run:hover { background: var(--point-raised); border-color: var(--text-faint); }
+.quest-row { position: relative; padding-left: 13px; }
+.quest-row::before { content: ''; position: absolute; left: 5px; top: 13px; width: 3px; height: 3px; background: var(--point-ember); transform: rotate(45deg); }
+.tool-section > header, .workflow-step > header, .custom-tool-presets { background: var(--hub-panel); }
+.tool-toggle, .workflow-stage { background: var(--point-panel); }
+.tool-toggle:hover { background: var(--point-raised); }
+.workflow-run-panel, .workflow-launch { background: var(--point-void); border-color: var(--point-arcane); }
+.workflow-stage.stage-running > span, .workflow-stage.stage-waiting_approval > span { color: var(--point-ember); }
+.workflow-stage.stage-completed > span { color: var(--point-vital); }
+.workflow-stage.stage-failed > span, .workflow-stage.stage-cancelled > span { color: var(--point-wound); }

@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Point — стенд дизайн-системы</title>
+<link rel="stylesheet" href="../media/rpg-tokens.css">
+<link rel="stylesheet" href="../media/style.css">
+<style>
+  /* Оформление самого стенда. В поставку не входит. */
+  body { margin: 0; font-family: var(--font-ui); background: var(--surface-void); color: var(--text-primary); }
+  .board { display: grid; gap: var(--s-7); padding: var(--s-7); max-width: 1180px; margin-inline: auto; }
+  .board h1 { margin: 0; font-size: var(--t-display); font-weight: var(--fw-semibold); }
+  .board h2 { margin: 0 0 var(--s-4); font-size: var(--t-small); font-weight: var(--fw-semibold);
+              letter-spacing: var(--tracking-label); text-transform: uppercase; color: var(--text-muted);
+              font-family: var(--font-mono); }
+  .row { display: flex; flex-wrap: wrap; gap: var(--s-4); align-items: center; }
+  .swatch { display: grid; gap: var(--s-2); width: 132px; }
+  .swatch i { display: block; height: 52px; border: 1px solid var(--surface-border); border-radius: var(--r-2); }
+  .swatch b { font-size: var(--t-tiny); font-weight: var(--fw-medium); }
+  .swatch small { font-family: var(--font-mono); font-size: var(--t-micro); color: var(--text-muted); }
+  .register { padding: var(--s-6); border: 1px solid var(--surface-border); border-radius: var(--r-2);
+              background: var(--surface-panel); }
+  .card { padding: var(--s-5); border: 1px solid var(--surface-border); border-radius: var(--r-2);
+          background: var(--surface-raised); }
+  #report { padding: var(--s-5); border-radius: var(--r-2); font-family: var(--font-mono);
+            font-size: var(--t-small); line-height: var(--lh-base); white-space: pre-wrap; }
+  .ok { background: var(--vital-wash); border: 1px solid var(--vital); }
+  .bad { background: var(--wound-wash); border: 1px solid var(--wound); }
+</style>
+</head>
+<body>
+<div class="board">
+  <h1>Point — стенд дизайн-системы</h1>
+  <div id="report">Проверка…</div>
+
+  <section>
+    <h2>Регистр оболочки — референс JetBrains</h2>
+    <div class="register" data-register="shell">
+      <div class="row">
+        <div class="swatch"><i style="background:var(--ui-void)"></i><b>void</b><small>--ui-void</small></div>
+        <div class="swatch"><i style="background:var(--ui-panel)"></i><b>panel</b><small>--ui-panel</small></div>
+        <div class="swatch"><i style="background:var(--ui-raised)"></i><b>raised</b><small>--ui-raised</small></div>
+        <div class="swatch"><i style="background:var(--ui-selected)"></i><b>selected</b><small>--ui-selected</small></div>
+        <div class="swatch"><i style="background:var(--ui-border)"></i><b>border</b><small>--ui-border</small></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Регистр Агент-Хаба — RPG-глубина</h2>
+    <div class="register">
+      <div class="row">
+        <div class="swatch"><i style="background:var(--hub-void)"></i><b>void</b><small>--hub-void</small></div>
+        <div class="swatch"><i style="background:var(--hub-panel)"></i><b>panel</b><small>--hub-panel</small></div>
+        <div class="swatch"><i style="background:var(--hub-raised)"></i><b>raised</b><small>--hub-raised</small></div>
+        <div class="swatch"><i style="background:var(--hub-selected)"></i><b>selected</b><small>--hub-selected</small></div>
+        <div class="swatch"><i style="background:var(--hub-border)"></i><b>border</b><small>--hub-border</small></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Акценты — семантика, а не украшение</h2>
+    <div class="row">
+      <div class="swatch"><i style="background:var(--ember)"></i><b>ember</b><small>действие</small></div>
+      <div class="swatch"><i style="background:var(--arcane)"></i><b>arcane</b><small>агенты</small></div>
+      <div class="swatch"><i style="background:var(--mana)"></i><b>mana</b><small>контекст</small></div>
+      <div class="swatch"><i style="background:var(--vital)"></i><b>vital</b><small>успех</small></div>
+      <div class="swatch"><i style="background:var(--wound)"></i><b>wound</b><small>ошибка</small></div>
+      <div class="swatch"><i style="background:var(--caution)"></i><b>caution</b><small>внимание</small></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Типографическая шкала — восемь ступеней вместо 24</h2>
+    <div class="card" style="display:grid; gap:var(--s-4)">
+      <span style="font-size:var(--t-display)">22 — display</span>
+      <span style="font-size:var(--t-title)">18 — title</span>
+      <span style="font-size:var(--t-lead)">15 — lead, база Хаба</span>
+      <span style="font-size:var(--t-base)">13 — base, база оболочки</span>
+      <span style="font-size:var(--t-body)">12 — body</span>
+      <span style="font-size:var(--t-small)">11 — small</span>
+      <span style="font-size:var(--t-tiny)">10 — tiny</span>
+      <span class="point-label">9 — micro, прописная метка</span>
+    </div>
+  </section>
+
+  <section>
+    <h2>Радиусы и тени — четыре ступени вместо 14 и 35</h2>
+    <div class="row">
+      <div class="card" style="border-radius:var(--r-1); box-shadow:var(--e-1)">r-1 · e-1</div>
+      <div class="card" style="border-radius:var(--r-2); box-shadow:var(--e-2)">r-2 · e-2</div>
+      <div class="card" style="border-radius:var(--r-3); box-shadow:var(--e-3)">r-3 · e-3</div>
+      <div class="card" style="border-radius:var(--r-full)">r-full</div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Элементы управления</h2>
+    <div class="row">
+      <button class="primary">Основное действие</button>
+      <button class="secondary">Вторичное</button>
+      <button class="danger-button">Опасное</button>
+      <button class="small-button">Мелкое</button>
+      <input placeholder="Поле ввода">
+      <select><option>Выбор</option></select>
+    </div>
+  </section>
+</div>
+
+<script>
+// Стенд одновременно проверяет, что таблицы вообще распарсились браузером:
+// CSSOM молча выбрасывает сломанные правила, и это единственный дешёвый способ
+// поймать повреждение сборки до установки расширения.
+const report = document.getElementById('report')
+const lines = []
+let total = 0
+let failed = false
+for (const sheet of document.styleSheets) {
+  const href = sheet.href ? sheet.href.split('/').pop() : '(стенд)'
+  try {
+    const count = sheet.cssRules.length
+    total += count
+    lines.push(`${href}: правил ${count}`)
+    if (href !== '(стенд)' && count === 0) failed = true
+  } catch (error) {
+    lines.push(`${href}: НЕДОСТУПНО — ${error.message}`)
+    failed = true
+  }
+}
+const probe = getComputedStyle(document.body)
+const checks = [
+  ['--r-1', '2px'], ['--r-2', '4px'], ['--r-3', '8px'],
+  ['--t-base', '13px'], ['--t-lead', '15px'],
+  ['--ember', '#FF8A4C'], ['--hub-panel', '#111725'],
+]
+for (const [name, expected] of checks) {
+  const actual = probe.getPropertyValue(name).trim()
+  if (actual.toLowerCase() !== expected.toLowerCase()) {
+    lines.push(`ТОКЕН ${name}: ожидалось ${expected}, получено "${actual}"`)
+    failed = true
+  }
+}
+lines.unshift(failed ? '✕ ЕСТЬ ПРОБЛЕМЫ' : `✓ ВСЁ РАСПАРСИЛОСЬ — правил всего ${total}, токены на месте`)
+report.textContent = lines.join('\n')
+report.className = failed ? 'bad' : 'ok'
+</script>
+</body>
+</html>

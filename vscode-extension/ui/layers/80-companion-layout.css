@@ -1,0 +1,357 @@
+/* Companion: flex-fill thread, proposals outside scroll */
+.companion-studio {
+  display: grid;
+  grid-template-rows: auto auto;
+  min-width: 0;
+  overflow: hidden;
+}
+.companion-studio.has-thread:not(.setup-active) {
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: min(58vh, 560px);
+  max-height: min(76vh, 820px);
+}
+.companion-studio.setup-active {
+  grid-template-rows: minmax(0, 1fr);
+  max-height: none;
+  min-height: 0;
+  height: 100%;
+}
+.companion-studio-hero {
+  gap: var(--space-3);
+  padding: var(--space-4);
+  min-width: 0;
+}
+.companion-setup-shell {
+  min-height: 0;
+  max-height: none;
+  height: 100%;
+  overflow: hidden;
+  align-self: stretch;
+}
+.companion-chat-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-height: 0;
+  padding: var(--space-4);
+  overflow: hidden;
+}
+.companion-chat-workspace > header,
+.companion-chat-workspace > .companion-interventions,
+.companion-chat-workspace > .quest-proposal-list,
+.companion-chat-workspace > .companion-action-list,
+.companion-chat-workspace > .companion-quick-prompts,
+.companion-chat-workspace > .companion-compose {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+.companion-chat-workspace > .companion-interventions,
+.companion-chat-workspace > .quest-proposal-list,
+.companion-chat-workspace > .companion-action-list {
+  max-height: min(28vh, 220px);
+  overflow: auto;
+  margin: 0;
+}
+.companion-chat-workspace > .companion-thread-wrap {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: var(--thread-min);
+}
+.companion-thread-wrap > .companion-thread { width: 100%; }
+.companion-thread {
+  flex: 1 1 auto;
+  max-height: none;
+  min-height: var(--thread-min);
+  margin: 0;
+  padding: var(--space-4);
+  overflow: auto;
+  align-self: stretch;
+}
+.companion-studio.has-thread .companion-thread {
+  max-height: none;
+  min-height: var(--thread-min);
+}
+.companion-chat-workspace.setup-open {
+  max-height: 176px;
+  padding: var(--space-3);
+}
+.companion-chat-workspace.setup-open .companion-interventions,
+.companion-chat-workspace.setup-open .quest-proposal-list,
+.companion-chat-workspace.setup-open .companion-action-list,
+.companion-chat-workspace.setup-open .companion-quick-prompts {
+  display: none;
+}
+.companion-chat-workspace.setup-open .companion-thread {
+  max-height: none;
+  min-height: 0;
+}
+.companion-compose.console textarea {
+  min-height: var(--compose-min);
+}
+.companion-compose-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.companion-compose-meta small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+body[data-layout="wide"] .agent-studio {
+  max-width: 1040px;
+}
+body[data-layout="wide"] .agent-studio.create-flow {
+  max-width: var(--hub-page-max);
+}
+body[data-layout="wide"] .composer-meta {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.onboarding-hero {
+  gap: var(--space-4);
+  margin: 0 auto var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  border-left-color: var(--ember);
+}
+.onboarding-hero h1 {
+  margin: var(--s-2) 0;
+  font-size: var(--t-title);
+}
+/* Геометрия мастера первого запуска.
+   Раньше прокручивалась вся страница целиком, поэтому шапка уезжала вверх, а
+   кнопки шага — за нижний край: пройти онбординг можно было только вслепую
+   прокрутив до низа. Теперь высоту держит колонка, а прокручивается ровно то,
+   что длиннее экрана: список шагов и содержимое шага. Шапка и кнопки на месте
+   всегда. */
+.onboarding-wizard {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+/* Шапка тянется во всю ширину колонок. В flex-колонке `margin: 0 auto`, безобидный в блочном потоке, сжимает её по содержимому и уводит вправо. */ .onboarding-wizard .onboarding-hero { flex: none; align-self: stretch; margin-inline: 0; }
+/* Две колонки, а не три. Готовность — это состояние продукта, а не навигация,
+   и семи однострочным фактам не нужна колонка 240px на всю высоту: она забирала
+   у шага четверть ширины. Замер на 1280: колонка шага выходила 540px при
+   содержимом до 1121px — больше половины пряталось под внутренней прокруткой.
+   Теперь готовность идёт полосой под шапкой, а шагу достаётся вся остальная
+   ширина. */
+.onboarding-wizard .onboarding-layout {
+  /* Та же ловушка, что уже поймали на шапке: `margin: 0 auto` из общего слоя
+     в flex-колонке сжимает элемент по содержимому. Пока колонок было три, ширины
+     хватало и это не бросалось в глаза; с двумя раскладка села на 636px из 1088. */
+  align-self: stretch;
+  margin-inline: 0;
+  grid-template-columns: minmax(190px, 230px) minmax(0, 1fr);
+  gap: var(--space-4);
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  align-items: stretch;
+}
+/* Прокручивается страница, а не коробка внутри шага.
+   Внутренняя прокрутка держала шапку и кнопки на месте, но прятала содержимое:
+   на «Характере» под ней оставалось 862px при видимых 577 — больше половины
+   шага. Теперь длинный шаг просто длинный, а на месте держатся те два
+   элемента, ради которых всё затевалось: рейка шагов и строка «Назад/Дальше». */
+.onboarding-wizard .onboarding-layout { align-items: start; }
+.onboarding-wizard .onboarding-nav {
+  position: sticky;
+  top: 0;
+  max-height: calc(100vh - 220px);
+  overflow-y: auto;
+}
+.onboarding-wizard .onboarding-main { overflow: visible; }
+.onboarding-wizard .onboarding-panel { overflow: visible; }
+.onboarding-wizard .onboarding-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  margin-top: 0;
+  padding: var(--s-4h) 0 var(--s-3);
+  background: var(--point-void);
+}
+/* Полоса готовности: один взгляд на любом шаге, без своей колонки. */
+.onboarding-readiness {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: var(--s-3);
+  margin: 0 0 var(--space-4);
+}
+.onboarding-readiness > b {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4h);
+  color: var(--point-muted);
+  background: var(--point-panel);
+  border: 1px solid var(--point-border);
+  border-left: var(--edge-accent) solid var(--point-arcane);
+  font: 650 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace;
+  letter-spacing: .1em;
+}
+.onboarding-readiness > b em { color: var(--point-mana); font-style: normal; }
+/* Факт, за которым стоит шаг, — кнопка: увидел незакрытое и попал туда, где
+   это закрывают. Остальные (проект, ядро) остаются фактами: идти некуда. */
+.onboarding-readiness > button,
+.onboarding-readiness > span {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  /* Равные доли, а не «сколько попросит содержимое»: при 1 1 150px семь фактов
+     ложились 5 + 2, и вторая строка выглядела остатком, а не частью полосы.
+     Нижний предел не даёт им ужаться до нечитаемого: в окне 900 на факт
+     оставалось 74px, где под текст шло полсотни и «Проект открыт» превращался
+     в «Прое…». Не влезли в строку — переносятся, но остаются равными. */
+  flex: 1 1 0;
+  min-width: 118px;
+  padding: var(--s-3) var(--s-4);
+  background: var(--point-panel);
+  border: 1px solid var(--point-border);
+}
+.onboarding-readiness > button.ready,
+.onboarding-readiness > span.ready { border-color: color-mix(in srgb, var(--point-vital) 40%, var(--point-border)); }
+.onboarding-readiness > button { color: inherit; text-align: left; cursor: pointer; }
+.onboarding-readiness > button:hover { border-color: var(--point-ember); background: var(--point-raised); }
+.onboarding-readiness > button:focus-visible { outline: 2px solid var(--point-arcane); outline-offset: 1px; }
+.onboarding-readiness i {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  color: var(--point-muted);
+  border: 1px solid var(--point-border);
+  font: 700 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace;
+  font-style: normal;
+}
+.onboarding-readiness > button.ready i,
+.onboarding-readiness > span.ready i { color: var(--point-vital); border-color: var(--point-vital); }
+/* Внутренняя обёртка обязана уметь сжиматься: без min-width: 0 многоточие не
+   срабатывает — flex-элемент считает своей минимальной шириной длину слова, и
+   фишка вылезала за полосу на 15px. */
+.onboarding-readiness > button > span,
+.onboarding-readiness > span > span { flex: 1 1 auto; min-width: 0; }
+.onboarding-readiness strong,
+.onboarding-readiness small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.onboarding-readiness strong { font-size: var(--t-tiny); font-weight: var(--fw-medium); }
+.onboarding-readiness small { margin-top: 2px; color: var(--point-muted); font-size: var(--t-micro); }
+/* Единственное украшение шапки не спорит с тревогой.
+   Ромб был того же огненного цвета, что «2 ЖДУТ РЕШЕНИЯ» на рейке: самый
+   громкий элемент экрана ничего не значил и разбавлял единственный сигнал,
+   которым в продукте зовут человека. Переводим в арканный — цвет системных
+   агентов, о которых шаг и говорит. */
+.onboarding-wizard .onboarding-rune { color: var(--point-arcane); border-color: color-mix(in srgb, var(--point-arcane) 55%, var(--point-border)); }
+/* Содержимое шага прокручивается внутри себя, кнопки — отдельная строка под
+   ним. Это единственный способ держать «Назад/Дальше» на виду, не накрывая
+   ими карточки. */
+.onboarding-wizard .onboarding-main {
+  display: grid;
+  grid-template-rows: auto auto;
+  min-width: 0;
+}
+.onboarding-layout {
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 280px);
+  min-width: 0;
+}
+.constructor-nav {
+  max-height: min(70vh, 640px);
+  overflow: auto;
+}
+.onboarding-step > span {
+  width: 40px;
+  height: 40px;
+}
+.onboarding-wizard .companion-scene-picker {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.onboarding-wizard .companion-preset-studio {
+  grid-template-columns: 1fr;
+}
+.hub-exec-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+.hub-exec-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+@media (max-width: 1180px) {
+  .onboarding-wizard .onboarding-layout {
+    grid-template-columns: minmax(180px, 220px) minmax(0, 1fr);
+  }
+}
+@media (max-width: 900px) {
+  .hub-shell-8.tabs {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .hub-shell-8.tabs > button b {
+    font-size: var(--t-tiny);
+  }
+  .brand-actions {
+    max-width: 100%;
+  }
+  .hub-map {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .command-center-grid {
+    grid-template-columns: 1fr;
+  }
+  .companion-studio.has-thread:not(.setup-active),
+  .companion-studio.setup-active {
+    max-height: none;
+    min-height: 0;
+  }
+  .onboarding-wizard .onboarding-layout {
+    grid-template-columns: 1fr;
+  }
+  .onboarding-nav, .constructor-nav {
+    position: static;
+    max-height: none;
+  }
+  .onboarding-rune {
+    display: none;
+  }
+  .companion-scenario-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 720px) {
+  .hub-shell-8.tabs {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .index-chip[data-tab="journal"],
+  .index-chip[data-tab="changesets"] {
+    display: none;
+  }
+  .command-center-hero-actions .secondary {
+    flex: 1 1 140px;
+  }
+}
+@media (max-height: 700px) {
+  .hub-map {
+    display: none;
+  }
+  .companion-studio.has-thread:not(.setup-active) {
+    min-height: 280px;
+    max-height: min(68vh, 520px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hub-card[data-action]:hover,
+  .system-agent-card:hover,
+  .hub-party-grid button:hover {
+    transform: none;
+  }
+}

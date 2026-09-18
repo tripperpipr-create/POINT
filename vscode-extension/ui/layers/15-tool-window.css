@@ -1,0 +1,24 @@
+/* Point keeps the tool window compact, but never at the expense of readability. */
+.app { font-size: var(--t-lead); }
+.app small,
+.app label,
+.app .diagnostic-grid small,
+.app .diagnostic-tools small,
+.app .diagnostic-signals p,
+.app .run-diagnostics > footer { font-size: var(--t-tiny); line-height: 1.45; }
+.brand { min-height: 44px; padding: var(--s-3) var(--s-4h); }
+.brand strong { font-size: var(--t-base); }
+.brand small { font-size: var(--t-micro); }
+.tabs button, .more-tabs > summary { min-height: 28px; font-size: var(--t-small); }
+.more-tabs > div b { font-size: var(--t-body); }
+.more-tabs > div small { font-size: var(--t-tiny); }
+.primary, .secondary, .danger-button, .small-button { min-height: 33px; font-size: var(--t-body); }
+.message p, .approval p, .settings p, .offline p, .empty p { font-size: var(--t-body); }
+.message small, .tool small, .run-heading, .run-snapshot { font-size: var(--t-small); }
+.settings input, .settings select, .settings textarea, .composer textarea { font-size: var(--t-body); }
+.context-toolbar button { font-size: var(--t-small); }
+.context-toolbar span, .composer > small { font-size: var(--t-tiny); }
+.section-title { font-size: var(--t-small); }
+.safe-mode-label { font-size: var(--t-tiny); }
+.workspace-locked > p { font-size: var(--t-body); }
+.safe-mode-facts span { font-size: var(--t-small); }

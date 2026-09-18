@@ -1,0 +1,141 @@
+/* Dense 8-tab strip: one line, badge overlays instead of reflow */
+.hub-shell-8.tabs {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: var(--s-1);
+  padding: var(--space-2) var(--page-pad-x) var(--space-3);
+  flex: 0 0 auto;
+  min-height: calc(var(--chrome-tab-h) + var(--space-2) + var(--space-3));
+  overflow: visible;
+}
+.hub-shell.tabs > button,
+.hub-shell-8.tabs > button {
+  position: relative;
+  display: grid;
+  place-items: center;
+  gap: 0;
+  min-height: var(--chrome-tab-h);
+  height: auto;
+  padding: var(--space-2) var(--space-1);
+  font: 650 var(--t-small)/1.1 var(--font-ui);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hub-shell-8.tabs > button small {
+  display: none;
+}
+.hub-shell-8.tabs > button em {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 14px;
+  padding: 0 var(--s-2);
+  line-height: 1.35;
+}
+
+.hub-map {
+  gap: var(--space-3);
+  padding: var(--space-2) var(--page-pad-x);
+  min-height: 0;
+}
+.hub-here small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: min(100%, 420px);
+}
+
+.command-center,
+.hub-teams, .hub-skills, .hub-memory, .hub-connections,
+.hub-changesets-page, .hub-journal, .hub-page, .onboarding {
+  padding: var(--page-pad-y) var(--page-pad-x) var(--space-6);
+  gap: var(--space-4);
+}
+.command-center-hero {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  align-items: start;
+}
+.command-center-hero h1 {
+  margin: var(--s-1) 0;
+  font-size: var(--t-title);
+}
+.command-center-hero p {
+  margin: 0;
+  max-width: var(--measure);
+}
+.command-center-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+.command-center-hero-actions .primary {
+  flex: 0 1 auto;
+}
+.command-center-hero.tone-next {
+  border-left-color: var(--ember);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--ember) 12%, transparent), transparent 40%),
+    linear-gradient(180deg, color-mix(in srgb, var(--ember) 8%, var(--panel)), var(--panel));
+}
+.command-center-grid {
+  gap: var(--space-4);
+  align-items: stretch;
+}
+.hub-card, .hub-current-quest, .hub-party,
+.hub-statistics, .hub-changesets, .companion-panel, .active-quest,
+.hub-sandbox-boundary {
+  padding: var(--space-5);
+  transition: border-color var(--motion-base) var(--ease), background-color var(--motion-base) var(--ease);
+}
+.companion-panel.companion-studio {
+  padding: 0;
+}
+.hub-card[data-action]:hover,
+.system-agent-card:hover,
+.hub-party-grid button:hover {
+  transform: none;
+}
+.quest-progress-rail {
+  border-radius: var(--radius);
+}
+
+.hub-page-head,
+.changes-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-5);
+  max-width: var(--hub-page-max);
+  width: 100%;
+  margin: 0;
+  padding: 2px 0 var(--space-3);
+  border-bottom: 1px solid var(--border);
+}
+/* Заголовок раздела внутри шапки страницы: у SSH-блока он размечен <h2>,
+   и без правила браузер рисовал его 22.5px обычной гарнитурой — крупнее
+   собственного заголовка страницы. Компонент отвечает за оба тега. */
+.hub-page-head h1,
+.hub-page-head h2,
+.changes-heading h1 {
+  margin: var(--s-2) 0;
+  font: 520 var(--t-title)/1.15 "JetBrains Mono", Consolas, monospace;
+  letter-spacing: -.02em;
+}
+.hub-page-head p,
+.changes-heading p {
+  margin: 0;
+  max-width: var(--measure-narrow);
+  color: var(--muted);
+  font-size: var(--t-body);
+  line-height: 1.45;
+}
+.hub-journal {
+  gap: var(--space-4);
+}
+.changeset-diff,
+.change-record pre {
+  max-height: var(--diff-max);
+}

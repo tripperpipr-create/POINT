@@ -278,7 +278,12 @@ func TestWorkOrderDeliveryUsesApprovedWorkspaceInsteadOfActiveUIWorkspace(t *tes
 func TestManagedWorkOrdersReserveUniquePathsWithoutCreatingProjects(t *testing.T) {
 	t.Setenv("REDIS_ADDR", "")
 	home := t.TempDir()
+	// Домашний каталог подменяется для обеих семей ОС: os.UserHomeDir читает
+	// USERPROFILE только на Windows, а на Linux и macOS — HOME. С одной
+	// переменной проверка на Linux сверяла временный каталог с настоящим
+	// домашним и падала, хотя продукт вёл себя правильно.
 	t.Setenv("USERPROFILE", home)
+	t.Setenv("HOME", home)
 	application, err := New(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

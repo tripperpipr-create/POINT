@@ -10,6 +10,7 @@ import (
 
 	"local-agent-workbench/internal/domain"
 	"local-agent-workbench/internal/security"
+	"local-agent-workbench/internal/textutil"
 	workbenchtools "local-agent-workbench/internal/tools"
 	"local-agent-workbench/internal/workspace"
 )
@@ -261,10 +262,5 @@ func masterEntityNotFound(kind string) domain.ToolResult {
 }
 
 func boundedMasterReadText(value string, limit int) string {
-	value = strings.TrimSpace(security.Redact(value))
-	runes := []rune(value)
-	if len(runes) > limit {
-		return string(runes[:limit]) + "…"
-	}
-	return value
+	return textutil.Bounded(strings.TrimSpace(security.Redact(value)), limit)
 }

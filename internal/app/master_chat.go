@@ -10,6 +10,7 @@ import (
 
 	"local-agent-workbench/internal/domain"
 	"local-agent-workbench/internal/orchestrator"
+	"local-agent-workbench/internal/textutil"
 	"local-agent-workbench/internal/workspace"
 )
 
@@ -348,12 +349,7 @@ func boundedStrings(values []string, limit int) []string {
 }
 
 func boundedMasterFact(value string, limit int) string {
-	value = strings.Join(strings.Fields(value), " ")
-	runes := []rune(value)
-	if len(runes) > limit {
-		return string(runes[:limit]) + "…"
-	}
-	return value
+	return textutil.Bounded(strings.Join(strings.Fields(value), " "), limit)
 }
 
 // ErrMasterNotConfigured — разговор невозможен, пока диспетчер не настроен.

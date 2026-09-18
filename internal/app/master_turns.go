@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
+
 	"local-agent-workbench/internal/domain"
 	"local-agent-workbench/internal/orchestrator"
 	"os"
@@ -149,8 +151,14 @@ func (a *App) startMasterTurn(ctx context.Context, req MasterChatRequest, comple
 		defer a.masterTurnsWG.Done()
 		defer cancel()
 		defer func() { a.masterTurnsMu.Lock(); delete(a.masterTurnCancels, key); a.masterTurnsMu.Unlock() }()
+		// Отказ записи события ленты сообщается один раз за ход: событий на ход
+		// десятки, и строка на каждое залила бы журнал одним и тем же отказом.
+		eventSaveReported := false
 		emitDetail := func(kind, text, detail string) {
-			_, _ = a.store.AppendMasterEvent(context.Background(), w, domain.MasterTurnEvent{TurnID: turn.ID, ConversationID: turn.ConversationID, Type: kind, Text: text, Detail: detail})
+			if _, err := a.store.AppendMasterEvent(context.Background(), w, domain.MasterTurnEvent{TurnID: turn.ID, ConversationID: turn.ConversationID, Type: kind, Text: text, Detail: detail}); err != nil && !eventSaveReported {
+				eventSaveReported = true
+				slog.Warn("master turn event not appended", "turn_id", turn.ID, "conversation_id", turn.ConversationID, "type", kind, "error", err)
+			}
 		}
 		emit := func(kind, text string) { emitDetail(kind, text, "") }
 		service.OnProgress = func(kind, text, detail string) {
@@ -171,11 +179,11 @@ func (a *App) startMasterTurn(ctx context.Context, req MasterChatRequest, comple
 			default:
 				turn.Status = "tools"
 			}
-			_ = a.store.SaveMasterTurn(context.Background(), turn)
+			a.saveMasterTurnState(turn, "progress")
 			emitDetail(kind, text, detail)
 		}
 		turn.Status = "waiting"
-		_ = a.store.SaveMasterTurn(context.Background(), turn)
+		a.saveMasterTurnState(turn, "waiting")
 		emit("status", "waiting")
 		result, runErr := a.masterChatPrepared(runCtx, req, w, cfg, briefing, service, sessions)
 		if errors.Is(runCtx.Err(), context.DeadlineExceeded) {
@@ -208,9 +216,11 @@ func (a *App) startMasterTurn(ctx context.Context, req MasterChatRequest, comple
 			}
 		}
 		if turn.Status == "cancelled" || runErr != nil {
-			_ = service.Store.SaveCompanionMessage(context.Background(), domain.CompanionMessage{ID: domain.NewID("msg"), WorkspaceID: w, ConversationID: turn.ConversationID, TurnID: turn.ID, Speaker: "master", Role: "assistant", Content: turn.Reply, Mode: turn.Status, FallbackReason: turn.Error, CreatedAt: time.Now()})
+			if err := service.Store.SaveCompanionMessage(context.Background(), domain.CompanionMessage{ID: domain.NewID("msg"), WorkspaceID: w, ConversationID: turn.ConversationID, TurnID: turn.ID, Speaker: "master", Role: "assistant", Content: turn.Reply, Mode: turn.Status, FallbackReason: turn.Error, CreatedAt: time.Now().UTC()}); err != nil {
+				slog.Warn("master cancellation message not saved", "turn_id", turn.ID, "conversation_id", turn.ConversationID, "status", turn.Status, "error", err)
+			}
 		}
-		_ = a.store.SaveMasterTurn(context.Background(), turn)
+		a.saveMasterTurnState(turn, "final")
 		emit("done", turn.Status)
 	}()
 	return turn, nil
@@ -251,4 +261,14 @@ func (a *App) stopMasterTurns() {
 	}
 	a.masterTurnsMu.Unlock()
 	a.masterTurnsWG.Wait()
+}
+
+// Состояние хода Мастера живёт только в таблице ходов: по нему интерфейс
+// показывает «думает/инструменты/готово», а восстановление после рестарта
+// решает, дописывать ход или считать его завершённым. Незаписанный финал
+// оставляет ход вечно «running» при том, что клиент уже получил «done».
+func (a *App) saveMasterTurnState(turn domain.MasterTurn, stage string) {
+	if err := a.store.SaveMasterTurn(context.Background(), turn); err != nil {
+		slog.Warn("master turn state not persisted", "turn_id", turn.ID, "conversation_id", turn.ConversationID, "stage", stage, "status", turn.Status, "error", err)
+	}
 }

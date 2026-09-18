@@ -11,12 +11,12 @@ import (
 	"log/slog"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"local-agent-workbench/internal/diagnostics"
 	"local-agent-workbench/internal/domain"
 	"local-agent-workbench/internal/providers"
 	"local-agent-workbench/internal/security"
+	"local-agent-workbench/internal/textutil"
 )
 
 const (
@@ -1263,12 +1263,10 @@ func skillPointer(skill domain.SkillDefinition) *domain.SkillDefinition {
 	return &copy
 }
 
+// truncateRunes — имя, под которым обрезка известна в этом пакете; правило
+// одно на всё ядро и живёт в textutil.
 func truncateRunes(value string, limit int) string {
-	if limit <= 0 || utf8.RuneCountInString(value) <= limit {
-		return value
-	}
-	runes := []rune(value)
-	return string(runes[:limit]) + "…"
+	return textutil.Bounded(value, limit)
 }
 
 // RollbackAgentImprovement restores only the newest applied autonomous

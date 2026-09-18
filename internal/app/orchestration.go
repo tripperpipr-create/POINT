@@ -526,7 +526,9 @@ func (a *App) startQuestFromProposalUsingQuest(ctx context.Context, ws domain.Wo
 		} else {
 			if ctxErr := ctx.Err(); ctxErr != nil {
 				if draftQuest != nil {
-					_ = a.store.DeleteUnstartedQuest(context.Background(), ws.ID, draftQuest.ID)
+					if err := a.store.DeleteUnstartedQuest(context.Background(), ws.ID, draftQuest.ID); err != nil {
+						slog.Warn("draft quest not removed after cancel", "quest_id", draftQuest.ID, "error", err)
+					}
 				}
 				return QuestProposalResult{}, ctxErr
 			}
@@ -992,6 +994,24 @@ func (a *App) rootFlowSeedPath(flowRun domain.FlowRun) string {
 	return ""
 }
 
+// Отмена интерактивного исполнения хранится только в записи: по ней позднее
+// завершение SDK распознаётся как уже отменённое. Незаписанная отмена
+// возвращает исполнение к жизни задним числом.
+func (a *App) saveCascadeCancellation(exec domain.ExecutionInstance) {
+	if err := a.store.SaveExecution(context.Background(), exec); err != nil {
+		slog.Warn("cascade cancellation not persisted", "execution_id", exec.ID, "quest_id", exec.QuestID, "error", err)
+	}
+}
+
+// Причина ожидания узла живёт только в записи прогона: интерфейс читает
+// waitReason оттуда и по нему объясняет человеку, почему агент ещё не начал.
+// Отказ записи означает узел, «висящий без причины», — молчать здесь нельзя.
+func (a *App) saveFlowRunWaitReason(flowRun domain.FlowRun, nodeID, reason string) {
+	if err := a.store.SaveFlowRun(context.Background(), flowRun); err != nil {
+		slog.Warn("flow node wait reason not persisted", "flow_run_id", flowRun.ID, "flow_node_id", nodeID, "wait_reason", reason, "error", err)
+	}
+}
+
 func (a *App) scheduleWaitingAgentNodes(quest domain.Quest, flow domain.FlowGraph, flowRun domain.FlowRun, apiKey string) error {
 	if flowRun.Status == domain.RunFailed || flowRun.Status == domain.RunCancelled || flowRun.Status == domain.RunCompleted {
 		return nil
@@ -1108,7 +1128,7 @@ func (a *App) scheduleWaitingAgentNodes(quest domain.Quest, flow domain.FlowGrap
 			}
 			state.Output["waitReason"] = "await_integrated_revision"
 			flowRun.NodeStates[node.ID] = state
-			_ = a.store.SaveFlowRun(context.Background(), flowRun)
+			a.saveFlowRunWaitReason(flowRun, node.ID, "await_integrated_revision")
 			continue
 		}
 		if domain.FlowNodeWriteFiles(node) && writerRootBusy(flow, flowRun, node) {
@@ -1117,7 +1137,7 @@ func (a *App) scheduleWaitingAgentNodes(quest domain.Quest, flow domain.FlowGrap
 			}
 			state.Output["waitReason"] = "serial_writer_root"
 			flowRun.NodeStates[node.ID] = state
-			_ = a.store.SaveFlowRun(context.Background(), flowRun)
+			a.saveFlowRunWaitReason(flowRun, node.ID, "serial_writer_root")
 			continue
 		}
 		if runningOrStarting >= maxConcurrent {
@@ -1127,7 +1147,7 @@ func (a *App) scheduleWaitingAgentNodes(quest domain.Quest, flow domain.FlowGrap
 			state.Output["waitReason"] = "parallelism_limit"
 			state.Output["maxConcurrent"] = maxConcurrent
 			flowRun.NodeStates[node.ID] = state
-			_ = a.store.SaveFlowRun(context.Background(), flowRun)
+			a.saveFlowRunWaitReason(flowRun, node.ID, "parallelism_limit")
 			continue
 		}
 		if exec.ID == "" {
@@ -1242,7 +1262,7 @@ func (a *App) scheduleWaitingAgentNodes(quest domain.Quest, flow domain.FlowGrap
 			state.Output["waitReason"] = "waiting_interactive_cursor"
 			delete(state.Output, "startError")
 			flowRun.NodeStates[node.ID] = state
-			_ = a.store.SaveFlowRun(context.Background(), flowRun)
+			a.saveFlowRunWaitReason(flowRun, node.ID, "waiting_interactive_cursor")
 			continue
 		}
 
@@ -1253,7 +1273,7 @@ func (a *App) scheduleWaitingAgentNodes(quest domain.Quest, flow domain.FlowGrap
 			}
 			state.Output["waitReason"] = "waiting_api_key"
 			flowRun.NodeStates[node.ID] = state
-			_ = a.store.SaveFlowRun(context.Background(), flowRun)
+			a.saveFlowRunWaitReason(flowRun, node.ID, "waiting_api_key")
 			slog.Warn("flow agent waiting for API key", "flow_run_id", flowRun.ID, "flow_node_id", node.ID, "execution_id", exec.ID, "provider", projectAgent.Provider)
 			continue
 		}
@@ -1282,7 +1302,7 @@ func (a *App) scheduleWaitingAgentNodes(quest domain.Quest, flow domain.FlowGrap
 			state.Output["waitReason"] = "start_failed"
 			state.Output["startError"] = startErr.Error()
 			flowRun.NodeStates[node.ID] = state
-			_ = a.store.SaveFlowRun(context.Background(), flowRun)
+			a.saveFlowRunWaitReason(flowRun, node.ID, "start_failed")
 			slog.Warn("flow agent start failed", "flow_run_id", flowRun.ID, "flow_node_id", node.ID, "execution_id", exec.ID, "agent_id", effectiveAgentID, "error", startErr)
 			continue
 		}
@@ -1712,14 +1732,14 @@ func (a *App) cancelSiblingFlowExecutions(flowRunID, exceptExecutionID string) {
 				exec.Error = "отменено: другой агент Flow завершился с ошибкой"
 				exec.FinishedAt = &now
 				exec.DurationMs = now.Sub(exec.StartedAt).Milliseconds()
-				_ = a.store.SaveExecution(context.Background(), exec)
+				a.saveCascadeCancellation(exec)
 			}
 		case domain.RunPending, domain.RunInterrupted, domain.RunWaiting:
 			exec.Status = domain.RunCancelled
 			exec.Error = "отменено: другой агент Flow завершился с ошибкой"
 			exec.FinishedAt = &now
 			exec.DurationMs = now.Sub(exec.StartedAt).Milliseconds()
-			_ = a.store.SaveExecution(context.Background(), exec)
+			a.saveCascadeCancellation(exec)
 		}
 	}
 }
@@ -2121,11 +2141,15 @@ func (a *App) finalizeQuestAfterFlow(questID string, success bool) {
 			quest.FinishedAt = nil
 		}
 		quest.UpdatedAt = now
-		_ = a.store.SaveQuest(context.Background(), quest)
-		_, _ = a.SaveMemory(domain.MemoryRecord{
+		if err := a.store.SaveQuest(context.Background(), quest); err != nil {
+			slog.Warn("quest completion not persisted", "quest_id", quest.ID, "status", quest.Status, "error", err)
+		}
+		if _, err := a.SaveMemory(domain.MemoryRecord{
 			WorkspaceID: ws.ID, Kind: domain.MemoryQuest, OwnerID: quest.ID,
 			Content: content, Source: "quest-complete", Confidence: 0.8, Pinned: false,
-		})
+		}); err != nil {
+			slog.Warn("quest memory not saved", "quest_id", quest.ID, "kind", domain.MemoryQuest, "error", err)
+		}
 		if verified && len(quest.DefinitionOfDone) > 0 {
 			_, _ = a.SaveMemory(domain.MemoryRecord{
 				WorkspaceID: ws.ID, Kind: domain.MemoryProject,
@@ -2167,7 +2191,9 @@ func (a *App) awardProjectAgentOutcome(projectAgentID string, success bool) {
 	}
 	agent.Level = 1 + agent.Experience/100
 	agent.UpdatedAt = time.Now().UTC()
-	_ = a.store.SaveProjectAgent(context.Background(), agent)
+	if err := a.store.SaveProjectAgent(context.Background(), agent); err != nil {
+		slog.Warn("agent outcome not persisted", "project_agent_id", agent.ID, "success", success, "error", err)
+	}
 }
 
 func (a *App) recordUsageFromEvent(event domain.Event) {
@@ -2223,7 +2249,9 @@ func (a *App) recordUsageFromEvent(event domain.Event) {
 	if record.CreatedAt.IsZero() {
 		record.CreatedAt = time.Now().UTC()
 	}
-	_ = a.store.InsertUsageRecord(context.Background(), record)
+	if err := a.store.InsertUsageRecord(context.Background(), record); err != nil {
+		slog.Warn("usage record not stored", "execution_id", record.ExecutionID, "quest_id", record.QuestID, "total_tokens", record.TotalTokens, "error", err)
+	}
 }
 
 func (a *App) RevertExecution(executionID string) (map[string]any, error) {
@@ -2349,7 +2377,9 @@ func (a *App) RevertQuest(questID string) (map[string]any, error) {
 			now := time.Now().UTC()
 			quest.FinishedAt = &now
 			quest.UpdatedAt = now
-			_ = a.store.SaveQuest(context.Background(), quest)
+			if err := a.store.SaveQuest(context.Background(), quest); err != nil {
+				slog.Warn("quest cancellation not persisted", "quest_id", quest.ID, "error", err)
+			}
 		}
 	}
 	return map[string]any{"questId": questID, "executions": executionIDs, "revertedPatches": total}, nil

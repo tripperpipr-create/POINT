@@ -12,6 +12,7 @@ import (
 
 	"local-agent-workbench/internal/domain"
 	"local-agent-workbench/internal/providers"
+	"local-agent-workbench/internal/textutil"
 )
 
 type TaskReadTools interface {
@@ -50,12 +51,7 @@ func agentDraftFromIntake(hire *intakeAgentDraft) *AgentDraftProposal {
 }
 
 func boundedIntakeText(value string, limit int) string {
-	value = strings.TrimSpace(value)
-	runes := []rune(value)
-	if len(runes) > limit {
-		return strings.TrimSpace(string(runes[:limit]))
-	}
-	return value
+	return strings.TrimSpace(textutil.BoundedPlain(strings.TrimSpace(value), limit))
 }
 
 type taskIntakeEnvelope struct {

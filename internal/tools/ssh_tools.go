@@ -9,6 +9,7 @@ import (
 
 	"local-agent-workbench/internal/domain"
 	"local-agent-workbench/internal/servers"
+	"local-agent-workbench/internal/textutil"
 )
 
 // ServerProfileSource loads durable SSH profiles for agent tools.
@@ -231,9 +232,11 @@ func (t SSHExecRemote) Execute(ctx context.Context, raw json.RawMessage) domain.
 	})
 }
 
+// Вывод команды ограничен по объёму в байтах, но граница проходит по руне:
+// раньше срез рвал русский текст посередине знака.
 func truncateToolText(value string, max int) string {
 	if max <= 0 || len(value) <= max {
 		return value
 	}
-	return value[:max]
+	return textutil.BoundedBytes(value, max)
 }

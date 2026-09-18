@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"local-agent-workbench/internal/domain"
+	"local-agent-workbench/internal/textutil"
 )
 
 type Store interface {
@@ -432,11 +433,14 @@ func skipUnfinishedNodes(run *domain.FlowRun, flow domain.FlowGraph, reason stri
 	}
 }
 
+// Хендофф ограничен по объёму в байтах, но граница проходит по руне: раньше
+// `value[:limit]` разрывал русский текст посередине знака и в JSON уходил
+// невалидный UTF-8.
 func truncateHandoff(value string, limit int) string {
 	if limit <= 0 || len(value) <= limit {
 		return value
 	}
-	return value[:limit] + "…"
+	return textutil.BoundedBytes(value, limit) + "…"
 }
 
 func (r Runtime) executeNode(node domain.FlowNode, state domain.FlowNodeState, run domain.FlowRun, incoming []domain.FlowEdge) (domain.FlowNodeState, bool, error) {

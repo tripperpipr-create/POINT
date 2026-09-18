@@ -23,6 +23,7 @@ import (
 	"local-agent-workbench/internal/sandbox"
 	"local-agent-workbench/internal/security"
 	"local-agent-workbench/internal/skillprompt"
+	"local-agent-workbench/internal/textutil"
 	workbenchtools "local-agent-workbench/internal/tools"
 	"local-agent-workbench/internal/workspace"
 )
@@ -1423,7 +1424,9 @@ func (e *Engine) executeTool(ctx context.Context, active *activeRun, profile dom
 			return failed, err
 		}
 		if !patchInspectionMatches(inspection, proposal) {
-			_, _ = patches.Reject(proposal.ID)
+			if _, rejectErr := patches.Reject(proposal.ID); rejectErr != nil {
+				slog.Warn("stale patch proposal not rejected", "run_id", active.run.ID, "proposal_id", proposal.ID, "path", inspection.Path, "error", rejectErr)
+			}
 			requirement = &patchInspectionRequirement{
 				Code: "inspection_stale", Path: inspection.Path, RequiredTool: "read_file",
 				WorkspaceRevision: e.currentWorkspaceRevision(active),
@@ -1568,11 +1571,20 @@ func (e *Engine) newApproval(run domain.Run, call providers.ToolCall, reason str
 	return domain.Approval{ID: domain.NewID("approval"), RunID: run.ID, AgentID: run.AgentID, ToolName: call.Name, Reason: reason, Arguments: safe, Status: domain.ApprovalPending, CreatedAt: time.Now().UTC()}
 }
 
+// Решение по запросу разрешения хранится только в записи апрува: очередь
+// решений и восстановление после рестарта читают статус оттуда. Незаписанное
+// решение оставляет запрос вечно ждущим человека, который уже ответил.
+func (e *Engine) saveApprovalState(approval domain.Approval, stage string) {
+	if err := e.repo.SaveApproval(context.Background(), approval); err != nil {
+		slog.Warn("approval state not persisted", "approval_id", approval.ID, "run_id", approval.RunID, "tool", approval.ToolName, "stage", stage, "status", approval.Status, "error", err)
+	}
+}
+
 func (e *Engine) awaitApproval(ctx context.Context, active *activeRun, approval domain.Approval) (bool, error) {
 	active.clock.stop()
 	e.broker.Register(approval)
 	e.update(active, func(r *domain.Run) { r.Status = domain.RunWaiting })
-	_ = e.repo.SaveApproval(context.Background(), approval)
+	e.saveApprovalState(approval, "requested")
 	if err := e.saveRun(e.snapshot(active)); err != nil {
 		return false, fmt.Errorf("persist run state before approval: %w", err)
 	}
@@ -1587,7 +1599,7 @@ func (e *Engine) awaitApproval(ctx context.Context, active *activeRun, approval 
 	} else {
 		approval.Status = domain.ApprovalDenied
 	}
-	_ = e.repo.SaveApproval(context.Background(), approval)
+	e.saveApprovalState(approval, "resolved")
 	e.update(active, func(r *domain.Run) { r.Status = domain.RunRunning })
 	if saveErr := e.saveRun(e.snapshot(active)); saveErr != nil {
 		return allow, fmt.Errorf("persist run state after approval: %w", saveErr)
@@ -2279,12 +2291,7 @@ func contextAmendmentEventData(values []domain.ContextAmendment) map[string]any 
 }
 
 func boundedLearningMessage(value string) string {
-	value = security.Redact(strings.TrimSpace(value))
-	runes := []rune(value)
-	if len(runes) > 2000 {
-		value = string(runes[:2000]) + "…"
-	}
-	return value
+	return textutil.Bounded(security.Redact(strings.TrimSpace(value)), 2000)
 }
 
 var errToolJournalIntegrity = errors.New("tool_journal_integrity")

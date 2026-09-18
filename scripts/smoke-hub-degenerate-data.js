@@ -76,8 +76,11 @@ for (const [name, extra] of Object.entries(cases)) {
       if (tab === 'quests' && (extra.quests || []).length && !root.innerHTML.includes('hall-quest-row')) {
         throw new Error('список квестов не отрисовался — проверка прошла бы вхолостую')
       }
-      if (/undefined|NaN|\[object Object\]/.test(root.innerHTML)) {
-        throw new Error('в разметке видно ' + (root.innerHTML.match(/undefined|NaN|\[object Object\]/) || [])[0])
+      // Пропущенная дата даёт «Invalid Date», а пустая (null) — «01.01.1970»:
+      // второе хуже первого, потому что выглядит настоящим временем. Ни то, ни
+      // другое человек видеть не должен — в разметке ожидается прочерк.
+      if (/undefined|NaN|\[object Object\]|Invalid Date|01\.01\.1970/.test(root.innerHTML)) {
+        throw new Error('в разметке видно ' + (root.innerHTML.match(/undefined|NaN|\[object Object\]|Invalid Date|01\.01\.1970/) || [])[0])
       }
     } catch (error) {
       console.log(`${name} / ${tab}: ${error.message}`)

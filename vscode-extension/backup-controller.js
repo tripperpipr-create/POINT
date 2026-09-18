@@ -1,3 +1,4 @@
+const { formatDateTime } = require('./extension-utils')
 const path = require('path')
 const { spawn } = require('child_process')
 
@@ -14,14 +15,14 @@ async function restoreSystemBackup({
     return { status: 'empty' }
   }
   const choice = await window.showQuickPick(snapshots.map(snapshot => ({
-    label: new Date(snapshot.createdAt).toLocaleString('ru-RU'),
+    label: formatDateTime(snapshot.createdAt),
     description: String(snapshot.reason || 'backup'),
     detail: `${(Number(snapshot.sizeBytes || 0) / 1024 / 1024).toFixed(1)} MB · SHA-256 ${String(snapshot.sha256 || '').slice(0, 20)}…`,
     snapshot,
   })), { title: 'Восстановление SQLite', placeHolder: 'Выберите проверенный snapshot' })
   if (!choice) return { status: 'cancelled' }
   const confirmation = await window.showWarningMessage(
-    `Восстановить состояние Point на ${new Date(choice.snapshot.createdAt).toLocaleString('ru-RU')}? Активные Runs будут прерваны; перед остановкой будет создан дополнительный recovery point.`,
+    `Восстановить состояние Point на ${formatDateTime(choice.snapshot.createdAt)}? Активные Runs будут прерваны; перед остановкой будет создан дополнительный recovery point.`,
     { modal: true }, CONFIRM_RESTORE,
   )
   if (confirmation !== CONFIRM_RESTORE) return { status: 'cancelled' }

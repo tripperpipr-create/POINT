@@ -1,3 +1,4 @@
+const { formatDateTime } = require('./extension-utils')
 // Документы разговоров: страница диалога, окно сведений об ответе и архив.
 //
 // Группа жила в extension.js и росла вместе с ним против границы модуля
@@ -23,7 +24,7 @@ function companionDocumentHtml(title, subtitle, messages, details, escapeHtml, a
     const role = item?.role === 'user' ? 'user' : 'assistant'
     const label = role === 'user' ? 'Вы' : answerLabel
     const mark = item?.feedback === 'down' ? 'отмечено: не помогло' : item?.feedback === 'up' ? 'отмечено: полезно' : ''
-    return `<article class="${role}"><header>${escapeHtml(label)}${mark ? `<em>${escapeHtml(mark)}</em>` : ''}${item?.createdAt ? `<time>${escapeHtml(new Date(item.createdAt).toLocaleString('ru-RU'))}</time>` : ''}</header><pre>${escapeHtml(item?.content || '')}</pre></article>`
+    return `<article class="${role}"><header>${escapeHtml(label)}${mark ? `<em>${escapeHtml(mark)}</em>` : ''}${item?.createdAt ? `<time>${escapeHtml(formatDateTime(item.createdAt))}</time>` : ''}</header><pre>${escapeHtml(item?.content || '')}</pre></article>`
   }).join('')
   return `<!doctype html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline';"><title>${escapeHtml(title)}</title><style>
     :root{color-scheme:dark;font-family:"Segoe UI Variable","Segoe UI",sans-serif;background:#0a0a0a;color:#f3f5f8}body{margin:0}main{box-sizing:border-box;margin:0 auto;max-width:820px;padding:28px 34px 56px}h1{font-size:19px;font-weight:600;margin:0 0 6px}main>header>p{color:#8e9aad;font-size:13px;margin:0 0 24px}.details{display:grid;gap:16px;margin-bottom:24px}.details dl{display:grid;gap:12px 20px;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));margin:0}.details dt{color:#8e9aad;font-size:12px}.details dd{font-size:13px;margin:3px 0 0}.details h2{color:#8e9aad;font-size:12px;font-weight:500;margin:0 0 -8px}.details pre{background:#111;border:1px solid #232323;border-radius:6px;margin:0;max-height:260px;overflow:auto;padding:12px 14px;white-space:pre-wrap}article{border-top:1px solid #232323;margin:0;padding:16px 0}article.user{color:#c8cede}article header{align-items:baseline;color:#8e9aad;display:flex;font-size:12px;font-weight:500;gap:12px;justify-content:space-between}article pre{font:400 13px/1.6 "Segoe UI Variable","Segoe UI",sans-serif;margin:8px 0 0;white-space:pre-wrap;word-break:break-word}time{font-weight:400}@media(max-width:620px){main{padding:20px 14px}}
@@ -105,14 +106,14 @@ class ChatDocuments {
     }
     const selected = await vscode.window.showQuickPick(items.map(item => ({
       label: item.title || 'Диалог с помощником',
-      description: new Date(item.createdAt).toLocaleString('ru-RU'),
+      description: formatDateTime(item.createdAt),
       detail: `${item.messages.length} сообщений · только чтение`,
       archive: item,
     })), { title: 'Архив диалогов помощника', placeHolder: 'Выберите диалог для просмотра' })
     if (!selected?.archive) return
     const panel = vscode.window.createWebviewPanel('point.companionArchive', selected.archive.title || 'Архив диалога', vscode.ViewColumn.Active, { enableScripts: false })
     panel.iconPath = vscode.Uri.joinPath(this.extensionUri, 'media', 'agent.svg')
-    panel.webview.html = this.companionDocument(selected.archive.title || 'Диалог с помощником', `Архив · ${new Date(selected.archive.createdAt).toLocaleString('ru-RU')} · только чтение`, selected.archive.messages)
+    panel.webview.html = this.companionDocument(selected.archive.title || 'Диалог с помощником', `Архив · ${formatDateTime(selected.archive.createdAt)} · только чтение`, selected.archive.messages)
   }
 }
 

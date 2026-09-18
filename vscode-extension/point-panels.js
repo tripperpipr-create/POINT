@@ -1,3 +1,4 @@
+const { formatDateTime } = require('./extension-utils')
 // Две самостоятельные панели Point: домашний экран и хроника ядра.
 //
 // С AgentViewProvider их не связывает ничего, кроме одной кнопки «показать»:
@@ -286,7 +287,7 @@ function createPointPanels({ escapeHtml, runGit, resolveGitRoot, openWorkspaceFi
 
     detailMarkup(selected, files, diff) {
       const fileRows = files.map(file => `<button data-action="openFile" data-path="${escapeHtml(file.path)}"><span class="file-status status-${escapeHtml(file.status[0] || 'M')}">${escapeHtml(file.status)}</span><strong>${escapeHtml(file.path)}</strong></button>`).join('')
-      return `<header><span>ВЫБРАННАЯ ГЛАВА</span><h2>${escapeHtml(selected.subject)}</h2><div><small>АВТОР</small><strong>${escapeHtml(selected.author)}</strong><small>ХЕШ</small><code>${escapeHtml(selected.shortHash)}</code><small>ДАТА</small><time>${escapeHtml(new Date(selected.date).toLocaleString('ru-RU'))}</time></div></header><section class="changed-files"><header><strong>ИЗМЕНЁННЫЕ АРТЕФАКТЫ</strong><span>${files.length}</span></header><div>${fileRows || '<p>Список файлов пуст.</p>'}</div></section><section class="diff-scroll"><header><strong>СВИТОК ИЗМЕНЕНИЙ</strong><span>READ ONLY</span></header><pre>${renderDiff(diff)}</pre></section>`
+      return `<header><span>ВЫБРАННАЯ ГЛАВА</span><h2>${escapeHtml(selected.subject)}</h2><div><small>АВТОР</small><strong>${escapeHtml(selected.author)}</strong><small>ХЕШ</small><code>${escapeHtml(selected.shortHash)}</code><small>ДАТА</small><time>${escapeHtml(formatDateTime(selected.date))}</time></div></header><section class="changed-files"><header><strong>ИЗМЕНЁННЫЕ АРТЕФАКТЫ</strong><span>${files.length}</span></header><div>${fileRows || '<p>Список файлов пуст.</p>'}</div></section><section class="diff-scroll"><header><strong>СВИТОК ИЗМЕНЕНИЙ</strong><span>READ ONLY</span></header><pre>${renderDiff(diff)}</pre></section>`
     }
 
     renderHtml(webview, data) {

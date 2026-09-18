@@ -12,6 +12,15 @@ const DECISION_RESOLVE_ROUTES = [
   /^\/api\/egress-asks\/[A-Za-z0-9_-]+\/resolve$/,
 ]
 
+// Дата, показанная человеку. Пара к formatDateTime в ui/client: у хоста и
+// вебвью разные среды, но одно правило. Пропущенная дата — прочерк, а не
+// «Invalid Date» и не «01.01.1970».
+function formatDateTime(value) {
+  if (value === null || value === undefined || value === '') return '—'
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString('ru-RU')
+}
+
 // Отказ git, показанный человеку.
 //
 // Формат был написан дважды — в companion-controller и в infra-controller, —
@@ -285,4 +294,5 @@ module.exports = {
   upsertById,
   removeById,
   formatVcsError,
+  formatDateTime,
 }

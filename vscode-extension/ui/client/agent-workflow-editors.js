@@ -1,3 +1,4 @@
+import { formatDateTime } from './format-units.js'
 // Ярлык группы доступа. Цепочка тернарников знала три группы из девяти, и всё
 // остальное — docker, ssh, базы, а теперь и git — подписывалось как «ЗАПУСК»,
 // хотя git-инструменты только читают.
@@ -570,7 +571,7 @@ export function createAgentWorkflowEditors(dependencies) {
         <div class="profile-footer">${creating?'<button type="button" class="secondary" data-action="cancel-workflow-edit">Отмена</button>':`<button type="button" class="danger-button" data-action="delete-workflow" data-id="${esc(workflow.id)}">Удалить</button>`}<button class="primary save" type="submit">${creating?'Создать сценарий':'Сохранить сценарий'}</button></div>
       </form>
       ${!creating?`<section class="workflow-launch"><header><strong>Начать кампанию</strong><small>${invalidSteps.length?`Нужно назначить агентов: ${invalidSteps.map(step=>step.name).join(', ')}`:'Проверка готова: контекст и этапы будут передаваться по правилам.'}</small></header>${keyProfiles.map(profile=>`<label>Ключ API · ${esc(profile.name)}<input class="workflow-api-key" data-profile-id="${esc(profile.id)}" type="password" autocomplete="off" placeholder="Только в памяти"></label>`).join('')}<form id="workflow-run-form"><textarea id="workflow-task" rows="4" placeholder="Общая цель кампании" ${active&&['running','waiting_approval'].includes(active.status)?'disabled':''}></textarea><button class="primary" type="submit" ${invalidSteps.length||active&&['running','waiting_approval'].includes(active.status)?'disabled':''}>Начать · ${workflow.steps.length} этапа</button></form></section>`:''}
-      ${workflowRuns.length?`<section class="workflow-history"><header><strong>Последние походы</strong></header>${workflowRuns.slice(0,8).map(run=>`<button data-action="load-workflow-run" data-id="${esc(run.id)}"><span>${status(run.status)}</span><strong>${esc(run.snapshot?.workflow?.name||run.workflowId)}</strong><small>${new Date(run.startedAt).toLocaleString('ru-RU')}</small></button>`).join('')}</section>`:''}
+      ${workflowRuns.length?`<section class="workflow-history"><header><strong>Последние походы</strong></header>${workflowRuns.slice(0,8).map(run=>`<button data-action="load-workflow-run" data-id="${esc(run.id)}"><span>${status(run.status)}</span><strong>${esc(run.snapshot?.workflow?.name||run.workflowId)}</strong><small>${formatDateTime(run.startedAt)}</small></button>`).join('')}</section>`:''}
       <footer class="hub-transitional" aria-label="Смежные разделы"><b>ПЕРЕЙТИ</b>${ui.state.boot?.flows !== undefined ? `<button type="button" class="secondary" data-action="flow-visual-mode">← Граф флоу (Hub)</button>` : ''}</footer>
     </main>`)
   }

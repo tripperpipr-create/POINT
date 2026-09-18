@@ -1,3 +1,4 @@
+import { formatDateTime } from './format-units.js'
 // Ревью sandbox-изменений и журнал откатов — одна Git-adjacent поверхность.
 // Renderer получает состояние и словари явно; действий с файлами здесь нет.
 export function createChangeSetViews({
@@ -130,7 +131,7 @@ export function createChangeSetViews({
         : set.status === 'applied'
           ? `<button type="button" class="danger-button" data-action="revert-changeset" data-id="${esc(set.id)}">Откатить набор</button>`
           : ''
-    return `<article class="changeset-card status-${esc(set.status)}"><header><strong>${esc(set.title || 'Набор изменений')}</strong><span>${esc(changeSetStatusLabels[set.status] || set.status)}</span></header><small>${countOf(items.length, 'файл', 'файла', 'файлов')} · ${new Date(set.createdAt).toLocaleString('ru-RU')}</small>${dependencyNote}${mergeNote}${changeSetConflictHtml(set)}${changeSetFilesHtml(set, compact)}<footer>${actions}</footer></article>`
+    return `<article class="changeset-card status-${esc(set.status)}"><header><strong>${esc(set.title || 'Набор изменений')}</strong><span>${esc(changeSetStatusLabels[set.status] || set.status)}</span></header><small>${countOf(items.length, 'файл', 'файла', 'файлов')} · ${formatDateTime(set.createdAt)}</small>${dependencyNote}${mergeNote}${changeSetConflictHtml(set)}${changeSetFilesHtml(set, compact)}<footer>${actions}</footer></article>`
   }
 
   function changeSetsView() {

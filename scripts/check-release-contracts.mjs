@@ -15,6 +15,15 @@ const requireText = (source, token, label) => {
   if (!source.includes(token)) errors.push(`${label}: missing ${token}`)
 }
 const lineCount = source => source.split(/\r?\n/).length
+// Go-исходник читается пакетом, а не файлом: объявление переезжает в соседний
+// файл того же пакета, а проверка по имени файла перестаёт что-либо находить и
+// молча проходит вхолостую.
+const readGoPackage = directory => fs.readdirSync(path.join(root, directory), { withFileTypes: true })
+  .filter(entry => entry.isFile() && entry.name.endsWith('.go') && !entry.name.endsWith('_test.go'))
+  .map(entry => entry.name)
+  .sort()
+  .map(name => fs.readFileSync(path.join(root, directory, name), 'utf8'))
+  .join('\n')
 
 const requiredFiles = [
   '.github/workflows/ci.yml',
@@ -456,7 +465,7 @@ const manualToolSource = read('internal/app/custom_tools.go')
 for (const token of ['ApprovalID', 'ConsumeToolExecutionApproval', 'approved=true is not an approval']) {
   requireText(manualToolSource, token, 'manual tool approval')
 }
-const manualToolMigration = read('internal/storage/migrations.go')
+const manualToolMigration = readGoPackage('internal/storage')
 for (const token of ['manual_tool_execution_approval_v1', 'tool_execution_approvals', "'consumed'"]) {
   requireText(manualToolMigration, token, 'manual tool approval migration')
 }

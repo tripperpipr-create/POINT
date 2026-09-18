@@ -9,6 +9,17 @@ import (
 	"local-agent-workbench/internal/providers"
 )
 
+// Пределы разговора. Число знаков реплики парное с интерфейсом: композер
+// обязан знать ту же границу, иначе человек узнаёт о ней после отправки —
+// текст уже ушёл из поля. Сверяется договорённостью 25 в ui/contracts.mjs.
+const (
+	maxChatMessage = 32 * 1024
+	maxObjectives  = 6
+	// maxQuestTitle — сколько знаков названия квеста ещё читается строкой в
+	// очереди решений и в списке квестов, а не абзацем.
+	maxQuestTitle = 72
+)
+
 type ChatStore interface {
 	ListProjectAgents(ctx context.Context, workspaceID string) ([]domain.ProjectAgent, error)
 	ListQuests(ctx context.Context, workspaceID string) ([]domain.Quest, error)

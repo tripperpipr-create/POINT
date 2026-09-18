@@ -40,6 +40,22 @@ const readSources = directory => {
   visit(path.join(root, directory))
   return files.sort().map(file => fs.readFileSync(file, 'utf8')).join('\n')
 }
+// Go-исходник читается пакетом, а не файлом.
+//
+// Договорённости смотрят в ядро текстом, и привязка к имени файла уже дважды
+// оказывалась хрупкой: обработчик или константа переезжают в соседний файл
+// того же пакета, проверка перестаёт что-либо находить и молча проходит
+// вхолостую. Пакет — та единица, которая не меняется от перекладывания.
+const readGoPackage = directory => {
+  const full = path.join(root, directory)
+  return fs.readdirSync(full, { withFileTypes: true })
+    .filter(entry => entry.isFile() && entry.name.endsWith('.go') && !entry.name.endsWith('_test.go'))
+    .map(entry => entry.name)
+    .sort()
+    .map(name => fs.readFileSync(path.join(full, name), 'utf8'))
+    .join('\n')
+}
+
 // Static invariants belong to the editable module tree. Runtime/render checks
 // still execute media/main.js, so the source contract and the shipped bundle
 // are both covered without depending on esbuild's formatting.
@@ -416,7 +432,7 @@ const TYPE_SCALE = new Set(
 //     индексации человек читал как «индекс просто не построен» и шёл строить
 //     его заново. Один продукт не может называть одно и то же по-разному.
 {
-  const indexGo = read('internal/workspace/index.go')
+  const indexGo = readGoPackage('internal/workspace')
   const appGo = read('internal/app/app.go')
   const ext = read('vscode-extension/extension.js')
   const js = webviewSource
@@ -1010,7 +1026,7 @@ const TYPE_SCALE = new Set(
 //     поля, а возвращать его пришлось бы копированием из ленты. Ровно та же
 //     потеря, от которой договорённость 23 бережёт разговор с помощником.
 {
-  const core = read('internal/orchestrator/chat.go')
+  const core = readGoPackage('internal/orchestrator')
   const coreLimit = core.match(/maxChatMessage\s*=\s*(\d+)\s*\*\s*1024/)
   const uiLimit = webviewSource.match(/MASTER_MESSAGE_LIMIT_BYTES = (\d+) \* 1024/)
   if (!coreLimit) fail('в ядре не найден предел длины реплики Мастера')

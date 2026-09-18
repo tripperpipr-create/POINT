@@ -602,13 +602,27 @@ func TestUIFacingTypesDeclareNoSecretFields(t *testing.T) {
 // Проверка формы, а не поведения: поднять настоящую отмену через httptest со
 // своей моделью нельзя — App собирает companion.Service сам.
 func TestCompanionChatHandlerPassesRequestContext(t *testing.T) {
-	source, err := os.ReadFile("server.go")
+	// Файл ищется по всему пакету, а не по имени: обработчики переезжают между
+	// файлами, и проверка, привязанная к server.go, однажды молча перестанет
+	// что-либо находить.
+	entries, err := os.ReadDir(".")
 	if err != nil {
 		t.Fatal(err)
 	}
-	text := string(source)
-
-	at := strings.Index(text, "func (s *Server) companionChat(")
+	text, at := "", -1
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") || strings.HasSuffix(entry.Name(), "_test.go") {
+			continue
+		}
+		source, readErr := os.ReadFile(entry.Name())
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		if index := strings.Index(string(source), "func (s *Server) companionChat("); index >= 0 {
+			text, at = string(source), index
+			break
+		}
+	}
 	if at < 0 {
 		t.Fatal("обработчик companionChat не найден — проверка прошла бы вхолостую")
 	}

@@ -64,6 +64,7 @@ const { createPointPanels } = require('./point-panels')
 const { handleRosterMessage } = require('./roster-controller')
 const { handleLearningMessage } = require('./learning-controller')
 const { handleToolingMessage } = require('./tooling-controller')
+const { handleCursorMessage } = require('./cursor-controller')
 
 let activeView
 let activeService
@@ -1854,41 +1855,13 @@ class AgentViewProvider {
         case 'revertPatch':
           await this.revertPatch(message.id); break
         case 'launchCursorAgent':
-          await this.launchCursorAgent(message); break
         case 'cursorRefresh':
-          await this.refreshCursorRuntime(); break
         case 'cursorLogin':
-          this.cursorRuntimeState = await cursorRuntime.login({
-            apiKeyName: 'Point IDE',
-            openBrowser: async url => {
-              await vscode.env.openExternal(vscode.Uri.parse(url))
-            },
-            onLoginUrl: url => {
-              this.output.appendLine(`[Cursor] Login URL: ${url}`)
-              void vscode.window.showInformationMessage('Откройте страницу входа Cursor в браузере, затем вернитесь в Point.', 'Открыть')
-                .then(choice => {
-                  if (choice === 'Открыть') void vscode.env.openExternal(vscode.Uri.parse(url))
-                })
-            },
-          })
-          this.postCursorRuntime()
-          this.postState(true)
-          break
         case 'cursorLogout':
-          this.cursorRuntimeState = await cursorRuntime.logout()
-          this.postCursorRuntime()
-          this.postState(true)
-          break
         case 'startCursorRun':
-          await this.startCursorRun(message); break
         case 'cancelCursorRun':
-          await this.cursorRun?.cancel()
-          break
         case 'cancelCursorExecution':
-          if (!this.cursorRun || this.cursorHubExecutionId !== String(message.id || '')) {
-            throw new Error('Это Cursor-исполнение сейчас не запущено в Point.')
-          }
-          await this.cursorRun.cancel()
+          await handleCursorMessage.call(this, message)
           break
         case 'completeOnboarding':
           this.onboardingComplete = true

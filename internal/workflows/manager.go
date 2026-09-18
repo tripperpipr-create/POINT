@@ -8,12 +8,12 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"unicode/utf8"
 
 	"local-agent-workbench/internal/agent"
 	"local-agent-workbench/internal/domain"
 	"local-agent-workbench/internal/observability"
 	"local-agent-workbench/internal/security"
+	"local-agent-workbench/internal/textutil"
 )
 
 type Repository interface {
@@ -409,7 +409,7 @@ func stageContext(original []domain.RunContextItem, previousResult string, step 
 		}
 		truncated := false
 		if len(content) > limit {
-			content = truncateUTF8(content, limit)
+			content = textutil.BoundedBytes(content, limit)
 			truncated = true
 		}
 		items = append(items, domain.RunContextItem{ID: domain.NewID("context"), Kind: domain.ContextText, Label: "Результат предыдущего этапа", Content: content, Size: int64(len(content)), Truncated: truncated})
@@ -417,25 +417,11 @@ func stageContext(original []domain.RunContextItem, previousResult string, step 
 	return items
 }
 
-func truncateUTF8(value string, limit int) string {
-	if limit <= 0 {
-		return ""
-	}
-	if len(value) <= limit {
-		return value
-	}
-	value = value[:limit]
-	for !utf8.ValidString(value) && len(value) > 0 {
-		value = value[:len(value)-1]
-	}
-	return value
-}
-
 func boundedPreview(value string, limit int) (string, bool) {
 	if len(value) <= limit {
 		return value, false
 	}
-	return truncateUTF8(value, limit), true
+	return textutil.BoundedBytes(value, limit), true
 }
 
 func (m *Manager) Cancel(id string) error {

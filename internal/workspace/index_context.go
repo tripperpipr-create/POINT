@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"local-agent-workbench/internal/textutil"
 )
 
 func (f *FS) RelevantContext(ctx context.Context, query string, maxChunks, maxChars int) ([]RelevantChunk, error) {
@@ -252,7 +254,7 @@ func selectRelevantChunks(index *projectIndex, query string, queryTokens []strin
 		remainingChunks = append(remainingChunks[:bestIndex], remainingChunks[bestIndex+1:]...)
 		remaining := maxChars - search.UsedChars
 		if len(chunk.Content) > remaining {
-			chunk.Content = utf8Prefix(chunk.Content, remaining)
+			chunk.Content = textutil.BoundedBytes(chunk.Content, remaining)
 			chunk.EndLine = chunk.StartLine + strings.Count(chunk.Content, "\n")
 			search.Truncated = true
 		}

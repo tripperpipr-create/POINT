@@ -4,7 +4,7 @@
   "scannedAt": "2026-08-31T02:58:08Z",
   "method": "docker-save-archive-no-docker-socket",
   "dockerfileSha256": "586e6754a92d06f7464b7e7fad25828f4a9003809028e0dc360bd88eaa5a2752",
-  "integrationTestSha256": "ec01748103dd04741d12771fc81bf2d8402f781e53345e4b808b47bb98e460ab",
+  "integrationTestSha256": "8ac0ca2df1cdf71d1a9cd728432dc916708193a8a5e648d22551527200629921",
   "image": {
     "tag": "point-agent-sandbox:release",
     "digest": "sha256:e0a50330e7e8f68f13b0973dcad0ab82324dfa6a7fa88392dc4f22aed7dce882",
@@ -82,7 +82,8 @@
     "command": "go test ./internal/sandbox -run TestDockerSandboxIntegration -count=1 -v",
     "passed": true,
     "verified": [
-      "uid-gid-10001",
+      "uid-gid-matches-backend-request",
+      "non-root-uid-gid",
       "read-only-rootfs",
       "zero-capabilities",
       "no-new-privileges",

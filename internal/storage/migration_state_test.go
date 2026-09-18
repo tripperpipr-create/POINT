@@ -61,3 +61,60 @@ func TestDatabaseNeedsMigrationRecognizesLegacyDatabase(t *testing.T) {
 		t.Fatalf("legacy database: needed=%v err=%v", needed, err)
 	}
 }
+
+// Реестр миграций — единственный источник порядка. Тела разъехались по файлам
+// (migrations_hub, migrations_companion, migrations_v2 и другие), и ошибиться
+// теперь легче: пропущенная версия, повтор номера, забытое имя. Проверка
+// смотрит на реестр целиком, а не на отдельную миграцию.
+func TestMigrationRegistryIsContinuousAndUnique(t *testing.T) {
+	list := hubMigrations()
+	if len(list) == 0 {
+		t.Fatal("реестр миграций пуст — проверка прошла бы вхолостую")
+	}
+	seenVersion := map[int]bool{}
+	seenName := map[string]bool{}
+	for index, item := range list {
+		if item.version != index+1 {
+			t.Fatalf("версия %d стоит на месте %d — порядок применения задаётся позицией", item.version, index+1)
+		}
+		if seenVersion[item.version] {
+			t.Fatalf("версия %d объявлена дважды", item.version)
+		}
+		seenVersion[item.version] = true
+		if item.name == "" {
+			t.Fatalf("миграция %d без имени: в журнале применения её не отличить", item.version)
+		}
+		if seenName[item.name] {
+			t.Fatalf("имя %q занято двумя миграциями", item.name)
+		}
+		seenName[item.name] = true
+		if item.up == nil {
+			t.Fatalf("миграция %d (%s) без тела", item.version, item.name)
+		}
+	}
+}
+
+// Повторное открытие той же базы не должно применять ничего заново: версия
+// записана, и вторая попытка обязана пройти вхолостую.
+func TestReopeningDatabaseAppliesNoMigrationTwice(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "twice.db")
+	first, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = first.Close(); err != nil {
+		t.Fatal(err)
+	}
+	second, err := Open(path)
+	if err != nil {
+		t.Fatalf("повторное открытие: %v", err)
+	}
+	defer second.Close()
+	needed, err := DatabaseNeedsMigration(context.Background(), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if needed {
+		t.Fatal("после повторного открытия база снова требует миграции")
+	}
+}

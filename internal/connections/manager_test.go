@@ -69,8 +69,14 @@ func TestUpsertPreservesCreatedAt(t *testing.T) {
 	if !updated.CreatedAt.Equal(created.CreatedAt) {
 		t.Fatalf("CreatedAt changed: %v -> %v", created.CreatedAt, updated.CreatedAt)
 	}
-	if !updated.UpdatedAt.After(created.UpdatedAt) && !updated.UpdatedAt.Equal(created.UpdatedAt) {
-		// UpdatedAt should advance or at least not go backwards; allow equal on coarse clocks.
+	// Утверждение, а не комментарий в пустом теле `if`.
+	//
+	// Раньше условие вычислялось и выбрасывалось: тест не проверял ничего,
+	// хотя выглядел проверяющим. Намерение из комментария — «время правки не
+	// едет назад» — проверяемо прямо, а равенство допускается: на грубых
+	// часах две правки подряд попадают в один тик.
+	if updated.UpdatedAt.Before(created.UpdatedAt) {
+		t.Fatalf("UpdatedAt ушло назад: %v -> %v", created.UpdatedAt, updated.UpdatedAt)
 	}
 	if updated.UpdatedAt.Before(created.CreatedAt) {
 		t.Fatalf("UpdatedAt before CreatedAt")

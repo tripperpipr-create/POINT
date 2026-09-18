@@ -765,6 +765,23 @@ class BackendService {
     this.state = 'stopped'
   }
 
+  // Адрес ядра и заголовок доступа собираются в одном месте.
+  //
+  // Их складывали руками в трёх: здесь, в потоке NDJSON и в потоке событий
+  // хода Мастера. Третий при этом обходил службу целиком — а с ней ретраи,
+  // таймауты и перевод отказа на русский. Пока формула повторяется, она
+  // расходится молча: сменится схема доступа — и один из трёх останется на
+  // старой.
+  apiUrl(route) {
+    return `${this.baseUrl}${route}`
+  }
+
+  authHeaders(extra = {}) {
+    const headers = { ...extra }
+    if (this.apiToken) headers.Authorization = `Bearer ${this.apiToken}`
+    return headers
+  }
+
   async request(route, options = {}) {
     const { timeoutMs = 20_000, allowStart = true, signal: externalSignal, ...requestOptions } = options
     if (allowStart) await this.ensureStarted()
@@ -786,15 +803,14 @@ class BackendService {
     const incomingHeaders = requestOptions.headers || {}
     const requestId = String(incomingHeaders['X-Request-Id'] || incomingHeaders['x-request-id'] || newRequestId())
     try {
-      const headers = {
+      const headers = this.authHeaders({
         ...(requestOptions.body ? { 'Content-Type': 'application/json' } : {}),
         ...incomingHeaders,
         'X-Request-Id': requestId,
-      }
-      if (this.apiToken) headers.Authorization = `Bearer ${this.apiToken}`
+      })
       // Keep-alive to 127.0.0.1: Node/Electron fetch already pools; Connection
       // header reinforces reuse across health/index/bootstrap chatter.
-      const response = await fetch(`${this.baseUrl}${route}`, {
+      const response = await fetch(this.apiUrl(route), {
         ...requestOptions,
         signal: controller.signal,
         headers: { Connection: 'keep-alive', ...headers },

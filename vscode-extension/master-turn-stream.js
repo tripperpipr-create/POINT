@@ -10,7 +10,7 @@ async function followMasterTurn(host, turn) {
     host.post({type:'masterTurn', turn})
     while (true) {
       try {
-        const response = await fetch(`${host.service.baseUrl}/api/v2/master/turns/${encodeURIComponent(turn.id)}/events?after=${after}`, {headers:{Accept:'text/event-stream',Authorization:`Bearer ${host.service.apiToken}`}})
+        const response = await fetch(host.service.apiUrl(`/api/v2/master/turns/${encodeURIComponent(turn.id)}/events?after=${after}`), { headers: host.service.authHeaders({ Accept: 'text/event-stream' }) })
         if (!response.ok) throw new Error(`HTTP ${response.status}`)
         const reader = response.body.getReader(), decoder = new TextDecoder()
         let buffer = ''

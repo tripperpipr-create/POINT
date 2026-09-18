@@ -26,15 +26,14 @@ function createNdjsonReader({ newRequestId, describeCoreFailure }) {
   const incomingHeaders = requestOptions.headers || {}
   const requestId = String(incomingHeaders['X-Request-Id'] || incomingHeaders['x-request-id'] || newRequestId())
   try {
-    const headers = {
+    const headers = service.authHeaders({
       ...(requestOptions.body ? { 'Content-Type': 'application/json' } : {}),
       ...incomingHeaders,
       Accept: 'application/x-ndjson',
       'X-Request-Id': requestId,
-    }
-    if (service.apiToken) headers.Authorization = `Bearer ${service.apiToken}`
+    })
     const sep = route.includes('?') ? '&' : '?'
-    const response = await fetch(`${service.baseUrl}${route}${sep}stream=1`, {
+    const response = await fetch(service.apiUrl(`${route}${sep}stream=1`), {
       ...requestOptions,
       signal: controller.signal,
       headers: { Connection: 'keep-alive', ...headers },

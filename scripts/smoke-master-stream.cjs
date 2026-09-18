@@ -3,9 +3,9 @@ const vm=require('node:vm')
 const assert=require('node:assert/strict')
 const posted=[],requests=[],attempts=new Map()
 const frame=(id,sequence,type,text)=>`id: ${sequence}\nevent: master\ndata: ${JSON.stringify({turnId:id,conversationId:'chat-'+id,sequence,type,text})}\n\n`
-const sandbox={module:{exports:{}},TextDecoder,setTimeout:fn=>setImmediate(fn),fetch:async url=>{
+const sandbox={module:{exports:{}},TextDecoder,setTimeout:fn=>setImmediate(fn),require:name=>{if(name==='./master-work-order-watch')return {watchMasterWorkOrder:async()=>{},isTransientWorkOrder:()=>false};throw new Error('поток хода Мастера подключил неизвестный модуль: '+name)},fetch:async url=>{
  requests.push(url)
- const id=new URL(url).pathname.split('/')[4]
+ const id=new URL(url).pathname.split('/')[5]
  const attempt=(attempts.get(id)||0)+1;attempts.set(id,attempt)
  let read=0
  return {ok:true,body:{getReader:()=>({read:async()=>{
@@ -15,8 +15,8 @@ const sandbox={module:{exports:{}},TextDecoder,setTimeout:fn=>setImmediate(fn),f
  }})}}
 }}
 vm.runInNewContext(fs.readFileSync('vscode-extension/master-turn-stream.js','utf8'),sandbox)
-const host={post:value=>posted.push(value),patchBoot(){},postState(){},service:{baseUrl:'http://localhost:9999',apiToken:'test',request:async url=>{
- if(url.startsWith('/api/master/turns/')){const id=url.split('/').at(-1);return {id,conversationId:'chat-'+id,status:'completed'}}
+const host={post:value=>posted.push(value),patchBoot(){},postState(){},service:{baseUrl:'http://localhost:9999',apiToken:'test',apiUrl(route){return this.baseUrl+route},authHeaders(extra={}){return this.apiToken ? {...extra,Authorization:'Bearer '+this.apiToken} : {...extra}},request:async url=>{
+ if(url.startsWith('/api/v2/master/turns/')||url.startsWith('/api/master/turns/')){const id=url.split('/').at(-1);return {id,conversationId:'chat-'+id,status:'completed'}}
  if(url.startsWith('/api/master/history'))return {sessions:{active:new URL('http://test'+url).searchParams.get('conversationId')}}
  return {}
 }}}

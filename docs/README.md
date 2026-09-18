@@ -65,7 +65,7 @@
 | --- | --- |
 | Версия Point | `internal/app/app.go`, `frontend/package.json`, `vscode-extension/package.json` |
 | Версия Code-OSS и хэши сборки | `distribution/version.json` |
-| HTTP-маршруты | `internal/httpapi/server.go`, `internal/httpapi/db_connections.go` |
+| HTTP-маршруты | `internal/httpapi/server.go` (таблица routes), обработчики — по семействам в том же пакете |
 | Шаги онбординга | `vscode-extension/ui/client/main.js`, `ONBOARDING_STEPS` |
 | Команды и хоткеи | `vscode-extension/package.json` |
 | Цвета и шкалы | `vscode-extension/ui/tokens.css` |
@@ -75,6 +75,14 @@
 
 Не копируйте измеряемые значения в несколько документов без необходимости.
 Если число всё же важно для объяснения, указывайте дату замера и источник.
+
+Документы ссылаются на файлы в `build/` и `.tmp/` — это локальные каталоги
+доказательств: отчёты затворов, снимки стендов, журналы прогонов. В репозиторий
+они не входят и в свежем клоне отсутствуют. Затвор такие ссылки не проверяет
+(`scripts/check-docs.mjs` требует существования только для `internal`, `cmd`,
+`scripts`, `distribution`, `.github`, `vscode-extension`, `frontend`, `docs`),
+поэтому ссылка на исчезнувший отчёт не упадёт — её достоверность на совести
+автора записи.
 
 ## Автоматическая проверка
 

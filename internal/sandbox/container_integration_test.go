@@ -3,6 +3,7 @@ package sandbox_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -38,10 +39,28 @@ func TestDockerSandboxIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("POINT_HOST_SECRET", "must-not-enter-container")
+	// Ожидаемый пользователь берётся у бэкенда, а не пишется числом.
+	//
+	// Числом здесь стояло 10001 — пользователь из образа, — и на Windows это
+	// совпадало: там defaultContainerUser всегда отдаёт 10001. На Linux он
+	// намеренно отдаёт uid хоста, иначе контейнер не смог бы писать в
+	// bind-mount рабочей папки: владелец каталога сохраняется. Проверка с
+	// литералом падала на первой же строке у любого нерутового пользователя —
+	// и падала не на дефекте, а на собственном допущении.
+	//
+	// Гарантия при этом не ослабевает: сверяется ровно то, что бэкенд
+	// запросил, и отдельно — что это не root. Остальные рубежи (пустой CapEff,
+	// no-new-privs, read-only корень) проверяются ниже как прежде.
+	expectedUID, expectedGID, found := strings.Cut(backend.User, ":")
+	if !found || expectedUID == "" || expectedGID == "" {
+		t.Fatalf("бэкенд не назвал пользователя контейнера: %q", backend.User)
+	}
 	command := strings.Join([]string{
 		"set -eu",
-		`test "$(id -u)" = "10001"`,
-		`test "$(id -g)" = "10001"`,
+		fmt.Sprintf(`test "$(id -u)" = %q`, expectedUID),
+		fmt.Sprintf(`test "$(id -g)" = %q`, expectedGID),
+		`test "$(id -u)" != "0"`,
+		`test "$(id -g)" != "0"`,
 		`test "$(hostname)" = "point-sandbox"`,
 		`awk '$2 == "/" { print $4 }' /proc/mounts | tr ',' '\n' | grep -qx ro`,
 		`grep -Eq '^CapEff:[[:space:]]+0+$' /proc/self/status`,

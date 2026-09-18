@@ -1,0 +1,12 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build companion server",
+      "type": "shell",
+      "command": "go build -o vscode-extension/bin/workbench-server.exe ./cmd/server",
+      "group": "build",
+      "problemMatcher": []
+    }
+  ]
+}

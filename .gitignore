@@ -1,0 +1,53 @@
+# Локальные среды разработчика и агентов.
+.idea/
+.claude/
+
+# Кэши сборки и рабочие каталоги: дерево Code-OSS, кэш Go, временные копии.
+.cache/
+.gocache/
+.tmp/
+
+# Каталог доказательств: отчёты гейтов, снимки стендов, собранные установщики.
+# Документы ссылаются на его файлы, но сами файлы воспроизводятся сборкой.
+/build/*
+!/build/.gitkeep
+
+# Зависимости пакетных менеджеров.
+node_modules/
+
+# Артефакты сборки Go: ядро и утилита базы кладутся рядом с расширением.
+# Правила якорные: без ведущего слэша `point-db` съедает и каталог
+# исходников cmd/point-db.
+/point-core
+/point-core.exe
+/point-db
+/point-db.exe
+/vscode-extension/bin/*
+!/vscode-extension/bin/.gitkeep
+
+# Артефакты сборки интерфейса. Источники — vscode-extension/ui, сборка
+# `npm run build` пересоздаёт их целиком (см. ui/build.mjs, ui/build-js.mjs,
+# runtime/build.mjs). Правка прямо в артефакте исчезает при первой сборке.
+/vscode-extension/media/main.js
+/vscode-extension/media/style.css
+/vscode-extension/media/rpg-tokens.css
+/vscode-extension/dist/
+# `go:embed all:frontend/dist` в main.go отказывается собираться на пустом
+# каталоге, поэтому сам каталог живёт в репозитории, а его содержимое — нет.
+/frontend/dist/*
+!/frontend/dist/.gitkeep
+/frontend/package.json.md5
+*.vsix
+
+# Локальные данные и секреты. Пример окружения хранится, сам .env — нет.
+.env
+.env.*
+!.env.example
+/data/
+*.db
+*.db-shm
+*.db-wal
+
+# Мусор рабочего стола и журналы.
+GolandProjects.lnk
+*.log

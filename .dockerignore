@@ -1,0 +1,16 @@
+.git
+.idea
+.cache
+.gocache
+.tmp
+build
+frontend/node_modules
+frontend/dist
+vscode-extension/node_modules
+vscode-extension/bin
+data
+*.db
+*.db-shm
+*.db-wal
+vendor/code-oss
+GolandProjects.lnk

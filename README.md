@@ -162,6 +162,30 @@ Windows/Electron E2E и installer smoke перечислены в
 [IDE-CAPABILITY-MATRIX.md](docs/IDE-CAPABILITY-MATRIX.md). Правила изменения
 проекта — в [CONTRIBUTING.md](CONTRIBUTING.md).
 
+То же самое гоняет CI на каждый push в `main`/`master` и на каждый pull
+request — [`.github/workflows/ci.yml`](.github/workflows/ci.yml), пять
+независимых job:
+
+| Job | Где | Что проверяет |
+| --- | --- | --- |
+| `docs` | ubuntu | Три затвора документации: битые ссылки, паритет `docs/api.md` с маршрутами `internal/httpapi`, единая версия, реестр дефектов |
+| `go` | ubuntu | `go vet`, `go mod verify` (подмена зависимости), `go test ./...` |
+| `sandbox` | ubuntu | Сборка образа песочницы, CycloneDX SBOM, отказ на любом HIGH/CRITICAL от Trivy и живой тест изоляции в настоящем Docker |
+| `frontend` | ubuntu | Сборка диагностического клиента и `npm audit` |
+| `extension` | **windows** | `npm run check` целиком: свежий `point-core`, сборка CSS/JS/runtime, контракты дизайн-системы, ~35 `node --check`, 62 смоука Хаба |
+
+Windows у `extension` не прихоть: расширение поставляется с packaged Cursor
+runtime под win32-x64, а часть смоуков про терминал, SSH и пути на Linux
+бессмысленна. `sandbox` — единственное место, где изоляция проверяется
+настоящим Docker: локально этот тест требует `POINT_SANDBOX_DOCKER_TEST=1` и
+собранного образа и потому обычно не запускается.
+
+Главное, чего локальный прогон дать не может: CI работает на **чистом
+клоне**. Собранный вебвью, `node_modules`, `bin/` и `dist/` в репозиторий не
+входят, а 57 смоуков читают именно собранный `media/main.js` — если в
+репозитории не хватит исходника, это увидит CI, а не рабочая машина с
+готовыми артефактами.
+
 ## Текущее состояние
 
 Проект предназначен для личного использования. Актуальные проверки и оставшиеся возможности описаны в [PROJECT-STATUS.md](docs/PROJECT-STATUS.md), воспроизведение и закрытие ошибок — в [аудите](docs/AUDIT-2026-09-05.md).

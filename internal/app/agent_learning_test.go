@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -47,12 +48,12 @@ func TestVerifiedComplexRunsCreatePatchAndRollbackLearnedSkill(t *testing.T) {
 		t.Fatalf("autonomous learning expanded capabilities: %#v", first.AfterSkill)
 	}
 	for _, tool := range first.AfterSkill.RequiredTools {
-		if !containsString(agent.AllowedTools, tool) {
+		if !slices.Contains(agent.AllowedTools, tool) {
 			t.Fatalf("learned skill requested ungranted tool %q", tool)
 		}
 	}
 	updatedAgent, err := application.store.GetProjectAgent(context.Background(), agent.ID)
-	if err != nil || !containsString(updatedAgent.SkillIDs, first.SkillID) {
+	if err != nil || !slices.Contains(updatedAgent.SkillIDs, first.SkillID) {
 		t.Fatalf("skill not attached to agent: %#v err=%v", updatedAgent.SkillIDs, err)
 	}
 	duplicate, err := application.reviewAgentRun(context.Background(), firstRun, agent.ID, "")
@@ -104,7 +105,7 @@ func TestVerifiedComplexRunsCreatePatchAndRollbackLearnedSkill(t *testing.T) {
 		t.Fatalf("create rollback=%#v err=%v", rolledFirst, err)
 	}
 	updatedAgent, _ = application.store.GetProjectAgent(context.Background(), agent.ID)
-	if containsString(updatedAgent.SkillIDs, first.SkillID) {
+	if slices.Contains(updatedAgent.SkillIDs, first.SkillID) {
 		t.Fatalf("created skill remained attached after rollback: %#v", updatedAgent.SkillIDs)
 	}
 }
@@ -148,7 +149,7 @@ func TestUsefulTemporarySubagentWaitsForUserBeforeParentBlueprintPromotion(t *te
 		t.Fatalf("useful subagent did not become a reviewed candidate: %#v", improvement)
 	}
 	storedBlueprint, _ := application.store.GetBlueprint(context.Background(), blueprint.ID)
-	if containsString(storedBlueprint.SkillIDs, improvement.SkillID) {
+	if slices.Contains(storedBlueprint.SkillIDs, improvement.SkillID) {
 		t.Fatal("temporary subagent mutated the parent Blueprint before user decision")
 	}
 	promoted, err := application.PromoteAgentImprovement(improvement.ID)
@@ -157,7 +158,7 @@ func TestUsefulTemporarySubagentWaitsForUserBeforeParentBlueprintPromotion(t *te
 	}
 	storedBlueprint, _ = application.store.GetBlueprint(context.Background(), blueprint.ID)
 	parent, _ = application.store.GetProjectAgent(context.Background(), parent.ID)
-	if !containsString(storedBlueprint.SkillIDs, improvement.SkillID) || !containsString(parent.SkillIDs, improvement.SkillID) {
+	if !slices.Contains(storedBlueprint.SkillIDs, improvement.SkillID) || !slices.Contains(parent.SkillIDs, improvement.SkillID) {
 		t.Fatalf("kept specialization did not fan out to parent: blueprint=%#v parent=%#v", storedBlueprint.SkillIDs, parent.SkillIDs)
 	}
 }
@@ -195,7 +196,7 @@ func TestLearnedSkillPromotesAcrossBlueprintProjectsAndRollsBackExactly(t *testi
 		t.Fatalf("first project should create a candidate: %#v", first)
 	}
 	storedBlueprint, _ := application.store.GetBlueprint(context.Background(), blueprint.ID)
-	if containsString(storedBlueprint.SkillIDs, first.SkillID) {
+	if slices.Contains(storedBlueprint.SkillIDs, first.SkillID) {
 		t.Fatalf("one project promoted a skill prematurely: %#v", storedBlueprint.SkillIDs)
 	}
 
@@ -242,17 +243,17 @@ func TestLearnedSkillPromotesAcrossBlueprintProjectsAndRollsBackExactly(t *testi
 		t.Fatalf("explicit promotion after canary gate=%#v err=%v", second, err)
 	}
 	storedBlueprint, _ = application.store.GetBlueprint(context.Background(), blueprint.ID)
-	if !containsString(storedBlueprint.SkillIDs, first.SkillID) {
+	if !slices.Contains(storedBlueprint.SkillIDs, first.SkillID) {
 		t.Fatalf("promoted skill is absent from blueprint: %#v", storedBlueprint.SkillIDs)
 	}
 	for _, agentID := range []string{firstAgent.ID, secondAgent.ID} {
 		storedAgent, getErr := application.store.GetProjectAgent(context.Background(), agentID)
-		if getErr != nil || !containsString(storedAgent.SkillIDs, first.SkillID) {
+		if getErr != nil || !slices.Contains(storedAgent.SkillIDs, first.SkillID) {
 			t.Fatalf("promoted skill missing from compatible agent %s: %#v err=%v", agentID, storedAgent.SkillIDs, getErr)
 		}
 	}
 	for _, required := range second.AfterSkill.RequiredTools {
-		if !containsString(storedBlueprint.AllowedTools, required) {
+		if !slices.Contains(storedBlueprint.AllowedTools, required) {
 			t.Fatalf("promotion escaped blueprint allowlist with %q", required)
 		}
 	}
@@ -265,7 +266,7 @@ func TestLearnedSkillPromotesAcrossBlueprintProjectsAndRollsBackExactly(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !containsString(thirdAgent.SkillIDs, first.SkillID) {
+	if !slices.Contains(thirdAgent.SkillIDs, first.SkillID) {
 		t.Fatal("a new project did not inherit the universal skill")
 	}
 	if _, err = application.OpenWorkspace(firstPath); err != nil {
@@ -276,13 +277,13 @@ func TestLearnedSkillPromotesAcrossBlueprintProjectsAndRollsBackExactly(t *testi
 		t.Fatalf("promotion rollback=%#v err=%v", rolled, err)
 	}
 	storedBlueprint, _ = application.store.GetBlueprint(context.Background(), blueprint.ID)
-	if containsString(storedBlueprint.SkillIDs, first.SkillID) {
+	if slices.Contains(storedBlueprint.SkillIDs, first.SkillID) {
 		t.Fatalf("rollback left skill on blueprint: %#v", storedBlueprint.SkillIDs)
 	}
 	firstAgent, _ = application.store.GetProjectAgent(context.Background(), firstAgent.ID)
 	secondAgent, _ = application.store.GetProjectAgent(context.Background(), secondAgent.ID)
 	thirdAgent, _ = application.store.GetProjectAgent(context.Background(), thirdAgent.ID)
-	if containsString(firstAgent.SkillIDs, first.SkillID) || containsString(secondAgent.SkillIDs, first.SkillID) || containsString(thirdAgent.SkillIDs, first.SkillID) {
+	if slices.Contains(firstAgent.SkillIDs, first.SkillID) || slices.Contains(secondAgent.SkillIDs, first.SkillID) || slices.Contains(thirdAgent.SkillIDs, first.SkillID) {
 		t.Fatalf("rollback bindings first=%#v second=%#v third=%#v", firstAgent.SkillIDs, secondAgent.SkillIDs, thirdAgent.SkillIDs)
 	}
 	skills, _ := application.store.ListSkills(context.Background())
@@ -380,7 +381,7 @@ func TestPortableMemoryRequiresTwoBlueprintProjectsAndRollbackRemovesItFromRunti
 		t.Fatalf("portable memory=%#v err=%v", portable, err)
 	}
 	storedBlueprintAfterLearning, err := application.store.GetBlueprint(context.Background(), blueprint.ID)
-	if err != nil || !containsString(storedBlueprintAfterLearning.Rules, second.Instruction) {
+	if err != nil || !slices.Contains(storedBlueprintAfterLearning.Rules, second.Instruction) {
 		t.Fatalf("promoted instruction is absent from Blueprint: %#v err=%v", storedBlueprintAfterLearning.Rules, err)
 	}
 
@@ -410,7 +411,7 @@ func TestPortableMemoryRequiresTwoBlueprintProjectsAndRollbackRemovesItFromRunti
 		t.Fatalf("rollback left portable memory stored: %v", err)
 	}
 	storedBlueprintAfterRollback, err := application.store.GetBlueprint(context.Background(), blueprint.ID)
-	if err != nil || containsString(storedBlueprintAfterRollback.Rules, second.Instruction) {
+	if err != nil || slices.Contains(storedBlueprintAfterRollback.Rules, second.Instruction) {
 		t.Fatalf("rollback left instruction on Blueprint: %#v err=%v", storedBlueprintAfterRollback.Rules, err)
 	}
 	if _, err = application.OpenWorkspace(thirdPath); err != nil {

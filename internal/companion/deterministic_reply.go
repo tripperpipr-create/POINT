@@ -534,10 +534,10 @@ func groundQuestProposalInIDE(proposal *domain.QuestProposal, observations []dom
 			objectives = append(objectives, "Разобрать и исправить "+label)
 		}
 	}
-	if focus.Failure != "" && !containsFold(objectives, focus.Failure) {
+	if focus.Failure != "" && !textutil.ContainsFold(objectives, focus.Failure) {
 		objectives = append(objectives, "Разобрать сбой: "+focus.Failure)
 	}
-	if focus.Run != "" && focus.Failure == "" && !containsFold(objectives, focus.Run) {
+	if focus.Run != "" && focus.Failure == "" && !textutil.ContainsFold(objectives, focus.Run) {
 		objectives = append(objectives, "Проверить цель запуска: "+focus.Run)
 	}
 	if len(objectives) == 0 {
@@ -548,13 +548,13 @@ func groundQuestProposalInIDE(proposal *domain.QuestProposal, observations []dom
 		proposal.Title = trim("Исправить "+label, 80)
 	}
 	proposal.Rationale = fmt.Sprintf("Квест основан на текущих сигналах IDE: ошибок редактора %d, последних неуспешных команд %d.", diagnosticErrors, failedCommands)
-	if diagnosticErrors > 0 && !containsFold(proposal.DefinitionOfDone, "Problems") {
+	if diagnosticErrors > 0 && !textutil.ContainsFold(proposal.DefinitionOfDone, "Problems") {
 		proposal.DefinitionOfDone = append(proposal.DefinitionOfDone, "Problems не содержит ошибок по затронутым файлам")
 	}
-	if failedCommands > 0 && !containsFold(proposal.DefinitionOfDone, "кодом 0") {
+	if failedCommands > 0 && !textutil.ContainsFold(proposal.DefinitionOfDone, "кодом 0") {
 		proposal.DefinitionOfDone = append(proposal.DefinitionOfDone, "Неуспешная команда повторно выполняется с кодом 0")
 	}
-	if focus.Run != "" && !containsFold(proposal.DefinitionOfDone, focus.Run) {
+	if focus.Run != "" && !textutil.ContainsFold(proposal.DefinitionOfDone, focus.Run) {
 		proposal.DefinitionOfDone = append(proposal.DefinitionOfDone, "Цель запуска проходит: "+focus.Run)
 	}
 	if proposal.Importance == domain.QuestNormal {
@@ -721,16 +721,6 @@ func selectExistingFlow(flows []domain.FlowGraph, goal string) string {
 		}
 	}
 	return bestID
-}
-
-func containsFold(values []string, needle string) bool {
-	needle = strings.ToLower(needle)
-	for _, value := range values {
-		if strings.Contains(strings.ToLower(value), needle) {
-			return true
-		}
-	}
-	return false
 }
 
 func trim(value string, max int) string {

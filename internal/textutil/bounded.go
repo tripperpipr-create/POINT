@@ -1,6 +1,9 @@
 package textutil
 
-import "unicode/utf8"
+import (
+	"strings"
+	"unicode/utf8"
+)
 
 // Обрезка текста жила в семи копиях, и две из них резали по байтам.
 //
@@ -46,4 +49,20 @@ func BoundedBytes(value string, limit int) string {
 		cut--
 	}
 	return value[:cut]
+}
+
+// FirstNonEmpty возвращает первое значение, в котором есть что-то кроме
+// пробелов, — и возвращает его как есть, не обрезая: вызывающий мог захотеть
+// сохранить исходное форматирование вывода команды.
+//
+// Выбор «показать хоть что-то осмысленное» был написан пятью копиями в пяти
+// пакетах, одна из них — с суффиксом V2 только потому, что имя в пакете уже
+// заняли.
+func FirstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
 }

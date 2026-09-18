@@ -74,3 +74,32 @@ func Overlap(left, right []string) int {
 // IsStopWord сообщает, служебное ли слово. Нужен там, где текст уже разобран на
 // слова чужим кодом и фильтр приходится применять отдельно.
 func IsStopWord(word string) bool { return stopTokens[strings.ToLower(word)] }
+
+// Поиск без учёта регистра жил в двух разных смыслах под похожими именами:
+// containsFolded/containsFold искали подстроку, а ещё один containsFold —
+// точное равенство с обрезкой пробелов. Два разных вопроса нельзя задавать
+// одним словом: «есть ли где-то такой кусок» и «есть ли ровно такой элемент».
+
+// ContainsFold отвечает, встречается ли needle подстрокой хотя бы в одном из
+// значений, без учёта регистра.
+func ContainsFold(values []string, needle string) bool {
+	needle = strings.ToLower(needle)
+	for _, value := range values {
+		if strings.Contains(strings.ToLower(value), needle) {
+			return true
+		}
+	}
+	return false
+}
+
+// EqualsAnyFold отвечает, равно ли target какому-нибудь значению без учёта
+// регистра и обрамляющих пробелов.
+func EqualsAnyFold(values []string, target string) bool {
+	target = strings.TrimSpace(target)
+	for _, value := range values {
+		if strings.EqualFold(strings.TrimSpace(value), target) {
+			return true
+		}
+	}
+	return false
+}

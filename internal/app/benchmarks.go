@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -52,7 +53,7 @@ func (a *App) SaveAgentBenchmarkSet(set domain.AgentBenchmarkSet) (domain.AgentB
 	}
 	set.ProjectAgentID = agent.ID
 	set.SkillID = strings.TrimSpace(set.SkillID)
-	if set.SkillID != "" && !containsString(agent.SkillIDs, set.SkillID) {
+	if set.SkillID != "" && !slices.Contains(agent.SkillIDs, set.SkillID) {
 		return domain.AgentBenchmarkSet{}, errors.New("benchmark Skill is not equipped by the selected project agent")
 	}
 	if len(set.Cases) == 0 || len(set.Cases) > 50 {

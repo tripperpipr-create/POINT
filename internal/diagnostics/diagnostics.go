@@ -2,6 +2,7 @@ package diagnostics
 
 import (
 	"encoding/json"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -510,7 +511,7 @@ func isVerificationOperation(run domain.Run, operation *toolOperation) bool {
 	if operation.name == "run_command" {
 		return verification.IsCommand(commandFromArguments(operation.arguments))
 	}
-	if !containsString(run.ConfigurationSnapshot.Profile.AllowedTools, operation.name) {
+	if !slices.Contains(run.ConfigurationSnapshot.Profile.AllowedTools, operation.name) {
 		return false
 	}
 	for _, tool := range run.ConfigurationSnapshot.CustomTools {
@@ -529,15 +530,6 @@ func commandFromArguments(arguments json.RawMessage) string {
 		return ""
 	}
 	return input.Command
-}
-
-func containsString(items []string, target string) bool {
-	for _, item := range items {
-		if item == target {
-			return true
-		}
-	}
-	return false
 }
 
 func signals(run domain.Run, diagnostics RunDiagnostics) []Signal {

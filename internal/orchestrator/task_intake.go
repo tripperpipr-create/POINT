@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"local-agent-workbench/internal/domain"
+	"local-agent-workbench/internal/modeljson"
 	"local-agent-workbench/internal/providers"
 	"local-agent-workbench/internal/textutil"
 )
@@ -738,16 +739,16 @@ const maxIntakeRepairs = 2
 // новый круг переписки — и шесть кругов подряд кончались фразой «Модель
 // Мастера не смогла сформировать задание» при живом, разборчивом ответе.
 func decodeTaskIntakeEnvelope(raw string) (taskIntakeEnvelope, bool) {
-	text := strings.TrimSpace(raw)
-	if i := strings.LastIndex(text, "</think>"); i >= 0 {
-		text = strings.TrimSpace(text[i+len("</think>"):])
+	text, fenceErr := modeljson.Payload(raw)
+	if fenceErr != nil {
+		return taskIntakeEnvelope{}, false
 	}
-	start, end := strings.Index(text, "{"), strings.LastIndex(text, "}")
-	if start < 0 || end <= start {
+	narrowed, ok := modeljson.Braces(text)
+	if !ok {
 		return taskIntakeEnvelope{}, false
 	}
 	var envelope taskIntakeEnvelope
-	if json.Unmarshal([]byte(text[start:end+1]), &envelope) != nil {
+	if json.Unmarshal([]byte(narrowed), &envelope) != nil {
 		return taskIntakeEnvelope{}, false
 	}
 	if strings.TrimSpace(envelope.Reply) == "" {

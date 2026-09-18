@@ -23,3 +23,33 @@ func TestPluralCoversRussianBoundaries(t *testing.T) {
 		t.Fatalf("Count(5) = %q", got)
 	}
 }
+
+// Два вопроса, которые раньше задавались одним словом containsFold.
+func TestContainsFoldFindsSubstring(t *testing.T) {
+	values := []string{"Сборка Проекта", "deploy"}
+	if !ContainsFold(values, "проект") {
+		t.Fatal("подстрока без учёта регистра обязана находиться")
+	}
+	if ContainsFold(values, "тест") {
+		t.Fatal("чужая подстрока не находится")
+	}
+}
+
+func TestEqualsAnyFoldNeedsWholeValue(t *testing.T) {
+	values := []string{"  Сборка Проекта ", "deploy"}
+	if !EqualsAnyFold(values, "сборка проекта") {
+		t.Fatal("равенство без регистра и лишних пробелов")
+	}
+	if EqualsAnyFold(values, "проект") {
+		t.Fatal("часть значения — не равенство")
+	}
+}
+
+func TestFirstNonEmptyKeepsValueAsIs(t *testing.T) {
+	if got := FirstNonEmpty("", "   ", "ошибка сборки\n", "запасной"); got != "ошибка сборки\n" {
+		t.Fatalf("значение возвращается как есть: %q", got)
+	}
+	if got := FirstNonEmpty("", "  "); got != "" {
+		t.Fatalf("нет ни одного непустого: %q", got)
+	}
+}

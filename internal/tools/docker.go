@@ -4,14 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"local-agent-workbench/internal/textutil"
 	"os"
 	"os/exec"
 	"regexp"
 	"strings"
 	"time"
 
-	"local-agent-workbench/internal/osproc"
 	"local-agent-workbench/internal/domain"
+	"local-agent-workbench/internal/osproc"
 	"local-agent-workbench/internal/security"
 )
 
@@ -248,7 +249,7 @@ func (t DockerInspect) status(ctx context.Context) domain.ToolResult {
 		"serverVersion": strings.TrimSpace(info.Stdout),
 	}
 	if !daemonOK {
-		payload["error"] = firstNonEmpty(strings.TrimSpace(info.Stderr), "Docker CLI найден, но демон недоступен")
+		payload["error"] = textutil.FirstNonEmpty(strings.TrimSpace(info.Stderr), "Docker CLI найден, но демон недоступен")
 		payload["hint"] = "Запустите Docker Desktop или службу Docker Engine."
 	}
 	return OK(payload)
@@ -265,7 +266,7 @@ func (t DockerInspect) ps(ctx context.Context, all bool) domain.ToolResult {
 		return FailWithHint("docker_failed", err.Error(), "проверьте, что Docker CLI установлен и демон запущен")
 	}
 	if result.ExitCode != 0 {
-		return FailWithHint("docker_failed", firstNonEmpty(result.Stderr, result.Stdout, fmt.Sprintf("exit %d", result.ExitCode)), "запустите Docker Desktop и повторите")
+		return FailWithHint("docker_failed", textutil.FirstNonEmpty(result.Stderr, result.Stdout, fmt.Sprintf("exit %d", result.ExitCode)), "запустите Docker Desktop и повторите")
 	}
 	containers := parseDockerJSONLines(result.Stdout)
 	return OK(map[string]any{"containers": containers, "count": len(containers), "all": all, "durationMs": result.Duration})
@@ -277,7 +278,7 @@ func (t DockerInspect) images(ctx context.Context) domain.ToolResult {
 		return FailWithHint("docker_failed", err.Error(), "проверьте Docker CLI и демон")
 	}
 	if result.ExitCode != 0 {
-		return FailWithHint("docker_failed", firstNonEmpty(result.Stderr, result.Stdout, fmt.Sprintf("exit %d", result.ExitCode)), "запустите Docker Desktop и повторите")
+		return FailWithHint("docker_failed", textutil.FirstNonEmpty(result.Stderr, result.Stdout, fmt.Sprintf("exit %d", result.ExitCode)), "запустите Docker Desktop и повторите")
 	}
 	images := parseDockerJSONLines(result.Stdout)
 	return OK(map[string]any{"images": images, "count": len(images), "durationMs": result.Duration})
@@ -289,7 +290,7 @@ func (t DockerInspect) logs(ctx context.Context, container string, tail int) dom
 		return FailWithHint("docker_failed", err.Error(), "укажите существующий контейнер через docker_inspect action=ps")
 	}
 	if result.ExitCode != 0 {
-		return FailWithHint("docker_failed", firstNonEmpty(result.Stderr, result.Stdout, fmt.Sprintf("exit %d", result.ExitCode)), "проверьте имя/ID контейнера")
+		return FailWithHint("docker_failed", textutil.FirstNonEmpty(result.Stderr, result.Stdout, fmt.Sprintf("exit %d", result.ExitCode)), "проверьте имя/ID контейнера")
 	}
 	combined := result.Stdout
 	if result.Stderr != "" {
@@ -381,7 +382,7 @@ func (t DockerControl) Execute(ctx context.Context, raw json.RawMessage) domain.
 		return FailWithHint("docker_failed", err.Error(), "проверьте Docker CLI/демон и имя контейнера")
 	}
 	if result.ExitCode != 0 {
-		return FailWithHint("docker_failed", firstNonEmpty(result.Stderr, result.Stdout, fmt.Sprintf("exit %d", result.ExitCode)), "убедитесь, что контейнер существует и демон запущен")
+		return FailWithHint("docker_failed", textutil.FirstNonEmpty(result.Stderr, result.Stdout, fmt.Sprintf("exit %d", result.ExitCode)), "убедитесь, что контейнер существует и демон запущен")
 	}
 	return OK(map[string]any{
 		"action": action, "container": container, "stdout": result.Stdout, "stderr": result.Stderr,
@@ -405,13 +406,4 @@ func parseDockerJSONLines(raw string) []map[string]any {
 		out = append(out, item)
 	}
 	return out
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return strings.TrimSpace(value)
-		}
-	}
-	return ""
 }

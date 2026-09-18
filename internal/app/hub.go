@@ -7,9 +7,11 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net/url"
 	"os"
 	"reflect"
+	"slices"
 	"strings"
 	"time"
 
@@ -582,7 +584,7 @@ func (a *App) rejectNewDeprecatedSkills(ctx context.Context, requested, alreadyA
 		}
 	}
 	for _, id := range requested {
-		if name, blocked := deprecated[id]; blocked && !containsString(alreadyAssigned, id) {
+		if name, blocked := deprecated[id]; blocked && !slices.Contains(alreadyAssigned, id) {
 			return fmt.Errorf("skill %q is deprecated and cannot be newly assigned", name)
 		}
 	}
@@ -1689,7 +1691,7 @@ func (a *App) ensureNoChangeSetDependents(set domain.ChangeSet, action string) e
 		if candidate.ID == set.ID || candidate.Status == domain.ChangeSetRejected || candidate.Status == domain.ChangeSetReverted {
 			continue
 		}
-		if containsString(candidate.DependsOn, set.ID) {
+		if slices.Contains(candidate.DependsOn, set.ID) {
 			return fmt.Errorf("cannot %s change set %s while dependent change set %s is %s", action, set.ID, candidate.ID, candidate.Status)
 		}
 	}
@@ -1705,8 +1707,8 @@ func (a *App) ensureNoChangeSetDependents(set domain.ChangeSet, action string) e
 		if getErr != nil {
 			continue
 		}
-		dependsOnExecution := record.ParentExecutionID == set.ExecutionID || containsString(record.ParentExecutionIDs, set.ExecutionID)
-		dependsOnChangeSet := containsString(record.BaselineChangeSetIDs, set.ID)
+		dependsOnExecution := record.ParentExecutionID == set.ExecutionID || slices.Contains(record.ParentExecutionIDs, set.ExecutionID)
+		dependsOnChangeSet := slices.Contains(record.BaselineChangeSetIDs, set.ID)
 		if dependsOnExecution || dependsOnChangeSet {
 			return fmt.Errorf("cannot %s change set %s while dependent execution %s is %s", action, set.ID, execution.ID, execution.Status)
 		}
@@ -1723,13 +1725,11 @@ func (a *App) requireWorkspace() (domain.Workspace, error) {
 	return *a.currentWorkspace, nil
 }
 
+// Пустая карта возвращается как nil: вызывающие отличают «нет данных» от
+// «есть пустая карта», и maps.Clone сам по себе этого различия не делает.
 func cloneMap(values map[string]string) map[string]string {
 	if len(values) == 0 {
 		return nil
 	}
-	out := make(map[string]string, len(values))
-	for key, value := range values {
-		out[key] = value
-	}
-	return out
+	return maps.Clone(values)
 }

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"local-agent-workbench/internal/textutil"
 	"net"
 	"net/url"
 	"strings"
@@ -209,7 +210,7 @@ func masterCompletionProfileV2(order domain.WorkOrder) domain.CompletionProfile 
 			add("health", "curl -fsS "+url)
 		}
 	}
-	return domain.CompletionProfile{ID: "mvp-" + firstNonEmptyV2(category, "general"), Version: "1", Checks: checks}
+	return domain.CompletionProfile{ID: "mvp-" + textutil.FirstNonEmpty(category, "general"), Version: "1", Checks: checks}
 }
 
 func environmentCommandTextV2(item domain.EnvironmentCommand) string {
@@ -225,15 +226,6 @@ func environmentCommandTextV2(item domain.EnvironmentCommand) string {
 		parts = append(parts, part)
 	}
 	return strings.Join(parts, " ")
-}
-
-func firstNonEmptyV2(values ...string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return value
-		}
-	}
-	return ""
 }
 
 // masterRosterV2 отдаёт состав исполнителей наблюдателю ростера. Раньше здесь

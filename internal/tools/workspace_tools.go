@@ -14,10 +14,10 @@ import (
 	"strings"
 	"time"
 
-	"local-agent-workbench/internal/osproc"
 	"local-agent-workbench/internal/domain"
 	"local-agent-workbench/internal/egress"
 	"local-agent-workbench/internal/observability"
+	"local-agent-workbench/internal/osproc"
 	"local-agent-workbench/internal/sandbox"
 	"local-agent-workbench/internal/security"
 	"local-agent-workbench/internal/workspace"

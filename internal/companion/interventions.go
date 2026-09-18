@@ -91,7 +91,7 @@ func BuildInterventions(cfg domain.CompanionConfig, agents []domain.ProjectAgent
 			if len(set.Items) >= fileWarningThreshold*2 {
 				level = "critical"
 			}
-			add("changeset-size-"+set.ID, level, "Объём изменений выше ожидаемого", fmt.Sprintf("В наборе «%s» изменяется %d файлов; проверьте границы квеста.", set.Title, len(set.Items)), "changesets", set.ID)
+			add("changeset-size-"+set.ID, level, "Объём изменений выше ожидаемого", fmt.Sprintf("В наборе «%s» изменяется %s; проверьте границы квеста.", set.Title, textutil.Count(len(set.Items), "файл", "файла", "файлов")), "changesets", set.ID)
 		}
 	}
 	running, waiting, failed := 0, 0, 0
@@ -111,10 +111,10 @@ func BuildInterventions(cfg domain.CompanionConfig, agents []domain.ProjectAgent
 		add("executions-waiting", "suggestion", "Есть запросы на подтверждение", textutil.Count(waiting, "исполнение ждёт", "исполнения ждут", "исполнений ждут")+" вашего решения.", "quests", "")
 	}
 	if failed >= 3 {
-		add("executions-failing", "warning", "Повторяющиеся сбои исполнений", fmt.Sprintf("Среди последних запусков обнаружено %d сбоев; стоит проверить модель, контекст и ограничения.", failed), "quests", "")
+		add("executions-failing", "warning", "Повторяющиеся сбои исполнений", fmt.Sprintf("Среди последних запусков обнаружено %s; стоит проверить модель, контекст и ограничения.", textutil.Count(failed, "сбой", "сбоя", "сбоев")), "quests", "")
 	}
 	if running >= 6 {
-		add("executions-concurrency", "warning", "Высокая параллельность", fmt.Sprintf("Одновременно активно %d исполнений; проверьте конфликты файлов и бюджет.", running), "quests", "")
+		add("executions-concurrency", "warning", "Высокая параллельность", fmt.Sprintf("Одновременно активно %s; проверьте конфликты файлов и бюджет.", textutil.Count(running, "исполнение", "исполнения", "исполнений")), "quests", "")
 	}
 	// Usage records arrive newest first. A bounded rolling window prevents an
 	// old provider outage from poisoning the warning forever. The newest three
@@ -268,7 +268,7 @@ func BuildExecutionInterventions(cfg domain.CompanionConfig, executions []domain
 			}
 			result = append(result, domain.CompanionIntervention{
 				ID: "run-files-" + run.ID, Level: level, Title: "Исполнение вышло за ориентир по файлам",
-				Detail: fmt.Sprintf("Агент изменил %d файлов при ориентире Companion %d; проверьте границы квеста до Apply.", len(run.ChangedFiles), fileThreshold), ActionTab: "quests", RelatedID: execution.ID,
+				Detail: fmt.Sprintf("Агент изменил %s при ориентире Companion %d; проверьте границы квеста до Apply.", textutil.Count(len(run.ChangedFiles), "файл", "файла", "файлов"), fileThreshold), ActionTab: "quests", RelatedID: execution.ID,
 				ActionKind: domain.CompanionInterventionOpenRun, ActionLabel: "Открыть execution",
 			})
 		}

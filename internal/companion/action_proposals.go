@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"local-agent-workbench/internal/domain"
+	"local-agent-workbench/internal/textutil"
 )
 
 // Три предложения, которые компаньон готовит на подтверждение: Skill, агент и
@@ -107,6 +108,6 @@ func (s Service) proposeTeamAction(ctx context.Context, cfg domain.CompanionConf
 		return ChatResponse{}, err
 	}
 	response.ActionProposal = &proposal
-	response.Reply = fmt.Sprintf("Подготовил отряд «%s» из %d агентов. Проверьте состав и подтвердите создание.", team.Name, len(team.AgentIDs))
+	response.Reply = fmt.Sprintf("Подготовил отряд «%s» из %s. Проверьте состав и подтвердите создание.", team.Name, textutil.Count(len(team.AgentIDs), "агента", "агентов", "агентов"))
 	return response, nil
 }

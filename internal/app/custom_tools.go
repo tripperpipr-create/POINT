@@ -10,6 +10,7 @@ import (
 	"io"
 	"log/slog"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -466,7 +467,7 @@ func (a *App) DeleteCustomTool(id string) error {
 		return err
 	}
 	for _, agent := range agents {
-		if containsString(agent.AllowedTools, id) {
+		if slices.Contains(agent.AllowedTools, id) {
 			return fmt.Errorf("custom tool is enabled for agent %q; disable it there first", agent.Name)
 		}
 	}
@@ -475,7 +476,7 @@ func (a *App) DeleteCustomTool(id string) error {
 		return err
 	}
 	for _, blueprint := range blueprints {
-		if containsString(blueprint.AllowedTools, id) {
+		if slices.Contains(blueprint.AllowedTools, id) {
 			return fmt.Errorf("custom tool is enabled for blueprint %q; disable it there first", blueprint.Name)
 		}
 	}
@@ -484,7 +485,7 @@ func (a *App) DeleteCustomTool(id string) error {
 		return err
 	}
 	for _, profile := range profiles {
-		if containsString(profile.AllowedTools, id) {
+		if slices.Contains(profile.AllowedTools, id) {
 			return fmt.Errorf("custom tool is enabled for profile %q; disable it there first", profile.Name)
 		}
 	}

@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -49,7 +50,7 @@ func NewRunConfigurationSnapshot(applicationVersion string, profile AgentProfile
 	}
 	selectedTools := make([]CustomTool, 0, len(customTools))
 	for _, tool := range customTools {
-		if containsString(profile.AllowedTools, tool.ID) {
+		if slices.Contains(profile.AllowedTools, tool.ID) {
 			selectedTools = append(selectedTools, tool)
 		}
 	}
@@ -197,13 +198,4 @@ func skillRevisionNumber(value any) int {
 	default:
 		return 0
 	}
-}
-
-func containsString(items []string, value string) bool {
-	for _, item := range items {
-		if item == value {
-			return true
-		}
-	}
-	return false
 }

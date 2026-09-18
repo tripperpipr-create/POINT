@@ -3,6 +3,7 @@ package agent
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 
 	"local-agent-workbench/internal/providers"
@@ -47,21 +48,21 @@ func remapToolName(name string, allowed []string) (string, string) {
 	if trimmed == "" {
 		return name, ""
 	}
-	if contains(allowed, trimmed) {
+	if slices.Contains(allowed, trimmed) {
 		return trimmed, ""
 	}
 	key := strings.ToLower(strings.ReplaceAll(trimmed, "-", "_"))
-	if contains(allowed, key) {
+	if slices.Contains(allowed, key) {
 		return key, ""
 	}
 	mapped, ok := toolNameAliases[key]
 	if !ok {
 		return trimmed, ""
 	}
-	if mapped == "search_code" && !contains(allowed, "search_code") && contains(allowed, "search_text") {
+	if mapped == "search_code" && !slices.Contains(allowed, "search_code") && slices.Contains(allowed, "search_text") {
 		mapped = "search_text"
 	}
-	if contains(allowed, mapped) {
+	if slices.Contains(allowed, mapped) {
 		return mapped, ""
 	}
 	return trimmed, fmt.Sprintf("Tool %q is not available. Use %s instead. Allowed: %s.", trimmed, mapped, strings.Join(allowed, ", "))

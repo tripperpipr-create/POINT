@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"local-agent-workbench/internal/textutil"
 	"strings"
 	"time"
 
@@ -68,7 +69,7 @@ func (a *App) ReviseActiveQuestBrief(ctx context.Context, questID string, brief 
 		return domain.Quest{}, err
 	}
 	quest.Brief = &approved
-	quest.Title = firstNonEmpty(strings.TrimSpace(quest.Title), approved.Goal)
+	quest.Title = textutil.FirstNonEmpty(strings.TrimSpace(quest.Title), approved.Goal)
 	quest.Description = approved.Goal
 	quest.Objectives = append([]string(nil), approved.Scope...)
 	quest.Constraints = append([]string(nil), approved.OutOfScope...)
@@ -110,13 +111,4 @@ func (a *App) requireQuestRunsPaused(ctx context.Context, questID string) error 
 		}
 	}
 	return nil
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return value
-		}
-	}
-	return ""
 }

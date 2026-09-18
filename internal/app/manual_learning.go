@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"local-agent-workbench/internal/textutil"
 	"sort"
 	"strings"
 	"time"
@@ -118,11 +119,11 @@ func (a *App) PreviewManualLearning(request ManualLearningRequest) (ManualLearni
 	} else if request.Scope == "profile" {
 		preview.Summary = "Добавить постоянное правило в основной профиль " + blueprint.Name
 		preview.Changes = []string{"Rule будет добавлено в Blueprint и в существующие экземпляры этого специалиста."}
-		preview.NoChange = containsFold(blueprint.Rules, request.Content)
+		preview.NoChange = textutil.EqualsAnyFold(blueprint.Rules, request.Content)
 	} else {
 		preview.Summary = "Добавить локальное правило агенту " + agent.Name
 		preview.Changes = []string{"Rule будет действовать только у этого проектного агента."}
-		preview.NoChange = containsFold(agent.Rules, request.Content)
+		preview.NoChange = textutil.EqualsAnyFold(agent.Rules, request.Content)
 	}
 	if preview.NoChange && request.Kind == "instruction" {
 		preview.Changes = []string{"Такое Rule уже существует; повторная запись не нужна."}
@@ -349,17 +350,8 @@ func manualLearningSignature(ownerID, content string) string {
 	return "manual-" + hex.EncodeToString(digest[:16])
 }
 
-func containsFold(values []string, target string) bool {
-	for _, value := range values {
-		if strings.EqualFold(strings.TrimSpace(value), strings.TrimSpace(target)) {
-			return true
-		}
-	}
-	return false
-}
-
 func appendUniqueFold(values []string, value string) []string {
-	if containsFold(values, value) {
+	if textutil.EqualsAnyFold(values, value) {
 		return append([]string(nil), values...)
 	}
 	return append(append([]string(nil), values...), value)

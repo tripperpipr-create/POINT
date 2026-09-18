@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"local-agent-workbench/internal/osproc"
 	"local-agent-workbench/internal/domain"
+	"local-agent-workbench/internal/osproc"
 )
 
 func (a *App) EvidenceBundle(ctx context.Context, questID string) (domain.EvidenceBundle, error) {

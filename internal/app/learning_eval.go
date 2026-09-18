@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -55,7 +56,7 @@ func evaluateLearningCandidate(review learningReview, previous *domain.SkillDefi
 	}
 	allowed := true
 	for _, tool := range trajectory.Tools {
-		if tool == "read_skill" || !containsString(agent.AllowedTools, tool) {
+		if tool == "read_skill" || !slices.Contains(agent.AllowedTools, tool) {
 			allowed = false
 			break
 		}

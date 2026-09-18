@@ -8,6 +8,7 @@ import (
 
 	"local-agent-workbench/internal/domain"
 	"local-agent-workbench/internal/flowruntime"
+	"local-agent-workbench/internal/textutil"
 )
 
 func (s Service) deterministicChat(ctx context.Context, cfg domain.CompanionConfig, message string, projectContext gatheredContext, history []domain.CompanionMessage) (ChatResponse, error) {
@@ -61,7 +62,7 @@ func (s Service) deterministicChat(ctx context.Context, cfg domain.CompanionConf
 		}
 	}
 	response.Proposal = &proposal
-	response.Reply = fmt.Sprintf("Предлагаю квест «%s» с %d этапами и отрядом из %d агентов. Запуск — только после вашего подтверждения.", proposal.Title, len(proposal.Objectives), len(proposal.TeamAgentIDs))
+	response.Reply = fmt.Sprintf("Предлагаю квест «%s» с %s и отрядом из %s. Запуск — только после вашего подтверждения.", proposal.Title, textutil.Count(len(proposal.Objectives), "этапом", "этапами", "этапами"), textutil.Count(len(proposal.TeamAgentIDs), "агента", "агентов", "агентов"))
 	if cfg.Verbosity >= 70 {
 		response.Reply += " План учитывает текущие квесты, исполнения, память, индекс проекта и статистику использования."
 	}

@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"local-agent-workbench/internal/textutil"
 	"log/slog"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -213,7 +215,7 @@ func applyProposalOverrides(proposal *domain.QuestProposal, decision QuestPropos
 	if decision.Constraints != nil {
 		proposal.Constraints = append([]string(nil), decision.Constraints...)
 	}
-	if !containsFolded(proposal.Constraints, "live workspace") && !containsFolded(proposal.Constraints, "change set") {
+	if !textutil.ContainsFold(proposal.Constraints, "live workspace") && !textutil.ContainsFold(proposal.Constraints, "change set") {
 		proposal.Constraints = append(proposal.Constraints, "Не писать в live workspace до Apply Change Set")
 	}
 	if decision.DefinitionOfDone != nil {
@@ -291,16 +293,6 @@ func (a *App) validateProposalDecision(ctx context.Context, workspaceID string, 
 	return nil
 }
 
-func containsFolded(values []string, needle string) bool {
-	needle = strings.ToLower(needle)
-	for _, value := range values {
-		if strings.Contains(strings.ToLower(value), needle) {
-			return true
-		}
-	}
-	return false
-}
-
 func flowProjectAgentIDs(flow domain.FlowGraph) []string {
 	seen := make(map[string]bool)
 	agentIDs := make([]string, 0)
@@ -373,7 +365,7 @@ func (a *App) startQuestFromProposalUsingQuest(ctx context.Context, ws domain.Wo
 	availableAgents := make(map[string]bool, len(runnableAgents))
 	for _, agent := range agents {
 		if capability, blocked := blockedAgents[agent.ID]; blocked {
-			if userPickedTeam && containsString(agentIDs, agent.ID) {
+			if userPickedTeam && slices.Contains(agentIDs, agent.ID) {
 				return QuestProposalResult{}, readinessFailure(agent, capability)
 			}
 			continue
@@ -400,7 +392,7 @@ func (a *App) startQuestFromProposalUsingQuest(ctx context.Context, ws domain.Wo
 		}
 		if userPickedTeam {
 			for _, agentID := range flowAgents {
-				if !containsString(agentIDs, agentID) {
+				if !slices.Contains(agentIDs, agentID) {
 					return QuestProposalResult{}, fmt.Errorf("selected party is missing flow agent %q", agentID)
 				}
 			}

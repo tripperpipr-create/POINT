@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"local-agent-workbench/internal/textutil"
 	"strings"
 	"time"
 
@@ -189,11 +190,11 @@ func (a *App) persistQuestEgressGrant(ctx context.Context, ask domain.EgressAsk)
 	switch ask.Kind {
 	case domain.EgressAskNetworkHost:
 		host := strings.ToLower(strings.TrimSpace(ask.Target))
-		if !containsFold(brief.Permissions.NetworkHosts, host) {
+		if !textutil.EqualsAnyFold(brief.Permissions.NetworkHosts, host) {
 			brief.Permissions.NetworkHosts = append(brief.Permissions.NetworkHosts, host)
 		}
 	case domain.EgressAskGitRemote:
-		if !containsFold(brief.Permissions.ConfirmedGitRemotes, ask.Target) {
+		if !textutil.EqualsAnyFold(brief.Permissions.ConfirmedGitRemotes, ask.Target) {
 			brief.Permissions.ConfirmedGitRemotes = append(brief.Permissions.ConfirmedGitRemotes, strings.TrimSpace(ask.Target))
 		}
 	}
@@ -211,7 +212,7 @@ func (a *App) persistQuestEgressGrant(ctx context.Context, ask domain.EgressAsk)
 		session.Brief = cloneTaskBrief(&approved)
 		if ask.Kind == domain.EgressAskNetworkHost {
 			host := strings.ToLower(strings.TrimSpace(ask.Target))
-			if !containsFold(session.Environment.NetworkHosts, host) {
+			if !textutil.EqualsAnyFold(session.Environment.NetworkHosts, host) {
 				session.Environment.NetworkHosts = append(session.Environment.NetworkHosts, host)
 			}
 		}

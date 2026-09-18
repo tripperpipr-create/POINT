@@ -588,3 +588,34 @@ func TestMasterProposalCarriesASpendCeiling(t *testing.T) {
 		t.Fatalf("после правки потолок не пересчитан: %+v", amended.Proposal)
 	}
 }
+
+// Рассуждающая модель показывает ход мысли перед структурой ответа, и внутри
+// мысли встречаются фигурные скобки. Разбор искал первую `{` по всему тексту,
+// находил её в размышлении и объявлял исправный ответ «не по схеме»: человек
+// видел откат на пустом месте. Блок размышления снимается до поиска скобок.
+func TestDecodeMasterEnvelopeSkipsReasoningBlock(t *testing.T) {
+	raw := "<think>Проверю, нужна ли структура {objectives} и сколько вопросов задать</think>\n" +
+		`{"reply":"Готов начать","questions":["Какой срок?"]}`
+	envelope, err := decodeMasterEnvelope(raw)
+	if err != nil {
+		t.Fatalf("ответ рассуждающей модели обязан разбираться: %v", err)
+	}
+	if envelope.Reply != "Готов начать" {
+		t.Fatalf("текст ответа: %q", envelope.Reply)
+	}
+	if len(envelope.Questions) != 1 || envelope.Questions[0] != "Какой срок?" {
+		t.Fatalf("вопросы: %#v", envelope.Questions)
+	}
+}
+
+// Ограда кода вокруг структуры — обычный ответ модели, которую попросили
+// вернуть JSON.
+func TestDecodeMasterEnvelopeAcceptsFencedJSON(t *testing.T) {
+	envelope, err := decodeMasterEnvelope("```json\n" + `{"reply":"Ок"}` + "\n```")
+	if err != nil {
+		t.Fatalf("огороженный ответ обязан разбираться: %v", err)
+	}
+	if envelope.Reply != "Ок" {
+		t.Fatalf("текст ответа: %q", envelope.Reply)
+	}
+}

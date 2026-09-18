@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"local-agent-workbench/internal/textutil"
 	"slices"
 	"strconv"
 	"strings"
@@ -13,6 +14,7 @@ import (
 
 	"local-agent-workbench/internal/agent"
 	"local-agent-workbench/internal/domain"
+	"local-agent-workbench/internal/modeljson"
 	"local-agent-workbench/internal/observability"
 	"local-agent-workbench/internal/orchestrator"
 	"local-agent-workbench/internal/providers"
@@ -462,15 +464,11 @@ func (s Service) chatWithModel(ctx context.Context, cfg domain.CompanionConfig, 
 }
 
 func parseModelEnvelope(raw string) (modelEnvelope, error) {
-	raw = strings.TrimSpace(raw)
-	if strings.HasPrefix(raw, "```") {
-		firstBreak := strings.IndexByte(raw, '\n')
-		lastFence := strings.LastIndex(raw, "```")
-		if firstBreak < 0 || lastFence <= firstBreak {
-			return modelEnvelope{}, errors.New("companion model returned an invalid fenced response")
-		}
-		raw = strings.TrimSpace(raw[firstBreak+1 : lastFence])
+	unfenced, fenceErr := modeljson.Payload(raw)
+	if errors.Is(fenceErr, modeljson.ErrFence) {
+		return modelEnvelope{}, errors.New("companion model returned an invalid fenced response")
 	}
+	raw = unfenced
 	if len(raw) == 0 || len(raw) > 64*1024 {
 		return modelEnvelope{}, errors.New("companion model returned an empty or oversized response")
 	}
@@ -588,7 +586,7 @@ func (s Service) persistModelProposal(ctx context.Context, workspaceID, goal str
 	if !hasSandboxConstraint {
 		constraints = append(constraints, "Не писать в live workspace до Apply Change Set")
 	}
-	if cfg.RiskTolerance <= 35 && !containsFold(constraints, "rollback") {
+	if cfg.RiskTolerance <= 35 && !textutil.ContainsFold(constraints, "rollback") {
 		constraints = append(constraints, "Сохранить проверяемый rollback path")
 	}
 	objectives := append([]string(nil), input.Objectives...)
@@ -596,7 +594,7 @@ func (s Service) persistModelProposal(ctx context.Context, workspaceID, goal str
 		objectives = []string{input.Title}
 	}
 	dod := append([]string(nil), input.DefinitionOfDone...)
-	if cfg.Criticality >= 65 && !containsFold(dod, "test") && !containsFold(dod, "провер") {
+	if cfg.Criticality >= 65 && !textutil.ContainsFold(dod, "test") && !textutil.ContainsFold(dod, "провер") {
 		dod = append(dod, "Релевантные тесты и диагностика проходят")
 	}
 	title := orchestrator.NormalizeQuestTitle(input.Title)

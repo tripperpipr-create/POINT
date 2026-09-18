@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -233,7 +234,7 @@ func executionContract(profile domain.AgentProfile, customTools []domain.CustomT
 		"- Call tools by their exact names from the provided list. There is no Read, Grep, Shell, Write, or Glob tool.",
 		"- File paths must be workspace-relative with forward slashes (example: src/main.go). Do not pass absolute Windows or Unix paths.",
 	}
-	if contains(profile.AllowedTools, "project_map") || contains(profile.AllowedTools, "search_code") {
+	if slices.Contains(profile.AllowedTools, "project_map") || slices.Contains(profile.AllowedTools, "search_code") {
 		lines = append(lines,
 			"- Prefer project_map and search_code to locate relevant code before broad file reads; keep context focused.",
 			"- A search_code result with truncated=true is incomplete. Refine the query using matchedTokens or a concrete symbol/path instead of assuming omitted candidates are irrelevant.",
@@ -243,13 +244,13 @@ func executionContract(profile domain.AgentProfile, customTools []domain.CustomT
 	if len(profile.EquippedSkills) > 0 {
 		lines = append(lines, "- Follow equipped skills. Inlined skill instructions are already in <equipped_skills>. Load a longer skill with read_skill before applying it.")
 	}
-	if contains(profile.AllowedTools, "list_files") {
+	if slices.Contains(profile.AllowedTools, "list_files") {
 		lines = append(lines, "- Prefer list_files with a subdirectory path instead of listing the whole repository.")
 	}
-	if contains(profile.AllowedTools, "read_file") {
+	if slices.Contains(profile.AllowedTools, "read_file") {
 		lines = append(lines, "- For large files, call read_file with startLine and endLine instead of rereading the entire file.")
 	}
-	if contains(profile.AllowedTools, "propose_patch") {
+	if slices.Contains(profile.AllowedTools, "propose_patch") {
 		lines = append(lines,
 			"- Before an exact edit to an existing file, inspect every oldText anchor through search_code or read_file in an earlier model turn. A complete-content rewrite requires a complete read_file result. Before creating a file, inspect list_files or a neighboring file in an earlier turn. Inspection and patch calls requested in the same turn will be rejected.",
 			"- For a localized edit, prefer propose_patch edits with enough unchanged surrounding text to make each oldText anchor unique. Use complete content only for new files or coherent full rewrites.",
@@ -615,10 +616,10 @@ func (e *Engine) ContinueFromCheckpoint(input StartInput, existing domain.Run, c
 		workspaceRevision: checkpoint.WorkspaceRevision,
 		correlation: runCorrelation{
 			WorkspaceID:         input.Workspace.ID,
-			ExecutionID:         firstNonEmpty(checkpoint.ExecutionID, input.ExecutionID),
-			QuestID:             firstNonEmpty(checkpoint.QuestID, input.QuestID),
-			FlowRunID:           firstNonEmpty(checkpoint.FlowRunID, input.FlowRunID),
-			FlowNodeID:          firstNonEmpty(checkpoint.FlowNodeID, input.FlowNodeID),
+			ExecutionID:         textutil.FirstNonEmpty(checkpoint.ExecutionID, input.ExecutionID),
+			QuestID:             textutil.FirstNonEmpty(checkpoint.QuestID, input.QuestID),
+			FlowRunID:           textutil.FirstNonEmpty(checkpoint.FlowRunID, input.FlowRunID),
+			FlowNodeID:          textutil.FirstNonEmpty(checkpoint.FlowNodeID, input.FlowNodeID),
 			CompletionCheckKind: strings.TrimSpace(input.CompletionCheckKind),
 		},
 	}
@@ -666,15 +667,6 @@ func (e *Engine) ContinueFromCheckpoint(input StartInput, existing domain.Run, c
 		e.executeWithCheckpoint(runCtx, active, profile, input.Configuration.CustomTools, model, registry, patches, &checkpointCopy)
 	}()
 	return existing, nil
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return value
-		}
-	}
-	return ""
 }
 
 func withCompletionCheckKind(active *activeRun, data map[string]any) map[string]any {
@@ -1389,7 +1381,7 @@ func (e *Engine) executeTool(ctx context.Context, active *activeRun, profile dom
 		}
 	}
 	e.update(active, func(r *domain.Run) {
-		if !contains(r.ToolsUsed, call.Name) {
+		if !slices.Contains(r.ToolsUsed, call.Name) {
 			r.ToolsUsed = append(r.ToolsUsed, call.Name)
 		}
 	})
@@ -1473,7 +1465,7 @@ func (e *Engine) executeTool(ctx context.Context, active *activeRun, profile dom
 			return workbenchtools.Fail("patch_conflict", err.Error()), nil
 		}
 		e.update(active, func(r *domain.Run) {
-			if !contains(r.ChangedFiles, applied.Path) {
+			if !slices.Contains(r.ChangedFiles, applied.Path) {
 				r.ChangedFiles = append(r.ChangedFiles, applied.Path)
 			}
 		})
@@ -1905,7 +1897,7 @@ func (e *Engine) recordExecutableChanges(active *activeRun, patches *workbenchto
 				if len(run.ChangedFiles) >= 5000 {
 					break
 				}
-				if !contains(run.ChangedFiles, change.Path) {
+				if !slices.Contains(run.ChangedFiles, change.Path) {
 					run.ChangedFiles = append(run.ChangedFiles, change.Path)
 				}
 			}
@@ -2103,15 +2095,6 @@ func (e *Engine) publishOrLog(ctx context.Context, run domain.Run, kind domain.E
 		slog.Warn("agent event publish failed", "run_id", run.ID, "event", kind, "failures", failures, "error", err)
 	}
 }
-func contains(items []string, value string) bool {
-	for _, item := range items {
-		if item == value {
-			return true
-		}
-	}
-	return false
-}
-
 func (e *Engine) saveRun(run domain.Run) error {
 	safe := run
 	safe.Task = security.Redact(safe.Task)

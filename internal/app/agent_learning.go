@@ -9,11 +9,13 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
 	"local-agent-workbench/internal/diagnostics"
 	"local-agent-workbench/internal/domain"
+	"local-agent-workbench/internal/modeljson"
 	"local-agent-workbench/internal/providers"
 	"local-agent-workbench/internal/security"
 	"local-agent-workbench/internal/textutil"
@@ -293,7 +295,7 @@ func (a *App) reviewAgentRun(ctx context.Context, run domain.Run, projectAgentID
 		item.AfterSkillIDs = append([]string(nil), item.AfterAgentSkillIDs[agent.ID]...)
 		if blueprint != nil && promotionStatus == "promoted" {
 			item.BeforeBlueprintSkillIDs = append([]string(nil), blueprint.SkillIDs...)
-			if !containsString(blueprint.SkillIDs, learned.ID) {
+			if !slices.Contains(blueprint.SkillIDs, learned.ID) {
 				blueprint.SkillIDs = append(blueprint.SkillIDs, learned.ID)
 			}
 			item.AfterBlueprintSkillIDs = append([]string(nil), blueprint.SkillIDs...)
@@ -322,7 +324,7 @@ func (a *App) reviewAgentRun(ctx context.Context, run domain.Run, projectAgentID
 		}
 		configuredWorkspaces := map[string]bool{}
 		for _, boundAgent := range bindings {
-			if containsString(boundAgent.SkillIDs, learned.ID) && !configuredWorkspaces[boundAgent.WorkspaceID] {
+			if slices.Contains(boundAgent.SkillIDs, learned.ID) && !configuredWorkspaces[boundAgent.WorkspaceID] {
 				if err = a.ensureLearnedProjectSkill(ctx, boundAgent.WorkspaceID, learned.ID, ownerID, ownerKind, promotionStatus, now); err != nil {
 					return a.failAgentImprovement(ctx, item, err)
 				}
@@ -372,7 +374,7 @@ func (a *App) extendExistingSkillCanaryLocked(ctx context.Context, skill domain.
 	now := time.Now().UTC()
 	item.Evidence = append(item.Evidence, learningEvaluationEvidence(evaluation)...)
 	evidence := fmt.Sprintf("canary назначен проекту %s по verified Run %s", agent.WorkspaceID, run.ID)
-	if !containsString(item.Evidence, evidence) {
+	if !slices.Contains(item.Evidence, evidence) {
 		item.Evidence = append(item.Evidence, evidence)
 	}
 	if err = a.planLearningInstruction(ctx, &item, review, blueprint, run); err != nil {
@@ -402,7 +404,7 @@ func (a *App) extendExistingSkillCanaryLocked(ctx context.Context, skill domain.
 	}
 	configuredWorkspaces := map[string]bool{}
 	for _, boundAgent := range bindings {
-		if containsString(boundAgent.SkillIDs, skill.ID) && !configuredWorkspaces[boundAgent.WorkspaceID] {
+		if slices.Contains(boundAgent.SkillIDs, skill.ID) && !configuredWorkspaces[boundAgent.WorkspaceID] {
 			if err = a.ensureLearnedProjectSkill(ctx, boundAgent.WorkspaceID, skill.ID, fmt.Sprint(skill.Configuration["ownerId"]), fmt.Sprint(skill.Configuration["ownerKind"]), "candidate", now); err != nil {
 				return a.failAgentImprovement(ctx, item, err)
 			}
@@ -633,11 +635,12 @@ func (a *App) streamLearningJSON(ctx context.Context, model providers.Model, pro
 }
 
 func parseLearningReview(raw string, hasPrevious bool) (learningReview, error) {
-	raw = strings.TrimSpace(raw)
-	if strings.HasPrefix(raw, "```") {
-		raw = strings.TrimPrefix(raw, "```json")
-		raw = strings.TrimPrefix(raw, "```")
-		raw = strings.TrimSuffix(strings.TrimSpace(raw), "```")
+	raw, fenceErr := modeljson.Payload(raw)
+	if fenceErr != nil {
+		return learningReview{}, fmt.Errorf("invalid reviewer JSON: %w", fenceErr)
+	}
+	if narrowed, ok := modeljson.Braces(raw); ok {
+		raw = narrowed
 	}
 	var review learningReview
 	if err := json.Unmarshal([]byte(raw), &review); err != nil {
@@ -730,7 +733,7 @@ func buildLearnedSkill(review learningReview, previous *domain.SkillDefinition, 
 	}
 	required := make([]string, 0, len(tools))
 	for _, tool := range tools {
-		if tool != "read_skill" && allowed[tool] && !containsString(required, tool) {
+		if tool != "read_skill" && allowed[tool] && !slices.Contains(required, tool) {
 			required = append(required, tool)
 		}
 	}
@@ -853,7 +856,7 @@ func configurationStrings(configuration map[string]any, key string) []string {
 
 func appendUniqueString(values []string, value string) []string {
 	value = strings.TrimSpace(value)
-	if value != "" && !containsString(values, value) {
+	if value != "" && !slices.Contains(values, value) {
 		return append(values, value)
 	}
 	return values
@@ -875,7 +878,7 @@ func stringSetContainsAll(have, required []string) bool {
 func allowedLearningTools(tools, allowed []string) []string {
 	result := make([]string, 0, len(tools))
 	for _, tool := range tools {
-		if tool != "read_skill" && containsString(allowed, tool) {
+		if tool != "read_skill" && slices.Contains(allowed, tool) {
 			result = appendUniqueString(result, tool)
 		}
 	}
@@ -989,7 +992,7 @@ func (a *App) planLearningInstruction(ctx context.Context, item *domain.AgentImp
 	item.Instruction = review.Instruction
 	item.InstructionSignature = signature
 	item.InstructionSourceWorkspaces = append([]string(nil), workspaces...)
-	if containsString(blueprint.Rules, review.Instruction) {
+	if slices.Contains(blueprint.Rules, review.Instruction) {
 		item.InstructionStatus = "confirmed"
 		item.Evidence = append(item.Evidence, fmt.Sprintf("постоянная инструкция подтверждена проектов: %d", len(workspaces)))
 		return nil
@@ -1049,11 +1052,11 @@ func (a *App) learningBindings(ctx context.Context, source domain.ProjectAgent, 
 			if superseded := strings.TrimSpace(fmt.Sprint(learned.Configuration["supersedesSkillId"])); superseded != "" {
 				boundAgent.SkillIDs = withoutString(boundAgent.SkillIDs, superseded)
 			}
-			if !containsString(boundAgent.SkillIDs, learned.ID) {
+			if !slices.Contains(boundAgent.SkillIDs, learned.ID) {
 				boundAgent.SkillIDs = append(boundAgent.SkillIDs, learned.ID)
 			}
 		}
-		if instructionTargets[boundAgent.ID] && !containsString(boundAgent.Rules, instruction) {
+		if instructionTargets[boundAgent.ID] && !slices.Contains(boundAgent.Rules, instruction) {
 			boundAgent.Rules = append(boundAgent.Rules, instruction)
 		}
 		bindings = append(bindings, boundAgent)
@@ -1192,11 +1195,11 @@ func (a *App) restoreImprovementBindings(ctx context.Context, item domain.AgentI
 				continue
 			}
 			changed := false
-			if _, captured := beforeSkills[agent.ID]; item.PromotionStatus == "promoted" && !captured && containsString(agent.SkillIDs, item.SkillID) {
+			if _, captured := beforeSkills[agent.ID]; item.PromotionStatus == "promoted" && !captured && slices.Contains(agent.SkillIDs, item.SkillID) {
 				agent.SkillIDs = withoutString(agent.SkillIDs, item.SkillID)
 				changed = true
 			}
-			if _, captured := item.BeforeAgentRules[agent.ID]; item.InstructionStatus == "promoted" && !captured && containsString(agent.Rules, item.Instruction) {
+			if _, captured := item.BeforeAgentRules[agent.ID]; item.InstructionStatus == "promoted" && !captured && slices.Contains(agent.Rules, item.Instruction) {
 				agent.Rules = withoutString(agent.Rules, item.Instruction)
 				changed = true
 			}
@@ -1223,7 +1226,7 @@ func (a *App) disableUnusedManagedSkillInstances(ctx context.Context, item domai
 		if agent.BlueprintID == item.BlueprintID || agent.ID == item.ProjectAgentID {
 			workspaces[agent.WorkspaceID] = true
 		}
-		if containsString(agent.SkillIDs, item.SkillID) {
+		if slices.Contains(agent.SkillIDs, item.SkillID) {
 			used[agent.WorkspaceID] = true
 		}
 	}

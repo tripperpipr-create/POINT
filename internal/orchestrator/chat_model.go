@@ -26,7 +26,9 @@ import (
 	"time"
 
 	"local-agent-workbench/internal/domain"
+	"local-agent-workbench/internal/modeljson"
 	"local-agent-workbench/internal/providers"
+	"local-agent-workbench/internal/textutil"
 )
 
 const (
@@ -99,9 +101,9 @@ func masterProjectLines(facts ProjectFacts) []string {
 	lines := []string{fmt.Sprintf("Проект: %s.", name)}
 	switch facts.IndexState {
 	case "ready":
-		line := fmt.Sprintf("Карта кода построена: %d файлов", facts.Files)
+		line := fmt.Sprintf("Карта кода построена: %s", textutil.Count(facts.Files, "файл", "файла", "файлов"))
 		if facts.Symbols > 0 {
-			line += fmt.Sprintf(", %d символов", facts.Symbols)
+			line += ", " + textutil.Count(facts.Symbols, "символ", "символа", "символов")
 		}
 		if len(facts.Languages) > 0 {
 			line += ". Языки: " + strings.Join(facts.Languages, ", ")
@@ -405,15 +407,15 @@ func (s ChatService) chatWithModel(ctx context.Context, req ChatRequest, world s
 
 // decodeMasterEnvelope достаёт объект даже если модель обернула его в markdown.
 func decodeMasterEnvelope(raw string) (masterEnvelope, error) {
-	text := strings.TrimSpace(raw)
+	text, fenceErr := modeljson.Payload(raw)
+	if fenceErr != nil {
+		return masterEnvelope{}, errors.New("модель Мастера вернула оборванный ответ — блок кода не закрыт")
+	}
 	if text == "" {
 		return masterEnvelope{}, errors.New("модель Мастера вернула пустой ответ")
 	}
-	if start := strings.Index(text, "{"); start > 0 {
-		text = text[start:]
-	}
-	if end := strings.LastIndex(text, "}"); end >= 0 && end+1 < len(text) {
-		text = text[:end+1]
+	if narrowed, ok := modeljson.Braces(text); ok {
+		text = narrowed
 	}
 	var envelope masterEnvelope
 	if err := json.Unmarshal([]byte(text), &envelope); err != nil {

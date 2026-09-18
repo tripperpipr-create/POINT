@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -298,7 +299,7 @@ func (a *App) promoteSkillCandidateLocked(ctx context.Context, item *domain.Agen
 	if superseded != "" {
 		blueprint.SkillIDs = withoutString(blueprint.SkillIDs, superseded)
 	}
-	if !containsString(blueprint.SkillIDs, candidate.ID) {
+	if !slices.Contains(blueprint.SkillIDs, candidate.ID) {
 		blueprint.SkillIDs = append(blueprint.SkillIDs, candidate.ID)
 	}
 	item.AfterBlueprintSkillIDs = append([]string(nil), blueprint.SkillIDs...)
@@ -323,7 +324,7 @@ func (a *App) promoteSkillCandidateLocked(ctx context.Context, item *domain.Agen
 		if superseded != "" {
 			agent.SkillIDs = withoutString(agent.SkillIDs, superseded)
 		}
-		if !containsString(agent.SkillIDs, candidate.ID) {
+		if !slices.Contains(agent.SkillIDs, candidate.ID) {
 			agent.SkillIDs = append(agent.SkillIDs, candidate.ID)
 		}
 		agent.UpdatedAt = candidate.UpdatedAt

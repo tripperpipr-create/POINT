@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -420,7 +421,7 @@ func TestExecuteToolRemapsCursorStyleNamesAndAbsolutePaths(t *testing.T) {
 	if err != nil || !result.OK {
 		t.Fatalf("Read alias failed: %#v err=%v", result, err)
 	}
-	if !contains(active.run.ToolsUsed, "read_file") {
+	if !slices.Contains(active.run.ToolsUsed, "read_file") {
 		t.Fatalf("tools used=%v", active.run.ToolsUsed)
 	}
 	var readOut struct {
@@ -1293,7 +1294,7 @@ func TestAgentRepairsIndexedEditScopeWithoutReadingLargeFile(t *testing.T) {
 	if finished.Status != domain.RunCompleted {
 		t.Fatalf("run=%#v", finished)
 	}
-	if contains(finished.ToolsUsed, "read_file") || !contains(finished.ToolsUsed, "search_code") || !contains(finished.ToolsUsed, "propose_patch") {
+	if slices.Contains(finished.ToolsUsed, "read_file") || !slices.Contains(finished.ToolsUsed, "search_code") || !slices.Contains(finished.ToolsUsed, "propose_patch") {
 		t.Fatalf("unexpected tools=%v", finished.ToolsUsed)
 	}
 	data, err := os.ReadFile(filepath.Join(root, "generated.go"))
@@ -1398,7 +1399,7 @@ func TestAgentRefinesTruncatedSearchBeforeEditing(t *testing.T) {
 	}
 	resolveNextApproval(t, engine, run.ID, "", true)
 	finished := waitForTerminalRun(t, repo, run.ID)
-	if finished.Status != domain.RunCompleted || contains(finished.ToolsUsed, "read_file") {
+	if finished.Status != domain.RunCompleted || slices.Contains(finished.ToolsUsed, "read_file") {
 		t.Fatalf("run=%#v", finished)
 	}
 	data, err := os.ReadFile(filepath.Join(root, "target.go"))
@@ -1523,7 +1524,7 @@ func TestAgentUsesDependencyGraphForTwoInspectedFileEdits(t *testing.T) {
 	firstApproval := resolveNextApproval(t, engine, run.ID, "", true)
 	resolveNextApproval(t, engine, run.ID, firstApproval, true)
 	finished := waitForTerminalRun(t, repo, run.ID)
-	if finished.Status != domain.RunCompleted || contains(finished.ToolsUsed, "read_file") || len(finished.ChangedFiles) != 2 {
+	if finished.Status != domain.RunCompleted || slices.Contains(finished.ToolsUsed, "read_file") || len(finished.ChangedFiles) != 2 {
 		t.Fatalf("run=%#v", finished)
 	}
 	service, err := os.ReadFile(filepath.Join(root, "src", "service.ts"))

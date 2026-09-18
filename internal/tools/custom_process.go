@@ -8,13 +8,14 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
 
-	"local-agent-workbench/internal/osproc"
 	"local-agent-workbench/internal/domain"
+	"local-agent-workbench/internal/osproc"
 	"local-agent-workbench/internal/sandbox"
 	"local-agent-workbench/internal/security"
 	"local-agent-workbench/internal/workspace"
@@ -247,7 +248,7 @@ func (t CustomProcess) prepare(raw json.RawMessage) (effectiveProcess, error) {
 			if len(value) > maximum {
 				return effectiveProcess{}, fmt.Errorf("parameter %q exceeds %d bytes", parameter.Name, maximum)
 			}
-			if parameter.Type == domain.CustomToolParameterEnum && !containsString(parameter.EnumValues, value) {
+			if parameter.Type == domain.CustomToolParameterEnum && !slices.Contains(parameter.EnumValues, value) {
 				return effectiveProcess{}, fmt.Errorf("parameter %q is not an allowed value", parameter.Name)
 			}
 			if parameter.Type == domain.CustomToolParameterWorkspacePath {
@@ -319,13 +320,4 @@ func (t CustomProcess) prepare(raw json.RawMessage) (effectiveProcess, error) {
 		program = resolved
 	}
 	return effectiveProcess{Program: program, Args: args, Reason: reason, Values: publicValues}, nil
-}
-
-func containsString(values []string, expected string) bool {
-	for _, value := range values {
-		if value == expected {
-			return true
-		}
-	}
-	return false
 }

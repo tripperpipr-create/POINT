@@ -22,10 +22,10 @@ import (
 
 	"golang.org/x/net/html"
 
-	"local-agent-workbench/internal/osproc"
 	"local-agent-workbench/internal/attachments"
 	"local-agent-workbench/internal/domain"
 	projectenv "local-agent-workbench/internal/environment"
+	"local-agent-workbench/internal/osproc"
 	"local-agent-workbench/internal/security"
 	"local-agent-workbench/internal/workspace"
 )

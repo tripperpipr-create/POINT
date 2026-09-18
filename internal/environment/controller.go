@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"local-agent-workbench/internal/textutil"
 	"os/exec"
 	"strings"
 
@@ -38,7 +39,7 @@ func (c HostController) Run(ctx context.Context, plan domain.EnvironmentPlan, wo
 	}
 	prepared, err := c.Executor.PrepareProcess(ctx, sandbox.ProcessRequest{
 		WorkspaceRoot:       workspaceRoot,
-		WorkingDirectory:    firstNonEmpty(cmd.WorkingDirectory, workspaceRoot),
+		WorkingDirectory:    textutil.FirstNonEmpty(cmd.WorkingDirectory, workspaceRoot),
 		Program:             cmd.Program,
 		Arguments:           append([]string(nil), cmd.Arguments...),
 		NetworkPolicy:       "ALLOWLIST",
@@ -110,13 +111,4 @@ func withTLSPorts(hosts []string) []string {
 		result = append(result, host+":443")
 	}
 	return result
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return value
-		}
-	}
-	return ""
 }

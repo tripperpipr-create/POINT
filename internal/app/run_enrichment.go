@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -54,7 +55,7 @@ func (a *App) enrichProjectAgentForRun(workspaceID string, agent domain.ProjectA
 		return err
 	}
 	profile.EquippedSkills = skills
-	if len(skills) > 0 && !containsString(profile.AllowedTools, "read_skill") {
+	if len(skills) > 0 && !slices.Contains(profile.AllowedTools, "read_skill") {
 		profile.AllowedTools = append(append([]string(nil), profile.AllowedTools...), "read_skill")
 	}
 	if inputs == nil {
@@ -178,15 +179,6 @@ func cloneToolPolicyMap(values map[string]domain.ToolPolicy) map[string]domain.T
 		result[key] = value
 	}
 	return result
-}
-
-func containsString(items []string, value string) bool {
-	for _, item := range items {
-		if item == value {
-			return true
-		}
-	}
-	return false
 }
 
 func cloneStringMap(values map[string]string) map[string]string {

@@ -3,6 +3,7 @@ package agent
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 
 	"local-agent-workbench/internal/domain"
@@ -21,7 +22,7 @@ type CompletionPolicy struct {
 func DescribeCompletionPolicy(profile domain.AgentProfile, task string, customToolSets ...[]domain.CustomTool) CompletionPolicy {
 	explicit := verification.TaskRequires(task)
 	available := len(verificationToolNames(profile, firstCustomToolSet(customToolSets))) > 0
-	canWrite := contains(profile.AllowedTools, "propose_patch")
+	canWrite := slices.Contains(profile.AllowedTools, "propose_patch")
 	return CompletionPolicy{
 		ExplicitVerification: explicit, FileChangesRequireVerification: available,
 		VerificationToolAvailable: available, BlockingConfigurationIssue: (explicit && !available) || (canWrite && !available),

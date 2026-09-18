@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -48,7 +49,7 @@ func TestMasterBriefingExposesBoundedProjectEvidence(t *testing.T) {
 	if briefing.IndexUpdatedAt.IsZero() || briefing.Files < 2 || len(briefing.Sources) == 0 {
 		t.Fatalf("briefing lacks index provenance: %#v", briefing)
 	}
-	if !containsString(briefing.Entrypoints, "cmd/api/main.go") || !containsString(briefing.BuildCommands, "go build ./...") || !containsString(briefing.TestCommands, "go test ./...") {
+	if !slices.Contains(briefing.Entrypoints, "cmd/api/main.go") || !slices.Contains(briefing.BuildCommands, "go build ./...") || !slices.Contains(briefing.TestCommands, "go test ./...") {
 		t.Fatalf("briefing lacks entrypoint/build facts: %#v", briefing)
 	}
 }

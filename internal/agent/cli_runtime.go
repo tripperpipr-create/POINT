@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 
@@ -200,10 +201,8 @@ func renderCLIPrompt(messages []providers.Message) (string, string) {
 }
 
 func appendUniqueToolName(names []string, extra string) []string {
-	for _, name := range names {
-		if name == extra {
-			return names
-		}
+	if slices.Contains(names, extra) {
+		return names
 	}
 	return append(names, extra)
 }

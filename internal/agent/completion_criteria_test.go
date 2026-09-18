@@ -3,6 +3,7 @@ package agent
 import (
 	"encoding/json"
 	"local-agent-workbench/internal/domain"
+	"slices"
 	"testing"
 )
 
@@ -66,7 +67,7 @@ func TestTaskAuthorityNeverWidensProfile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if contains(narrowed.AllowedTools, "propose_patch") || contains(narrowed.AllowedTools, "db_exec") {
+	if slices.Contains(narrowed.AllowedTools, "propose_patch") || slices.Contains(narrowed.AllowedTools, "db_exec") {
 		t.Fatal("report retained write tools")
 	}
 	if narrowed.ToolPolicies["run_command"] != "ASK" || narrowed.ToolPolicies["network:denied.test"] != "DENY" || narrowed.ToolPolicies["network:other.test"] != "DENY" {
@@ -91,7 +92,7 @@ func TestTaskAuthorityBlocksCustomIDsAndDoesNotInventManualChecks(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if contains(narrowed.AllowedTools, "my-legacy-command") || contains(narrowed.AllowedTools, "run_command") {
+	if slices.Contains(narrowed.AllowedTools, "my-legacy-command") || slices.Contains(narrowed.AllowedTools, "run_command") {
 		t.Fatal("command permission bypass")
 	}
 	tracker := newCompletionTracker(profile, "Edit prose", nil, &b)

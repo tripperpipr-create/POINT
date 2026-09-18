@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 
@@ -103,7 +104,7 @@ func TestManualProfileInstructionPropagatesAndRollsBack(t *testing.T) {
 	storedFirst, _ := application.store.GetProjectAgent(context.Background(), first.ID)
 	storedSecond, _ := application.store.GetProjectAgent(context.Background(), second.ID)
 	for label, rules := range map[string][]string{"blueprint": storedBlueprint.Rules, "first": storedFirst.Rules, "second": storedSecond.Rules} {
-		if !containsString(rules, request.Content) {
+		if !slices.Contains(rules, request.Content) {
 			t.Fatalf("%s did not receive manual instruction: %#v", label, rules)
 		}
 	}
@@ -114,7 +115,7 @@ func TestManualProfileInstructionPropagatesAndRollsBack(t *testing.T) {
 	storedFirst, _ = application.store.GetProjectAgent(context.Background(), first.ID)
 	storedSecond, _ = application.store.GetProjectAgent(context.Background(), second.ID)
 	for label, rules := range map[string][]string{"blueprint": storedBlueprint.Rules, "first": storedFirst.Rules, "second": storedSecond.Rules} {
-		if containsString(rules, request.Content) {
+		if slices.Contains(rules, request.Content) {
 			t.Fatalf("%s retained rolled-back instruction: %#v", label, rules)
 		}
 	}

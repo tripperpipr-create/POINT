@@ -1,0 +1,261 @@
+name: Production release gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      previous_installer_path:
+        description: Absolute path to the previous supported Point installer on the release runner
+        required: true
+        type: string
+      migration_corpus_path:
+        description: Absolute path to an approved sanitized corpus with at least two content-distinct SQLite databases
+        required: true
+        type: string
+      eight_hour_soak_report:
+        description: Absolute path to a completed release-qualified eight-hour soak JSON report on the release runner
+        required: true
+        type: string
+      twenty_four_hour_soak_report:
+        description: Absolute path to a completed release-qualified twenty-four-hour soak JSON report on the release runner
+        required: true
+        type: string
+      legacy_field_evidence_path:
+        description: Absolute path to approved aggregate-only legacy field reports for five real projects across two full release windows
+        required: true
+        type: string
+      dogfood_report:
+        description: Absolute path to a completed fourteen-day dogfood JSON report on the release runner
+        required: true
+        type: string
+      allow_unsigned:
+        description: Permit an unsigned local candidate (never use for a published production release)
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  sandbox-security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - name: Build pinned sandbox image for CVE audit
+        run: docker build --pull -f Dockerfile.sandbox -t point-agent-sandbox:release-audit .
+      - name: Reject high or critical sandbox-image vulnerabilities
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        with:
+          image-ref: point-agent-sandbox:release-audit
+          version: 'v0.74.0'
+          scanners: vuln
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
+          format: json
+          output: sandbox-trivy.json
+          exit-code: '1'
+
+  release:
+    needs: sandbox-security
+    runs-on: [self-hosted, windows, x64, point-release]
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            vscode-extension/package-lock.json
+
+      - name: Clean immutable Git baseline
+        shell: pwsh
+        run: |
+          $dirty = git status --porcelain=v1 --untracked-files=all
+          if ($LASTEXITCODE -ne 0) { throw 'git status failed' }
+          if ($dirty) { throw "Release checkout is dirty before the gate:`n$dirty" }
+          git rev-parse HEAD
+
+      - name: Documentation and release contracts
+        run: |
+          node scripts/check-docs.mjs
+          node scripts/check-quality-gate.mjs
+          node scripts/check-release-contracts.mjs
+
+      - name: Go correctness and vulnerability gate
+        shell: pwsh
+        run: |
+          go mod verify
+          if ($LASTEXITCODE -ne 0) { throw 'go mod verify failed' }
+          go vet ./...
+          if ($LASTEXITCODE -ne 0) { throw 'go vet failed' }
+          go test ./... -count=1
+          if ($LASTEXITCODE -ne 0) { throw 'go test failed' }
+          go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...
+          if ($LASTEXITCODE -ne 0) { throw 'govulncheck found a reachable vulnerability or failed' }
+
+      - name: Frontend production dependency gate
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+          npm audit --omit=dev
+
+      - name: Canonical extension contract and production dependency gate
+        working-directory: vscode-extension
+        run: |
+          npm ci
+          npm run check
+          npm audit --omit=dev
+
+      - name: Strong sandbox and controlled-egress integration
+        shell: pwsh
+        run: |
+          docker build --pull -f Dockerfile.sandbox -t point-agent-sandbox:release .
+          if ($LASTEXITCODE -ne 0) { throw 'sandbox image build failed' }
+          $env:POINT_SANDBOX_DOCKER_TEST = '1'
+          $env:POINT_SANDBOX_IMAGE = 'point-agent-sandbox:release'
+          go test ./internal/sandbox -run DockerSandboxIntegration -count=1 -v
+          if ($LASTEXITCODE -ne 0) { throw 'strong sandbox integration failed' }
+
+      - name: Migration corpus on immutable copies
+        shell: pwsh
+        env:
+          CORPUS_PATH: ${{ inputs.migration_corpus_path }}
+        run: |
+          $corpus = [System.IO.Path]::GetFullPath($env:CORPUS_PATH)
+          if (-not (Test-Path -LiteralPath $corpus -PathType Container)) { throw "Migration corpus is missing: $corpus" }
+          $corpusFiles = @(Get-ChildItem -LiteralPath $corpus -Filter '*.db' -File)
+          if ($corpusFiles.Count -lt 2) { throw 'Migration corpus must contain at least two .db copies' }
+          $sourceHashes = @{}
+          foreach ($file in $corpusFiles) {
+            $sourceHashes[$file.FullName] = (Get-FileHash -Algorithm SHA256 -LiteralPath $file.FullName).Hash
+          }
+          $tool = Join-Path $env:RUNNER_TEMP 'point-db.exe'
+          $output = Join-Path $env:RUNNER_TEMP ("point-migrated-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT")
+          go build -trimpath -o $tool ./cmd/point-db
+          if ($LASTEXITCODE -ne 0) { throw 'point-db build failed' }
+          & $tool migrate-corpus --source-dir $corpus --out-dir $output
+          if ($LASTEXITCODE -ne 0) { throw 'migration corpus gate failed' }
+          foreach ($file in $corpusFiles) {
+            $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $file.FullName).Hash
+            if ($actual -ne $sourceHashes[$file.FullName]) { throw "Migration changed source corpus item: $($file.Name)" }
+          }
+
+      - name: Build minified Code-OSS and installer
+        shell: pwsh
+        run: |
+          ./distribution/install-build-runtime.ps1
+          ./distribution/sync-code-oss.ps1
+          ./distribution/build-code-oss.ps1 -Minified
+
+      - name: Installer SBOM verification
+        shell: pwsh
+        run: |
+          $manifest = Get-Content -Raw build/code-oss/release.json | ConvertFrom-Json
+          $releaseRoot = (Resolve-Path build/code-oss).Path
+          $installer = Join-Path $releaseRoot $manifest.installer
+          $sbom = Join-Path $releaseRoot $manifest.installerSbom
+          $actualSBOMHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $sbom).Hash
+          if ($actualSBOMHash -ne $manifest.installerSbomSha256) { throw 'release manifest installer SBOM hash mismatch' }
+          node scripts/check-installer-sbom.mjs $installer $manifest.portable $sbom
+          $document = Get-Content -Raw -LiteralPath $sbom | ConvertFrom-Json
+          if (@($document.components).Count -ne $manifest.installerSbomComponents) { throw 'release manifest installer SBOM component count mismatch' }
+
+      - name: Packaged database backup, restore and recovery-point drill
+        shell: pwsh
+        run: |
+          $manifest = Get-Content -Raw build/code-oss/release.json | ConvertFrom-Json
+          $portable = (Resolve-Path -LiteralPath $manifest.portable).Path
+          $pointDB = Join-Path $portable 'resources\app\extensions\local-agent-workbench\bin\point-db.exe'
+          if (-not (Test-Path -LiteralPath $pointDB -PathType Leaf)) { throw "Packaged point-db is missing: $pointDB" }
+          $migrated = Join-Path $env:RUNNER_TEMP ("point-migrated-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT")
+          $evidence = Join-Path $env:RUNNER_TEMP ("point-dr-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT")
+          ./scripts/test-point-database-dr.ps1 -PointDB $pointDB -DatabaseDirectory $migrated -EvidenceDirectory $evidence
+
+      - name: Code-OSS Electron E2E
+        shell: pwsh
+        run: |
+          ./scripts/test-point-agent-onboarding.ps1
+          ./scripts/test-point-files.ps1
+          ./scripts/test-point-navigation.ps1
+          ./scripts/test-point-chronicle.ps1
+          ./scripts/test-point-connections.ps1
+          ./scripts/test-point-split-windows.ps1
+
+      - name: Installer clean install, update and rollback
+        shell: pwsh
+        env:
+          PREVIOUS_INSTALLER: ${{ inputs.previous_installer_path }}
+        run: |
+          $manifest = Get-Content -Raw build/code-oss/release.json | ConvertFrom-Json
+          $current = Join-Path (Resolve-Path build/code-oss) $manifest.installer
+          $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $current).Hash
+          if ($actual -ne $manifest.installerSha256) { throw 'release manifest installer hash mismatch' }
+          ./scripts/test-point-installer-lifecycle.ps1 -CurrentInstaller $current -PreviousInstaller $env:PREVIOUS_INSTALLER
+
+      - name: Authenticode production gate
+        shell: pwsh
+        env:
+          ALLOW_UNSIGNED: ${{ inputs.allow_unsigned }}
+        run: |
+          $manifest = Get-Content -Raw build/code-oss/release.json | ConvertFrom-Json
+          $installer = Join-Path (Resolve-Path build/code-oss) $manifest.installer
+          $signature = Get-AuthenticodeSignature -LiteralPath $installer
+          if ($signature.Status -ne 'Valid' -and $env:ALLOW_UNSIGNED -ne 'true') {
+            throw "Production installer signature is $($signature.Status); a published release requires Valid"
+          }
+          $signature | Select-Object Status, StatusMessage, SignerCertificate | ConvertTo-Json -Depth 4
+
+      - name: Performance SLO gate
+        shell: pwsh
+        run: ./scripts/test-point-performance-slo.ps1
+
+      - name: Long-duration soak evidence gate
+        shell: pwsh
+        env:
+          EIGHT_HOUR_SOAK_REPORT: ${{ inputs.eight_hour_soak_report }}
+          TWENTY_FOUR_HOUR_SOAK_REPORT: ${{ inputs.twenty_four_hour_soak_report }}
+        run: node scripts/check-soak-report.mjs $env:EIGHT_HOUR_SOAK_REPORT $env:TWENTY_FOUR_HOUR_SOAK_REPORT
+
+      - name: Representative legacy field evidence gate
+        shell: pwsh
+        env:
+          LEGACY_FIELD_EVIDENCE_PATH: ${{ inputs.legacy_field_evidence_path }}
+        run: node scripts/check-legacy-field-validation.mjs $env:LEGACY_FIELD_EVIDENCE_PATH
+
+      - name: Fourteen-day dogfood evidence gate
+        shell: pwsh
+        env:
+          DOGFOOD_REPORT: ${{ inputs.dogfood_report }}
+        run: node scripts/check-dogfood-report.mjs $env:DOGFOOD_REPORT
+
+      - name: Final clean Git and generated-source drift gate
+        shell: pwsh
+        run: |
+          $dirty = git status --porcelain=v1 --untracked-files=all
+          if ($LASTEXITCODE -ne 0) { throw 'final git status failed' }
+          if ($dirty) { throw "Release gate changed tracked or untracked source files:`n$dirty" }
+          $head = git rev-parse HEAD
+          if ($LASTEXITCODE -ne 0 -or $head -ne '${{ github.sha }}') { throw 'release checkout HEAD changed during the gate' }
+
+      - name: Candidate location
+        shell: pwsh
+        run: |
+          $manifest = Get-Content -Raw build/code-oss/release.json | ConvertFrom-Json
+          [ordered]@{
+            commit = '${{ github.sha }}'
+            installer = (Join-Path (Resolve-Path build/code-oss) $manifest.installer)
+            sha256 = $manifest.installerSha256
+            installerSbom = (Join-Path (Resolve-Path build/code-oss) $manifest.installerSbom)
+            installerSbomSha256 = $manifest.installerSbomSha256
+            releaseManifest = (Resolve-Path build/code-oss/release.json).Path
+          } | ConvertTo-Json

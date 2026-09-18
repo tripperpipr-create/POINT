@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
@@ -363,21 +362,6 @@ func (a *App) ListAgentPrepChains() ([]domain.AgentPrepChain, error) {
 		return nil, err
 	}
 	return a.store.ListAgentPrepChains(context.Background(), ws.ID)
-}
-
-func (a *App) retryAgentPrepChain(ctx context.Context, chainID string) (domain.AgentPrepChain, error) {
-	chains, err := a.ListAgentPrepChains()
-	if err != nil {
-		return domain.AgentPrepChain{}, err
-	}
-	for _, chain := range chains {
-		if chain.ID == chainID {
-			chain.Attempts++
-			chain.State, chain.Error = "create", ""
-			return a.materializeAgentCandidate(ctx, chain)
-		}
-	}
-	return domain.AgentPrepChain{}, fmt.Errorf("agent prep chain %s not found", chainID)
 }
 
 func (a *App) reconcileUserAgentPrepChains(ctx context.Context, agent domain.ProjectAgent) error {

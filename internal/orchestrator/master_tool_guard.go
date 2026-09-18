@@ -66,8 +66,8 @@ func masterExplorationEmpty(name string, result domain.ToolResult) bool {
 		}
 	}
 	emptyFiles := len(files) == 0
-	emptyDirs := dirs == nil || len(dirs) == 0
-	emptySymbols := symbols == nil || len(symbols) == 0
+	emptyDirs := len(dirs) == 0
+	emptySymbols := len(symbols) == 0
 	return emptyFiles && emptyDirs && emptySymbols
 }
 

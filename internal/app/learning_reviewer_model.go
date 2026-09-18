@@ -19,10 +19,11 @@ import (
 	"local-agent-workbench/internal/security"
 )
 
+// Замечание на будущее, а не ветка: отклонённое завершение с записанной
+// проверкой тоже может нести урок. Раньше это стояло здесь `if` с пустым
+// телом: условие вычислялось и выбрасывалось, то есть код выглядел
+// работающим и не делал ничего.
 func learningReviewTrigger(report diagnostics.RunDiagnostics, trajectory learningTrajectory) string {
-	if report.Completion.Rejected && report.Health == diagnostics.HealthHealthy && trajectory.VerificationRecorded {
-		// Rejected completion with recorded verification still may carry a recovery lesson.
-	}
 	if len(trajectory.Feedback) > 0 && trajectory.ToolCalls >= agentLearningFeedbackMinToolCalls && report.Health == diagnostics.HealthHealthy {
 		verificationReady := !report.Verification.Required || report.Verification.Recorded
 		if verificationReady && !report.Completion.Rejected {

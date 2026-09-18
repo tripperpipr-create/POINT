@@ -43,10 +43,6 @@ func (e cliMCPExecutor) Execute(ctx context.Context, name string, arguments json
 	return tool.Execute(ctx, arguments)
 }
 
-func (a *App) startExternalCLIExecution(execution domain.ExecutionInstance, projectAgent domain.ProjectAgent, brief *domain.TaskBrief) error {
-	return a.launchExternalCLIExecution(execution, projectAgent, brief, false)
-}
-
 func (a *App) launchExternalCLIExecution(execution domain.ExecutionInstance, projectAgent domain.ProjectAgent, brief *domain.TaskBrief, resume bool) error {
 	kind := executors.KindForProvider(projectAgent.Provider)
 	if kind == executors.KindPoint {

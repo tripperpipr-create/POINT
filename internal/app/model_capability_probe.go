@@ -6,8 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -371,60 +369,6 @@ func (a *App) ProbeModelCapability(request ModelCapabilityProbeRequest) (ModelCa
 	request.Profile = profile
 	result := runModelCapabilityProbe(ctx, request, model)
 	a.persistModelCapability(profile, result, string(executors.KindPoint))
-	return result, nil
-}
-
-func runCLIModelCapabilityProbe(request ModelCapabilityProbeRequest) (ModelCapabilityProbeResult, error) {
-	profile := request.Profile
-	runtime := executors.KindForProvider(profile.Provider)
-	executor := executors.NewCLI(runtime)
-	ctx, cancel := context.WithTimeout(context.Background(), capabilityProbeTimeout)
-	defer cancel()
-	if err := executor.Probe(ctx); err != nil {
-		return ModelCapabilityProbeResult{}, err
-	}
-	root, err := os.MkdirTemp("", "point-cli-capability-*")
-	if err != nil {
-		return ModelCapabilityProbeResult{}, err
-	}
-	defer os.RemoveAll(root)
-	path := filepath.Join(root, "probe.txt")
-	if err = os.WriteFile(path, []byte("const answer = 40\n"), 0o600); err != nil {
-		return ModelCapabilityProbeResult{}, err
-	}
-	write := roleCanEdit(profile)
-	prompt := "Read probe.txt and report the value of answer. Do not modify any file."
-	if write {
-		prompt = "Read probe.txt, change answer from 40 to 42, read it again to verify the change, then report completion."
-	}
-	started := time.Now()
-	run, runErr := executor.Run(ctx, executors.Request{
-		Provider: profile.Provider, Model: profile.Model, Prompt: prompt,
-		SystemPrompt:  "This is a bounded capability probe. Work only in the supplied temporary workspace.",
-		WorkspacePath: root, WriteFiles: write, ExecuteCommands: false,
-	}, nil)
-	body, readErr := os.ReadFile(path)
-	mutated := readErr == nil && strings.Contains(string(body), "42")
-	healthy := runErr == nil && run.ExitCode == 0 && ((!write && !mutated) || (write && mutated))
-	status := "FAIL"
-	if healthy {
-		status = "PASS"
-	}
-	editCheck := notApplicable("read-only role")
-	if write {
-		editCheck = ModelCapabilityCheck{Status: status, Detail: "CLI edited the isolated probe workspace"}
-	}
-	result := ModelCapabilityProbeResult{
-		SchemaVersion: 2, Role: probeRole(profile), Provider: profile.Provider, Model: profile.Model,
-		ToolCalls:            ModelCapabilityCheck{Status: status, Detail: "headless CLI completed a native-tool probe"},
-		JSONContract:         notApplicable("external CLI result is normalized from its event stream"),
-		InspectionBeforeEdit: editCheck, VerificationEvidence: ModelCapabilityCheck{Status: status, Detail: "probe file state inspected after CLI completion"},
-		WithinLimits: ModelCapabilityCheck{Status: status, Detail: "completed inside bounded timeout and temporary workspace"},
-		DurationMs:   time.Since(started).Milliseconds(),
-	}
-	if runErr != nil {
-		result.Limitations = append(result.Limitations, runErr.Error())
-	}
 	return result, nil
 }
 

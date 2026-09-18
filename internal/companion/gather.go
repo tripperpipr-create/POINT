@@ -264,7 +264,7 @@ func (s Service) gatherContext(ctx context.Context, workspaceID, query string, f
 		facts = append(facts, fmt.Sprintf("availableFlows=%d", len(snap.Flows)))
 		sections = appendContextSection(sections, "AVAILABLE FLOWS", flowLines)
 	} else {
-		facts = append(facts, fmt.Sprintf("availableFlows=skipped"))
+		facts = append(facts, "availableFlows=skipped")
 	}
 
 	activeExecutions := 0

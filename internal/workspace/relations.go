@@ -381,10 +381,6 @@ func isTestFilePath(path string) bool {
 		strings.HasPrefix(base, "test_") || strings.Contains(base, "_test.") || strings.Contains(base, ".test.") || strings.Contains(base, ".spec.")
 }
 
-func filenameTestTargets(testPath string, paths []string) []string {
-	return newImportResolver(paths).filenameTestTargets(testPath)
-}
-
 func (resolver *importResolver) filenameTestTargets(testPath string) []string {
 	base := filepath.Base(testPath)
 	extension := filepath.Ext(base)

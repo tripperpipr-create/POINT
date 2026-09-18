@@ -427,35 +427,6 @@ func (f *FS) readContent(path string, allowSensitive bool, numbered bool) (FileC
 	return readOpenedContent(file, info, displayPath, f.maxReadBytes, numbered)
 }
 
-// readWalkedIndexFile avoids re-resolving every path already yielded by a
-// boundary-checked WalkDir. The opened handle must still identify the exact
-// regular file observed by the walk, closing the file-replacement window.
-func (f *FS) readWalkedIndexFile(abs, relative string, walked os.FileInfo) (FileContent, error) {
-	if walked == nil || !walked.Mode().IsRegular() || IsSensitive(relative) || !isWithin(f.root, abs) {
-		return FileContent{}, ErrOutsideWorkspace
-	}
-	current, err := os.Lstat(abs)
-	if err != nil {
-		return FileContent{}, err
-	}
-	if !current.Mode().IsRegular() || current.Mode()&(os.ModeSymlink|os.ModeIrregular) != 0 || !os.SameFile(walked, current) {
-		return FileContent{}, ErrOutsideWorkspace
-	}
-	file, err := os.Open(abs)
-	if err != nil {
-		return FileContent{}, err
-	}
-	defer file.Close()
-	opened, err := file.Stat()
-	if err != nil {
-		return FileContent{}, err
-	}
-	if !opened.Mode().IsRegular() || !os.SameFile(walked, opened) {
-		return FileContent{}, ErrOutsideWorkspace
-	}
-	return readOpenedContent(file, opened, filepath.ToSlash(relative), f.maxReadBytes, false)
-}
-
 // readIndexCandidateFile validates and opens a regular file discovered by
 // WalkDir without requiring the walk to stat every file serially. The Lstat
 // identity is compared with the opened handle, so a replacement or link race

@@ -64,14 +64,6 @@ const companionPartialIndexInstruction = `The project index for this workspace i
 // вступление на всю длину и обрывается перед выводом.
 const companionReplyBudgetInstruction = `Your reply is capped at %d output tokens and the cap cuts mid-sentence without warning. Plan the answer to fit and finish your last thought. When the subject needs more room, answer the most important part first and end by offering to continue.`
 
-// Границы для помощника, который читает проект своими руками. Инструментов
-// Point он не получает: их исполняет не он. Зато у него есть собственные, и
-// сказать ему, где проходит граница, обязан Point — CLI сам по себе умеет и
-// править файлы, и запускать команды.
-const companionOwnToolsInstruction = `You have two sets of tools. Your own read the project directly - open files, search the code, read git history - and they are for reading only. Point's tools arrive over MCP as mcp__point__*: they carry what your own tools cannot reach, the ranked project index, the symbol map and the skills worn for this project. Prefer mcp__point__search_code over a blind file sweep when you need implementation context.
-
-Never modify a file, never run anything beyond read-only git commands, and never claim that work was performed - Point's companion advises, and every change goes through the person. Anything that changes or risks something belongs to Point's tools, where the permissions of this workspace are enforced, and the companion has no such permission at all. When you read something, say plainly in the reply what you looked at, so the person knows where the answer came from.`
-
 // Точка отсчёта для всего датированного. Модель считает «сегодня» по дате
 // обучения, а рядом лежат логи, коммиты и расход «за текущий месяц»: без
 // внешней отметки она меряет их возраст от чужого дня.

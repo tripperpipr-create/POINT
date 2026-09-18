@@ -473,17 +473,6 @@ func cleanList(values []string, limit int) []string {
 	return out
 }
 
-// masterFallbackNote — строка о том, что отвечал не модельный Мастер.
-// Молчаливый откат неотличим от исправной работы: человек настроил модель и
-// вправе знать, что она не ответила.
-func masterFallbackNote(reason string) string {
-	reason = strings.TrimSpace(reason)
-	if reason == "" {
-		return ""
-	}
-	return "Модель Мастера не ответила, отвечает движок Point: " + reason
-}
-
 // amendPendingProposal правит уже предложенный квест вместо создания второго.
 //
 // Возвращает handled=false, когда правки не было: модель не назвала

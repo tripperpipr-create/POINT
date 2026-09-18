@@ -82,10 +82,22 @@ function emptyTranscriptText(stall, stages) {
 //
 // `deps` — те же зависимости, что у остальных вынесенных видов: esc, хроника,
 // названия видов узлов и разметка управления, общая с карточкой наряда.
+// Экранирование приходит снаружи и обязано прийти. Фолбэк-«тождество»
+// выглядел безобидной осторожностью, а был открытой дверью: в stall.error
+// попадает текст от модели и от ядра, и без esc он уехал бы в разметку как
+// есть. Отсутствие esc — ошибка вызывающего, и она должна быть слышна сразу,
+// а не превращаться в инъекцию у того, кто откроет карточку наряда.
+function requireEsc(deps) {
+  if (typeof deps.esc !== 'function') {
+    throw new Error('work-order-execution-views: не передан esc — экранировать текст ядра нечем')
+  }
+  return deps.esc
+}
+
 export function workOrderExecutionHtml(order, ui, deps = {}) {
   const runtime = order?.runtime
   if (!runtime) return ''
-  const esc = deps.esc || (value => String(value ?? ''))
+  const esc = requireEsc(deps)
   const stages = list(runtime.stages)
   const stall = runtime.stall
   const stallTitle = stall ? (STALL_REASON[stall.waitReason] || 'Выполнение остановлено') : ''
@@ -146,7 +158,7 @@ export function workOrderExecutionHtml(order, ui, deps = {}) {
 // заголовком, а доказательства и управление приложением встают после потока —
 // там, где их ищут, когда работа кончилась.
 export function workOrderRunHtml(order, ui, deps = {}) {
-  const esc = deps.esc || (value => String(value ?? ''))
+  const esc = requireEsc(deps)
   const runtime = order?.runtime || {}
   const status = String(runtime.status || '')
   const tone = deps.tone || ''

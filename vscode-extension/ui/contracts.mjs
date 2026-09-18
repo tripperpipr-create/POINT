@@ -505,28 +505,40 @@ const TYPE_SCALE = new Set(
   const ext = read('vscode-extension/extension.js')
   const js = webviewSource
 
-  const patternsOf = (source, where) => {
+  // Сверяются и образцы, и сами тексты. Одних образцов мало: таблицы уже
+  // разошлись формулировкой — красная полоса звала в «Бюджет проекта», а лента
+  // прогона про него молчала. Один и тот же отказ не может называться
+  // по-разному в зависимости от того, на каком экране его встретили.
+  const hintsOf = (source, where) => {
     const block = source.match(/const CORE_FAILURE_HINTS = \[[\s\S]*?\n\s*\]/)
     if (!block) {
       fail(`в ${where} нет таблицы CORE_FAILURE_HINTS — переводить ошибки ядра нечем`)
       return null
     }
-    return new Set([...block[0].matchAll(/\[\/([^/]+)\/i,/g)].map(m => m[1]))
+    const hints = new Map()
+    for (const row of block[0].matchAll(/\[\/([^/]+)\/i,\s*'([^']*)'\]/g)) {
+      hints.set(row[1], row[2])
+    }
+    return hints
   }
 
-  const inExtension = patternsOf(ext, 'extension.js')
-  const inWebview = patternsOf(js, 'ui/client')
+  const inExtension = hintsOf(ext, 'extension.js')
+  const inWebview = hintsOf(js, 'ui/client')
   if (inExtension && inWebview) {
     if (inExtension.size < 3 || inWebview.size < 3) {
       fail('таблицы объяснений подозрительно малы — сверка прошла бы вхолостую')
     }
     // Webview переводит и то, что видит только он (причины неудачи прогона),
     // поэтому требуем не равенства, а общего ядра: всё, что знает webview про
-    // общие случаи, обязано быть известно и расширению.
-    for (const pattern of inWebview) {
+    // общие случаи, обязано быть известно и расширению — теми же словами.
+    for (const [pattern, russian] of inWebview) {
       if (/completion gate|deadline exceeded/.test(pattern)) continue
       if (!inExtension.has(pattern)) {
         fail(`объяснение "${pattern}" есть в webview, но не в extension.js — один и тот же отказ переведут не везде`)
+        continue
+      }
+      if (inExtension.get(pattern) !== russian) {
+        fail(`объяснение "${pattern}" расходится словами: extension.js «${inExtension.get(pattern)}», webview «${russian}»`)
       }
     }
   }

@@ -15,6 +15,8 @@
 //
 // Состояние раскрытия живёт здесь же, как и у карточки запуска: main.js стоит у
 // своей границы в 6900 строк, и вид владеет своим раскрытием сам.
+import { shortLabel } from './format-units.js'
+
 export const masterHiringOpen = new Set()
 
 const list = value => (Array.isArray(value) ? value : [])
@@ -35,14 +37,7 @@ function toolChips(tools, esc) {
   return `<div class="hall-hire-tools">${shown.map(tool => `<span>${esc(tool)}</span>`).join('')}</div>`
 }
 
-// Имя в подписи кнопки ограничено по длине: подписи кнопок Чертога не
-// переносятся, а имя чертежа задаёт человек, и длину ему никто не ограничивал.
-// Кнопка с таким именем выезжала за карточку и уводила ленту в горизонтальную
-// прокрутку. Полное имя остаётся в заголовке и в подсказке.
-function shortName(name) {
-  const runes = [...String(name || '')]
-  return runes.length > 28 ? runes.slice(0, 27).join('').trimEnd() + '…' : String(name || '')
-}
+const shortName = name => shortLabel(name, 28)
 
 function candidateHtml(candidate, esc, workOrderId, { takeable } = {}) {
   const readiness = READINESS[candidate.readiness] || 'готов'

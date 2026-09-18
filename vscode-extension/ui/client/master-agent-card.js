@@ -15,6 +15,8 @@
 // Состояние живёт здесь же, как у карточки найма и карточки запуска: main.js
 // стоит у своей границы в 6900 строк, и вид владеет своим раскрытием сам.
 
+import { shortLabel } from './format-units.js'
+
 const list = value => (Array.isArray(value) ? value : [])
 const text = value => String(value ?? '').trim()
 
@@ -224,13 +226,7 @@ function limitsHtml(value, esc) {
     </div>`
 }
 
-// Имя чертежа задаёт человек, и длину ему никто не ограничивал: подпись кнопки
-// обрезается, полное имя остаётся в подсказке. Эта регрессия уже случалась в
-// карточке найма и выводила ленту в горизонтальную прокрутку.
-function shortName(name) {
-  const runes = [...String(name || '')]
-  return runes.length > 24 ? runes.slice(0, 23).join('').trimEnd() + '…' : String(name || '')
-}
+const shortName = name => shortLabel(name, 24)
 
 function blueprintsHtml(card, esc) {
   const blueprints = list(card.blueprints).slice(0, 3)

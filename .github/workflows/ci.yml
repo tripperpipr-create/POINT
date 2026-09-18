@@ -31,7 +31,27 @@ jobs:
       - name: Verify modules
         run: go mod verify
       - name: Test
-        run: go test ./...
+        # Имена упавших тестов уходят в сводку прогона.
+        #
+        # Журналы Actions видны только после входа в аккаунт, и снаружи
+        # падение выглядит как «Process completed with exit code 1» — по нему
+        # нельзя понять ни какой тест упал, ни повторяем ли отказ. Сводка
+        # прогона публична, и этих двух строк хватает, чтобы разбор начинался
+        # с имени теста, а не с воспроизведения вслепую.
+        run: |
+          set +e
+          go test ./... 2>&1 | tee go-test.log
+          status=${PIPESTATUS[0]}
+          set -e
+          if [ "$status" -ne 0 ]; then
+            {
+              echo '### Упавшие тесты'
+              echo '```'
+              grep -E '^(--- FAIL|    --- FAIL|FAIL)' go-test.log | head -50
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit "$status"
 
   sandbox:
     runs-on: ubuntu-latest

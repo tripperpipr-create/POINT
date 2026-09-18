@@ -1,0 +1,27 @@
+{
+  "_": [
+    "Проверка типов в редакторе, без новых зависимостей в поставке.",
+    "",
+    "У расширения ~40 тысяч строк JS и ни одного линтера: в сборку входит",
+    "только `node --check`, а он видит синтаксис одного файла и не видит",
+    "неизвестное имя. checkJs включает разбор редактора — неизвестное имя,",
+    "опечатка в поле, лишний аргумент подсвечиваются на месте.",
+    "",
+    "В затвор это не входит намеренно: прогон tsc потребовал бы TypeScript в",
+    "devDependencies, а в CI — ещё и в npm ci. Стык модулей вебвью закрывает",
+    "scripts/check-webview-exports.mjs, которому зависимости не нужны."
+  ],
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "nodenext",
+    "checkJs": true,
+    "allowJs": true,
+    "noEmit": true,
+    "strict": false,
+    "resolveJsonModule": true,
+    "lib": ["ES2022", "DOM"]
+  },
+  "include": ["*.js", "ui/client/**/*.js", "media/chronicle.js"],
+  "exclude": ["node_modules", "dist", "media/main.js", "media/style.css", "bin"]
+}

@@ -19,11 +19,6 @@ func BuildToolRegistry(fs *workspace.FS, customTools []domain.CustomTool, profil
 	return BuildToolRegistryWithSources(fs, customTools, nil, nil, profiles...)
 }
 
-// BuildToolRegistryWithServers registers optional SSH tools backed by saved server profiles.
-func BuildToolRegistryWithServers(fs *workspace.FS, customTools []domain.CustomTool, serverProfiles workbenchtools.ServerProfileSource, profiles ...domain.AgentProfile) (*workbenchtools.Registry, *workbenchtools.PatchManager) {
-	return BuildToolRegistryWithSources(fs, customTools, serverProfiles, nil, profiles...)
-}
-
 // BuildToolRegistryWithSources registers optional SSH and database tools.
 func BuildToolRegistryWithSources(fs *workspace.FS, customTools []domain.CustomTool, serverProfiles workbenchtools.ServerProfileSource, dbSource workbenchtools.DBConnectionSource, profiles ...domain.AgentProfile) (*workbenchtools.Registry, *workbenchtools.PatchManager) {
 	return buildToolRegistryWithExecution(fs, customTools, serverProfiles, dbSource, nil, "", nil, nil, nil, runCorrelation{}, profiles...)

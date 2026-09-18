@@ -165,6 +165,14 @@
       "status": "closed",
       "title": "Work order execution view fell back to a non-escaping identity function for untrusted core text",
       "evidence": "vscode-extension/ui/client/work-order-execution-views.js"
+    },
+    {
+      "id": "SMOKE_MASTER_SESSION_CONTROLS_STALE",
+      "severity": "P3",
+      "status": "open",
+      "title": "Manual browser smoke for master session controls no longer passes: the conversation actions panel does not reveal the title input",
+      "evidence": "scripts/smoke-master-session-controls.cjs",
+      "rationale": "Ручная проверка вне затвора: требует Edge и Playwright из локальной сборки Code-OSS. Записана здесь, чтобы красная проверка не считалась живой просто потому, что её никто не запускал."
     }
   ],
   "evidence": [

@@ -1,3 +1,4 @@
+import { formatBytes } from './format-units.js'
 export function createQuestRuntimeViews(dependencies) {
   const {
     CREATE_FLOW_STAGES,
@@ -849,12 +850,6 @@ export function createQuestRuntimeViews(dependencies) {
       ? `<div class="quest-trace"><small>TRACE</small><span>Execution · ${esc(execution.id)}</span>${quest ? `<span>Quest · ${esc(quest.title || quest.id)}</span>` : ''}${execution.flowRunId ? `<span>Flow · ${esc(flow?.name || execution.flowRunId)}</span>` : ''}${execution.flowNodeId ? `<span>Node · ${esc(flowNode?.name || execution.flowNodeId)}</span>` : ''}</div>`
       : ''
     return `<section class="active-quest"><header><span>АКТИВНЫЙ КВЕСТ</span>${status(run.status)}</header><h3>${esc(run.task)}</h3><div class="quest-agent"><span>✦</span><div><small>ПЕРСОНАЖ</small><strong>${esc(profile?.name || run.profileId)} · ${esc(agentClass(profile))}</strong></div></div>${trace}<div class="quest-progress"><label><span>ПРОГРЕСС</span><b>${progress}%</b></label><progress value="${progress}" max="100"></progress><small>ход ${esc(run.step)} из лимита ${maxSteps}</small></div>${runControls}${changed.length?`<div class="quest-artifacts"><small>ЗАТРОНУТЫЕ АРТЕФАКТЫ</small>${changed.slice(0,5).map(path=>`<span>◇ ${esc(path)}</span>`).join('')}</div>`:''}${terminal?`<footer><small>НАГРАДА</small><strong>${run.status==='completed'?'Результат зафиксирован':'Опыт сохранён'} · ${countOf(changed.length, 'файл', 'файла', 'файлов')}</strong></footer>`:''}</section>`
-  }
-  function formatBytes(value) {
-    const bytes = Number(value || 0)
-    if (bytes < 1024) return `${bytes} Б`
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(bytes < 10 * 1024 ? 1 : 0)} КиБ`
-    return `${(bytes / 1024 / 1024).toFixed(1)} МиБ`
   }
   function formatDuration(value) {
     const milliseconds = Math.max(0, Number(value || 0))

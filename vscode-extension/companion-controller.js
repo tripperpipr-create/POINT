@@ -1,3 +1,4 @@
+const { formatVcsError } = require('./extension-utils')
 function createCompanionController(dependencies) {
   const {
     vscode,
@@ -657,10 +658,6 @@ function createCompanionController(dependencies) {
     return relative.replace(/\\/g, '/')
   }
   
-  function formatVcsError(action, error) {
-    const detail = (error instanceof Error ? error.message : String(error || '')).replace(/\s+/g, ' ').trim().slice(0, 220)
-    return detail ? `${action}: ${detail}` : action
-  }
   
   async function companionDiffMessage(arg = {}) {
     arg = normalizeCompanionArg(arg)

@@ -1,3 +1,4 @@
+import { formatBytes } from './format-units.js'
 // Hub runtime UI helpers: live run status, exec controls, pending reviews,
 // quest progress strips, and context inspector chrome shared by overview/hall/master.
 
@@ -64,12 +65,6 @@ export function createHubRuntimeUi({
   getContextInspectorNotice,
   getKeptRunId = () => '',
 }) {
-  function formatBytes(value) {
-    const bytes = Number(value || 0)
-    if (bytes < 1024) return `${bytes} Б`
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(bytes < 10 * 1024 ? 1 : 0)} КиБ`
-    return `${(bytes / 1024 / 1024).toFixed(1)} МиБ`
-  }
 
   function contextKindLabel(item) {
     if (item.kind === 'image') return `Изображение${item.width && item.height ? ` ${item.width}×${item.height}` : ''}`

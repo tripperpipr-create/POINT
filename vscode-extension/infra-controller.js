@@ -1,11 +1,8 @@
+const { formatVcsError } = require('./extension-utils')
 // Infra surfaces: Git tool window, Docker, SSH servers, and database connections.
 const vscode = require('vscode')
 const path = require('path')
 
-function formatVcsError(action, error) {
-  const detail = (error instanceof Error ? error.message : String(error || '')).replace(/\s+/g, ' ').trim().slice(0, 220)
-  return detail ? `${action}: ${detail}` : action
-}
 
 async function handleGitAction(message) {
   const action = String(message?.action || '')

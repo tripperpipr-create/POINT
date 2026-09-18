@@ -12,6 +12,16 @@ const DECISION_RESOLVE_ROUTES = [
   /^\/api\/egress-asks\/[A-Za-z0-9_-]+\/resolve$/,
 ]
 
+// Отказ git, показанный человеку.
+//
+// Формат был написан дважды — в companion-controller и в infra-controller, —
+// байт в байт. Одно и то же сообщение об одной и той же ошибке не может
+// зависеть от того, из какой панели её увидели.
+function formatVcsError(action, error) {
+  const detail = (error instanceof Error ? error.message : String(error || '')).replace(/\s+/g, ' ').trim().slice(0, 220)
+  return detail ? `${action}: ${detail}` : action
+}
+
 function decisionResolvePath(value) {
   const candidate = String(value || '')
   return DECISION_RESOLVE_ROUTES.some(pattern => pattern.test(candidate)) ? candidate : ''
@@ -274,4 +284,5 @@ module.exports = {
   readJsonFile,
   upsertById,
   removeById,
+  formatVcsError,
 }

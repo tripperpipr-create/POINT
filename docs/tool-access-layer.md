@@ -59,7 +59,7 @@
 
 - `tools.Tool` и `tools.Registry` — интерфейс и реестр правильные.
 - `agent.BuildToolRegistryWithSources` — один конструктор на движок агента и на
-  узел потока оркестратора (`internal/app/orchestration.go`).
+  узел потока оркестратора (`internal/app/flow_node_context.go`).
 - **Двойную проверку доступа.** Она уже есть в обоих местах и построена верно:
   помощник сверяет имя со своим списком до похода в реестр
   (`internal/app/companion_tools.go`), движок агента режет вызов по

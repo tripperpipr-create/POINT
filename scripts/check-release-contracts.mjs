@@ -623,6 +623,7 @@ for (const token of [
   "from './view-runtime.js'", "from './keyboard-navigation.js'",
   "from './model-picker.js'", "from './companion-studio-views.js'", "from './companion-setup-wizard.js'",
   "from './master-hiring-card.js'", "from './master-agent-card.js'",
+  "from './decision-views.js'",
 ]) {
   requireText(webviewSource, token, 'webview module boundary')
 }
@@ -649,6 +650,7 @@ for (const [file, maximum] of Object.entries({
   'vscode-extension/ui/client/master-work-order-v2.js': 300,
   'vscode-extension/ui/client/master-hiring-card.js': 300,
   'vscode-extension/ui/client/master-agent-card.js': 450,
+  'vscode-extension/ui/client/decision-views.js': 400,
 })) {
   const actual = lineCount(read(file))
   if (actual > maximum) errors.push(`module boundary: ${file} has ${actual} lines (budget ${maximum})`)

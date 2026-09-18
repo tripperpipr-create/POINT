@@ -10,7 +10,11 @@ const requiredAreas = [
   'documentation-contracts',
 ]
 const requiredThreats = Array.from({ length: 15 }, (_, index) => `T${String(index + 1).padStart(2, '0')}`)
-const requiredRisks = Array.from({ length: 5 }, (_, index) => `R${index + 1}`)
+// Принятых остаточных рисков шесть. R6 жил в docs/threat-model.md, но в
+// реестр попасть не мог: затвор требовал ровно R1-R5 и падал на любой
+// попытке его внести. Документ и реестр расходились там, где реестр и
+// заведён для того, чтобы они сходились.
+const requiredRisks = Array.from({ length: 6 }, (_, index) => `R${index + 1}`)
 const severities = new Set(['P0', 'P1', 'P2', 'P3'])
 const statuses = new Set(['open', 'mitigating', 'accepted', 'closed'])
 
@@ -50,7 +54,7 @@ export function validateQualityGate(registryOverride) {
   }
   if (!sameMembers(registry.reviewedAreas, requiredAreas)) errors.push('quality gate reviewedAreas does not cover the full production objective')
   if (!sameMembers(registry.reviewedThreats, requiredThreats)) errors.push('quality gate reviewedThreats must contain T01-T15 exactly')
-  if (!sameMembers(registry.acceptedResidualRisks, requiredRisks)) errors.push('quality gate acceptedResidualRisks must contain R1-R5 exactly')
+  if (!sameMembers(registry.acceptedResidualRisks, requiredRisks)) errors.push('quality gate acceptedResidualRisks must contain R1-R6 exactly')
 
   const threatModel = fs.readFileSync(path.join(root, 'docs/threat-model.md'), 'utf8')
   for (const id of [...requiredThreats, ...requiredRisks]) {

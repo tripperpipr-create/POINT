@@ -151,24 +151,43 @@ Evidence миграций/DR лежит локально в build/audit-fix-migr
 
 ## Карта исходников
 
-Срез на 13 сентября, после внедрения контура v2. Измерение исключает build, .cache, node_modules и другие генерируемые деревья. Строки считаются разделением по переводу строки, включая последний пустой элемент.
+Срез на 18 сентября, после разрезания крупных файлов. Измерение исключает build, .cache, node_modules и другие генерируемые деревья. Строки считаются разделением по переводу строки, включая последний пустой элемент.
 
-| Слой | Объём | Было 5 сентября |
+| Слой | Объём | Было 13 сентября |
 | --- | ---: | ---: |
-| internal | 33 пакета, 311 production Go-файлов | 29 пакетов, 184 файла |
-| Go-тесты internal | 211 файлов | 128 файлов |
+| internal | 35 пакетов, 393 production Go-файла | 33 пакета, 311 файлов |
+| Go-тесты internal | 243 файла | 211 файлов |
 | HTTP API | 201 маршрут, из них 19 `/api/v2/*` | 201 маршрут |
-| Код v2 (`*_v2.go` в domain/storage/app/httpapi) | 46 файлов, ~5 600 строк | — |
-| extension.js | 6219 строк | 7431 строк |
-| ui/client/main.js | 6818 строк | 6674 строк |
-| internal/app/app.go | 748 строк | 749 строк |
-| Команды / keybindings | 92 / 86 | 91 / 82 |
-| scripts | 176 непосредственных файлов | 139 файлов |
-| Схема SQLite | 63 миграции | 37 миграций |
+| Код v2 (`*_v2.go`, без тестов) | 40 файлов, ~6 600 строк | 46 файлов, ~5 600 строк |
+| extension.js | 6287 строк | 6219 строк |
+| ui/client/main.js | 6396 строк | 6818 строк |
+| Модулей ui/client | 47 | 44 |
+| internal/app/app.go | 666 строк | 748 строк |
+| Команды / keybindings | 94 / 86 | 92 / 86 |
+| scripts | 186 непосредственных файлов | 176 файлов |
+| Схема SQLite | 67 миграций | 63 миграции |
+| Смоуки Хаба | 60 сценариев | 56 сценариев |
 
-Миграции 59–63 обслуживают контур v2: `agent_hub_reapproval_v2`, `agent_hub_master_work_order_v2`, `agent_hub_writer_lease_v2`, `agent_hub_model_certification_v2`, `agent_hub_delivered_app_control_v2`. Сокращение `extension.js` — вынос UI в отдельные модули `ui/client`, а не удаление функций.
+Рост числа файлов при том же объёме кода — результат разрезания: ни одного
+production-файла длиннее 1100 строк не осталось. Крупнейшие были разложены по
+семействам сценариев, имена взяты из уже принятой в пакетах конвенции:
 
-Версии core/frontend/extension — 1.2.2; Code-OSS — 1.124.2. Node для разработки рекомендуется 24; CI выбирает major 24. Локальные проверки 5 и 13 сентября выполнены на Node 22.11.0 и Go 1.25.0.
+| Было | Стало |
+| --- | --- |
+| `internal/app/orchestration.go` 2368 | 302 + семь файлов (`quest_start_from_proposal`, `flow_scheduler`, `flow_node_context`, `cursor_execution`, `flow_completion`, `revert_execution`, `flow_orchestrator_keys`) |
+| `internal/agent/engine.go` 2290 | 334 + девять (`engine_loop`, `engine_start`, `tool_execution`, `engine_controls`, `engine_events`, `tool_plan`, `workspace_audit`, `system_message`, `tool_registry`) |
+| `internal/app/hub.go` 1735 | 31 + шесть (`hub_bootstrap`, `agent_blueprints`, `hub_skills`, `hub_quests`, `hub_flows`, `hub_changesets`) |
+| `internal/httpapi/server.go` 1733 | 247 + пятнадцать файлов маршрутов и `middleware`/`respond`/`events` |
+| `internal/orchestrator/chat.go` 1615 | 535 + семь (`chat_types`, `chat_intent`, `chat_hire`, `chat_proposals`, `chat_text`, `chat_status`, `chat_store`) |
+| `internal/storage/migrations.go` 1572 | 124 (реестр) + пять по областям схемы |
+| `internal/workspace/index.go` 1563 | 167 + шесть (`index_build`, `index_context`, `index_search`, `index_tokens`, `index_drift`, `index_types`) |
+| `internal/app/agent_learning.go` 1452 | 96 + пять шагов цикла учения |
+
+Тесты разрезаны по тем же границам. В вебвью из `ui/client/main.js` выделены
+`decision-views.js` и `companion-thread-views.js`, из `extension.js` —
+`point-panels.js`.
+
+Версии core/frontend/extension — 1.2.2; Code-OSS — 1.124.2. Node для разработки рекомендуется 24; CI выбирает major 24. Локальные проверки 5, 13 и 18 сентября выполнены на Node 22.11.0 и Go 1.25.0.
 
 Что осталось
 

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "productVersion": "1.2.2",
-  "reviewedAt": "2026-09-05",
+  "reviewedAt": "2026-09-18",
   "severityPolicy": {
     "P0": "Data loss, secret disclosure, sandbox escape, arbitrary unauthorized execution, or product-wide outage.",
     "P1": "A primary daily workflow is unusable, isolation or rollback is materially weakened, or no safe workaround exists.",
@@ -43,7 +43,8 @@
     "R2",
     "R3",
     "R4",
-    "R5"
+    "R5",
+    "R6"
   ],
   "defects": [
     {
@@ -94,6 +95,76 @@
       "status": "closed",
       "title": "Web client no longer offers an unavailable desktop picker",
       "evidence": "docs/AUDIT-2026-09-05.md"
+    },
+    {
+      "id": "REFACTOR_FLOW_WAIT_REASON",
+      "severity": "P2",
+      "status": "closed",
+      "title": "Flow scheduler persisted no wait reason, leaving nodes waiting without a visible cause",
+      "evidence": "internal/app/flow_scheduler.go"
+    },
+    {
+      "id": "REFACTOR_CASCADE_CANCEL_IDEMPOTENCY",
+      "severity": "P2",
+      "status": "closed",
+      "title": "Cascade cancellation write was ignored, so a late Cursor completion could revive a cancelled execution",
+      "evidence": "internal/app/flow_node_context.go"
+    },
+    {
+      "id": "REFACTOR_USAGE_RECORD_LOSS",
+      "severity": "P3",
+      "status": "closed",
+      "title": "Token usage record insert failure was swallowed and statistics drifted silently",
+      "evidence": "internal/app/revert_execution.go"
+    },
+    {
+      "id": "REFACTOR_MASTER_TURN_FINAL_STATE",
+      "severity": "P2",
+      "status": "closed",
+      "title": "Master turn terminal state was written without checking the error while the client already saw done",
+      "evidence": "internal/app/master_turns.go"
+    },
+    {
+      "id": "REFACTOR_MASTER_MESSAGE_LOCAL_TIME",
+      "severity": "P3",
+      "status": "closed",
+      "title": "Cancellation message stored local time instead of UTC and fell out of conversation order",
+      "evidence": "internal/app/master_turns.go"
+    },
+    {
+      "id": "REFACTOR_UTF8_BYTE_TRUNCATION",
+      "severity": "P3",
+      "status": "closed",
+      "title": "Handoff and SSH output were cut on byte boundaries, producing invalid UTF-8 for Cyrillic text",
+      "evidence": "internal/textutil/bounded_test.go"
+    },
+    {
+      "id": "REFACTOR_REASONING_ENVELOPE",
+      "severity": "P2",
+      "status": "closed",
+      "title": "Master envelope decoder scanned braces inside the reasoning block and rejected valid answers",
+      "evidence": "internal/orchestrator/chat_model_test.go"
+    },
+    {
+      "id": "REFACTOR_CONTRACT_DOT_PATH",
+      "severity": "P3",
+      "status": "closed",
+      "title": "Work contract path normalisation stripped leading dots, conflating .env with env",
+      "evidence": "internal/app/work_contracts_test.go"
+    },
+    {
+      "id": "REFACTOR_CORE_FAILURE_WORDING",
+      "severity": "P3",
+      "status": "closed",
+      "title": "Core failure explanations diverged between the extension banner and the run feed",
+      "evidence": "vscode-extension/ui/contracts.mjs"
+    },
+    {
+      "id": "REFACTOR_IDENTITY_ESCAPE_FALLBACK",
+      "severity": "P2",
+      "status": "closed",
+      "title": "Work order execution view fell back to a non-escaping identity function for untrusted core text",
+      "evidence": "vscode-extension/ui/client/work-order-execution-views.js"
     }
   ],
   "evidence": [

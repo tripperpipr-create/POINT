@@ -1,19 +1,32 @@
+import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 
 const root = path.resolve(import.meta.dirname, '..')
-const ignoredDirectories = new Set([
-  '.cache', '.git', '.gocache', '.tmp', 'build', 'dist', 'node_modules',
-])
 
-function walk(directory, files = []) {
-  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
-    if (entry.isDirectory() && ignoredDirectories.has(entry.name)) continue
-    const absolute = path.join(directory, entry.name)
-    if (entry.isDirectory()) walk(absolute, files)
-    else files.push(absolute)
-  }
-  return files
+// Состав файлов берётся у git, а не обходом каталога.
+//
+// Обход видел всё, что лежит на диске, включая worktree другой ветки в
+// `.claude/` — вторую полную копию репозитория. Расходилось это в обе стороны:
+// сломанная ссылка в чужой копии роняла проверку локально и проходила в CI,
+// где копии нет; а путь в бэктиках «находился» в копии, которой в чистом клоне
+// не будет, — затвор зеленел на ссылке в никуда. Весь смысл проверки в том,
+// что CI работает на чистом клоне, значит и состав файлов обязан быть тот же.
+//
+// Отсутствие git здесь — отказ, а не повод обойти дерево молча: тихий запасной
+// путь вернул бы ровно ту разницу, ради которой проверка и переписана.
+function trackedFiles() {
+  const output = execFileSync('git', ['ls-files', '-z'], {
+    cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024,
+  })
+  // Индекс может нести имя, которого на диске уже нет: файл удалён, но
+  // удаление ещё не записано в коммит. Чтение такого имени уронило бы
+  // проверку исключением вместо внятного отказа. Пропуск безопасен: ссылку
+  // на удалённый документ поймает проверка со стороны тех, кто на него ссылается.
+  return output
+    .split('\0')
+    .filter(Boolean)
+    .filter(file => fs.existsSync(path.join(root, file)))
 }
 
 function relative(file) {
@@ -21,8 +34,10 @@ function relative(file) {
 }
 
 const errors = []
-const markdownFiles = walk(root).filter(file => file.toLowerCase().endsWith('.md'))
-const repositoryPaths = walk(root).map(relative)
+const repositoryPaths = trackedFiles()
+const markdownFiles = repositoryPaths
+  .filter(file => file.toLowerCase().endsWith('.md'))
+  .map(file => path.join(root, file))
 const evidenceRoots = '(?:internal|cmd|scripts|distribution|\\.github|vscode-extension|frontend|docs)'
 const sourceExtensions = new Set([
   '.css', '.go', '.html', '.js', '.json', '.jsx', '.md', '.mjs', '.mod', '.ps1',

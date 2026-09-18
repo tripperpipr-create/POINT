@@ -1,4 +1,5 @@
 const Module = require('module')
+const { extensionHostSource } = require('./lib/extension-host-source')
 const originalLoad = Module._load
 Module._load = function load(request, parent, isMain) {
   if (request === 'vscode') {
@@ -79,7 +80,7 @@ if (npmOnly?.script !== 'start') throw new Error(`npm default should be start, g
 // исчезнет: заголовок просто не найдёт значения и спрячет себя.
 const fs = require('node:fs')
 const path = require('node:path')
-const extensionSource = fs.readFileSync(path.resolve(__dirname, '..', 'vscode-extension', 'extension.js'), 'utf8')
+const extensionSource = extensionHostSource()
 const actionSource = fs.readFileSync(path.resolve(__dirname, '..', 'vscode-extension', 'ide-action-controller.js'), 'utf8')
 if (!extensionSource.includes("require('./ide-action-controller')") || !actionSource.includes("'setContext', 'point.runConfiguration'")) {
   throw new Error('run configuration must be published for the title bar chip')

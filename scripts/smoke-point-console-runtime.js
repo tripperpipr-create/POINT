@@ -1,4 +1,5 @@
 const assert = require('assert')
+const { extensionHostSource } = require('./lib/extension-host-source')
 const fs = require('fs')
 const Module = require('module')
 const path = require('path')
@@ -59,7 +60,7 @@ async function main() {
   const manifest = JSON.parse(fs.readFileSync(path.join(root, 'vscode-extension', 'package.json'), 'utf8'))
   const binding = (manifest.contributes?.keybindings || []).find(item => item.key === 'alt+f12' && item.command === 'localAgent.openTerminal')
   assert(binding, 'Alt+F12 must route to localAgent.openTerminal')
-  const extensionSource = fs.readFileSync(path.join(root, 'vscode-extension', 'extension.js'), 'utf8')
+  const extensionSource = extensionHostSource()
   assert(extensionSource.includes("registerCommand('localAgent.openTerminal'"), 'terminal command must be registered during activation')
 
   const { __test } = require(path.join(root, 'vscode-extension', 'extension.js'))

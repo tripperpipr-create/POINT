@@ -1,4 +1,5 @@
 const Module = require('module')
+const { extensionHostSource } = require('./lib/extension-host-source')
 const path = require('path')
 
 const commands = []
@@ -515,7 +516,7 @@ async function main() {
     throw new Error('read_skill tool label is missing')
   }
 
-  const extensionSource = fs.readFileSync(path.resolve(__dirname, '..', 'vscode-extension', 'extension.js'), 'utf8')
+  const extensionSource = extensionHostSource()
   if (!extensionSource.includes('✦ Спросить компаньона') || !extensionSource.includes('createCompanionCodeLensProvider')) {
     throw new Error('Selection CodeLens ask companion affordance is missing')
   }

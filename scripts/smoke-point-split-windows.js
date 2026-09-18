@@ -1,11 +1,12 @@
 const fs = require('fs')
+const { extensionHostSource } = require('./lib/extension-host-source')
 const http = require('http')
 const Module = require('module')
 const os = require('os')
 const path = require('path')
 
 const root = path.resolve(__dirname, '..')
-const extensionSource = fs.readFileSync(path.join(root, 'vscode-extension', 'extension.js'), 'utf8')
+const extensionSource = extensionHostSource()
 const overlaySource = fs.readFileSync(path.join(root, 'distribution', 'apply-overlay.mjs'), 'utf8')
 const menubarSource = fs.readFileSync(path.join(root, 'distribution', 'resources', 'point-menubar.ts.txt'), 'utf8')
 const product = JSON.parse(fs.readFileSync(path.join(root, 'distribution', 'product-overrides.json'), 'utf8'))

@@ -1,4 +1,5 @@
 const Module = require('module')
+const { extensionHostSource } = require('./lib/extension-host-source')
 const path = require('path')
 const assert = require('assert')
 const fs = require('fs')
@@ -82,7 +83,7 @@ assert.match(formatVcsError('Push недоступен', new Error('remote rejec
   assert.equal(broken.assign['a.js'], 'default', 'an assignment to a deleted folder falls back too')
 }
 
-const extensionSource = fs.readFileSync(path.resolve(__dirname, '..', 'vscode-extension', 'extension.js'), 'utf8')
+const extensionSource = extensionHostSource()
 const infraSource = fs.readFileSync(path.resolve(__dirname, '..', 'vscode-extension', 'infra-controller.js'), 'utf8')
 const gitHostSource = `${extensionSource}\n${infraSource}`
 const uiEntrySource = fs.readFileSync(path.resolve(__dirname, '..', 'vscode-extension', 'ui', 'client', 'main.js'), 'utf8')

@@ -76,8 +76,18 @@ func validateWorkContractChanges(contract domain.WorkContract, set domain.Change
 	return nil
 }
 
+// Нормализация пути в договоре этапа.
+//
+// Здесь стоял strings.Trim(..., "./"), и это срезало не префикс «./», а любые
+// точки и слэши по краям: «.github/workflows/ci.yml» превращался в
+// «github/workflows/ci.yml», а «.env» — в «env». Скрытый каталог и обычный
+// каталог с тем же именем становились одним путём, и запрет на «.env» ложился
+// на каталог «env» (и наоборот). Срезается ровно ведущее «./» и обрамляющие
+// слэши; точка в начале имени — часть имени.
 func normalizeContractPath(value string) string {
-	return strings.Trim(strings.ReplaceAll(filepath.Clean(strings.TrimSpace(value)), "\\", "/"), "./")
+	clean := strings.ReplaceAll(filepath.Clean(strings.TrimSpace(value)), "\\", "/")
+	clean = strings.TrimPrefix(clean, "./")
+	return strings.Trim(clean, "/")
 }
 
 func contractPathContains(scope, path string) bool {

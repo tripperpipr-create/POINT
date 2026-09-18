@@ -315,3 +315,33 @@ func TestSerialWritersDoNotRequireIsolation(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// Скрытый каталог и обычный каталог с тем же именем — разные пути. Обрезка по
+// набору символов «./» срезала точку в начале имени, и запрет на «.env»
+// ложился на каталог «env»: договор этапа запрещал не то, что в нём написано.
+func TestNormalizeContractPathKeepsLeadingDot(t *testing.T) {
+	cases := map[string]string{
+		".github/workflows/ci.yml": ".github/workflows/ci.yml",
+		"./src/main.go":            "src/main.go",
+		".env":                     ".env",
+		"notes..md":                "notes..md",
+		"docs/":                    "docs",
+	}
+	for input, want := range cases {
+		if got := normalizeContractPath(input); got != want {
+			t.Errorf("normalizeContractPath(%q) = %q, ожидалось %q", input, got, want)
+		}
+	}
+}
+
+func TestWorkContractSeparatesHiddenAndPlainDirectories(t *testing.T) {
+	contract := domain.WorkContract{ForbiddenPaths: []string{".env"}}
+	allowed := domain.ChangeSet{Items: []domain.ChangeItem{{Path: "env/config.yml"}}}
+	if err := validateWorkContractChanges(contract, allowed); err != nil {
+		t.Fatalf("каталог env запрещать не просили: %v", err)
+	}
+	denied := domain.ChangeSet{Items: []domain.ChangeItem{{Path: ".env"}}}
+	if err := validateWorkContractChanges(contract, denied); err == nil {
+		t.Fatal("запрет на .env обязан сработать на самом .env")
+	}
+}

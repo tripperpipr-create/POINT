@@ -88,6 +88,18 @@ func reasoningBudgetRecoveryFeedback(episode, maxEpisodes int) string {
 	return "<point_reasoning_budget_gate>\nYour previous turn spent the entire output budget on reasoning with no tool call.\nEvidence: " + string(encoded) + "\nCall a tool immediately (propose_patch or read_file). Keep reasoning minimal; do not re-read Makefile/Dockerfile or explore vendor outside the assignment package.\n</point_reasoning_budget_gate>"
 }
 
+func emptyResponseRecoveryFeedback(episode, maxEpisodes int) string {
+	type evidence struct {
+		Code                string `json:"code"`
+		RecoveryEpisode     int    `json:"recoveryEpisode"`
+		MaxRecoveryEpisodes int    `json:"maxRecoveryEpisodes"`
+	}
+	encoded, _ := json.Marshal(evidence{
+		Code: "empty_response_recovery", RecoveryEpisode: episode, MaxRecoveryEpisodes: maxEpisodes,
+	})
+	return "<point_empty_response_gate>\nYour previous turn returned nothing: no answer and no tool call.\nEvidence: " + string(encoded) + "\nName the next concrete step now. Either call one tool with complete arguments, or write the final answer stating what blocks you. Do not reason silently.\n</point_empty_response_gate>"
+}
+
 func toolPlanNudgeFeedback(calls []providers.ToolCall, identicalPlans int, canRetry bool) string {
 	type evidence struct {
 		Code           string   `json:"code"`

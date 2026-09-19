@@ -50,6 +50,8 @@ func (e *Engine) executeWithCheckpoint(ctx context.Context, active *activeRun, p
 	identicalToolPlanCount := 0
 	toolPlanRecoveries := 0
 	reasoningBudgetRecoveries := 0
+	emptyResponseRecoveries := 0
+	transientModelRetries := 0
 	forceDisableThinking := false
 	// «Размышление» гасится полем сверх спецификации OpenAI, и официальный
 	// endpoint отвечает на него 400. Аварийный повтор там не спасает, а вредит:
@@ -316,6 +318,25 @@ func (e *Engine) executeWithCheckpoint(ctx context.Context, active *activeRun, p
 					reasoningRecovered = true
 					break
 				}
+				// Обрыв потока посреди ответа — не отказ прогона. HTTP-слой
+				// повторяет попытку установить обращение, но поток, умерший на
+				// середине, он уже не спасает: ошибка приходит сюда, и прежде
+				// первая же такая уносила всю работу, если у профиля не было
+				// объявленной запасной модели. У большинства профилей её нет.
+				if providers.IsTransientProviderError(err) && transientModelRetries < maxTransientModelRetries {
+					transientModelRetries++
+					e.publishOrLog(ctx, e.snapshot(active), domain.EventModelRetrying, "provider", map[string]any{
+						"transientRetry": transientModelRetries, "maxTransientRetries": maxTransientModelRetries,
+						"model": currentModel, "message": err.Error(),
+					})
+					select {
+					case <-ctx.Done():
+						e.finishContext(active, ctx.Err())
+						return
+					case <-time.After(time.Duration(transientModelRetries) * transientModelRetryBackoff):
+					}
+					continue
+				}
 				e.fail(active, err)
 				return
 			}
@@ -344,6 +365,25 @@ func (e *Engine) executeWithCheckpoint(ctx context.Context, active *activeRun, p
 		}
 		assistantText := content.String()
 		if strings.TrimSpace(assistantText) == "" && len(calls) == 0 {
+			// Пустой ход — не отказ прогона, а несостоявшийся ход. Прежде он
+			// уносил всю работу немедленно и без единого повтора: модель,
+			// закончившая размышление ровно на границе бюджета, стоила
+			// человеку всего, что агент успел сделать. Лечится он тем же
+			// способом, что и два соседних затыка, — нуджем и новым ходом.
+			if emptyResponseRecoveries < maxEmptyResponseRecoveries {
+				emptyResponseRecoveries++
+				feedback := providers.Message{Role: "user", Content: emptyResponseRecoveryFeedback(emptyResponseRecoveries, maxEmptyResponseRecoveries)}
+				history.AppendRound(conversationRound{
+					Step:      step,
+					Assistant: providers.Message{Role: "assistant", Content: "I returned nothing: no answer and no tool call."},
+					Followup:  &feedback,
+				})
+				e.publishOrLog(ctx, e.snapshot(active), domain.EventAgentGuardrail, "agent", map[string]any{
+					"code": "empty_response_recovery", "recoveryEpisode": emptyResponseRecoveries,
+					"maxRecoveryEpisodes": maxEmptyResponseRecoveries, "model": currentModel,
+				})
+				continue
+			}
 			e.fail(active, errors.New("model returned an empty response without tool calls"))
 			return
 		}

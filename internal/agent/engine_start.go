@@ -161,7 +161,7 @@ func (e *Engine) Start(input StartInput) (domain.Run, error) {
 	var model providers.Model
 	var modelErr error
 	if executors.KindForProvider(profile.Provider) == executors.KindPoint {
-		model, modelErr = e.models(providers.Config{Kind: profile.Provider, Preset: profile.ProviderPreset, BaseURL: profile.BaseURL, APIKey: input.APIKey, APIVersion: profile.APIVersion, TimeoutSeconds: profile.MaxDurationSeconds})
+		model, modelErr = e.models(providers.Config{Kind: profile.Provider, Preset: profile.ProviderPreset, BaseURL: profile.BaseURL, APIKey: input.APIKey, APIVersion: profile.APIVersion, TimeoutSeconds: profile.MaxDurationSeconds, HeaderTimeoutSeconds: agentProviderHeaderTimeoutSeconds})
 	} else if e.toolSessions == nil {
 		modelErr = errors.New("headless CLI requires Point MCP runtime")
 	}
@@ -271,7 +271,7 @@ func (e *Engine) ContinueFromCheckpoint(input StartInput, existing domain.Run, c
 	var model providers.Model
 	var modelErr error
 	if executors.KindForProvider(profile.Provider) == executors.KindPoint {
-		model, modelErr = e.models(providers.Config{Kind: profile.Provider, Preset: profile.ProviderPreset, BaseURL: profile.BaseURL, APIKey: input.APIKey, APIVersion: profile.APIVersion, TimeoutSeconds: modelTimeout})
+		model, modelErr = e.models(providers.Config{Kind: profile.Provider, Preset: profile.ProviderPreset, BaseURL: profile.BaseURL, APIKey: input.APIKey, APIVersion: profile.APIVersion, TimeoutSeconds: modelTimeout, HeaderTimeoutSeconds: agentProviderHeaderTimeoutSeconds})
 	} else {
 		modelErr = fmt.Errorf("%w: unknown_outcome: interrupted CLI process cannot be safely continued", errToolJournalIntegrity)
 	}

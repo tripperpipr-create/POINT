@@ -53,7 +53,20 @@ for (const key of [
   if (!theme.colors?.[key]) throw new Error(`Point Dark missing console token ${key}`);
 }
 
-const extensionSource = fs.readFileSync(path.join(projectRoot, 'vscode-extension', 'extension.js'), 'utf8');
+// Расширение читается целиком, а не одним `extension.js`: 19 сентября консоль
+// переехала в `console-ssh-controller.js`, и проверка привязки к
+// `TerminalLocation.Editor` перестала находить то, что стережёт.
+const extensionDir = path.join(projectRoot, 'vscode-extension');
+const extensionFiles = fs.readdirSync(extensionDir, { withFileTypes: true })
+  .filter((entry) => entry.isFile() && entry.name.endsWith('.js'))
+  .map((entry) => entry.name)
+  .sort();
+if (extensionFiles.length < 10) {
+  throw new Error(`Extension package looks empty (${extensionFiles.length} modules) — the console check would pass blindly`);
+}
+const extensionSource = extensionFiles
+  .map((name) => fs.readFileSync(path.join(extensionDir, name), 'utf8'))
+  .join('\n');
 if (!extensionSource.includes('TerminalLocation.Editor') || !extensionSource.includes('createConsoleChannel')) {
   throw new Error('Console channels must open in TerminalLocation.Editor for Alt+F12 smoke');
 }

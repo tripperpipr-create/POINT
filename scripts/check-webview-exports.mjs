@@ -97,6 +97,169 @@ for (const name of sources) {
   }
 }
 
+// Состояние `main.js` в соседнем модуле обязано быть чем-то связано.
+//
+// При выносе очередной пачки веток каждое имя состояния переписывается либо в
+// `ui.имя`, либо в параметр модуля. Одно пропущенное остаётся свободной
+// переменной: сборка молчит, `node --check` молчит, а `ReferenceError`
+// выпадает только на живом клике — 18 сентября так уехал `onboardingDraft`.
+// Прячется он в спреде: в `{ ...onboardingDraft, … }` имя стоит после точки и
+// на поиск отзывается как свойство.
+//
+// Связанным считается имя, которое модуль объявляет сам, импортирует или
+// принимает параметром. Разбор параметров грубый и намеренно щедрый: лишняя
+// связка — это молчание о настоящей ошибке, но врать о чужом коде хуже.
+// Комментарий — не код. Имена состояния в этом дереве обсуждают словами, и без
+// вычёркивания комментариев проверка ловила бы девять объяснений вместо ошибок.
+// Строка гасится только тогда, когда `//` открывает её целиком: внутри разметки
+// живут ссылки вида `https://…`, и резать по первому `//` значило бы стирать код.
+// Текст строки — тоже не код: `'./master-chat-state.js'` и `class="… state-…"`
+// содержат имена состояния буквами. Гасится только сам текст; вставки `${…}`
+// в шаблонах остаются, потому что разметка этого дерева живёт именно в них.
+// Тело регулярного выражения гасится по той же причине: в `/^(data|lines)/`
+// стоят слова, совпадающие с именами, и без этого проверка спорила бы с
+// разметкой Markdown. Косая черта считается началом выражения, когда перед ней
+// стоит знак, после которого деление невозможно.
+const REGEX_MAY_START = /[(,=:[!&|?{};+\-*%~^<>]|^$/
+const codeOnly = text => {
+  const plain = text
+    .replace(/\/\*[\s\S]*?\*\//g, match => match.replace(/[^\n]/g, ' '))
+    .split('\n')
+    .map(line => (/^\s*\/\//.test(line) ? '' : line))
+    .join('\n')
+  const out = plain.split('')
+  const nested = []
+  let quote = ''
+  let depth = 0
+  let previous = ''
+  for (let at = 0; at < plain.length; at += 1) {
+    const char = plain[at]
+    if (!quote && char.trim() && char !== '/') previous = char
+    if (quote && char === '\\') {
+      if (plain[at + 1] && plain[at + 1] !== '\n') out[at + 1] = ' '
+      at += 1
+      continue
+    }
+    if (!quote) {
+      if (char === "'" || char === '"' || char === '`') { quote = char; continue }
+      if (char === '/' && REGEX_MAY_START.test(previous)) {
+        let scan = at + 1
+        let inClass = false
+        while (scan < plain.length && plain[scan] !== '\n') {
+          const symbol = plain[scan]
+          if (symbol === '\\') { scan += 2; continue }
+          if (symbol === '[') inClass = true
+          else if (symbol === ']') inClass = false
+          else if (symbol === '/' && !inClass) break
+          scan += 1
+        }
+        if (plain[scan] === '/') {
+          for (let step = at + 1; step < scan; step += 1) if (out[step] !== '\n') out[step] = ' '
+          at = scan
+          previous = '/'
+          continue
+        }
+      }
+      if (char === '{') depth += 1
+      else if (char === '}') {
+        if (depth === 0 && nested.length) { depth = nested.pop(); quote = '`' } else depth -= 1
+      }
+      continue
+    }
+    if (char === quote) { quote = ''; continue }
+    if (quote === '`' && char === '$' && plain[at + 1] === '{') {
+      nested.push(depth)
+      depth = 0
+      quote = ''
+      at += 1
+      continue
+    }
+    if (char !== '\n') out[at] = ' '
+  }
+  return out.join('')
+}
+
+const bindingsOf = text => {
+  const bound = new Set()
+  for (const match of text.matchAll(/(?:const|let|var|function|class)\s+([A-Za-z0-9_$]+)/g)) bound.add(match[1])
+  // Разбор с фигурной скобки до парной ей — но только там, где скобка правда
+  // что-то связывает: `const { a } = deps` и список параметров `f({ a, b }) {`.
+  // Литерал `x = { ...draft, flag: true }` сюда попадать не должен, иначе
+  // `draft` посчитается связанным и спред снова уедет незамеченным.
+  for (const match of text.matchAll(/(?:\b(?:const|let|var)\b|\()\s*\{/g)) {
+    const declaration = text[match.index] !== '('
+    const open = text.indexOf('{', match.index)
+    let depth = 0
+    let end = open
+    for (let at = open; at < text.length; at += 1) {
+      if (text[at] === '{') depth += 1
+      else if (text[at] === '}') { depth -= 1; if (depth === 0) { end = at; break } }
+    }
+    if (!declaration && !/^\s*\)\s*(?:\{|=>)/.test(text.slice(end + 1))) continue
+    // `=` в разделителях — из-за значения по умолчанию: `{ isConnectionsView = () => false }`.
+    for (const piece of text.slice(open, end + 1).matchAll(/([A-Za-z0-9_$]+)\s*[,:}=\n]/g)) bound.add(piece[1])
+  }
+  // Список параметров ищется парной скобкой, а не регуляркой: в нём бывает
+  // вызов (`now = Date.now()`), и поиск «без вложенных скобок» пропускал такой
+  // список целиком вместе со всеми его именами.
+  for (const match of text.matchAll(/\(/g)) {
+    let depth = 0
+    let end = match.index
+    for (let at = match.index; at < text.length; at += 1) {
+      if (text[at] === '(') depth += 1
+      else if (text[at] === ')') { depth -= 1; if (depth === 0) { end = at; break } }
+    }
+    if (!/^\s*(?:=>|\{)/.test(text.slice(end + 1))) continue
+    for (const piece of text.slice(match.index + 1, end).split(',')) {
+      const name = piece.trim().split(/[\s=(.]/)[0]
+      if (/^[A-Za-z0-9_$]+$/.test(name)) bound.add(name)
+    }
+  }
+  for (const match of text.matchAll(/([A-Za-z0-9_$]+)\s*=>/g)) bound.add(match[1])
+  // Имя, взятое у соседа импортом, тоже связано — и `main.js` часто берёт
+  // у того же соседа то же имя, так что без этого проверка ругалась бы на
+  // каждый общий помощник вроде `formatBytes`.
+  for (const match of text.matchAll(/import\s*\{([\s\S]*?)\}\s*from/g)) {
+    for (const piece of match[1].split(',')) {
+      const name = piece.trim().split(/\s+as\s+/).pop().trim()
+      if (/^[A-Za-z0-9_$]+$/.test(name)) bound.add(name)
+    }
+  }
+  return bound
+}
+
+// Набор намеренно узкий — только изменяемое состояние `main.js`. Помощник или
+// вид сосед вправе получить параметром, и разбор параметров здесь текстовый:
+// расширь набор до всех имён верхнего уровня — и каждая непонятая форма
+// связывания станет ложным отказом. Состояние параметром не передают никогда,
+// потому что снимок расходится с оригиналом на первой же записи; для него
+// правило однозначно, и проверять его можно строго.
+const mainState = new Set()
+for (const match of (texts.get('main.js') || '').matchAll(/^let\s+([A-Za-z0-9_$]+)/gm)) mainState.add(match[1])
+if (mainState.size < 50) {
+  errors.push(`в main.js найдено всего ${mainState.size} имён состояния — разбор сломался, проверка идёт вхолостую`)
+}
+let leaks = 0
+for (const name of sources) {
+  if (name === 'main.js') continue
+  const text = codeOnly(texts.get(name))
+  const bound = bindingsOf(text)
+  for (const key of mainState) {
+    if (bound.has(key)) continue
+    // Обращение к свойству (`details.contextItems`) — не наше имя. Спред
+    // (`...onboardingDraft`) — наше: три точки, и последняя точка стоит после
+    // точки, а не после имени. Ровно этим они и различаются.
+    // Ключ объекта (`{ state: … }`) именем не является — это свойство,
+    // совпавшее буквами; сокращённая запись `{ state }` за двоеточием не прячется.
+    for (const match of text.matchAll(new RegExp(String.raw`(?<![\w$])(?<!(?<!\.)\.)${key}\b(?!\s*:)`, 'g'))) {
+      const line = text.slice(0, match.index).split('\n').length
+      leaks += 1
+      if (leaks <= 20) errors.push(`${name}:${line}: ${key} — имя ниоткуда не приходит: это состояние main.js, и его берут через ui.`)
+    }
+  }
+}
+if (leaks > 20) errors.push(`и ещё ${leaks - 20} таких же мест`)
+
 if (checkedNames < 50) {
   errors.push(`сверено всего ${checkedNames} имён — разбор импортов сломался, проверка идёт вхолостую`)
 }
@@ -124,5 +287,6 @@ console.log(JSON.stringify({
   webviewExports: 'ok',
   modules: sources.length,
   checkedNames,
+  stateNames: mainState.size,
   unusedExports: orphans.length,
 }))

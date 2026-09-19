@@ -102,7 +102,7 @@ type WorkOrderExecutionContract struct {
 	Routing      ModelRoutingPolicy  `json:"routing"`
 	Network      []NetworkGrant      `json:"network,omitempty"`
 	Secrets      []SecretRequirement `json:"secrets,omitempty"`
-	Completion   CompletionProfile    `json:"completion"`
+	Completion   CompletionProfile   `json:"completion"`
 	Delivery     DeliveryPolicy      `json:"delivery"`
 }
 

@@ -41,27 +41,27 @@ type App struct {
 	workOrderLaunchCancels  map[string]context.CancelFunc
 	workOrderLaunchWG       sync.WaitGroup
 	workOrderLaunchStopping bool
-	ctx                 context.Context
-	dataDir             string
-	databasePath        string
-	directoryPicker     func(context.Context) (string, error)
-	eventSink           func(domain.Event)
-	store               *storage.SQLite
-	engine              *agent.Engine
-	workflowManager     *workflows.Manager
-	mu                  sync.RWMutex
-	flowMergeMu         sync.Mutex
-	externalMu          sync.Mutex
-	externalCancels     map[string]context.CancelFunc
-	externalWG          sync.WaitGroup
-	diagnosticsMu       sync.Mutex
-	diagnosticsMemo     map[string]diagnostics.RunDiagnostics
-	learningMu          sync.Mutex
-	learningReviewMu    sync.Mutex
-	learningWG          sync.WaitGroup
-	learningCtx         context.Context
-	learningCancel      context.CancelFunc
-	learningStopping    bool
+	ctx                     context.Context
+	dataDir                 string
+	databasePath            string
+	directoryPicker         func(context.Context) (string, error)
+	eventSink               func(domain.Event)
+	store                   *storage.SQLite
+	engine                  *agent.Engine
+	workflowManager         *workflows.Manager
+	mu                      sync.RWMutex
+	flowMergeMu             sync.Mutex
+	externalMu              sync.Mutex
+	externalCancels         map[string]context.CancelFunc
+	externalWG              sync.WaitGroup
+	diagnosticsMu           sync.Mutex
+	diagnosticsMemo         map[string]diagnostics.RunDiagnostics
+	learningMu              sync.Mutex
+	learningReviewMu        sync.Mutex
+	learningWG              sync.WaitGroup
+	learningCtx             context.Context
+	learningCancel          context.CancelFunc
+	learningStopping        bool
 	// mcpSessions — доступ сущностей для исполнителей, принимающих инструменты
 	// только по MCP. Реестр живёт столько же, сколько ядро: сессии в нём
 	// открываются и закрываются вокруг конкретной работы.

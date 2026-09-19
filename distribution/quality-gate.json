@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "productVersion": "1.2.2",
-  "reviewedAt": "2026-09-18",
+  "reviewedAt": "2026-09-19",
   "severityPolicy": {
     "P0": "Data loss, secret disclosure, sandbox escape, arbitrary unauthorized execution, or product-wide outage.",
     "P1": "A primary daily workflow is unusable, isolation or rollback is materially weakened, or no safe workaround exists.",
@@ -173,6 +173,14 @@
       "title": "Manual browser smoke for master session controls no longer passes: the conversation actions panel does not reveal the title input",
       "evidence": "scripts/smoke-master-session-controls.cjs",
       "rationale": "Ручная проверка вне затвора: требует Edge и Playwright из локальной сборки Code-OSS. Записана здесь, чтобы красная проверка не считалась живой просто потому, что её никто не запускал."
+    },
+    {
+      "id": "WEBVIEW_COMPANION_STREAM_PATCH_LOST",
+      "severity": "P2",
+      "status": "closed",
+      "title": "Companion stream progress threw ReferenceError: patchCompanionThinkingLabel / patchCompanionStreamingBubble moved into companion-thread-views.js while their call sites stayed in main.js",
+      "evidence": "vscode-extension/ui/client/companion-thread-views.js",
+      "rationale": "Каждое событие потока роняло разбор сообщения: человек видел застывшее «Думает…» без секунд, а ответ появлялся целиком в конце. Оба имени возвращены наружу; свободные переменные теперь ловит scripts/check-webview-exports.mjs."
     }
   ],
   "evidence": [

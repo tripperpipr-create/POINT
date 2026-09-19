@@ -18,9 +18,9 @@ import (
 	"strings"
 	"time"
 
-	"local-agent-workbench/internal/osproc"
 	"local-agent-workbench/internal/domain"
 	"local-agent-workbench/internal/egress"
+	"local-agent-workbench/internal/osproc"
 )
 
 const (

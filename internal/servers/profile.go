@@ -29,33 +29,33 @@ const (
 // Profile is a durable SSH server connection without secrets.
 // Password material stays in IDE SecretStorage behind SecretRef.
 type Profile struct {
-	ID           string        `json:"id"`
-	DisplayName  string        `json:"displayName"`
-	Host         string        `json:"host"`
-	Port         int           `json:"port"`
-	User         string        `json:"user"`
-	AuthMethod   AuthMethod    `json:"authMethod"`
-	PrivateKeyPath string      `json:"privateKeyPath,omitempty"`
-	SecretRef    string        `json:"secretRef,omitempty"`
-	DefaultRemotePath string   `json:"defaultRemotePath,omitempty"`
-	Status       ProfileStatus `json:"status"`
-	LastError    string        `json:"lastError,omitempty"`
-	LastProbeAt  *time.Time    `json:"lastProbeAt,omitempty"`
-	CreatedAt    time.Time     `json:"createdAt"`
-	UpdatedAt    time.Time     `json:"updatedAt"`
+	ID                string        `json:"id"`
+	DisplayName       string        `json:"displayName"`
+	Host              string        `json:"host"`
+	Port              int           `json:"port"`
+	User              string        `json:"user"`
+	AuthMethod        AuthMethod    `json:"authMethod"`
+	PrivateKeyPath    string        `json:"privateKeyPath,omitempty"`
+	SecretRef         string        `json:"secretRef,omitempty"`
+	DefaultRemotePath string        `json:"defaultRemotePath,omitempty"`
+	Status            ProfileStatus `json:"status"`
+	LastError         string        `json:"lastError,omitempty"`
+	LastProbeAt       *time.Time    `json:"lastProbeAt,omitempty"`
+	CreatedAt         time.Time     `json:"createdAt"`
+	UpdatedAt         time.Time     `json:"updatedAt"`
 }
 
 // UpsertRequest is the public write shape for Hub / API.
 type UpsertRequest struct {
-	ID                string     `json:"id"`
-	DisplayName       string     `json:"displayName"`
-	Host              string     `json:"host"`
-	Port              int        `json:"port"`
-	User              string     `json:"user"`
-	AuthMethod        AuthMethod `json:"authMethod"`
-	PrivateKeyPath    string     `json:"privateKeyPath"`
-	SecretRef         string     `json:"secretRef"`
-	DefaultRemotePath string     `json:"defaultRemotePath"`
+	ID                string        `json:"id"`
+	DisplayName       string        `json:"displayName"`
+	Host              string        `json:"host"`
+	Port              int           `json:"port"`
+	User              string        `json:"user"`
+	AuthMethod        AuthMethod    `json:"authMethod"`
+	PrivateKeyPath    string        `json:"privateKeyPath"`
+	SecretRef         string        `json:"secretRef"`
+	DefaultRemotePath string        `json:"defaultRemotePath"`
 	Status            ProfileStatus `json:"status"`
 }
 

@@ -77,7 +77,15 @@ if (!hired.includes('· создан') || hired.includes('· будет созд
   throw new Error('approved WorkOrder still promises to create an agent it already created')
 }
 
-const main = fs.readFileSync(path.join(root, 'vscode-extension', 'ui', 'client', 'main.js'), 'utf8')
+// Вебвью читается деревом, а не одним `main.js`: 19 сентября разбор ответов
+// Мастера уехал в `ui/client/master-inbox.js`, и сторож чужого разговора
+// перестал находиться там, где его искали.
+const clientDir = path.join(root, 'vscode-extension', 'ui', 'client')
+const clientFiles = fs.readdirSync(clientDir).filter((name) => name.endsWith('.js')).sort()
+if (clientFiles.length < 10) {
+  throw new Error(`webview package looks empty (${clientFiles.length} modules) — the checks below would pass blindly`)
+}
+const main = clientFiles.map((name) => fs.readFileSync(path.join(clientDir, name), 'utf8')).join('\n')
 const transport = fs.readFileSync(path.join(root, 'vscode-extension', 'master-chat-controller.js'), 'utf8')
 const host = fs.readFileSync(path.join(root, 'vscode-extension', 'extension.js'), 'utf8')
 for (const [name, source] of [['webview', main], ['transport', transport], ['extension host', host]]) {

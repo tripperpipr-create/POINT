@@ -61,8 +61,8 @@ func TestRunCommandCapturesStreamsAndRejectsBackground(t *testing.T) {
 		t.Fatalf("php -S background not rejected: %#v", result)
 	}
 	raw, _ = json.Marshal(map[string]any{
-		"command": `ls -d vendor/autoload.php 2>/dev/null && echo "EXISTS" || echo "MISSING"`,
-		"reason":  "existence check",
+		"command":        `ls -d vendor/autoload.php 2>/dev/null && echo "EXISTS" || echo "MISSING"`,
+		"reason":         "existence check",
 		"timeoutSeconds": 10,
 	})
 	result = tool.Execute(context.Background(), raw)

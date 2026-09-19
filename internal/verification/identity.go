@@ -24,13 +24,13 @@ func CheckIdentity(name string, arguments json.RawMessage) string {
 		delete(fields, "timeoutSeconds")
 		cwd, _ := fields["cwd"].(string)
 		fields["cwd"] = path.Clean(strings.ReplaceAll(cwd, "\\", "/"))
-	if cmd, ok := fields["command"].(string); ok {
-		cmd = strings.TrimSpace(redirectSuffix.ReplaceAllString(strings.TrimSpace(cmd), ""))
-		fields["command"] = cmd
-		if normalized := CanonicalPHPUnitCommand(cmd); normalized != "" {
-			fields["command"] = normalized
+		if cmd, ok := fields["command"].(string); ok {
+			cmd = strings.TrimSpace(redirectSuffix.ReplaceAllString(strings.TrimSpace(cmd), ""))
+			fields["command"] = cmd
+			if normalized := CanonicalPHPUnitCommand(cmd); normalized != "" {
+				fields["command"] = normalized
+			}
 		}
-	}
 	}
 	encoded, _ := json.Marshal(fields)
 	return name + string(encoded)

@@ -8,8 +8,8 @@ import (
 )
 
 func TestMasterToolCallKeyNormalizesJSON(t *testing.T) {
-	a := masterToolCallKey("list_files", json.RawMessage(`{"path":"."}`) )
-	b := masterToolCallKey("list_files", json.RawMessage(`{"path": "."}`) )
+	a := masterToolCallKey("list_files", json.RawMessage(`{"path":"."}`))
+	b := masterToolCallKey("list_files", json.RawMessage(`{"path": "."}`))
 	if a != b {
 		t.Fatalf("expected same key, got %q vs %q", a, b)
 	}

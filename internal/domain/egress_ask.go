@@ -6,9 +6,9 @@ import "time"
 type EgressAskKind string
 
 const (
-	EgressAskNetworkHost  EgressAskKind = "network_host"
-	EgressAskGitRemote    EgressAskKind = "git_remote"
-	EgressAskSupervision  EgressAskKind = "supervision"
+	EgressAskNetworkHost EgressAskKind = "network_host"
+	EgressAskGitRemote   EgressAskKind = "git_remote"
+	EgressAskSupervision EgressAskKind = "supervision"
 )
 
 type EgressAskStatus string

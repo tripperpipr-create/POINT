@@ -593,6 +593,8 @@ for (const token of [
   "require('./ide-navigation-utils')", "require('./ssh-utils')",
   "require('./companion-controller')", "require('./ide-action-controller')",
   "require('./ide-navigation-controller')", "require('./connection-controller')",
+  "require('./project-index-controller')", "require('./console-ssh-controller')",
+  "require('./core-log')", "require('./core-lease')",
 ]) {
   requireText(extensionSource, token, 'extension module boundary')
 }
@@ -626,6 +628,10 @@ for (const token of [
   "from './model-picker.js'", "from './companion-studio-views.js'", "from './companion-setup-wizard.js'",
   "from './master-hiring-card.js'", "from './master-agent-card.js'",
   "from './decision-views.js'", "from './companion-thread-views.js'",
+  "from './companion-actions.js'", "from './onboarding-actions.js'",
+  "from './companion-transport.js'", "from './master-inbox.js'",
+  "from './hub-entity-inbox.js'", "from './run-inbox.js'",
+  "from './world-state-inbox.js'",
 ]) {
   requireText(webviewSource, token, 'webview module boundary')
 }
@@ -647,6 +653,12 @@ for (const [file, maximum] of Object.entries({
   'distribution/apply-overlay.mjs': 5068,
   'vscode-extension/ui/layers/07-master-quiet.css': 2110,
   'vscode-extension/ui/layers/05-hall.css': 1841,
+  // Три файла пишутся руками мимо `ui/build.mjs`: главная и Летопись
+  // подключают только `rpg-tokens.css` и в общий бандл не входят. Ни бюджета,
+  // ни шкал у них не было вовсе — теперь есть хотя бы трещотка по строкам.
+  'vscode-extension/media/home.css': 69,
+  'vscode-extension/media/chronicle.css': 79,
+  'vscode-extension/media/chronicle.js': 59,
   'internal/app/app.go': 720,
   'internal/companion/service.go': 600,
   'vscode-extension/extension.js': 7500,
@@ -670,6 +682,13 @@ for (const [file, maximum] of Object.entries({
   'vscode-extension/ui/client/master-agent-card.js': 450,
   'vscode-extension/ui/client/decision-views.js': 400,
   'vscode-extension/ui/client/companion-thread-views.js': 300,
+  'vscode-extension/ui/client/companion-actions.js': 400,
+  'vscode-extension/ui/client/onboarding-actions.js': 450,
+  'vscode-extension/ui/client/companion-transport.js': 450,
+  'vscode-extension/ui/client/master-inbox.js': 200,
+  'vscode-extension/ui/client/hub-entity-inbox.js': 220,
+  'vscode-extension/ui/client/run-inbox.js': 240,
+  'vscode-extension/ui/client/world-state-inbox.js': 180,
 })) {
   const actual = lineCount(read(file))
   if (actual > maximum) errors.push(`module boundary: ${file} has ${actual} lines (budget ${maximum})`)

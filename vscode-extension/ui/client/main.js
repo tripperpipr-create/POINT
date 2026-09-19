@@ -23,6 +23,13 @@ import { createAgentConstructor, CONSTRUCTOR_STEPS as AGENT_CONSTRUCTOR_STEPS } 
 import { createHubRuntimeUi } from './hub-runtime-ui.js'
 import { handleGitClickAction, handleGitChangeAction } from './git-actions.js'
 import { handleHubClickAction } from './hub-actions.js'
+import { handleCompanionClickAction } from './companion-actions.js'
+import { handleOnboardingClickAction } from './onboarding-actions.js'
+import { createCompanionTransport } from './companion-transport.js'
+import { createMasterInbox } from './master-inbox.js'
+import { createHubEntityInbox } from './hub-entity-inbox.js'
+import { createRunInbox } from './run-inbox.js'
+import { createWorldStateInbox } from './world-state-inbox.js'
 import { createDecisionViews } from './decision-views.js'
 import { createCompanionThreadViews } from './companion-thread-views.js'
 import { createKeyboardNavigation } from './keyboard-navigation.js'
@@ -1250,180 +1257,6 @@ function patchCompanionComposeChrome() {
     existing.remove()
   }
 }
-function stopCompanionChat(options = {}) {
-  const expectedRequestId = Number(options.requestId || 0)
-  if (expectedRequestId && companionActiveRequestId && expectedRequestId !== companionActiveRequestId) return
-  if (!companionLoading && !companionPendingSend) return
-  const stoppedRequestId = companionActiveRequestId
-  companionActiveRequestId = ++companionRequestId
-  companionLoading = false
-  companionThinkPhase = ''
-  companionActivitySteps = []
-  companionPendingSend = ''
-  const partial = String(companionStreamReply || '').trim()
-  companionStreamReply = ''
-  const last = companionMessages[companionMessages.length - 1]
-  if (partial) {
-    if (last?.role === 'assistant' && (last.mode === 'streaming' || last.mode === 'cancelled')) {
-      companionMessages = [...companionMessages.slice(0, -1), {
-        role: 'assistant',
-        content: `${partial}\n\n— ${options.superseded ? 'остановлено новым сообщением' : 'остановлено'}. Можно сразу спросить снова.`,
-        level: 'warning',
-        mode: 'cancelled',
-        superseded: Boolean(options.superseded),
-      }].slice(-80)
-    } else if (!(last?.role === 'assistant' && last.mode === 'cancelled' && last.content.includes(partial))) {
-      companionMessages = [...companionMessages, {
-        role: 'assistant',
-        content: `${partial}\n\n— ${options.superseded ? 'остановлено новым сообщением' : 'остановлено'}. Можно сразу спросить снова.`,
-        level: 'warning',
-        mode: 'cancelled',
-        superseded: Boolean(options.superseded),
-      }].slice(-80)
-    }
-  } else if (!(last?.role === 'assistant' && last.mode === 'cancelled')) {
-    companionMessages = [...companionMessages, {
-      role: 'assistant',
-      content: options.superseded ? 'Предыдущий запрос остановлен новым сообщением.' : 'Запрос остановлен. Можно сразу спросить снова.',
-      level: 'warning',
-      mode: 'cancelled',
-      superseded: Boolean(options.superseded),
-    }].slice(-80)
-  }
-  if (options.notifyHost !== false) vscode.postMessage({ type: 'stopCompanionChat', requestId: stoppedRequestId })
-  persistDraft()
-  render()
-  focusCompanionInput()
-}
-// options.retry — «ответь иначе»: тот же вопрос, но другим путём. Без него
-// перегенерация при низкой температуре возвращала тот же ответ, и кнопка
-// выглядела сломанной.
-function sendCompanionUserMessage(message, options = {}) {
-  const text = String(message || '').trim()
-  if (!text) return false
-  // Узнавать о пределе после отправки поздно: реплика уже ушла из поля, а
-  // вернуть её можно только копированием из ленты.
-  const size = companionMessageBytes(text)
-  if (size > COMPANION_MESSAGE_LIMIT_BYTES) {
-    companionDraft = text
-    transientError = oversizedCompanionMessageNote(size)
-    persistDraft()
-    render()
-    focusCompanionInput()
-    return false
-  }
-  if (companionLoading) {
-    companionPendingSend = text
-    companionDraft = text
-    persistDraft()
-    patchCompanionComposeChrome()
-    focusCompanionInput()
-    return false
-  }
-  companionDraft = ''
-  companionPendingSend = ''
-  companionStreamReply = ''
-  companionMessages = [...companionMessages, { role: 'user', content: text }].slice(-80)
-  companionLoading = true
-  companionThinkPhase = ''
-  companionActivitySteps = [{ step: 'gather', status: 'running', at: Date.now() }]
-  startCompanionWaitTicker()
-  companionActiveRequestId = ++companionRequestId
-  companionSetupOpen = false
-  if (!isCompanionView() && state.selectedTab !== 'overview') {
-    state = { ...state, selectedTab: 'overview' }
-    vscode.postMessage({ type: 'selectTab', tab: 'overview' })
-  }
-  persistDraft()
-  render()
-  // A full webview render and textarea re-focus can each change the available
-  // thread height. Anchor after both layout passes; one rAF left a visible
-  // frame at scrollTop=0 on tall answers.
-  requestAnimationFrame(() => requestAnimationFrame(() => scrollCompanionThread(true)))
-  focusCompanionInput()
-  vscode.postMessage({ type: 'companionChat', message: text, requestId: companionActiveRequestId, retry: Boolean(options.retry) })
-  return true
-}
-function flushCompanionPendingSend() {
-  const next = String(companionPendingSend || '').trim()
-  if (!next || companionLoading) return
-  companionPendingSend = ''
-  sendCompanionUserMessage(next)
-}
-function isActiveCompanionRequest(message) {
-  const incoming = Number(message?.requestId || 0)
-  if (!incoming) return false
-  return incoming === companionActiveRequestId
-}
-function mergeCompanionTranscript(local, incoming, loading) {
-  if (!incoming.length) return local
-  if (!local.length) return incoming
-  const localLast = local[local.length - 1]
-  if (!loading && localLast?.role === 'assistant' && (localLast.mode === 'error' || localLast.mode === 'cancelled')) {
-    if (!incoming.some(item => item.role === 'assistant' && item.content === localLast.content)) {
-      return [...incoming, localLast].slice(-80)
-    }
-  }
-  if (loading) {
-    if (localLast?.role === 'user' && !incoming.some(item => item.role === 'user' && item.content === localLast.content)) {
-      return [...incoming, localLast].slice(-80)
-    }
-  }
-  if (incoming.length >= local.length) return incoming
-  return local
-}
-function companionStepLabel(step) {
-  const labels = {
-    gather: 'Сбор контекста',
-    focus: 'Фокус IDE',
-    roster: 'Ростер',
-    quests: 'Квесты',
-    memory: 'Память',
-    index: 'Карта проекта',
-    search: 'Поиск',
-    model: 'Модель',
-    local: 'Локальный разбор',
-  }
-  // Шаг инструмента приходит как «tool:git_log»: в ленте нужно имя того, что
-  // помощник читает прямо сейчас, — иначе десятки секунд ожидания выглядят как
-  // одно бесконечное «Сбор контекста».
-  const tool = /^tool:(.+)$/.exec(String(step || ''))
-  if (tool) return `Смотрю ${tool[1]}`
-  return labels[step] || step || 'Работа'
-}
-function upsertCompanionActivity(step, status) {
-  if (!step) return
-  const next = companionActivitySteps.filter(item => item.step !== step)
-  next.push({ step, status: status || 'running', at: Date.now() })
-  companionActivitySteps = next.slice(-8)
-}
-// Секунды идут сами: событий от молчащей модели не приходит, и без тика полоса
-// стоит на месте. Тикер гасит себя, как только ожидание кончилось.
-let companionWaitTicker = 0
-function startCompanionWaitTicker() {
-  if (companionWaitTicker || typeof setInterval !== 'function') return
-  companionWaitTicker = setInterval(() => {
-    if (!companionLoading) {
-      clearInterval(companionWaitTicker)
-      companionWaitTicker = 0
-      return
-    }
-    patchCompanionThinkingLabel()
-  }, 1000)
-}
-function companionThinkingLabel() {
-  const current = [...companionActivitySteps].reverse().find(item => item.status === 'running')
-  const step = current
-    ? companionStepLabel(current.step) + '…'
-    : companionThinkPhase === 'model' ? 'Модель…'
-      : companionThinkPhase === 'local' ? 'Локальный разбор…'
-        : 'Думает…'
-  // Ожидание считается от первого шага: от молчащей модели событий не дождаться,
-  // и без счёта секунд окно неотличимо от зависшего.
-  const startedAt = Number(companionActivitySteps[0]?.at || 0)
-  const waited = startedAt && companionLoading ? Math.floor((Date.now() - startedAt) / 1000) : 0
-  return step + companionWaitSuffix(waited)
-}
 // Годится любой ленте: у компаньона и у Мастера «внизу» значит одно и то же.
 function threadNearBottom(thread) {
   return !thread || thread.scrollHeight - thread.scrollTop - thread.clientHeight < 72
@@ -1802,6 +1635,7 @@ function companionBubbleBodyHtml(content, { streaming = false } = {}) {
 // Лента компаньона живёт отдельным модулем — как и лента Мастера.
 const {
   companionBubbleHtml, companionThreadHtml, companionNudgeBannerHtml, companionSidebarBriefHtml,
+  patchCompanionThinkingLabel, patchCompanionStreamingBubble,
 } = createCompanionThreadViews({
   live: {
     get companionAppliedNotice() { return companionAppliedNotice },
@@ -2120,8 +1954,28 @@ const modularUiState = {
   get apiKey() { return apiKey }, set apiKey(value) { apiKey = value },
   get blueprintSyncDirection() { return blueprintSyncDirection }, set blueprintSyncDirection(value) { blueprintSyncDirection = value },
   get blueprintSyncPreview() { return blueprintSyncPreview }, set blueprintSyncPreview(value) { blueprintSyncPreview = value },
+  get companionActiveRequestId() { return companionActiveRequestId }, set companionActiveRequestId(value) { companionActiveRequestId = value },
+  get companionActivitySteps() { return companionActivitySteps }, set companionActivitySteps(value) { companionActivitySteps = value },
+  get companionActionEditId() { return companionActionEditId }, set companionActionEditId(value) { companionActionEditId = value },
+  get companionAppliedNotice() { return companionAppliedNotice }, set companionAppliedNotice(value) { companionAppliedNotice = value },
+  get companionIdeContext() { return companionIdeContext }, set companionIdeContext(value) { companionIdeContext = value },
+  get companionDraft() { return companionDraft }, set companionDraft(value) { companionDraft = value },
+  get companionFeedbackMarks() { return companionFeedbackMarks }, set companionFeedbackMarks(value) { companionFeedbackMarks = value },
+  get companionInterventionProbe() { return companionInterventionProbe }, set companionInterventionProbe(value) { companionInterventionProbe = value },
+  get companionLoading() { return companionLoading }, set companionLoading(value) { companionLoading = value },
+  get companionMessages() { return companionMessages }, set companionMessages(value) { companionMessages = value },
+  get companionPendingSend() { return companionPendingSend }, set companionPendingSend(value) { companionPendingSend = value },
+  get companionRequestId() { return companionRequestId }, set companionRequestId(value) { companionRequestId = value },
   get companionProviderProbe() { return companionProviderProbe }, set companionProviderProbe(value) { companionProviderProbe = value },
+  get companionSetupDraft() { return companionSetupDraft }, set companionSetupDraft(value) { companionSetupDraft = value },
   get companionSetupOpen() { return companionSetupOpen }, set companionSetupOpen(value) { companionSetupOpen = value },
+  get companionSetupPendingClose() { return companionSetupPendingClose }, set companionSetupPendingClose(value) { companionSetupPendingClose = value },
+  get companionSetupQuiet() { return companionSetupQuiet }, set companionSetupQuiet(value) { companionSetupQuiet = value },
+  get companionSetupStatus() { return companionSetupStatus }, set companionSetupStatus(value) { companionSetupStatus = value },
+  get companionSetupStep() { return companionSetupStep }, set companionSetupStep(value) { companionSetupStep = value },
+  get companionSetupTestResult() { return companionSetupTestResult }, set companionSetupTestResult(value) { companionSetupTestResult = value },
+  get companionStreamReply() { return companionStreamReply }, set companionStreamReply(value) { companionStreamReply = value },
+  get companionThinkPhase() { return companionThinkPhase }, set companionThinkPhase(value) { companionThinkPhase = value },
   get constructorDraft() { return constructorDraft }, set constructorDraft(value) { constructorDraft = value },
   get constructorStep() { return constructorStep }, set constructorStep(value) { constructorStep = value },
   get compiledPromptPreview() { return compiledPromptPreview }, set compiledPromptPreview(value) { compiledPromptPreview = value },
@@ -2129,6 +1983,8 @@ const modularUiState = {
   get compiledPromptError() { return compiledPromptError }, set compiledPromptError(value) { compiledPromptError = value },
   get compiledPromptSignature() { return compiledPromptSignature }, set compiledPromptSignature(value) { compiledPromptSignature = value },
   get contextInspectorRunId() { return contextInspectorRunId }, set contextInspectorRunId(value) { contextInspectorRunId = value },
+  get contextInspector() { return contextInspector }, set contextInspector(value) { contextInspector = value },
+  get contextInspectorStatus() { return contextInspectorStatus }, set contextInspectorStatus(value) { contextInspectorStatus = value },
   get contextItems() { return contextItems }, set contextItems(value) { contextItems = value },
   get contextPreview() { return contextPreview }, set contextPreview(value) { contextPreview = value },
   get contextPreviewError() { return contextPreviewError }, set contextPreviewError(value) { contextPreviewError = value },
@@ -2149,6 +2005,7 @@ const modularUiState = {
   get chatDirectoryStatus() { return chatDirectoryStatus }, set chatDirectoryStatus(value) { chatDirectoryStatus = value },
   get decisionPick() { return decisionPick }, set decisionPick(value) { decisionPick = value },
   get decisionsData() { return decisionsData }, set decisionsData(value) { decisionsData = value },
+  get decisionsError() { return decisionsError }, set decisionsError(value) { decisionsError = value },
   get decisionsStatus() { return decisionsStatus }, set decisionsStatus(value) { decisionsStatus = value },
   get dockerData() { return dockerData }, set dockerData(value) { dockerData = value },
   get dockerLogs() { return dockerLogs }, set dockerLogs(value) { dockerLogs = value },
@@ -2157,6 +2014,7 @@ const modularUiState = {
   get experienceSearchItems() { return experienceSearchItems }, set experienceSearchItems(value) { experienceSearchItems = value },
   get experienceSearchQuery() { return experienceSearchQuery }, set experienceSearchQuery(value) { experienceSearchQuery = value },
   get experienceSearchStatus() { return experienceSearchStatus }, set experienceSearchStatus(value) { experienceSearchStatus = value },
+  get fileHistoryStatus() { return fileHistoryStatus }, set fileHistoryStatus(value) { fileHistoryStatus = value },
   get flowDraft() { return flowDraft }, set flowDraft(value) { flowDraft = value },
   get flowLegacyMode() { return flowLegacyMode }, set flowLegacyMode(value) { flowLegacyMode = value },
   get gitAmend() { return gitAmend }, set gitAmend(value) { gitAmend = value },
@@ -2174,24 +2032,28 @@ const modularUiState = {
   get gitSelectedStash() { return gitSelectedStash }, set gitSelectedStash(value) { gitSelectedStash = value },
   get gitTab() { return gitTab }, set gitTab(value) { gitTab = value },
   get gitTarget() { return gitTarget }, set gitTarget(value) { gitTarget = value },
+  get hireAfterSave() { return hireAfterSave }, set hireAfterSave(value) { hireAfterSave = value },
   get hirePreviewTemplateId() { return hirePreviewTemplateId }, set hirePreviewTemplateId(value) { hirePreviewTemplateId = value },
+  get lastAgentImprovementFocusId() { return lastAgentImprovementFocusId }, set lastAgentImprovementFocusId(value) { lastAgentImprovementFocusId = value },
+  get keptRunId() { return keptRunId }, set keptRunId(value) { keptRunId = value },
   get manualLearningDraft() { return manualLearningDraft }, set manualLearningDraft(value) { manualLearningDraft = value },
   get manualLearningPreview() { return manualLearningPreview }, set manualLearningPreview(value) { manualLearningPreview = value },
   get manualLearningStatus() { return manualLearningStatus }, set manualLearningStatus(value) { manualLearningStatus = value },
-  get masterComposeNote() { return masterComposeNote },
+  get hiringReloadFor() { return hiringReloadFor }, set hiringReloadFor(value) { hiringReloadFor = value },
+  get masterComposeNote() { return masterComposeNote }, set masterComposeNote(value) { masterComposeNote = value },
   get masterTurn() { return masterClient.turns[masterClient.active] },
   get masterData() { return masterData }, set masterData(value) { masterData = value },
   get masterOpenReasoning() { return masterOpenReasoning },
   get masterOpenLive() { return masterClient.openLive },
   get masterOpenSteps() { return masterOpenSteps },
   get masterExpandedSteps() { return masterExpandedSteps },
-  get masterFindQuery() { return masterFindQuery },
+  get masterFindQuery() { return masterFindQuery }, set masterFindQuery(value) { masterFindQuery = value },
   get masterFindOpen() { return masterFindOpen },
   get masterFindIndex() { return masterFindIndex }, set masterFindIndex(value) { masterFindIndex = value },
   set masterFindSummary(value) { masterFindSummary = value },
   get masterAutoFollow() { return masterAutoFollow },
   get masterFindSummary() { return masterFindSummary },
-  get masterLoadingEarlier() { return masterLoadingEarlier },
+  get masterLoadingEarlier() { return masterLoadingEarlier }, set masterLoadingEarlier(value) { masterLoadingEarlier = value },
   get masterDiscussionProposalId() { return masterDiscussionProposalId }, set masterDiscussionProposalId(value) { masterDiscussionProposalId = value },
   get masterDraft() { return masterDraft }, set masterDraft(value) { masterDraft = value },
   get masterSentText() { return masterSentText() },
@@ -2207,13 +2069,16 @@ const modularUiState = {
   // Панель задания открыта у своего разговора: у каждого чата задание своё.
   get masterBriefPanelOpen() { return Boolean(masterClient.briefPanel[masterClient.active]) },
   set masterBriefPanelOpen(value) { if (masterClient.active) masterClient.briefPanel[masterClient.active] = Boolean(value) },
+  get masterRequestId() { return masterRequestId }, set masterRequestId(value) { masterRequestId = value },
   get masterSending() { return masterSending }, set masterSending(value) { masterSending = value },
   get masterStatus() { return masterStatus }, set masterStatus(value) { masterStatus = value },
   get memoryDraft() { return memoryDraft }, set memoryDraft(value) { memoryDraft = value },
   get memoryEditId() { return memoryEditId }, set memoryEditId(value) { memoryEditId = value },
   get onboardingDraft() { return onboardingDraft }, set onboardingDraft(value) { onboardingDraft = value },
+  get onboardingLockNotice() { return onboardingLockNotice }, set onboardingLockNotice(value) { onboardingLockNotice = value },
   get onboardingStep() { return onboardingStep }, set onboardingStep(value) { onboardingStep = value },
   get pendingSkillEquip() { return pendingSkillEquip }, set pendingSkillEquip(value) { pendingSkillEquip = value },
+  get projectKey() { return projectKey }, set projectKey(value) { projectKey = value },
   get profileDraft() { return profileDraft }, set profileDraft(value) { profileDraft = value },
   get profileEditorOpen() { return profileEditorOpen }, set profileEditorOpen(value) { profileEditorOpen = value },
   get profileEditorStep() { return profileEditorStep }, set profileEditorStep(value) { profileEditorStep = value },
@@ -2225,6 +2090,7 @@ const modularUiState = {
   get questConstraintsDraft() { return questConstraintsDraft }, set questConstraintsDraft(value) { questConstraintsDraft = value },
   get questCriteriaDraft() { return questCriteriaDraft }, set questCriteriaDraft(value) { questCriteriaDraft = value },
   get questGoalDraft() { return questGoalDraft }, set questGoalDraft(value) { questGoalDraft = value },
+  get runStarting() { return runStarting }, set runStarting(value) { runStarting = value },
   get selectedCustomToolId() { return selectedCustomToolId }, set selectedCustomToolId(value) { selectedCustomToolId = value },
   get selectedFlowId() { return selectedFlowId }, set selectedFlowId(value) { selectedFlowId = value },
   get selectedFlowNodeId() { return selectedFlowNodeId }, set selectedFlowNodeId(value) { selectedFlowNodeId = value },
@@ -2241,6 +2107,7 @@ const modularUiState = {
   get intakeBusy() { return intakeBusy }, set intakeBusy(value) { intakeBusy = value },
   get intakeError() { return intakeError }, set intakeError(value) { intakeError = value },
   get intakeURL() { return intakeURL }, set intakeURL(value) { intakeURL = value },
+  get submittingForm() { return submittingForm }, set submittingForm(value) { submittingForm = value },
   get statisticsData() { return statisticsData }, set statisticsData(value) { statisticsData = value },
   get statisticsStatus() { return statisticsStatus }, set statisticsStatus(value) { statisticsStatus = value },
   get taskDraft() { return taskDraft }, set taskDraft(value) { taskDraft = value },
@@ -2250,6 +2117,55 @@ const modularUiState = {
   get workflowDraft() { return workflowDraft }, set workflowDraft(value) { workflowDraft = value },
 }
 
+// Разговор с помощником — отдельный модуль: отправка, поток и приём ответа
+// связаны номером запроса и читаются только вместе.
+const {
+  stopCompanionChat, sendCompanionUserMessage, flushCompanionPendingSend,
+  mergeCompanionTranscript, companionThinkingLabel, applyCompanionChatMessage,
+} = createCompanionTransport({
+  ui: modularUiState, root, vscode, render: (...args) => render(...args),
+  persistDraft: (...args) => persistDraft(...args),
+  focusCompanionInput: (...args) => focusCompanionInput(...args),
+  isCompanionView: (...args) => isCompanionView(...args),
+  patchCompanionComposeChrome: (...args) => patchCompanionComposeChrome(...args),
+  replaceCompanionThreadHtml: (...args) => replaceCompanionThreadHtml(...args),
+  replaceHtmlNodes: (...args) => replaceHtmlNodes(...args),
+  scrollCompanionThread: (...args) => scrollCompanionThread(...args),
+  companionQuickPromptsHtml: (...args) => companionQuickPromptsHtml(...args),
+  patchCompanionThinkingLabel: (...args) => patchCompanionThinkingLabel(...args),
+  patchCompanionStreamingBubble: (...args) => patchCompanionStreamingBubble(...args),
+  pendingQuestProposals: (...args) => pendingQuestProposals(...args),
+  pendingActionProposals: (...args) => pendingActionProposals(...args),
+})
+
+// Ответы Мастера разбираются своим модулем: тринадцать веток, у которых на
+// другом конце один и тот же `masterClient` и одна и та же лента.
+const applyMasterMessage = createMasterInbox({
+  ui: modularUiState, root, vscode, render: (...args) => render(...args),
+  persistDraft: (...args) => persistDraft(...args),
+  masterClient, masterSessionDrafts,
+  masterTraceMindPatch: (...args) => masterTraceMindPatch(...args),
+  acceptMasterMentionItems: (...args) => acceptMasterMentionItems(...args),
+  receiveMasterContext: (...args) => receiveMasterContext(...args),
+  clearMasterContext: (...args) => clearMasterContext(...args),
+  forgetMasterSent: (...args) => forgetMasterSent(...args),
+  replaceMasterThreadHtml: (...args) => replaceMasterThreadHtml(...args),
+  syncMasterComposeState: (...args) => syncMasterComposeState(...args),
+  stopMasterWaitClock: (...args) => stopMasterWaitClock(...args),
+  sendMasterMessage: (...args) => sendMasterMessage(...args),
+  applyMasterFind: (...args) => applyMasterFind(...args),
+})
+
+// Ответы на правку сущностей Гильдии разбираются своим модулем: у всех
+// тринадцати одна форма — закрыть редактор и решить, куда вести дальше.
+const applyHubEntityMessage = createHubEntityInbox({
+  ui: modularUiState, vscode, render: (...args) => render(...args),
+  persistDraft: (...args) => persistDraft(...args),
+  closeQuestIfOpen: (...args) => closeQuestIfOpen(...args),
+  resetQuestReplansCache: (...args) => resetQuestReplansCache(...args),
+  releaseMasterAgentCards: (...args) => releaseMasterAgentCards(...args),
+  reviseWorkOrderRosterV2: (...args) => reviseWorkOrderRosterV2(...args),
+})
 // Экран «Решения» живёт отдельным модулем: очередь, карточка и горячие
 // клавиши — одна тема, и трогают её вместе.
 const {
@@ -3226,569 +3142,29 @@ root.addEventListener('click', event => {
     }
     vscode.postMessage({ type: 'selectTab', tab })
   }
-  if (action === 'stop-companion-chat') stopCompanionChat()
-  if (action === 'companion-scroll-latest') scrollCompanionThread(true)
-  if (action === 'copy-companion-message' || action === 'copy-companion-code') {
-    const source = action === 'copy-companion-code'
-      ? target.closest?.('.companion-code-wrap')?.querySelector?.('code')
-      : target.closest?.('.companion-msg')?.querySelector?.('.companion-msg-body, p')
-    const text = String(source?.innerText || source?.textContent || '').trim()
-    if (text) {
-      vscode.postMessage({ type: 'copyCompanionText', text })
-      const previous = target.textContent
-      target.textContent = 'Скопировано ✓'
-      setTimeout(() => { if (target.isConnected) target.textContent = previous }, 1400)
-    }
-  }
-  if (action === 'regenerate-companion-message') {
-    const index = Number(target.dataset.messageIndex || -1)
-    const previous = companionMessages.slice(0, index).reverse().find(item => item?.role === 'user')
-    if (previous?.content && !companionLoading) sendCompanionUserMessage(previous.content, { retry: true })
-  }
-  if (action === 'feedback-companion-message') {
-    const index = Number(target.dataset.messageIndex || -1)
-    const item = companionMessages[index]
-    vscode.postMessage({
-      type: 'companionFeedback',
-      messageId: target.dataset.messageId || item?.id || '',
-      value: target.dataset.value === 'down' ? 'down' : 'up',
-      content: String(item?.content || '').slice(0, 400),
-    })
-    // Отметка сразу попадает в состояние: ответ расширения придёт позже, а
-    // перерисовка может случиться раньше него.
-    const markedId = String(target.dataset.messageId || item?.id || '')
-    if (markedId) companionFeedbackMarks.set(markedId, target.dataset.value === 'down' ? 'down' : 'up')
-    render()
-  }
-  if (action === 'open-companion-message-details') {
-    const index = Number(target.dataset.messageIndex || -1)
-    const item = companionMessages[index]
-    const request = companionMessages.slice(0, index).reverse().find(entry => entry?.role === 'user')
-    if (item) vscode.postMessage({ type: 'openCompanionMessageDetails', item, request: request?.content || '' })
-  }
-  if (action === 'new-companion-thread') {
-    if (companionLoading) stopCompanionChat()
-    vscode.postMessage({ type: 'newCompanionThread', messages: companionMessages })
-  }
-  if (action === 'show-companion-archives') vscode.postMessage({ type: 'showCompanionArchives' })
-  if (action === 'clear-companion-pending') {
-    companionPendingSend = ''
-    companionDraft = ''
-    persistDraft()
-    render()
-    focusCompanionInput()
-  }
-  if (action === 'close-companion-popup') vscode.postMessage({ type: 'closeCompanionPopup' })
-  if (action === 'open-companion-popup') vscode.postMessage({ type: 'openCompanionPopup' })
-  if (action === 'open-companion-sidebar') {
-    vscode.postMessage({
-      type: 'companionThreadUpdate',
-      messages: companionMessages,
-      draft: companionDraft,
-      streamReply: companionStreamReply,
-      loading: companionLoading,
-      pendingSend: companionPendingSend,
-    })
-    vscode.postMessage({ type: 'openCompanionSidebar' })
-  }
-  if (action === 'dismiss-companion-applied') {
-    companionAppliedNotice = undefined
-    render()
-  }
-  if (action === 'companion-continue') {
-    sendCompanionUserMessage('Продолжи прошлый ответ с места обрыва, не повторяя написанное.')
-  }
-  if (action === 'companion-retry-last') {
-    const lastUser = [...companionMessages].reverse().find(item => item.role === 'user')
-    if (lastUser?.content) sendCompanionUserMessage(lastUser.content)
-  }
-  if (action === 'focus-hub') vscode.postMessage({ type: 'focusHub', tab: target.dataset.tab || 'overview' })
-  if (action === 'clear-companion-history') vscode.postMessage({ type: 'clearCompanionHistory' })
-  if (action === 'dismiss-companion-intervention') vscode.postMessage({ type: 'dismissCompanionIntervention', id: target.dataset.id || '', occurrenceKey: target.dataset.occurrence || '' })
-  if (action === 'restore-companion-interventions') vscode.postMessage({ type: 'restoreCompanionInterventions' })
-  if (action === 'companion-intervention-action') {
-    const relatedId = target.dataset.relatedId || ''
-    const actionKind = target.dataset.kind || ''
-    if (actionKind === 'probe_connection' && relatedId) {
-      companionInterventionProbe = {
-        interventionId: target.dataset.interventionId || '',
-        connectionId: relatedId,
-        loading: true,
-      }
-      render()
-      vscode.postMessage({ type: 'probeCompanionConnection', connectionId: relatedId })
-      return
-    }
-    if (actionKind === 'companion_prompt' && target.dataset.message && !companionLoading) {
-      companionDraft = target.dataset.message
-      persistDraft()
-      vscode.postMessage({ type: 'openCompanionPopup', message: target.dataset.message, send: false })
-      render()
-      focusCompanionInput()
-      return
-    }
-    const execution = (state.boot?.executions || []).find(item => item.id === relatedId)
-    const runId = execution?.runId || ''
-    if (actionKind === 'message_run' && runId && target.dataset.message) {
-      vscode.postMessage({ type: 'messageRun', runId, message: target.dataset.message })
-    } else if (runId) {
-      vscode.postMessage({ type: 'loadRun', id: runId })
-    } else if (target.dataset.tab) {
-      vscode.postMessage({ type: 'selectTab', tab: canonicalTab(target.dataset.tab) })
-    }
-  }
-  if (action === 'companion-quick-prompt') {
-    sendCompanionUserMessage(target.dataset.prompt || '')
-  }
-  if (action === 'companion-prefill') {
-    companionDraft = target.dataset.prompt || ''
-    persistDraft()
-    render()
-    focusCompanionInput()
-  }
-  if (action === 'companion-answer') {
-    sendCompanionUserMessage(target.dataset.prompt || '')
-  }
-  if (action === 'open-companion-setup') {
-    companionSetupOpen = true
-    companionSetupStep = normalizeCompanionSetupStep(target.dataset.step || 'brain')
-    companionSetupDraft = companionSetupDraftFromConfig()
-    companionProviderProbe = undefined
-    companionSetupStatus = ''
-    companionSetupTestResult = undefined
-    agentConstructorOpen = false
-    persistDraft()
-    render()
-  }
-  if (action === 'close-companion-setup') {
-    companionSetupDraft = currentCompanionSetupDraft()
-    companionSetupOpen = false
-    companionSetupStatus = ''
-    companionProviderProbe = undefined
-    persistDraft()
-    render()
-  }
-  if (action === 'companion-setup-step') {
-    companionSetupDraft = currentCompanionSetupDraft()
-    companionSetupStep = normalizeCompanionSetupStep(target.dataset.step || 'role')
-    companionSetupStatus = ''
-    companionSetupQuiet = false
-    persistDraft()
-    refreshCompanionSetup({ quiet: true })
-  }
-  if (action === 'companion-setup-move') {
-    companionSetupDraft = currentCompanionSetupDraft()
-    const currentIndex = Math.max(0, COMPANION_SETUP_STEPS.findIndex(item => item.id === companionSetupStep))
-    const direction = Number(target.dataset.direction || 1)
-    const issue = direction > 0 ? companionSetupValidation(companionSetupStep, companionSetupDraft) : ''
-    if (issue) { companionSetupStatus = issue; refreshCompanionSetup({ quiet: true }); return }
-    companionSetupStatus = ''
-    companionSetupStep = COMPANION_SETUP_STEPS[Math.max(0, Math.min(COMPANION_SETUP_STEPS.length - 1, currentIndex + direction))].id
-    persistDraft()
-    refreshCompanionSetup({ quiet: false })
-  }
-  if (action === 'companion-select-mode') {
-    const mode = 'model'
-    let draft = onboardingCompanionActive() ? onboardingCompanionDraft() : currentCompanionSetupDraft()
-    if (!draft.connectionId) {
-      const connection = companionConnections()[0]
-      const preset = defaultCompanionProviderPreset()
-      draft = sanitizeCompanionSetupDraft({ ...draft, mode, connectionMode: connection ? 'existing' : 'new', connectionId: connection?.id || '', connectionName: connection?.displayName || '', providerPreset: connection?.presetId || preset?.id || '', provider: connection?.provider || preset?.kind || '', baseUrl: connection?.baseUrl || preset?.baseUrl || '', model: draft.model || preset?.defaultModel || '' })
-    } else {
-      draft.mode = mode
-    }
-    if (onboardingCompanionActive()) writeOnboardingCompanionDraft(draft)
-    else companionSetupDraft = draft
-    companionSetupStatus = ''
-    persistDraft()
-    refreshCompanionSetup({ quiet: true })
-  }
-  if (action === 'probe-companion-connection') {
-    const draft = onboardingCompanionActive() ? onboardingCompanionDraft() : currentCompanionSetupDraft()
-    if (!onboardingCompanionActive()) companionSetupDraft = draft
-    companionProviderProbe = { loading: true, models: [] }
-    companionSetupStatus = ''
-    refreshCompanionSetup({ quiet: true })
-    vscode.postMessage({ type: 'probeCompanionConnection', connectionId: target.dataset.id || draft.connectionId })
-  }
-  if (action === 'companion-select-model') {
-    if (onboardingOrchestratorActive()) {
-      writeOnboardingOrchestratorDraft({ ...currentOnboardingOrchestratorValues(), model: target.dataset.model || '' })
-      persistDraft()
-      render()
-      return
-    }
-    const draft = onboardingCompanionActive() ? onboardingCompanionDraft() : currentCompanionSetupDraft()
-    draft.model = target.dataset.model || ''
-    if (onboardingCompanionActive()) writeOnboardingCompanionDraft(draft)
-    else companionSetupDraft = draft
-    persistDraft()
-    refreshCompanionSetup({ quiet: true })
-  }
-  if (action === 'companion-setup-preset') {
-    const preset = COMPANION_PRESETS.find(item => item.id === target.dataset.preset)
-    if (preset) {
-      companionSetupDraft = sanitizeCompanionSetupDraft({ ...currentCompanionSetupDraft(), preset: preset.id, ...preset.values })
-      companionSetupStatus = ''
-      refreshCompanionSetup({ liveOnly: true })
-    }
-  }
-  if (action === 'companion-toggle-auto-act') {
-    companionSetupDraft = sanitizeCompanionSetupDraft({ ...currentCompanionSetupDraft(), autoAct: target.dataset.autoAct === 'true' })
-    companionSetupStatus = ''
-    refreshCompanionSetup({ liveOnly: true })
-  }
-  if (action === 'companion-select-example') {
-    companionSetupDraft = currentCompanionSetupDraft()
-    companionSetupDraft.examplePrompt = target.dataset.prompt || COMPANION_EXAMPLES[0].prompt
-    companionSetupDraft.sampleScene = companionNormalizeSceneId(companionSetupDraft.examplePrompt)
-    companionSetupTestResult = undefined
-    persistDraft()
-    refreshCompanionSetup({ quiet: true })
-  }
-  if (action === 'companion-select-scene') {
-    const scene = companionSceneById(target.dataset.scene)
-    if (root.querySelector('.companion-onboarding') && !companionSetupOpen) {
-      onboardingDraft = { ...onboardingDraft, sampleScene: scene.id }
-      persistDraft()
-      refreshCompanionLiveSurfaces(onboardingCompanionDraft(), root.querySelector('.companion-onboarding') || root)
-      return
-    }
-    companionSetupDraft = sanitizeCompanionSetupDraft({ ...currentCompanionSetupDraft(), sampleScene: scene.id, examplePrompt: scene.prompt })
-    refreshCompanionSetup({ liveOnly: true })
-  }
-  if (action === 'save-test-companion') {
-    companionSetupDraft = currentCompanionSetupDraft()
-    const issue = companionSetupValidation('brain', companionSetupDraft) || companionSetupValidation('boundaries', companionSetupDraft) || companionSetupValidation('skills', companionSetupDraft)
-    if (issue) { companionSetupStatus = issue; render(); return }
-    companionLoading = true
-    companionSetupStatus = ''
-    companionSetupTestResult = undefined
-    persistDraft()
-    render()
-    vscode.postMessage({ type: 'saveCompanionConfigAndChat', config: companionConfigFromDraft(companionSetupDraft), message: companionSetupDraft.examplePrompt })
-  }
-  if (action === 'cursor-login') vscode.postMessage({type:'cursorLogin'})
-  if (action === 'complete-onboarding') vscode.postMessage({type:'completeOnboarding'})
-  if (action === 'complete-master-onboarding') {
-    persistOnboardingOrchestrator(false)
-    const issue = orchestratorSetupValidation(onboardingOrchestratorDraft())
-    if (issue) {
-      companionSetupStatus = issue
-      persistDraft()
-      render()
-      return
-    }
-    companionSetupStatus = ''
-    persistOnboardingOrchestrator(true)
-    onboardingDraft = { ...onboardingDraft, orchestratorFinished: true }
-    persistDraft()
-    vscode.postMessage({type:'completeOnboarding'})
-  }
-  if (action === 'restart-onboarding') {
-    onboardingStep = 'orchestrator-brain'
-    onboardingDraft = { ...onboardingDraft, orchestratorFinished: false }
-    persistDraft()
-    vscode.postMessage({type:'restartOnboarding'})
-  }
-  if (action === 'onboarding-step') {
-    const nextStep = target.dataset.step || 'welcome'
-    const currentIndex = Math.max(0, ONBOARDING_STEPS.findIndex(item => item.id === onboardingStep))
-    const nextIndex = Math.max(0, ONBOARDING_STEPS.findIndex(item => item.id === nextStep))
-    const advancing = nextIndex > currentIndex
-    if (onboardingStep === 'companion-brain' && advancing) {
-      persistOnboardingCompanion(false)
-      const issue = companionSetupValidation('brain', onboardingCompanionDraft())
-      if (issue) {
-        companionSetupStatus = issue
-        persistDraft()
-        render()
-        return
-      }
-      companionSetupStatus = ''
-      persistOnboardingCompanion(true)
-      onboardingDraft = { ...onboardingDraft, companionFinished: true }
-    } else if (isCompanionOnboardingStep(onboardingStep)) {
-      persistOnboardingCompanion(advancing)
-    }
-    if (onboardingStep === 'orchestrator-brain' && advancing) {
-      persistOnboardingOrchestrator(false)
-      const issue = orchestratorSetupValidation(onboardingOrchestratorDraft())
-      if (issue) {
-        companionSetupStatus = issue
-        persistDraft()
-        render()
-        return
-      }
-      companionSetupStatus = ''
-      persistOnboardingOrchestrator(true)
-      // Подключение уже сохранено, но первый запуск завершится только после
-      // следующего экрана с политикой Мастера.
-      onboardingDraft = { ...onboardingDraft, orchestratorFinished: false }
-    } else if (isOrchestratorOnboardingStep(onboardingStep)) {
-      persistOnboardingOrchestrator(advancing)
-    }
-    if (onboardingStep === 'first-agent' && advancing && !onboardingPrimaryAgent()) {
-      acceptFirstAgentProposal()
-    }
-    if (nextStep === 'first-agent' && !onboardingDraft.agentTemplateId) {
-      onboardingDraft = { ...onboardingDraft, agentTemplateId: companionSuggestedTemplateId() }
-    }
-    if (!canEnterOnboardingStep(nextStep)) {
-      onboardingLockNotice = onboardingLockReason(nextStep) || 'Шаг откроется позже'
-      persistDraft()
-      render()
-      return
-    }
-    onboardingLockNotice = ''
-    onboardingStep = nextStep
-    persistDraft()
-    render()
-  }
-  if (action === 'onboarding-orchestrator-preset') {
-    const preset = ORCHESTRATOR_PRESETS.find(item => item.id === target.dataset.preset) || ORCHESTRATOR_PRESETS[0]
-    writeOnboardingOrchestratorDraft({ ...onboardingOrchestratorDraft(), preset: preset.id, ...preset.values })
-    persistDraft()
-    render()
-  }
-  if (action === 'orchestrator-select-mode') {
-    let draft = onboardingOrchestratorDraft()
-    const mode = target.dataset.mode === 'model' ? 'model' : 'local'
-    if (mode === 'model' && !draft.connectionId) {
-      const connection = companionConnections()[0]
-      const preset = defaultCompanionProviderPreset()
-      draft = sanitizeOrchestratorDraft({ ...draft, mode, connectionMode: connection ? 'existing' : 'new', connectionId: connection?.id || '', connectionName: connection?.displayName || '', providerPreset: connection?.presetId || preset?.id || '', provider: connection?.provider || preset?.kind || '', baseUrl: connection?.baseUrl || preset?.baseUrl || '', model: draft.model || connection?.model || preset?.defaultModel || '' })
-    } else {
-      draft.mode = mode
-    }
-    writeOnboardingOrchestratorDraft(draft)
-    companionProviderProbe = undefined
-    companionSetupStatus = ''
-    persistDraft()
-    render()
-  }
-  if (action === 'probe-orchestrator-connection') {
-    const draft = currentOnboardingOrchestratorValues()
-    writeOnboardingOrchestratorDraft(draft)
-    companionProviderProbe = { loading: true, models: [] }
-    companionSetupStatus = ''
-    persistDraft()
-    render()
-    vscode.postMessage({ type: 'probeCompanionConnection', connectionId: target.dataset.id || draft.connectionId })
-  }
-  if (action === 'open-orchestrator-setup') {
-    state.selectedTab = 'onboarding'
-    // Расширение обязано знать о переходе. Без этого его selectedTab оставался
-    // прежним, и первое же состояние — от нажатия «перестроить индекс», от
-    // проверки связи, от любого фонового опроса — возвращало прежнюю вкладку и
-    // закрывало настройку Мастера на середине.
-    vscode.postMessage({ type: 'selectTab', tab: 'onboarding' })
-    onboardingStep = 'orchestrator-brain'
-    persistDraft()
-    render()
-  }
-  if (action === 'onboarding-companion-preset') {
-    const presetId = target.dataset.preset || 'balanced'
-    const preset = COMPANION_PRESETS.find(item => item.id === presetId) || COMPANION_PRESETS[0]
-    onboardingDraft = { ...onboardingDraft, companionPreset: preset.id, ...preset.values }
-    persistDraft()
-    render()
-  }
-  if (action === 'onboarding-agent-template') {
-    onboardingDraft = { ...onboardingDraft, agentTemplateId: target.dataset.template || '' }
-    persistDraft()
-    render()
-  }
-  if (action === 'save-onboarding-companion') {
-    persistOnboardingCompanion(true)
-  }
-  if (action === 'onboarding-create-agent') {
-    acceptFirstAgentProposal()
-  }
-  if (action === 'onboarding-edit-agent') {
-    const proposal = firstAgentProposal()
-    const name = (root.querySelector('#onboarding-agent-name')?.value.trim() || onboardingDraft.agentName || proposal.name || '').trim()
-    onboardingDraft = { ...onboardingDraft, agentName: name, agentTemplateId: proposal.template?.id || onboardingDraft.agentTemplateId }
-    constructorDraft = firstAgentDraftFromProposal(proposal)
-    constructorStep = 'identity'
-    agentConstructorOpen = true
-    profileEditorOpen = false
-    persistDraft()
-    render()
-  }
-  if (action === 'onboarding-apply-connection') {
-    const connection = (state.boot?.connections || []).find(item => item.id === target.dataset.id)
-    if (!connection) return
-    const preset = providerCatalog().find(item => item.id === connection.presetId || item.kind === connection.provider)
-    onboardingDraft = { ...onboardingDraft, connectionId: connection.id, providerPreset: connection.presetId || preset?.id || '' }
-    persistDraft()
-    patchOnboardingAgent({
-      provider: connection.provider || preset?.kind || '',
-      providerPreset: connection.presetId || preset?.id || '',
-      baseUrl: connection.baseUrl || preset?.baseUrl || '',
-      primaryModel: onboardingDraft.agentModel || preset?.defaultModel || '',
-      model: onboardingDraft.agentModel || preset?.defaultModel || '',
-    })
-    render()
-  }
-  if (action === 'onboarding-use-cursor') {
-    const preset = companionProviderPresets().find(item => item.local) || companionProviderPresets()[0]
-    if (!preset) return
-    onboardingDraft = { ...onboardingDraft, providerPreset: preset.id, companionProvider: preset.kind }
-    persistDraft()
-    patchOnboardingAgent({ provider: preset.kind, providerPreset: preset.id, primaryModel: preset.defaultModel || '', model: preset.defaultModel || '', baseUrl: preset.baseUrl || '' })
-    render()
-  }
-  if (action === 'onboarding-pick-provider') {
-    onboardingDraft = { ...onboardingDraft, providerPreset: target.dataset.preset || '', companionProvider: target.dataset.provider || '' }
-    persistDraft()
-    render()
-    const select = root.querySelector('#connection-provider')
-    if (select && target.dataset.provider) select.value = target.dataset.provider
-  }
-  if (action === 'onboarding-agent-cycle') {
-    const templates = onboardingAgentTemplates()
-    if (!templates.length) return
-    const current = companionSuggestedTemplateId(templates)
-    const index = Math.max(0, templates.findIndex(item => item.id === current))
-    const next = templates[(index + 1) % templates.length]
-    onboardingDraft = { ...onboardingDraft, agentTemplateId: next.id }
-    persistDraft()
-    render()
-  }
-  if (action === 'open-agent-constructor' || action === 'open-agent-constructor-edit') {
-    // Незавершённый онбординг системных агентов держит порядок и остаётся.
-    if (state.selectedTab === 'onboarding' && isSystemOnboardingStep(onboardingStep)) return
-    // А открытая настройка компаньона просто закрывается: панель не должна
-    // молча съедать нажатие на «Нанять агента».
-    if (companionSetupOpen) companionSetupOpen = false
-    agentConstructorOpen = true
-    profileEditorOpen = false
-    profileDraft = undefined
-    createStepError = ''
-    constructorStep = 'identity'
-    if (action === 'open-agent-constructor-edit') {
-      // Кнопка может назвать агента прямо: карточка наряда ведёт в мастерскую
-      // того исполнителя, которого утверждение только что создало, а не того,
-      // кто случайно выбран в ростере.
-      const named = target.dataset.id ? agentById(String(target.dataset.id)) : null
-      if (named) selectedProfileId = named.id
-      const selected = named || agentById(selectedProfileId) || hubAgents()[0]
-      constructorDraft = newConstructorDraft(selected ? {
-        ...selected,
-        primaryModel: selected.primaryModel || selected.model,
-        model: selected.primaryModel || selected.model,
-      } : undefined)
-    } else {
-      constructorDraft = newConstructorDraft()
-    }
-    persistDraft()
-    render()
-  }
-  if (action === 'close-agent-constructor') {
-    agentConstructorOpen = false
-    constructorDraft = undefined
-    constructorStep = 'identity'
-    createStepError = ''
-    resetCompiledPromptPreview()
-    persistDraft()
-    render()
-  }
-  if (action === 'reload-compiled-prompt') {
-    resetCompiledPromptPreview()
-    render()
-  }
-  if (action === 'constructor-step') {
-    const draft = currentConstructorForm()
-    if (draft) constructorDraft = draft
-    createStepError = ''
-    constructorStep = target.dataset.step || 'identity'
-    persistDraft()
-    render()
-  }
-  if (action === 'constructor-advance') {
-    const draft = currentConstructorForm()
-    if (draft) constructorDraft = draft
-    createStepError = ''
-    constructorStep = target.dataset.step || constructorStep
-    persistDraft()
-    render()
-  }
-  if (action === 'constructor-scratch') {
-    constructorDraft = newConstructorDraft()
-    constructorStep = 'identity'
-    render()
-  }
-  if (action === 'constructor-template') {
-    const templateId = target.dataset.template || ''
-    const blueprint = (state.boot?.blueprints || []).find(item => item.id === templateId)
-    const profileTemplate = (state.boot?.profileTemplates || []).find(item => item.id === templateId)
-    const source = blueprint || profileTemplate
-    if (source) {
-      constructorDraft = newConstructorDraft({
-        ...source,
-        id: '',
-        primaryModel: source.primaryModel || source.model,
-        model: source.primaryModel || source.model,
-        blueprintId: blueprint?.id || '',
-      })
-      constructorStep = 'identity'
-      render()
-    }
-  }
-  if (action === 'constructor-tool-preset') {
-    const preset = TOOL_PRESETS.find(item => item.id === target.dataset.preset)
-    const values = preset?.tools === null ? (state.boot?.toolCatalog || []).map(item => item.name) : (preset?.tools || [])
-    for (const input of root.querySelectorAll('input[name="constructor-tool"]')) input.checked = values.includes(input.value)
-    const draft = currentConstructorForm()
-    if (draft) constructorDraft = draft
-    render()
-  }
-  if (action === 'save-constructor') {
-    const draft = currentConstructorForm()
-    if (!draft) return
-    if (!(draft.name || '').trim()) { createStepError = 'Укажите имя агента'; constructorDraft = draft; render(); return }
-    const dropped = legacySaveWouldDrop(draft)
-    if (dropped) { createStepError = dropped; constructorDraft = draft; render(); return }
-    constructorDraft = draft
-    createStepError = ''
-    if (hubModeAvailable()) {
-      vscode.postMessage({ type: 'saveProjectAgent', agent: constructorToProjectAgent(draft) })
-    } else {
-      vscode.postMessage({ type: 'saveProfile', profile: constructorToProfile(draft) })
-    }
-  }
-  if (action === 'apply-blueprint') {
-    const draft = currentConstructorForm()
-    if (draft) constructorDraft = draft
-    if (draft?.id) {
-      blueprintSyncDirection = 'apply-blueprint'
-      blueprintSyncPreview = { projectAgentId: draft.id, loading: true }
-      render()
-      vscode.postMessage({ type: 'previewBlueprintSync', agentId: draft.id, direction: blueprintSyncDirection })
-    }
-  }
-  if (action === 'update-blueprint') {
-    const draft = currentConstructorForm()
-    if (draft) constructorDraft = draft
-    if (draft?.id) {
-      blueprintSyncDirection = 'update-blueprint'
-      blueprintSyncPreview = { projectAgentId: draft.id, loading: true }
-      render()
-      vscode.postMessage({ type: 'previewBlueprintSync', agentId: draft.id, direction: blueprintSyncDirection })
-    }
-  }
-  if (action === 'cancel-blueprint-sync') {
-    blueprintSyncPreview = undefined
-    blueprintSyncDirection = ''
-    render()
-  }
-  if (action === 'confirm-blueprint-sync') {
-    const agentId = blueprintSyncPreview?.projectAgentId
-    if (!agentId) return
-    const type = blueprintSyncDirection === 'update-blueprint' ? 'updateBlueprintFromAgent' : 'applyBlueprintToAgent'
-    vscode.postMessage({ type, agentId })
-  }
+  if (handleCompanionClickAction({
+    action, target, root, ui: modularUiState, vscode, persistDraft, render,
+    stopCompanionChat, scrollCompanionThread, sendCompanionUserMessage, focusCompanionInput, canonicalTab,
+    normalizeCompanionSetupStep, companionSetupDraftFromConfig, currentCompanionSetupDraft,
+    companionSetupValidation, companionConfigFromDraft, refreshCompanionSetup, refreshCompanionLiveSurfaces,
+    sanitizeCompanionSetupDraft, companionConnections, companionNormalizeSceneId, companionSceneById,
+    defaultCompanionProviderPreset, onboardingCompanionActive, onboardingCompanionDraft,
+    writeOnboardingCompanionDraft, onboardingOrchestratorActive, writeOnboardingOrchestratorDraft,
+    currentOnboardingOrchestratorValues,
+  })) return
+  if (handleOnboardingClickAction({
+    ui: modularUiState,
+    action, target, root, vscode, persistDraft, render, ONBOARDING_STEPS, ORCHESTRATOR_PRESETS, TOOL_PRESETS,
+    acceptFirstAgentProposal, agentById, canEnterOnboardingStep, companionConnections, companionProviderPresets,
+    companionSetupValidation, companionSuggestedTemplateId, constructorToProfile, constructorToProjectAgent,
+    currentConstructorForm, currentOnboardingOrchestratorValues, defaultCompanionProviderPreset,
+    firstAgentDraftFromProposal, firstAgentProposal, hubAgents, hubModeAvailable, isCompanionOnboardingStep,
+    isOrchestratorOnboardingStep, isSystemOnboardingStep, legacySaveWouldDrop, newConstructorDraft,
+    onboardingAgentTemplates, onboardingCompanionDraft, onboardingLockReason, onboardingOrchestratorDraft,
+    onboardingPrimaryAgent, orchestratorSetupValidation, patchOnboardingAgent, persistOnboardingCompanion,
+    persistOnboardingOrchestrator, providerCatalog, resetCompiledPromptPreview, sanitizeOrchestratorDraft,
+    writeOnboardingOrchestratorDraft,
+  })) return
   if (action === 'companion-suggest-ignore') {
     ignoredCompanionSuggestions.add(target.dataset.suggestId || '')
     persistDraft()
@@ -5235,6 +4611,43 @@ const FAILED_REQUEST_SECTIONS = {
   applyManualLearning: 'manualLearning',
 }
 
+// Всё вокруг запуска — свой модуль: предпросмотры, старт, откат и разбор
+// отказа, который отпускает всё, что ждало ответа.
+const applyRunMessage = createRunInbox({
+  ui: modularUiState, render: (...args) => render(...args),
+  persistDraft: (...args) => persistDraft(...args),
+  countOf: (...args) => countOf(...args),
+  FAILED_REQUEST_SECTIONS,
+  invalidateAgentRunPreview: (...args) => invalidateAgentRunPreview(...args),
+  requestContextPreview: (...args) => requestContextPreview(...args),
+  releaseMasterAgentCards: (...args) => releaseMasterAgentCards(...args),
+  forgetMasterSent: (...args) => forgetMasterSent(...args),
+  stopMasterWaitClock: (...args) => stopMasterWaitClock(...args),
+  masterClient, masterSentText, masterWorkOrderBusy,
+  proposalStarting, proposalModifying,
+  companionActionApplying, companionActionModifying,
+  agentCapabilityInflight, agentCapabilityFailed,
+  orchestratorPolicyInflight, orchestratorPolicyFailed,
+})
+
+// Полный снимок мира разбирается своим модулем: это единственная ветка,
+// которая заменяет состояние целиком и решает, что из прежнего переживает смену.
+const applyWorldStateMessage = createWorldStateInbox({
+  ui: modularUiState, vscode, render: (...args) => render(...args),
+  persistDraft: (...args) => persistDraft(...args),
+  canonicalTab: (...args) => canonicalTab(...args),
+  resetProjectScopedState: (...args) => resetProjectScopedState(...args),
+  decisionsQueueIsStale: (...args) => decisionsQueueIsStale(...args),
+  releaseMasterAgentCards: (...args) => releaseMasterAgentCards(...args),
+  mergeCompanionTranscript: (...args) => mergeCompanionTranscript(...args),
+  prepareAgentConstructor: (...args) => prepareAgentConstructor(...args),
+  agentById: (...args) => agentById(...args),
+  hubAgents: (...args) => hubAgents(...args),
+  isWide: (...args) => isWide(...args),
+  proposalStarting, proposalModifying, proposalEditDrafts,
+  companionActionApplying, companionActionModifying, companionActionEditDrafts,
+})
+
 window.addEventListener('message', event => {
   const message=event.data
   if (message.type === 'collectGarbage') {
@@ -5305,98 +4718,7 @@ window.addEventListener('message', event => {
     render()
     return
   }
-  if (message.type === 'state') {
-    // Ответ пришёл — форму отпираем. Иначе после первой же отправки она
-    // осталась бы запертой до перезагрузки панели.
-    submittingForm = ''
-    if (String(message.workspacePath || '') !== projectKey) {
-      projectKey = String(message.workspacePath || '')
-      resetProjectScopedState()
-    }
-    state={...message, selectedTab: canonicalTab(message.selectedTab)}
-    const discussed = (state.boot?.questProposals || []).find(p => p.id === masterDiscussionProposalId)
-    if (discussed && discussed.status !== 'pending') {
-      masterDiscussionProposalId = ''
-      persistDraft()
-    }
-    // «Мастер не настроен» — ответ, который устаревает молча.
-    //
-    // Настраивают его в другом разделе, и раздел разговора об этом не узнавал:
-    // он держал прежний ответ ядра и продолжал показывать приглашение к
-    // настройке — то самое, из которого человек только что вернулся, всё
-    // сделав. Выход был один: переоткрыть панель. Мир уже сообщил, что
-    // диспетчер есть, — значит наш ответ неверен, и его надо спросить заново.
-    if (masterData?.configured === false && state.boot?.orchestrator?.id) {
-      masterData = undefined
-      masterStatus = 'idle'
-    }
-    // Очередь загружалась один раз и больше не обновлялась. Правило сверки
-    // живёт рядом со счётчиком ожидающих: оно ловит сдвиг мира в обе стороны.
-    if (decisionsStatus === 'ready' && decisionsQueueIsStale()) decisionsStatus = 'idle'
-    // Запуск предложения дошёл до ядра — кнопку отпускаем. Судим по самому
-    // предложению, а не по факту прихода состояния: состояние приходит и по
-    // чужим поводам, и отпущенная на них кнопка снова стала бы двойной.
-    for (const id of proposalStarting) {
-      const awaited = (state.boot?.questProposals || []).find(item => item.id === id)
-      if (!awaited || awaited.status === 'started') proposalStarting.delete(id)
-    }
-    for (const id of companionActionApplying) {
-      const awaited = (state.boot?.companionActionProposals || []).find(item => item.id === id)
-      if (!awaited || awaited.status === 'applied' || awaited.status === 'ignored') companionActionApplying.delete(id)
-    }
-    // Карточка исполнителя ждала ответа ядра: состояние пришло, и держать её
-    // кнопку запертой больше не на чем.
-    releaseMasterAgentCards()
-    for (const id of proposalEditDrafts.keys()) {
-      const awaited = (state.boot?.questProposals || []).find(item => item.id === id)
-      if (!awaited || awaited.status === 'started' || awaited.status === 'ignored') {
-        proposalEditDrafts.delete(id)
-        proposalModifying.delete(id)
-        if (proposalEditId === id) proposalEditId = ''
-      }
-    }
-    for (const id of companionActionEditDrafts.keys()) {
-      const awaited = (state.boot?.companionActionProposals || []).find(item => item.id === id)
-      if (!awaited || awaited.status === 'applied' || awaited.status === 'ignored') {
-        companionActionEditDrafts.delete(id)
-        companionActionModifying.delete(id)
-        if (companionActionEditId === id) companionActionEditId = ''
-      }
-    }
-    if (message.ideContext && typeof message.ideContext === 'object') companionIdeContext = message.ideContext
-    if (Array.isArray(message.companionFeedback)) {
-      companionFeedbackMarks = new Map(message.companionFeedback
-        .filter(item => item && item.messageId)
-        .map(item => [String(item.messageId), item.value === 'down' ? 'down' : 'up']))
-    }
-    if (Array.isArray(state.boot?.companionMessages)) {
-      const incoming = state.boot.companionMessages.map(item => ({ ...item, factsUsed: Array.isArray(item.factsUsed) ? item.factsUsed : [] })).slice(-80)
-      companionMessages = mergeCompanionTranscript(companionMessages, incoming, companionLoading)
-    }
-    const defaultId = state.boot?.defaultProfileId
-    // Project agents and legacy profiles share the composer. Checking only the
-    // legacy profile array made every background boot refresh discard a valid
-    // project-agent selection while a preview was being prepared.
-    if (!selectedProfileId || !agentById(selectedProfileId)) {
-      selectedProfileId = agentById(defaultId)?.id || hubAgents()[0]?.id || state.boot?.profiles?.[0]?.id || ''
-    }
-    const improvementFocus = message.agentImprovementFocus
-    if (isWide && state.selectedTab === 'agents' && improvementFocus?.requestId && improvementFocus.requestId !== lastAgentImprovementFocusId) {
-      const selected = agentById(improvementFocus.agentId)
-      if (selected) {
-        lastAgentImprovementFocusId = improvementFocus.requestId
-        selectedProfileId = selected.id
-        prepareAgentConstructor(selected, improvementFocus.constructorStep)
-        vscode.postMessage({ type: 'agentImprovementFocused', requestId: improvementFocus.requestId })
-      } else if (state.boot) {
-        lastAgentImprovementFocusId = improvementFocus.requestId
-        transientError = 'Агент из рекомендации больше не найден в ростере.'
-        vscode.postMessage({ type: 'agentImprovementFocused', requestId: improvementFocus.requestId })
-      }
-    }
-    persistDraft()
-    render()
-  }
+  if (applyWorldStateMessage(message)) return
   if (message.type === 'cursorRuntime') {
     state = { ...state, cursorRuntime: message }
     render()
@@ -5476,148 +4798,7 @@ window.addEventListener('message', event => {
     })
     focusCompanionInput()
   }
-  if (message.type === 'dbConnectionSaved') {
-    if (message.id) dbSelectedId = message.id
-    dbEditingId = ''
-    dbQueryResult = undefined
-    dbSchemaResult = undefined
-    render()
-  }
-  if (message.type === 'serverProfileSaved') {
-    serverEditingId = ''
-    render()
-  }
-  if (message.type === 'dbQueryResult') {
-    if (submittingForm === 'db-query-form') submittingForm = ''
-    dbQueryStatus = 'idle'
-    if (message.error) {
-      transientError = message.error
-      dbQueryResult = undefined
-    } else {
-      dbQueryResult = message.result
-      transientError = ''
-    }
-    render()
-  }
-  if (message.type === 'dbWriteRequired') {
-    if (submittingForm === 'db-query-form') submittingForm = ''
-    dbQueryStatus = 'idle'
-    dbWritePending = { connectionId: message.connectionId, sql: message.sql }
-    transientError = ''
-    render()
-  }
-  if (message.type === 'dbSchemaResult') {
-    dbSchemaResult = message.result
-    render()
-  }
-  if (message.type === 'profileSaved' || message.type === 'profileDeleted') {
-    const intent = hireAfterSave
-    hireAfterSave = ''
-    createStepError = ''
-    hirePreviewTemplateId = ''
-    profileDraft = undefined
-    profileEditorOpen = false
-    profileEditorStep = 'identity'
-    if (agentConstructorOpen) {
-      agentConstructorOpen = false
-      constructorDraft = undefined
-    }
-    selectedProfileId = message.profileId || ''
-    if (state.selectedTab === 'onboarding' && onboardingStep === 'first-agent') {
-      onboardingStep = 'model-connection'
-      persistDraft()
-    }
-    persistDraft()
-    if (message.type === 'profileSaved' && intent === 'quest') {
-      vscode.postMessage({ type: 'selectTab', tab: 'quests' })
-    }
-  }
-  if (message.type === 'projectAgentSaved') {
-    const intent = hireAfterSave
-    hireAfterSave = ''
-    createStepError = ''
-    blueprintSyncPreview = undefined
-    blueprintSyncDirection = ''
-    constructorDraft = undefined
-    agentConstructorOpen = false
-    selectedProfileId = message.agentId || selectedProfileId
-    if (state.selectedTab === 'onboarding' && onboardingStep === 'first-agent') {
-      onboardingStep = 'model-connection'
-    }
-    persistDraft()
-    render()
-    if (intent === 'quest') vscode.postMessage({ type: 'selectTab', tab: 'quests' })
-    if (intent.startsWith('work-order:') && message.agentId) {
-      // Наряд и черновик, ради которого нанимали. Идентификатор черновика
-      // приписан к намерению через «|»: без него подстановка не знает, кого
-      // именно заменил новый исполнитель.
-      const [orderId, draftId] = intent.slice('work-order:'.length).split('|')
-      const order = (Array.isArray(masterData?.workOrders) ? masterData.workOrders : []).find(item => item.id === orderId)
-      const agent = (state.boot?.projectAgents || []).find(item => item.id === message.agentId)
-      if (order && agent) {
-        const hired = {
-          id: agent.id, blueprintId: agent.blueprintId || '', existing: true, name: agent.name,
-          role: agent.roleDescription || '', mission: agent.mission || agent.roleDescription || '',
-          requiredTools: Array.isArray(agent.allowedTools) ? agent.allowedTools : [],
-        }
-        reviseWorkOrderRosterV2(order.id, roster => {
-          // Прежде сюда вставлялся весь состав одним человеком: наряд из трёх
-          // исполнителей после найма четвёртого оставался с одним. Заменяем
-          // только тот черновик, ради которого шли в мастерскую, а если он уже
-          // исчез — первый незаведённый; остальных не трогаем.
-          const permanent = Array.isArray(roster.permanent) ? [...roster.permanent] : []
-          if (permanent.some(draft => draft.id === agent.id)) return roster
-          const index = permanent.findIndex(draft => draft.id === draftId && !draft.existing)
-          const fallback = permanent.findIndex(draft => !draft.existing)
-          const at = index >= 0 ? index : fallback
-          if (at >= 0) permanent[at] = hired
-          else permanent.push(hired)
-          return { ...roster, permanent }
-        })
-      }
-    }
-    releaseMasterAgentCards()
-  }
-  if (message.type === 'projectAgentDeleted') {
-    // Конструктор закрываем: карточки, которую он правил, больше нет, и
-    // оставленный открытым он сохранил бы распущенного персонажа заново.
-    createStepError = ''
-    blueprintSyncPreview = undefined
-    blueprintSyncDirection = ''
-    constructorDraft = undefined
-    agentConstructorOpen = false
-    if (selectedProfileId === message.agentId) selectedProfileId = ''
-    persistDraft()
-    render()
-  }
-  if (message.type === 'blueprintSaved') {
-    createStepError = ''
-    blueprintSyncPreview = undefined
-    blueprintSyncDirection = ''
-    persistDraft()
-    render()
-  }
-  if (message.type === 'blueprintSyncPreview') {
-    blueprintSyncDirection = message.direction || blueprintSyncDirection
-    blueprintSyncPreview = message.preview
-    render()
-  }
-  if (message.type === 'questDeleted') {
-    // Раскрытой остаётся строка, которой больше нет: без сброса разбор
-    // готовности продолжал бы запрашиваться по удалённому идентификатору.
-    closeQuestIfOpen(message.questId)
-    resetQuestReplansCache()
-    transientError = ''
-    render()
-  }
-  if (message.type === 'memoryDeleted') {
-    if (memoryEditId === message.memoryId) {
-      memoryEditId = ''
-      memoryDraft = undefined
-    }
-    transientError = ''
-    render()
-  }
+  if (applyHubEntityMessage(message)) return
   if (message.type === 'companionConfigSaved') {
     transientError = ''
     companionSetupStatus = 'Настройки компаньона сохранены.'
@@ -5747,303 +4928,8 @@ window.addEventListener('message', event => {
     persistDraft()
     refreshCompanionSetup({ quiet: true })
   }
-  if (message.type === 'contextAdded') {
-    const incoming=Array.isArray(message.items)?message.items:[]
-    for(const item of incoming){
-      const duplicate=contextItems.some(current=>current.kind===item.kind&&current.path===item.path&&current.label===item.label&&current.content===item.content)
-      if(!duplicate&&contextItems.length<16)contextItems.push(item)
-    }
-    persistDraft()
-    requestContextPreview()
-  }
-  if (message.type === 'contextPreview') { contextPreview=message.preview; contextPreviewStatus='ready'; contextPreviewError=''; render() }
-  if (message.type === 'contextPreviewError') { contextPreview=undefined; contextPreviewStatus='error'; contextPreviewError=message.message||'Не удалось проверить вложения'; render() }
-  if (message.type === 'agentRunPreview') { agentRunPreview=message.preview;agentRunPreviewStatus='ready';agentRunPreviewError='';render() }
-  if (message.type === 'agentRunPreviewError') { agentRunPreview=undefined;agentRunPreviewStatus='error';agentRunPreviewError=message.message||'Не удалось проверить запуск';render() }
-  if (message.type === 'compiledPromptPreview') { compiledPromptPreview=message.preview;compiledPromptStatus='ready';compiledPromptError='';render() }
-  if (message.type === 'compiledPromptPreviewError') { compiledPromptPreview=undefined;compiledPromptStatus='error';compiledPromptError=message.message||'Не удалось собрать runtime-промпт';render() }
-  if (message.type === 'customToolPreview') { customToolPreview=message.preview;customToolPreviewStatus='ready';customToolPreviewError='';render() }
-  if (message.type === 'customToolPreviewError') { customToolPreview=undefined;customToolPreviewStatus='error';customToolPreviewError=message.message||'Не удалось проверить инструмент';render() }
-  if (message.type === 'runUndoResult') {
-    const result = message.result || {}
-    const reverted = Array.isArray(result.reverted) ? result.reverted.length : 0
-    const skipped = Array.isArray(result.skipped) ? result.skipped : []
-    if (reverted) {
-      transientError = skipped.length
-        ? `Откатили ${countOf(reverted, 'правка', 'правки', 'правок')}. Не всё: ${skipped.join('; ')}`
-        : `Откатили ${countOf(reverted, 'правка', 'правки', 'правок')}.`
-      if (!skipped.length && result.runId && keptRunId === result.runId) keptRunId = ''
-    } else if (skipped.length) {
-      transientError = `Не удалось откатить: ${skipped.join('; ')}`
-    } else if (message.message) {
-      transientError = message.message
-    }
-    persistDraft()
-    render()
-  }
-  if (message.type === 'runStarted') {
-    runStarting = false
-    masterSending = false
-    stopMasterWaitClock()
-    taskDraft='';questGoalDraft='';questCriteriaDraft='';questConstraintsDraft='';invalidateAgentRunPreview();contextItems=[]; contextPreview=undefined; contextPreviewStatus='idle'; contextPreviewError=''; persistDraft()
-    if (message.fastAgent) {
-      keptRunId = ''
-      masterDraft = ''
-      persistDraft()
-      if (masterClient?.acceptTurn) {
-        const runId = state.details?.run?.id || ''
-        masterClient.acceptTurn({
-          id: 'fast_' + Date.now().toString(36),
-          conversationId: masterClient.active,
-          status: 'ready',
-          reply: runId ? `Агент запущен (run ${runId}). Правки появятся ниже — Keep / Undo.` : 'Агент запущен.',
-        })
-      }
-    }
-  }
-  if (message.type === 'workflowRunStarted') { contextItems=[]; contextPreview=undefined; contextPreviewStatus='idle'; contextPreviewError=''; persistDraft() }
-  if (message.type === 'error') {
-    providerProbe = undefined
-    companionProviderProbe = undefined
-    // Запуск не состоялся — форму отпираем, иначе повторить будет нельзя.
-    runStarting = false
-    // Какое из предложений не запустилось, отказ не называет — отпускаем все:
-    // застрявшая навсегда кнопка хуже лишнего разблокированного нажатия,
-    // которое ядро всё равно отвергнет.
-    const failedRequest = String(message.request || '')
-    if (!failedRequest || failedRequest === 'approveMasterWorkOrderV2' || failedRequest === 'reviseMasterWorkOrderV2' || failedRequest === 'controlMasterWorkOrderQuestV2' || failedRequest === 'controlMasterApplicationV2') masterWorkOrderBusy.clear()
-    if (!failedRequest || failedRequest === '/api/quest-proposals/decide') {
-      proposalStarting.clear()
-      proposalModifying.clear()
-    }
-    if (!failedRequest || failedRequest === '/api/companion/actions/decide') {
-      companionActionApplying.clear()
-      companionActionModifying.clear()
-    }
-    // Отказ ядра обязан отпускать и карточку исполнителя: иначе её кнопка
-    // остаётся запертой навсегда, а набранное человеком некуда отправить.
-    releaseMasterAgentCards()
-    submittingForm = ''
-    // Годность персонажа и политика мастера ждут ответа в своих наборах, а
-    // снимались оттуда только ответом. После отказа ключ оставался ждать
-    // вечно: повтор блокировал сам себя, кэш пустовал, и оба экрана держали
-    // заглушку загрузки. Хуже того, готовность при неполученном ответе
-    // намеренно не отрицается — персонаж навсегда объявлялся готовым по
-    // данным, которых никто не присылал.
-    for (const key of agentCapabilityInflight) agentCapabilityFailed.add(key)
-    agentCapabilityInflight.clear()
-    for (const key of orchestratorPolicyInflight) orchestratorPolicyFailed.add(key)
-    orchestratorPolicyInflight.clear()
-    transientError = message.message
-    if (contextInspectorStatus === 'loading') {
-      contextInspectorStatus = 'error'
-      contextInspector = { error: message.message }
-    }
-    // Раздел уходит в «загрузку» перед запросом, а выходит из неё только
-    // приходом ответа. При отказе ответа не будет: полоса ошибки скажет
-    // причину, но раздел так и останется в «загрузка…» до переоткрытия панели.
-    // Спасали двоих из девяти — теперь всех. Состояние 'error' тупиковое
-    // намеренно: места запроса смотрят на 'idle', и автоповтор превратил бы
-    // постоянный отказ в бесконечный цикл запросов. Повторяет человек.
-    //
-    // Если ядро назвало упавший запрос и он знаком — гасим только его раздел,
-    // чтобы не винить соседей. Незнакомый или неназванный гасит всё ждущее:
-    // лишняя пометка сама сойдёт с приходом ответа, а вечная «загрузка» — нет.
-    const only = FAILED_REQUEST_SECTIONS[String(message.request || '')] || ''
-    const hit = name => !only || only === name
-    if (hit('statistics') && statisticsStatus === 'loading') statisticsStatus = 'error'
-    if (hit('docker') && dockerStatus === 'loading') dockerStatus = 'error'
-    if (hit('fileHistory') && fileHistoryStatus === 'loading') fileHistoryStatus = 'error'
-    if (hit('master') && masterStatus === 'loading') masterStatus = 'error'
-    if (hit('chatDirectory') && chatDirectoryStatus === 'loading') chatDirectoryStatus = 'error'
-    // Отправка Мастеру запирает поле и кнопку до ответа. Ответа не будет —
-    // и без снятия замка разговор вставал намертво: «Думает…» висело вечно,
-    // писать было нечем, а разморозить это могло только переоткрытие панели.
-    // Реплика цела в masterSentText и возвращается в поле — отправить её снова,
-    // а не набирать заново. Причину человек уже читает в полосе ошибки.
-    //
-    // Возврат делается только в пустое поле: ход больше не запирает композер, и
-    // человек мог написать в него следующую мысль, пока ответ не пришёл. Затереть
-    // её отказавшей репликой значило бы потерять обе.
-    const restoreSent = () => {
-      const sent = masterSentText()
-      if (sent && !String(masterDraft || '').trim()) masterDraft = sent
-      forgetMasterSent()
-    }
-    if (hit('master')) { masterSending = false; restoreSent(); stopMasterWaitClock(); runStarting = false }
-    if (hit('agent')) { runStarting = false; masterSending = false; restoreSent() }
-    if (hit('dbQuery') && dbQueryStatus === 'loading') dbQueryStatus = 'error'
-    if (hit('experienceSearch') && experienceSearchStatus === 'loading') experienceSearchStatus = 'error'
-    if (hit('manualLearning') && (manualLearningStatus === 'loading' || manualLearningStatus === 'applying')) manualLearningStatus = 'error'
-    // Эти двое объясняются не статусом, а своей строкой ошибки: без неё раздел
-    // вышел бы из спиннера и молча показал пустоту.
-    if (hit('compiledPrompt') && compiledPromptStatus === 'loading') {
-      compiledPromptStatus = 'error'
-      compiledPromptError = String(message.message || '') || 'запрос не удался'
-    }
-    if (hit('contextPreview') && contextPreviewStatus === 'loading') {
-      contextPreviewStatus = 'error'
-      contextPreviewError = String(message.message || '') || 'запрос не удался'
-    }
-    if (hit('decisions') && decisionsStatus === 'loading') {
-      decisionsStatus = 'error'
-      decisionsError = String(message.message || '') || 'запрос не удался'
-    }
-    render()
-  }
-  if (message.type === 'companionChatStarted') {
-    const requestId = Number(message.requestId || 0)
-    if (!requestId) return
-    const text = String(message.message || '').trim()
-    companionRequestId = Math.max(companionRequestId, requestId)
-    companionActiveRequestId = requestId
-    companionLoading = true
-    companionThinkPhase = ''
-    companionActivitySteps = [{ step: 'gather', status: 'running', at: Date.now() }]
-    startCompanionWaitTicker()
-    companionStreamReply = ''
-    const last = companionMessages[companionMessages.length - 1]
-    if (text && !(last?.role === 'user' && last.content === text)) {
-      companionMessages = [...companionMessages, { role: 'user', content: text }].slice(-80)
-    }
-    if (companionDraft.trim() === text) companionDraft = ''
-    if (companionPendingSend.trim() === text) companionPendingSend = ''
-    persistDraft()
-    render()
-    requestAnimationFrame(() => scrollCompanionThread())
-  }
-  if (message.type === 'companionChatStopped') {
-    stopCompanionChat({ notifyHost: false, requestId: Number(message.requestId || 0), superseded: Boolean(message.superseded) })
-  }
-  if (message.type === 'companionChatProgress') {
-    if (!isActiveCompanionRequest(message) && message.requestId) return
-    companionThinkPhase = message.phase === 'model' ? 'model' : message.phase === 'local' ? 'local' : 'gather'
-    if (message.step) upsertCompanionActivity(message.step, message.status || 'running')
-    if (companionLoading) {
-      patchCompanionThinkingLabel()
-      if (!companionStreamReply) patchCompanionStreamingBubble()
-    }
-  }
-  if (message.type === 'companionChatDelta') {
-    if (!isActiveCompanionRequest(message) && message.requestId) return
-    const reply = String(message.reply || '')
-    if (!reply || reply.length < companionStreamReply.length) return
-    companionStreamReply = reply
-    companionThinkPhase = 'model'
-    upsertCompanionActivity('model', 'running')
-    if (companionLoading) {
-      patchCompanionThinkingLabel()
-      patchCompanionStreamingBubble()
-      vscode.postMessage({
-        type: 'companionThreadUpdate',
-        messages: companionMessages,
-        draft: companionDraft,
-        streamReply: companionStreamReply,
-        loading: true,
-        pendingSend: companionPendingSend,
-        requestId: companionActiveRequestId,
-      })
-    }
-  }
-  if (message.type === 'companionChatResult') {
-    if (!isActiveCompanionRequest(message) && message.requestId) return
-    if (!companionLoading && Number(message.requestId || 0) === 0) {
-      /* late reply after soft-stop without requestId — ignore if already cancelled */
-      const last = companionMessages[companionMessages.length - 1]
-      if (last?.mode === 'cancelled') return
-    }
-    companionLoading = false
-    companionActiveRequestId = 0
-    companionThinkPhase = ''
-    companionActivitySteps = []
-    companionSetupOpen = false
-    const reply = String(message.response?.reply || message.response?.content || companionStreamReply || '').trim()
-      || 'Компаньон ответил без текста. Спросите ещё раз или проверьте подключение модели.'
-    companionStreamReply = ''
-    const last = companionMessages[companionMessages.length - 1]
-    if (last?.role === 'assistant' && last.mode === 'streaming') {
-      companionMessages = [...companionMessages.slice(0, -1), {
-        ...message.response,
-        role: 'assistant',
-        content: reply,
-      }].slice(-80)
-    } else if (!(last?.role === 'assistant' && last.content === reply)) {
-      companionMessages = [...companionMessages, {
-        ...message.response,
-        role: 'assistant',
-        content: reply,
-      }].slice(-80)
-    }
-    if (message.error) transientError = message.error
-    persistDraft()
-    const needsFullRender = Boolean(message.response?.proposal) || Boolean(message.response?.actionProposal)
-      || pendingQuestProposals().length > 0 || pendingActionProposals().length > 0
-    if (needsFullRender || !root.querySelector('#companion-thread')) {
-      render()
-    } else {
-      replaceCompanionThreadHtml()
-      patchCompanionThinkingLabel()
-      patchCompanionComposeChrome()
-      if (root.querySelector('.companion-quick-prompts')) {
-        replaceHtmlNodes('.companion-quick-prompts', companionQuickPromptsHtml(Boolean(root.querySelector('.companion-quick-prompts.compact'))))
-      }
-    }
-    setTimeout(() => {
-      scrollCompanionThread()
-      if (pendingQuestProposals().length || pendingActionProposals().length) {
-        root.querySelector('#companion-review')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
-      }
-    }, 20)
-    focusCompanionInput()
-    flushCompanionPendingSend()
-  }
-  if (message.type === 'companionChatError') {
-    if (!isActiveCompanionRequest(message) && message.requestId) return
-    companionLoading = false
-    companionActiveRequestId = 0
-    companionThinkPhase = ''
-    companionActivitySteps = []
-    // Написанное до сбоя остаётся на экране. Ответ шёл потоком, человек читал
-    // его вживую — и стирать прочитанное ради дежурной строки значит терять
-    // разобранное вместе с причиной отказа. Остановка ведёт себя так же.
-    const partial = String(companionStreamReply || '').trim()
-    companionStreamReply = ''
-    const text = message.message || 'Компаньон не смог ответить.'
-    const body = partial ? `${partial}\n\n— ${text} Написанное сохранено.` : text
-    const last = companionMessages[companionMessages.length - 1]
-    if (!(last?.role === 'assistant' && last.content === body)) {
-      companionMessages = [...companionMessages, { role: 'assistant', content: body, level: 'warning', mode: 'error', failure: text }].slice(-80)
-    }
-    transientError = text
-    persistDraft()
-    render()
-    focusCompanionInput()
-    flushCompanionPendingSend()
-  }
-  if (message.type === 'companionSetupTestResult') {
-    companionLoading = false
-    companionSetupTestResult = message.response
-    const fallback = String(message.response?.fallbackReason || '').trim()
-    companionSetupStatus = fallback
-      ? `Настройки сохранены. Модель не ответила (${fallback}). Показан локальный ответ.`
-      : 'Настройки сохранены, пробный ответ добавлен в историю проекта.'
-    persistDraft()
-    render()
-  }
-  if (message.type === 'companionSetupTestError') {
-    companionLoading = false
-    companionSetupTestResult = undefined
-    companionSetupStatus = message.message
-      || (message.phase === 'save' ? 'Не удалось сохранить настройки.' : 'Настройки сохранены, пробный ответ не получен.')
-    companionSetupPendingClose = false
-    render()
-  }
-  if (message.type === 'companionHistoryCleared') {
-    companionMessages = []
-    transientError = ''
-    persistDraft()
-    render()
-  }
+  if (applyRunMessage(message)) return
+  if (applyCompanionChatMessage(message)) return
   if (message.type === 'skillEquipPreview') {
     pendingSkillEquip = {
       skillId: message.preview?.skill?.id || message.skillId,
@@ -6155,113 +5041,7 @@ window.addEventListener('message', event => {
     render()
   }
   if (message.viewId && message.viewId !== masterViewId) return
-  if (message.type==='master' && message.requestId && message.requestId!==masterRequestId) return
-  if (message.type==='masterTurn') {masterClient.acceptTurn(message.turn);if(message.turn.conversationId===masterClient.active){masterSending=masterClient.running();render()};persistDraft()}
-  if (message.type==='masterEvent') {
-    masterClient.acceptEvent(message.event)
-    if(message.event.conversationId===masterClient.active){
-      masterSending=masterClient.running()
-      const text=root.querySelector('.hall-stream-text')
-      if(message.event.type==='reply'&&text){text.textContent=message.event.text;const thread=root.querySelector('#master-thread');if(thread&&masterAutoFollow)thread.scrollTop=thread.scrollHeight}
-      else if(message.event.type==='reasoning'&&masterTraceMindPatch(root,masterClient.turns[masterClient.active],masterAutoFollow)) {}
-      else replaceMasterThreadHtml()
-    }
-  }
-  if (message.type==='masterStreamError' && message.conversationId===masterClient.active){masterComposeNote=message.message;masterSending=false;render()}
-  if (message.type==='masterWorkOrder') {
-    // Наблюдение за живым квестом продолжается и после перехода в другой
-    // разговор: его обновление не должно подкладывать чужую карточку.
-    if(message.conversationId && message.conversationId!==masterClient.active) return
-    const current=Array.isArray(masterData?.workOrders)?masterData.workOrders:[]
-    masterData={...(masterData || {}),workOrders:[message.workOrder,...current.filter(item=>item.id!==message.workOrder.id)]}
-    if (hiringReloadFor && hiringReloadFor === message.workOrder?.id) {
-      hiringReloadFor = ''
-      vscode.postMessage({ type: 'loadMaster', conversationId: masterClient.active })
-    }
-    render()
-  }
-  if (message.type==='masterWorkOrderApproved') {
-    const order=message.approval?.workOrder
-    if(order){masterWorkOrderBusy.delete(order.id);const current=Array.isArray(masterData?.workOrders)?masterData.workOrders:[];masterData={...(masterData || {}),workOrders:[order,...current.filter(item=>item.id!==order.id)]}}
-	masterComposeNote=message.approval?.message || `Квест: ${message.approval?.status || 'preflight'}`
-    render()
-  }
-  if (message.type==='masterWorkOrderDeleted') {
-    const id=String(message.workOrderId || '');const current=Array.isArray(masterData?.workOrders)?masterData.workOrders:[]
-    masterData={...(masterData || {}),workOrders:current.filter(item=>item.id!==id)};masterComposeNote='Наряд убран';render()
-  }
-  if (message.type==='masterWorkOrderRevised') {
-    const order=message.workOrder
-    if(order){masterWorkOrderBusy.delete(order.id);const current=Array.isArray(masterData?.workOrders)?masterData.workOrders:[];masterData={...(masterData || {}),workOrders:[order,...current.filter(item=>item.id!==order.id)]}}
-    masterComposeNote=`Карточка сохранена как версия ${Number(order?.version)||'—'}`
-    render()
-  }
-  if (message.type==='masterWorkOrderControlled') {
-    const order=message.workOrder
-    if(order){masterWorkOrderBusy.delete(order.id);const current=Array.isArray(masterData?.workOrders)?masterData.workOrders:[];masterData={...(masterData || {}),workOrders:[order,...current.filter(item=>item.id!==order.id)]}}
-    masterComposeNote=`Квест: ${message.result?.status || order?.runtime?.status || 'обновлён'}`
-    render()
-  }
-  if (message.type==='masterApplicationControlled') {
-    const order=message.workOrder
-    if(order){masterWorkOrderBusy.delete(order.id);const current=Array.isArray(masterData?.workOrders)?masterData.workOrders:[];masterData={...(masterData || {}),workOrders:[order,...current.filter(item=>item.id!==order.id)]}}
-    const status=message.result?.status || 'обновлено'
-    masterComposeNote=status==='running'?'Приложение запущено':status==='stopped'?'Приложение остановлено':`Приложение: ${status}`
-    render()
-  }
-  if (message.type==='masterPage' && message.conversationId===masterClient.active && (message.query || '')===masterClient.query){const items=message.page.items || [];masterData.history=items;masterData.paginated=true;masterData.before=message.page.before;masterData.truncated=message.page.hasMore;masterLoadingEarlier=false;replaceMasterThreadHtml();syncMasterComposeState();applyMasterFind()}
-  if (message.type === 'masterContextSuggestions') { if (acceptMasterMentionItems(message.query, message.items)) render() }
-  if (message.type === 'masterContext') { try {receiveMasterContext(message);masterDraft=masterDraft.replace(/@$/, '');persistDraft();render()} catch(error){masterComposeNote=error.message;render()} }
-  if (message.type === 'master') {
-    if(message.turn) masterClient.acceptTurn(message.turn)
-    for(const turn of message.master?.activeTurns || []) masterClient.acceptTurn(turn)
-    const incomingConversation=message.master?.sessions?.active
-    if(message.turnFinished && incomingConversation && incomingConversation!==masterClient.active) {persistDraft();return}
-    if(message.sessionChanged || message.loaded){masterClient.restoreScroll=masterClient.scroll[incomingConversation] ?? Infinity;masterClient.query='';masterFindQuery=''}
-    masterClient.active=incomingConversation || masterClient.active
-    if (message.turnFinished) {
-      clearMasterContext(masterData?.sessions?.active)
-      // Все чипы, а не первый: querySelector возвращал один узел, и после хода
-      // с тремя вложениями на экране оставалось два призрака.
-      root.querySelectorAll?.('.hall-context-file')?.forEach?.(node => node.remove?.())
-      const activeId = incomingConversation || masterClient.active
-      const current = masterClient.turns[activeId]
-      if (current && !message.turn) masterClient.acceptTurn({ ...current, status: 'done' })
-    }
-    const previousSession = masterData?.sessions?.active
-    if (message.sessionChanged && previousSession) masterSessionDrafts[previousSession] = masterDraft
-    if (message.sessionChanged && previousSession !== message.master?.sessions?.active) masterDiscussionProposalId = ''
-    const sessionTitleChanged = JSON.stringify(masterData?.sessions?.items) !== JSON.stringify(message.master?.sessions?.items)
-    masterData = message.master
-    if(message.regenerate)setTimeout(()=>sendMasterMessage(message.draft || '',{retry:true}),0)
-    const nextProposal = masterData?.response?.proposal
-    if (nextProposal?.brief) {
-      masterDiscussionProposalId = nextProposal.brief.state === 'discussion' || nextProposal.brief.mode === 'project' ? nextProposal.id : ''
-    }
-    masterStatus = 'ready'
-    masterSending = masterClient.running()
-    masterComposeNote = ''
-    masterLoadingEarlier = false
-    stopMasterWaitClock()
-    // Черновик поля ход больше не трогает: его очищает сама отправка, а смена
-    // разговора — своим сохранённым значением.
-    if (message.draft != null || message.sessionChanged || message.loaded) {
-      masterDraft = message.draft ?? (masterSessionDrafts[masterData?.sessions?.active] ?? (message.loaded ? masterDraft : ''))
-    }
-    if (message.turnFinished || message.turn?.status === 'done') forgetMasterSent()
-    persistDraft()
-    // Причины полной отрисовки перечислены явно. Незаданный Мастер меняет весь
-    // раздел, а не ленту; отсутствие ленты означает, что человек смотрит другой
-    // раздел и обновлять нечего. Всё остальное — предложения, состав, наём,
-    // основания — рисуется внутри самой ленты и переживает точечную замену.
-    const needsFullRender = message.sessionChanged || sessionTitleChanged || masterData?.configured === false || !root.querySelector('#master-thread')
-    if (needsFullRender) {
-      render()
-    } else {
-      replaceMasterThreadHtml()
-      syncMasterComposeState()
-    }
-  }
+  if (applyMasterMessage(message)) return
   if (message.type === 'decisions') {
     decisionsData = message.decisions
     decisionsStatus = 'ready'

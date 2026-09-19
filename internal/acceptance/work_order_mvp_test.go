@@ -397,7 +397,6 @@ func TestWorkOrderMVPLiveScenario(t *testing.T) {
 	}
 }
 
-
 // awaitMasterTurn ждёт ход Мастера до его собственного срока. Ход живёт дольше
 // одного запроса к модели: внутри и раунды инструментов, и починка формата.
 func awaitMasterTurn(t *testing.T, ctx context.Context, application *app.App, turn domain.MasterTurn) domain.MasterTurn {

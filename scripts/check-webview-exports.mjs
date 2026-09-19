@@ -260,6 +260,84 @@ for (const name of sources) {
 }
 if (leaks > 20) errors.push(`и ещё ${leaks - 20} таких же мест`)
 
+// Имя, которое модуль зовёт, но которого ему никто не даёт.
+//
+// Это третья ловушка переезда, и самая тихая. Функция приходит в `main.js`
+// импортом или из фабрики, при выносе её забывают добавить в параметры — и
+// esbuild молча подставляет `undefined`. Сборка проходит, сверка имён выше
+// молчит (она знает только про `let`-состояние `main.js`), смоуки до ветки не
+// доходят, а падение ждёт человека в браузере.
+//
+// 19 сентября так уехали четырнадцать имён за один заход: `currentWorkflowForm`,
+// `questPayload`, `sendDecisionResolve`, `closeMasterMention` и другие.
+//
+// Проверяются только вызовы — `имя(`. Обращение к свойству (`имя.поле`) сюда
+// намеренно не входит: там слишком много глобального (`Object`, `Math`, `JSON`),
+// и список исключений стал бы длиннее пользы. Вызов же однозначен.
+const GLOBAL_CALLS = new Set([
+  'Array', 'Boolean', 'BigInt', 'Date', 'Error', 'Map', 'Number', 'Object', 'Promise',
+  'RegExp', 'Set', 'String', 'Symbol', 'WeakMap', 'WeakSet',
+  'Event', 'CustomEvent', 'FileReader', 'ResizeObserver', 'MutationObserver',
+  'IntersectionObserver', 'TextEncoder', 'TextDecoder', 'URL', 'URLSearchParams',
+  'alert', 'atob', 'btoa', 'cancelAnimationFrame', 'clearInterval', 'clearTimeout',
+  'confirm', 'decodeURIComponent', 'encodeURIComponent', 'fetch', 'getComputedStyle',
+  'isFinite', 'isNaN', 'parseFloat', 'parseInt', 'queueMicrotask',
+  'requestAnimationFrame', 'setInterval', 'setTimeout', 'structuredClone',
+  'if', 'for', 'while', 'switch', 'catch', 'return', 'typeof', 'function', 'super',
+])
+
+// Имена из списка параметров, собранные щедро.
+//
+// `bindingsOf` выше намеренно строга: расширь её — и спред в литерале
+// считался бы связанным и снова уехал бы незамеченным. Здесь нужна другая
+// строгость: пропустить чужое имя хуже, чем сосчитать лишнее связанным.
+// Поэтому внутри списка параметров берём все имена подряд: и `{ pick, render }`,
+// и `([label, pick]) =>` разбираются одинаково.
+const parameterNames = text => {
+  const names = new Set()
+  for (const match of text.matchAll(/\(/g)) {
+    let depth = 0
+    let end = match.index
+    for (let at = match.index; at < text.length; at += 1) {
+      if (text[at] === '(') depth += 1
+      else if (text[at] === ')') { depth -= 1; if (depth === 0) { end = at; break } }
+    }
+    if (!/^\s*(?:=>|\{)/.test(text.slice(end + 1))) continue
+    for (const piece of text.slice(match.index + 1, end).matchAll(/[A-Za-z_$][A-Za-z0-9_$]*/g)) names.add(piece[0])
+  }
+  return names
+}
+
+let freeCalls = 0
+for (const name of sources) {
+  if (name === 'main.js') continue
+  const text = codeOnly(texts.get(name))
+  const bound = bindingsOf(text)
+  const params = parameterNames(text)
+  const seen = new Set()
+  for (const match of text.matchAll(/(?<![\w$.])([A-Za-z_$][A-Za-z0-9_$]*)\s*\(/g)) {
+    const called = match[1]
+    if (bound.has(called) || params.has(called) || GLOBAL_CALLS.has(called) || seen.has(called)) continue
+    // Сокращённый метод и геттер пишутся как вызов: `{ running() { … } }`,
+    // `get selected() { … }`. Отличает их то, что за закрывающей скобкой стоит тело.
+    const open = text.indexOf('(', match.index)
+    let depth = 0
+    let close = open
+    for (let at = open; at < text.length; at += 1) {
+      if (text[at] === '(') depth += 1
+      else if (text[at] === ')') { depth -= 1; if (depth === 0) { close = at; break } }
+    }
+    if (/^\s*\{/.test(text.slice(close + 1))) continue
+    seen.add(called)
+    const line = text.slice(0, match.index).split('\n').length
+    freeCalls += 1
+    if (freeCalls <= 20) {
+      errors.push(`${name}:${line}: ${called}() — функция не приходит ни параметром, ни импортом: esbuild подставит undefined, а упадёт в браузере`)
+    }
+  }
+}
+if (freeCalls > 20) errors.push(`и ещё ${freeCalls - 20} таких же вызовов`)
+
 if (checkedNames < 50) {
   errors.push(`сверено всего ${checkedNames} имён — разбор импортов сломался, проверка идёт вхолостую`)
 }

@@ -213,7 +213,7 @@ request — [`.github/workflows/ci.yml`](.github/workflows/ci.yml), пять
 | `go` | ubuntu | `go vet`, `go mod verify` (подмена зависимости), `go test ./...` |
 | `sandbox` | ubuntu | Сборка образа песочницы, CycloneDX SBOM, отказ на любом HIGH/CRITICAL от Trivy и живой тест изоляции в настоящем Docker |
 | `frontend` | ubuntu | Сборка диагностического клиента и `npm audit` |
-| `extension` | **windows** | `npm run check` целиком: свежий `point-core`, сборка CSS/JS/runtime, контракты дизайн-системы, 54 `node --check`, 63 смоука Хаба |
+| `extension` | **windows** | `npm run check` целиком: свежий `point-core`, сборка CSS/JS/runtime, контракты дизайн-системы, синтаксис 99 JS-файлов, сверка имён вебвью, 63 смоука Хаба |
 
 Windows у `extension` не прихоть: расширение поставляется с packaged Cursor
 runtime под win32-x64, а часть смоуков про терминал, SSH и пути на Linux

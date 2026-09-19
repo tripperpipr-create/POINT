@@ -2,7 +2,7 @@
 
 The headless server binds to `127.0.0.1:8080` by default. Docker overrides it to `0.0.0.0:8080` on an internal network; nginx publishes the web application on host loopback.
 
-Current for Point `1.2.2` as of 2026-08-31. The inventory below is complete and
+Current for Point `1.2.2` as of 2026-09-19. The inventory below is complete and
 is checked against every `HandleFunc` registration by `node scripts/check-docs.mjs`.
 
 | Method | Path | Purpose |

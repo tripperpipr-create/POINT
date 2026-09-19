@@ -35,21 +35,23 @@
 
 ## Минимальный release-gate
 
+Сначала обычный прогон — тот же, что и в CI:
+
+```bash
+make test
+```
+
+Состав целей живёт в `Makefile` и здесь намеренно не дублируется: копия
+этого списка здесь уже отставала — в ней был один затвор документации
+из трёх.
+
+Перед выпуском сверх этого — то, чего в `make test` нет по замыслу:
+чистая установка зависимостей и аудит обоих деревьев, живой запуск ядра и
+проверка compose-файла:
+
 ```powershell
-$env:GOCACHE = "$PWD\.cache\go-build"
-node scripts/check-docs.mjs
-go vet ./...
-go test ./...
-Push-Location frontend
-npm ci
-npm run build
-npm audit
-Pop-Location
-Push-Location vscode-extension
-npm ci
-npm run check
-npm audit --omit=dev
-Pop-Location
+Push-Location frontend; npm ci; npm audit; Pop-Location
+Push-Location vscode-extension; npm ci; npm audit --omit=dev; Pop-Location
 node scripts/smoke-extension-backend.js
 docker compose config
 ```

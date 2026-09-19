@@ -184,24 +184,20 @@ filtered-copy backend остаётся явно помеченным compatibili
 
 ## Проверка
 
-Быстрый локальный gate:
+Весь локальный gate — одной командой:
 
-```powershell
-node scripts/check-docs.mjs
-node scripts/check-release-contracts.mjs
-go test ./...
-go vet ./...
-
-Push-Location frontend
-npm run build
-Pop-Location
-
-Push-Location vscode-extension
-npm run check
-Pop-Location
-
-docker compose config
+```bash
+make test
 ```
+
+Цели в `Makefile` названы по job'ам CI, поэтому по красному job'у сразу
+видно, что запускать у себя: `make test-docs`, `make test-go`,
+`make test-frontend`, `make test-extension`. Отдельно — `make test-race`
+(требует CGO и gcc в PATH) и `docker compose config` перед выпуском.
+
+Списка команд здесь больше нет намеренно. Его копии жили в четырёх
+местах и давали три разных ответа на вопрос «чем проверить» — ровно та,
+которая здесь была, теряла затвор реестра дефектов.
 
 Windows/Electron E2E и installer smoke перечислены в
 [IDE-CAPABILITY-MATRIX.md](docs/IDE-CAPABILITY-MATRIX.md). Правила изменения

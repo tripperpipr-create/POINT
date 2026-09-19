@@ -14,6 +14,7 @@
 | --- | --- |
 | Установить или запустить проект | [Корневой README](../README.md) |
 | Понять архитектуру и границы компонентов | [architecture.md](architecture.md) |
+| Найти нужный модуль расширения или вебвью | [js-modules.md](js-modules.md) |
 | Работать с HTTP API | [api.md](api.md) |
 | Разрабатывать и проверять изменения | [CONTRIBUTING.md](../CONTRIBUTING.md) |
 | Увидеть текущее состояние и технический долг | [PROJECT-STATUS.md](PROJECT-STATUS.md) |
@@ -30,24 +31,46 @@
 
 ## Живые справочники
 
-- [AGENT-HUB-IMPLEMENTATION-2026-09-06.md](AGENT-HUB-IMPLEMENTATION-2026-09-06.md) — состояние внедрения Hub (live write с 9 сентября).
-- [AGENT-HUB-URL-INTAKE-2026-09-10.md](AGENT-HUB-URL-INTAKE-2026-09-10.md) — URL intake → EvidenceBundle; live PHP gate.
-- [AGENT-HUB-ORCHESTRATOR-NETWORK-POLICY.md](AGENT-HUB-ORCHESTRATOR-NETWORK-POLICY.md) — надзор Мастера, git/сеть, эскалация к пользователю.
-- [AGENT-HUB-ACCEPTANCE-2x10.md](AGENT-HUB-ACCEPTANCE-2x10.md) — приёмочный suite 2×10.
-- [AGENT-HUB-V2-MVP.md](AGENT-HUB-V2-MVP.md) — сокращение контура v2 до MVP:
-  что режем, работы по порядку и приёмка.
-- [tool-access-layer.md](tool-access-layer.md) — tools/grants/Skills и открытые продуктовые решения.
+Утверждения в них описывают сегодняшний код. Если разошлись — расходится
+документ, а не код.
+
+- [PROJECT-STATUS.md](PROJECT-STATUS.md) — состояние, карта исходников и
+  технический долг. Внутри есть датированные записи о прогонах: они append-only
+  и описывают тот день, а не сегодняшний.
 - [agent-hub-mvp.md](agent-hub-mvp.md) — сущности и гарантии Agent Hub (имя файла
   стабильно; содержание — текущая версия, не только исходный MVP).
+- [AGENT-HUB-ORCHESTRATOR-NETWORK-POLICY.md](AGENT-HUB-ORCHESTRATOR-NETWORK-POLICY.md) — надзор Мастера, git/сеть, эскалация к пользователю.
 - [search-window.md](search-window.md) — ТЗ на своё окно поиска: вкладки,
   источники данных, состояния, клавиши, отклик и порядок проверки.
 - [IDE-DESIGN.md](IDE-DESIGN.md) — эталон раскладки: части окна, окна инструментов,
   вкладки нижней панели, всплывающие и клавиши окон.
+- [js-modules.md](js-modules.md) — карта JS-контура: что делает каждый
+  контроллер расширения и каждый модуль вебвью, куда класть новое и какие
+  списки при этом править.
+- [ide-workspace-controls.md](ide-workspace-controls.md) — Чертог открывается
+  первым, галерея миров, смена проекта и клавиши окон.
+- [master-chat-sessions.md](master-chat-sessions.md) — разговоры с Мастером:
+  новый чат, история, формы ответа, память и порядок проверки.
 - [databases.md](databases.md) — SQLite, PostgreSQL и MySQL.
 - [ssh.md](ssh.md) — системный OpenSSH и его ограничения.
 - [RPG-DESIGN-SYSTEM.md](RPG-DESIGN-SYSTEM.md) — словарь, токены и сборка CSS.
 - [VISUAL-LOOP.md](VISUAL-LOOP.md) — воспроизводимая визуальная проверка.
-- [DEPENDENCIES.md](DEPENDENCIES.md) — политика и последний аудит зависимостей.
+- [DEPENDENCIES.md](DEPENDENCIES.md) — прямые зависимости, политика обновления
+  и последний аудит.
+
+## Отчёты и планы с датой
+
+Не справочники. Каждый описывает замысел или замер на свой день и намеренно не
+переписывается: по ним видно, как принималось решение. Проверять по ним
+сегодняшнее поведение нельзя.
+
+- [AGENT-HUB-IMPLEMENTATION-2026-09-06.md](AGENT-HUB-IMPLEMENTATION-2026-09-06.md) — состояние внедрения Hub на 6 сентября.
+- [AGENT-HUB-URL-INTAKE-2026-09-10.md](AGENT-HUB-URL-INTAKE-2026-09-10.md) — URL intake → EvidenceBundle; live PHP gate на 10 сентября.
+- [AGENT-HUB-ACCEPTANCE-2x10.md](AGENT-HUB-ACCEPTANCE-2x10.md) — приёмочный suite 2×10.
+- [AGENT-HUB-V2-MVP.md](AGENT-HUB-V2-MVP.md) — сокращение контура v2 до MVP:
+  что режем, работы по порядку и приёмка (14 сентября).
+- [tool-access-layer.md](tool-access-layer.md) — план слоя tools/grants/Skills от
+  4 сентября с отчётами о выполнении. Открытые продуктовые решения там же.
 
 ## Исторические материалы
 
@@ -128,14 +151,23 @@
 
 ## Автоматическая проверка
 
-```powershell
-node scripts/check-docs.mjs
-node scripts/check-release-contracts.mjs
+```bash
+make test-docs
 ```
 
-Проверка валидирует локальные Markdown-ссылки, упомянутые скрипты, полный паритет
-таблицы API с Go-маршрутами, единую версию core/frontend/extension и число шагов
-онбординга в живых документах. Release-contract check дополнительно связывает
-production workflow с installer, migration, sandbox, security и performance
-gates. Проверки не доказывают смысл текста, поэтому после
-изменения поведения всё равно нужно обновить соответствующий справочник.
+Три затвора, тот же набор, что и в job `docs`: `check-docs.mjs`,
+`check-quality-gate.mjs`, `check-release-contracts.mjs`. Перечислять их здесь
+поимённо было ошибкой: список разошёлся с `Makefile` и терял
+`check-quality-gate.mjs` — тот самый затвор, который держит реестр дефектов.
+Список команд живёт в одном месте — в `Makefile`.
+
+Что они проверяют: локальные Markdown-ссылки, упомянутые скрипты, полный
+паритет таблицы API с Go-маршрутами, число маршрутов и эндпоинтов `/api/v2/*`
+в прозе, единую версию core/frontend/extension, число шагов онбординга, реестр
+дефектов против threat model и связку production workflow с installer,
+migration, sandbox, security и performance gates.
+
+Чего они не проверяют: смысла текста, дат в шапках, любых других чисел в прозе
+и имён файлов без каталога (`` `extension.js` `` затвор не ищет). Именно в этих
+слепых зонах и накапливаются расхождения, поэтому после изменения поведения
+справочник правят руками.

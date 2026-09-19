@@ -1,6 +1,6 @@
 # Architecture
 
-Current for Point `1.2.2` as of 2026-08-30. Runtime code and tests remain the
+Current for Point `1.2.2` as of 2026-09-19. Runtime code and tests remain the
 source of truth; see [README.md](README.md) for document ownership.
 
 ## Runtime surfaces
@@ -30,19 +30,44 @@ behavior no longer has to be edited inside them:
 - `internal/companion/service.go` coordinates bounded modules for model chat,
   deterministic chat/replies, proposal parsing, Quest proposals and usage
   analysis, alongside focus, interventions and configuration;
+- `vscode-extension/extension.js` is the host composition root. Named families
+  of `AgentViewProvider` methods live in their own controllers and are reached
+  through one-line forwarders, so the class keeps its public surface while the
+  bodies move out: `git-tool-controller.js` (repository reads, change lists,
+  stash, push targets, tool-window snapshot), `hub-surfaces-controller.js`
+  (which window to open and where to return the user), `hub-polling-controller.js`
+  (the three run/workflow/flow timers and the "hidden means no polling" rule),
+  `companion-thread-controller.js` (the life of one companion reply),
+  `core-log.js` and `core-lease.js` (chronicle, and the warm-core lease the
+  multi-window model rests on);
+- host message groups are dispatched by family through
+  `handleXxxMessage.call(this, message)`: `master-chat-controller.js`,
+  `infra-controller.js`, `hub-runtime-controller.js`, `roster-controller.js`,
+  `learning-controller.js`, `tooling-controller.js`, `cursor-controller.js`,
+  `companion-chat-controller.js`. Stateful surfaces use closure factories
+  instead: `companion-controller.js`, `ide-action-controller.js`,
+  `ide-navigation-controller.js`, `project-index-controller.js`,
+  `console-ssh-controller.js`, `point-panels.js`, `ide-observation-controller.js`;
 - `vscode-extension/extension-utils.js`, `run-config-utils.js`,
   `ide-navigation-utils.js` and `ssh-utils.js` contain pure host guards,
   run discovery, fallback navigation/search and remote-path validation;
-- `vscode-extension/ui/client` is bundled from source modules. Statistics,
-  infrastructure, Change Sets, Git and the security-sensitive Companion
-  Markdown renderer have explicit adapters instead of duplicating state or
-  transport.
+- `vscode-extension/ui/client` is bundled from source modules by esbuild into
+  the single `media/main.js`. Screens render from `*-views.js` modules; clicks
+  are dispatched by family through `handleXxxClickAction(...) -> boolean`
+  (`companion-actions.js`, `onboarding-actions.js`, `git-actions.js`,
+  `hub-actions.js`, `infra-actions.js`, `master-actions.js`, `run-actions.js`,
+  `flow-actions.js`, `roster-actions.js`); incoming core messages by
+  `*-inbox.js`; and every form on every surface by `form-submit.js`. Shared
+  pure helpers have one home each — `html-escape.js` for escaping and
+  `format-units.js` for units, plurals and truncation — because each of them
+  had already drifted into copies once.
 
 `scripts/check-release-contracts.mjs` verifies these source boundaries and the
 extension gate executes their behavior contracts, including the chat-markup
 XSS and bundled Git workflow smokes. It also enforces upper line-count budgets
-on the five former composition-root monoliths, so extracted behavior cannot
-silently grow back into them. Extraction stays behavior-preserving: public
+as a ratchet on 54 named files, so extracted behavior cannot silently grow
+back into them: a budget may fall, never rise, and a split that does not
+lower the ceiling in the same change has not been made. Extraction stays behavior-preserving: public
 routes, message names and the generated `media/main.js` protocol remain
 unchanged.
 
@@ -98,7 +123,8 @@ The v2 path replaces "a proposal plus whatever the Flow did" with one reviewed c
 2. **Draft.** A Master turn drafts a `WorkOrder`. Server-side normalization owns the result: approval fields, workspace isolation and routing authority come from trusted local state, never from model output.
 3. **Approval.** `/api/v2/work-orders/{id}/approve` is atomic on an exact version and digest. It materializes the roster and workspace, compiles a project Flow and starts it. A missing runtime credential or an interactive CLI session yields `awaiting_user`; preflight failure yields `blocked` with a redacted reason. Execution state lives in the derived `runtime` object and is excluded from the approval digest, so a running quest never mutates the approved contract.
 4. **Execution.** Ordinary Flow, sandbox and Change Set machinery runs underneath — v2 is a contract and acceptance layer over the existing execution engine, not a second engine. A durable `WriterLease` keeps a single writer per workspace across pause and process restart.
-5. **Acceptance.** The v2 terminal callback cannot reach the legacy completion path. It persists an `EvidenceBundle` and the evidence gate alone may produce `completed` or `needs_review`. The bundle must be version 2, carry the Point version, match the work order and source-snapshot digests and include environment and versioned stack-preset evidence. Anything else is `blocked`.
+5. **Acceptance.** The v2 terminal callback cannot reach the legacy completion path. It persists an `EvidenceBundle` and the evidence gate alone may produce `completed` or `needs_review`. The bundle must be version 3 (`CurrentWorkOrderEvidenceVersion` in
+`internal/domain/evidence_gate_v2.go`), carry the Point version, match the work order and source-snapshot digests and include environment and versioned stack-preset evidence. Anything else is `blocked`.
 6. **Delivery.** A verified result produces a `DeliveryReceipt` naming the target and workspace revision. `applyMode=automatic` transfers the result; `applyMode=manual` keeps it in `isolated_review` untouched. `commitMode=squash` creates exactly one commit from an explicit changed-file list and refuses unrelated workspace drift. Starting or stopping a delivered Docker Compose application requires a matching version, digest, receipt and idempotency key.
 
 Milestones stay coarse on purpose: a detailed Flow is compiled only when a milestone becomes current, so replanning cannot silently widen the approved product scope. The legacy quest-proposal, Change Set, workflow and flow endpoints remain available as compatibility adapters alongside this path.
@@ -133,6 +159,44 @@ The engine fingerprints semantic tool calls without their provider-generated IDs
 The completion tracker is deliberately local and deterministic. An explicit request to run tests/build/lint requires either `run_command` or an allowed custom tool explicitly designated as verification evidence; an accepted file change requires a successful verifier after the newest workspace revision when that capability is enabled. A candidate final answer that lacks this evidence receives one `<point_completion_gate>` follow-up containing only recorded facts. The next candidate is either accepted or rejected. Built-in shell evidence must match the conservative verification catalog, preserve verifier failure status, return `exitCode` zero and not time out. Custom verifiers are an explicit owner trust decision but must still return structured exit-zero/non-timeout results. Failed tools remain retryable and never become successful semantic-deduplication entries.
 
 Active runs exist in memory, while every durable state transition is persisted. A restart deliberately converts unfinished state to an auditable terminal state instead of attempting unsafe replay.
+
+
+### Packages the rest of this document does not name
+
+Eight packages carried no mention in any living document, and one of them
+encodes a rule the release gate enforces:
+
+- `internal/osproc` is the core's only door to foreign programs. Point starts
+  without a console, and on Windows a console-less process gets a fresh console
+  window for every console child — git, docker, cmd, ssh flashed black windows
+  over the workbench. `osproc` sets `CREATE_NO_WINDOW`; a direct `exec.Command`
+  anywhere else reopens the hole, which is why
+  `scripts/check-release-contracts.mjs` rejects one. The failure is invisible in
+  tests and on CI: it only shows on a live Windows desktop.
+- `internal/mcp` serves Point's own tools over MCP to executors that cannot
+  accept them any other way. An API model receives tools in the request body;
+  a CLI executor does not.
+- `internal/changesets` owns the Change Set itself — building one from a sandbox
+  diff, and applying or reverting it against the workspace through a
+  symlink-safe target resolver. The concept is described across
+  [agent-hub-mvp.md](agent-hub-mvp.md) and this document; the package that
+  implements it was never named.
+- `internal/modeljson` extracts JSON from a raw model reply. The parser existed
+  four times over — learning, companion, Master and task acceptance — and the
+  four disagreed about what they stripped.
+- `internal/cache` is a two-implementation cache: in memory by default, Redis
+  when `REDIS_ADDR` is set. `FromEnvironment` picks one; nothing else chooses.
+- `internal/events` is the in-process event hub plus its store: run events fan
+  out to subscribers and persist for replay.
+- `internal/executors` describes what an executor kind can do — capabilities,
+  request and result shapes shared by the CLI and runtime paths.
+- `internal/observability` carries request attributes into `slog`, so a log line
+  from deep inside a run still names the workspace and the run.
+
+`cmd/point-egress-gateway` is the sandbox's outbound proxy: `serve` listens for
+container traffic and enforces the allowlist, `probe` checks a single
+destination against the same rules. The policy it implements is in
+[sandbox.md](sandbox.md).
 
 ## Run diagnostics
 

@@ -765,11 +765,13 @@ else {
 }
 
 const extensionPackage = read('vscode-extension/package.json')
+// Раньше здесь требовались шесть строк `node --check <файл>` поимённо.
+// Цепочка в `npm run check` была ручной и отстала: 54 файла из 97, семь
+// контроллеров хоста не проверял никто. Теперь проверка одна и обходит
+// каталоги, поэтому затвору достаточно требовать её вызова.
 for (const token of [
-  'node --check run-config-utils.js', 'node --check ide-navigation-utils.js',
-  'node --check companion-controller.js', 'node --check ide-action-controller.js',
-  'node --check ide-navigation-controller.js',
-  'node --check ssh-utils.js', 'smoke-chat-markup-escaping.js', 'smoke-git-workflow.js',
+  'check-js-syntax.mjs', 'check-webview-exports.mjs',
+  'smoke-chat-markup-escaping.js', 'smoke-git-workflow.js',
 ]) {
   requireText(extensionPackage, token, 'extension release check')
 }
@@ -826,9 +828,27 @@ for (const entry of invokerRoots) collectInvokers(entry)
 const manualSmokes = new Map([
   ['smoke-master-session-controls.cjs',
     'требует Edge и Playwright из локальной сборки Code-OSS; порядок — docs/master-chat-sessions.md'],
+  ['test-point-console-channel.ps1',
+    'живой рабочий стол Windows и собранный Point.exe со снимками экрана; в отличие от одиннадцати соседних test-point-* не внесён в production-release.yml'],
+  ['test-point-lazy-terminal.ps1',
+    'живой рабочий стол Windows и собранный Point.exe; так же не внесён в production-release.yml'],
+  ['verify-point-deploy.mjs',
+    'сверяет выложенное приложение с репозиторием по SHA-256 — нужна выкладка, а не исходники'],
+  ['verify-point-editor-watermark.mjs',
+    'зонд по живому окну через CDP; порядок запуска — docs/README.md'],
+  ['verify-point-safe-mode.mjs',
+    'зонд по живому окну через CDP; порядок запуска — docs/README.md'],
 ])
+// Фильтр шире одного `smoke-`.
+//
+// Правило затвора — «проверка обязана быть кем-то вызвана», а не «файлы с
+// таким именем обязаны». Пока он смотрел только на `smoke-`,
+// пятнадцать PowerShell-наборов `test-point-*` и десятки зондов
+// `verify-point-*` оставались вне его поля зрения по одному только признаку —
+// имени. Три из них оказались ровно в том состоянии, которое затвор и заведён
+// запрещать: упоминание в документе есть, вызывающего нет.
 const smokeFiles = fs.readdirSync(path.join(root, 'scripts'), { withFileTypes: true })
-  .filter(entry => entry.isFile() && /^smoke-.*\.(js|mjs|cjs|ps1)$/.test(entry.name))
+  .filter(entry => entry.isFile() && /^(?:smoke|test-point|verify-point)-.*\.(js|mjs|cjs|ps1)$/.test(entry.name))
   .map(entry => entry.name)
   .sort()
 const orphanSmokes = []

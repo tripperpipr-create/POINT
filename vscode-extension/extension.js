@@ -18,6 +18,7 @@ const { restoreSystemBackup } = require('./backup-controller')
 const { createNdjsonReader } = require('./core-stream')
 const { createCoreLog } = require('./core-log')
 const { createCoreLease } = require('./core-lease')
+const { createGitTools } = require('./git-tool-controller')
 const { createChatDocuments, companionDocumentHtml, POINT_COMPANION_ARCHIVES_KEY } = require('./chat-documents')
 const {
   companionFactPairs,
@@ -142,6 +143,7 @@ const GIT_DEFAULT_LIST = 'default'
 // доводом, в классе остаётся строка-переходник — приём от `core-stream.js`.
 const coreLog = createCoreLog({ fs, path, crypto, hostLogEnabled, hostLogStamp })
 const coreLease = createCoreLease({ fs, path, crypto, normalizedWorkspaceRoot, removeFileIfExists, readJsonFile, processIsAlive })
+const gitTools = createGitTools({ GIT_LISTS_KEY, dispatchGitAction, normalizedWorkspaceRoot, path, runGit, vscode })
 
 class BackendService {
   constructor(context, output, onStatus) {
@@ -668,374 +670,24 @@ class AgentViewProvider {
       || workspaceFolderForUri(vscode.window.activeTextEditor?.document?.uri)
   }
 
-  async gitContext(rootHint = '') {
-    const folder = this.workspaceFolder()
-    const gitExt = vscode.extensions.getExtension('vscode.git')
-    const api = gitExt?.isActive ? gitExt.exports?.getAPI?.(1) : (await gitExt?.activate())?.getAPI?.(1)
-    const repositories = Array.isArray(api?.repositories) ? api.repositories : []
-    const requestedRoot = String(rootHint || this.gitSelectedRoot || '')
-    const requested = requestedRoot
-      ? repositories.find(item => normalizedWorkspaceRoot(item?.rootUri?.fsPath) === normalizedWorkspaceRoot(requestedRoot))
-      : undefined
-    const repo = requested || pickGitRepository(repositories, folder?.uri || vscode.window.activeTextEditor?.document?.uri)
-    if (repo?.rootUri?.fsPath) {
-      this.gitSelectedRoot = repo.rootUri.fsPath
-      this.bindGitRepository(repo)
-    }
-    this.bindGitApi(api)
-    return { api, folder, repositories, repo }
-  }
-
-  // Расширение Git находит репозиторий не сразу: панель успевает спросить
-  // состояние раньше и получить «репозитория нет». Своего слушателя у неё в
-  // этот момент ещё нет — привязываться было не к чему, — и надпись оставалась
-  // на экране до ручного обновления, хотя Git давно всё нашёл.
-  bindGitApi(api) {
-    if (!api || this.gitApiListener) return
-    const refresh = () => {
-      if (!this.toolWindows.has('git')) return
-      void this.refreshToolWindowSnapshot('git')
-    }
-    const open = api.onDidOpenRepository?.(refresh)
-    const close = api.onDidCloseRepository?.(refresh)
-    if (!open && !close) return
-    this.gitApiListener = { dispose: () => { open?.dispose?.(); close?.dispose?.() } }
-    this.context.subscriptions.push(this.gitApiListener)
-  }
-
-  bindGitRepository(repo) {
-    const key = String(repo?.rootUri?.toString?.() || '')
-    if (!key || key === this.gitRepositoryKey) return
-    this.gitRepositoryListener?.dispose?.()
-    this.gitRepositoryKey = key
-    this.gitRepositoryListener = repo.state?.onDidChange?.(() => {
-      if (!this.toolWindows.has('git')) return
-      if (this.gitRefreshTimer) clearTimeout(this.gitRefreshTimer)
-      this.gitRefreshTimer = setTimeout(() => {
-        this.gitRefreshTimer = undefined
-        void this.refreshToolWindowSnapshot('git')
-      }, 180)
-    })
-  }
-
-  gitChanges(repo) {
-    if (!repo?.state) return []
-    const rootPath = repo.rootUri?.fsPath || ''
-    const mapChange = (item, area) => {
-      const status = Number(item?.status ?? -1)
-      return {
-        // Новый файл узнаётся по состоянию, а не по списку, в котором пришёл.
-        // При настройке `git.untrackedChanges: mixed` — а она стоит по
-        // умолчанию — расширение Git кладёт такие файлы в рабочую копию вместе
-        // с изменёнными, и отдельная папка «Вне репозитория» оставалась пустой.
-        area: area === 'working' && status === 7 ? 'untracked' : area,
-        path: pathRelativeToRoot(item?.uri, rootPath),
-        originalPath: pathRelativeToRoot(item?.originalUri, rootPath),
-        status,
-        uri: item?.uri,
-      }
-    }
-    const map = (items, area) => Array.isArray(items) ? items.map(item => mapChange(item, area)) : []
-    // Одна строка на файл. Git держит подготовленное и рабочее состояние
-    // раздельно, и файл, подготовленный наполовину, показывался дважды: два
-    // одинаковых пути, и непонятно, который из них ты отмечаешь. Панель говорит
-    // о файле; индекс собирается из отметок в момент коммита.
-    const merged = new Map()
-    for (const item of [
-      ...map(repo.state.mergeChanges, 'conflict'),
-      ...map(repo.state.indexChanges, 'staged'),
-      ...map(repo.state.workingTreeChanges, 'working'),
-      ...map(repo.state.untrackedChanges, 'untracked'),
-    ]) {
-      if (!item.path) continue
-      const seen = merged.get(item.path)
-      if (!seen) {
-        merged.set(item.path, { ...item, staged: item.area === 'staged', areas: [item.area] })
-        continue
-      }
-      // Область первой встречи и есть главная: конфликт идёт раньше индекса,
-      // индекс — раньше рабочей копии.
-      if (!seen.areas.includes(item.area)) seen.areas.push(item.area)
-      if (item.area === 'staged') seen.staged = true
-      if (!seen.originalPath && item.originalPath) seen.originalPath = item.originalPath
-    }
-    return [...merged.values()]
-  }
-
-  // ── Папки изменений ──────────────────────────────────────────────────────
-  // Git о них не знает и знать не обязан: это раскладка рабочего стола, а не
-  // состояние репозитория. Живут в состоянии рабочей области, чтобы пережить
-  // перезапуск, и чистятся сами — назначение хранится ровно пока файл изменён.
-  gitLists(root) {
-    const saved = this.context.workspaceState.get(GIT_LISTS_KEY) || {}
-    return saved[normalizedWorkspaceRoot(root)]
-  }
-
-  async saveGitLists(root, value) {
-    const saved = { ...(this.context.workspaceState.get(GIT_LISTS_KEY) || {}) }
-    saved[normalizedWorkspaceRoot(root)] = value
-    await this.context.workspaceState.update(GIT_LISTS_KEY, saved)
-    return value
-  }
-
-  async syncGitLists(root, changes) {
-    const saved = this.gitLists(root)
-    const next = gitListsState(saved, changes)
-    if (JSON.stringify(saved || null) !== JSON.stringify(next)) await this.saveGitLists(root, next)
-    return next
-  }
-
-  // Заголовок и счётчик вкладки Git. Заголовок раздела в оболочке — часть
-  // панели: дублировать ветку ещё и внутри вебвью значит потратить строку зря.
-  paintGitViewChrome({ available, branch = '', count = 0 }) {
-    const view = this.toolWindows.get('git')
-    if (!view) return
-    view.description = available ? (branch || 'без ветки') : ''
-    view.badge = available && count ? { value: count, tooltip: `Изменённых файлов: ${count}` } : undefined
-  }
-
-  postToolWindow(kind, message) {
-    void this.toolWindows.get(kind)?.webview.postMessage(message)
-  }
-
-  async refreshToolWindowSnapshot(kind, extra = {}) {
-    if (!this.toolWindows.has(kind)) return undefined
-    const snapshot = await this.toolWindowSnapshot(kind)
-    this.postToolWindow(kind, { type: 'toolWindowState', snapshot, ...extra })
-    return snapshot
-  }
-
-  async toolWindowSnapshot(kind) {
-    if (kind === 'logs') return { kind, ...this.service.readLogSnapshot() }
-    if (kind === 'terminal') {
-      return {
-        kind,
-        terminals: vscode.window.terminals.map((terminal, index) => ({
-          id: index, name: terminal.name, active: terminal === vscode.window.activeTerminal,
-          exitStatus: terminal.exitStatus?.code,
-        })),
-        run: this.ideContext?.run || '',
-        failure: this.ideContext?.failure || '',
-      }
-    }
-    if (kind === 'git') {
-      const { folder, repositories, repo } = await this.gitContext()
-      const repositoryChoices = repositories.map(item => ({
-        root: item.rootUri?.fsPath || '',
-        name: path.basename(item.rootUri?.fsPath || '') || item.rootUri?.fsPath || 'Git',
-        selected: item === repo,
-      }))
-      if (!repo?.state) {
-        this.paintGitViewChrome({ available: false })
-        return { kind, available: false, project: folder?.name || '', repositories: repositoryChoices }
-      }
-      const head = repo.state.HEAD || {}
-      const tracked = this.gitChanges(repo)
-      const lists = await this.syncGitLists(repo.rootUri?.fsPath || '', tracked)
-      // Панель рисует до трёхсот строк: полторы тысячи новых файлов в дереве —
-      // это не список, а стена. Сколько осталось за краем, она говорит вслух.
-      const stats = await this.gitNumstat(repo.rootUri?.fsPath || '')
-      const changes = tracked.slice(0, 300).map(({ uri, ...item }) => ({
-        ...item,
-        list: item.area === 'untracked' ? 'untracked' : (lists.assign[item.path] || lists.active),
-        // Новый файл Git ещё не с чем сравнивать — у него нет ни плюсов, ни минусов.
-        add: item.area === 'untracked' ? 0 : Number(stats[item.path]?.add || 0),
-        del: item.area === 'untracked' ? 0 : Number(stats[item.path]?.del || 0),
-      }))
-      const hidden = Math.max(0, tracked.length - changes.length)
-      const changeLists = lists.lists.map(item => ({
-        id: item.id,
-        name: item.name,
-        active: item.id === lists.active,
-        count: changes.filter(change => change.list === item.id).length,
-      }))
-      const branches = [...new Set([
-        String(head.name || ''),
-        ...(repo.state.refs || []).filter(item => Number(item?.type) === 0).map(item => String(item?.name || '')),
-      ].filter(Boolean))].slice(0, 120)
-      let commits = []
-      let historyError = ''
-      try {
-        commits = (await repo.log({ maxEntries: 8, shortStats: true })).map(item => {
-          const date = item.authorDate || item.commitDate
-          return {
-            hash: String(item.hash || ''),
-            shortHash: String(item.hash || '').slice(0, 8),
-            message: String(item.message || '').split(/\r?\n/, 1)[0].slice(0, 240),
-            author: String(item.authorName || item.authorEmail || ''),
-            date: date instanceof Date ? date.toISOString() : String(date || ''),
-            files: Number(item.shortStat?.files || 0),
-            insertions: Number(item.shortStat?.insertions || 0),
-            deletions: Number(item.shortStat?.deletions || 0),
-          }
-        })
-      } catch (error) {
-        historyError = error instanceof Error ? error.message : String(error)
-      }
-      let workingStats = {}
-      let stagedStats = {}
-      try { workingStats = await repo.diffWithHEADShortStats() || {} } catch { /* unborn HEAD or binary-only diff */ }
-      try { stagedStats = await repo.diffIndexWithHEADShortStats() || {} } catch { /* unborn HEAD or empty index */ }
-      const upstream = head.upstream
-        ? `${String(head.upstream.remote || '')}/${String(head.upstream.name || '')}`.replace(/^\//, '')
-        : ''
-      // Ветка и число изменений принадлежат не только содержимому панели: на
-      // рейке слева Point теперь единственный вход в Git, и то, что раньше
-      // показывал бейдж штатного SCM, обязано быть здесь.
-      this.paintGitViewChrome({ available: true, branch: String(head.name || ''), count: tracked.length })
-      return {
-        kind, available: true, project: folder?.name || '', root: repo.rootUri?.fsPath || '',
-        repository: path.basename(repo.rootUri?.fsPath || '') || folder?.name || '', repositories: repositoryChoices,
-        branch: String(head.name || ''), detached: !head.name && Boolean(head.commit), head: String(head.commit || ''),
-        ahead: Number(head.ahead || 0), behind: Number(head.behind || 0),
-        remote: upstream, remotes: (repo.state.remotes || []).map(item => ({ name: String(item.name || ''), readOnly: Boolean(item.isReadOnly) })),
-        branches, changes, changeLists, activeList: lists.active, commits, historyError,
-        changesTotal: tracked.length, changesHidden: hidden,
-        stashes: await this.gitStashes(repo.rootUri?.fsPath || ''),
-        pushTargets: this.gitPushTargets(repo, upstream),
-        operation: repo.state.rebaseCommit ? 'rebase' : (repo.state.mergeChanges || []).length ? 'merge' : '',
-        stats: {
-          working: { files: Number(workingStats.files || 0), insertions: Number(workingStats.insertions || 0), deletions: Number(workingStats.deletions || 0) },
-          staged: { files: Number(stagedStats.files || 0), insertions: Number(stagedStats.insertions || 0), deletions: Number(stagedStats.deletions || 0) },
-        },
-      }
-    }
-    return { kind }
-  }
-
-  // Сколько строк прибавилось и убыло в каждом файле. Считается против HEAD:
-  // панель говорит о будущем коммите, а не о том, что успело попасть в индекс.
-  // `--no-renames` намеренно: переименование панель показывает одной строкой по
-  // новому пути, и статистика должна лечь на неё же.
-  async gitNumstat(root) {
-    if (!root) return {}
-    try {
-      const out = await runGit(root, ['diff', '--numstat', '--no-renames', 'HEAD'])
-      const stats = {}
-      for (const line of out.split(/\r?\n/)) {
-        const parts = line.split('\t')
-        if (parts.length < 3) continue
-        const file = parts.slice(2).join('\t').trim()
-        if (!file) continue
-        // Двоичный файл Git считает прочерками — чисел для него не существует.
-        stats[file] = { add: Number(parts[0]) || 0, del: Number(parts[1]) || 0 }
-      }
-      return stats
-    } catch {
-      // Ветка без первого коммита или занятый индекс: панель обойдётся без чисел.
-      return {}
-    }
-  }
-
-  // Полка: записи `git stash` с датой и составом.
-  async gitStashes(root) {
-    if (!root) return []
-    try {
-      const out = await runGit(root, ['stash', 'list', '--pretty=%gd%x1f%s%x1f%cI'])
-      const entries = out.split(/\r?\n/).filter(Boolean).slice(0, 20).map(line => {
-        // Разделитель — управляющий символ 0x1F: в сообщении коммита может быть
-        // что угодно, кроме него.
-        // Дата приходит в ISO, а не готовой строкой: `%cr` говорит по-английски
-        // («11 minutes ago»), а панель — по-русски, и форматирует её сама.
-        const [ref, message, when] = line.split(String.fromCharCode(31))
-        return { ref: String(ref || '').trim(), message: String(message || '').trim(), when: String(when || '').trim(), files: [] }
-      })
-      for (const entry of entries) {
-        try {
-          const files = await runGit(root, ['stash', 'show', '--name-status', entry.ref])
-          entry.files = files.split(/\r?\n/).filter(Boolean).slice(0, 40).map(row => {
-            const [status, ...rest] = row.split('\t')
-            return { status: String(status || 'M').trim().slice(0, 1), path: rest.join('\t').trim() }
-          }).filter(item => item.path)
-        } catch {
-          entry.files = []
-        }
-      }
-      return entries
-    } catch {
-      return []
-    }
-  }
-
-  // Куда отправлять: отслеживаемая ветка первой, следом остальные удалённые.
-  gitPushTargets(repo, upstream) {
-    const remotes = (repo.state.refs || [])
-      .filter(item => Number(item?.type) === 1 && item?.name)
-      .map(item => String(item.name))
-    const unique = [...new Set([upstream, ...remotes].filter(Boolean))].slice(0, 12)
-    return unique.map(name => ({ name, tracked: name === upstream }))
-  }
-
-  // Коммит по списку путей. Ждём дольше обычного: хуки бывают медленные, а
-  // оборвать git на середине коммита хуже, чем подождать.
-  async commitPaths(root, message, paths, amend = false) {
-    // Правка последнего коммита без путей меняет одно сообщение; с путями —
-    // добавляет в него отмеченные файлы. Оба случая штатные для `--amend`.
-    const args = ['commit']
-    if (amend) args.push('--amend')
-    args.push('-m', message)
-    if (paths.length) args.push('--', ...paths)
-    try {
-      await runGit(root, args, 2 * 1024 * 1024, 120_000)
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error || '')
-      // Git объясняет отсутствие подписи автора тремя абзацами с примерами для
-      // командной строки. В панели от них толку нет.
-      if (/Please tell me who you are|empty ident|unable to auto-detect email/i.test(detail)) {
-        throw new Error('Git не знает, кто вы. Задайте имя и почту: git config --global user.name «Имя» и user.email «почта».')
-      }
-      throw error
-    }
-  }
-
-  // Расширение Git меняло вид этих методов: сейчас `add`, `revert` и `clean`
-  // принимают пути строками и сами делают из них Uri, а раньше принимали Uri.
-  // Передашь не то — получишь «path.replace is not a function», и падает вызов
-  // на преобразовании списка, ДО запуска git: ни одного файла тронуть не
-  // успевает. Поэтому сначала документированная форма, а на этой ошибке —
-  // вторая попытка строками; она безопасна ровно потому, что первая ничего не
-  // сделала.
-  async gitFileCommand(repo, method, uris) {
-    const list = (uris || []).filter(Boolean)
-    if (!list.length) return
-    try {
-      await repo[method](list)
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error || '')
-      if (!/is not a function/i.test(detail)) throw error
-      await repo[method](list.map(uri => uri.fsPath))
-    }
-  }
-
-  // Отправка ветки нужна двум действиям — «Отправить» и «Коммит и отправить», —
-  // и первая публикация ветки в обоих случаях одна и та же. Возвращает null,
-  // если человек закрыл выбор удалённого репозитория.
-  async pushCurrentBranch(repo) {
-    const head = repo.state.HEAD || {}
-    if (!head.name) throw new Error('Создайте или выберите ветку перед Push.')
-    // Человек мог выбрать в панели другую цель — тогда она главнее upstream.
-    const chosen = String(this.gitPushTarget || '')
-    let remoteName = chosen ? chosen.split('/', 1)[0] : String(head.upstream?.remote || '')
-    if (!remoteName) {
-      const writable = (repo.state.remotes || []).filter(item => !item.isReadOnly)
-      if (!writable.length) throw new Error('Сначала добавьте удалённый репозиторий.')
-      if (writable.length === 1) remoteName = writable[0].name
-      else {
-        const selected = await vscode.window.showQuickPick(writable.map(item => ({ label: item.name })), { title: 'Git · куда отправить ветку' })
-        if (!selected?.label) return null
-        remoteName = selected.label
-      }
-    }
-    await repo.push(remoteName, head.name, !head.upstream)
-    return { remote: remoteName, branch: head.name }
-  }
-
-  async handleGitAction(message) {
-    return dispatchGitAction.call(this, message)
-  }
-
-  // Отметку читает следующий вопрос — и снимает её: недовольство одним ответом
-  // не должно тянуться через весь разговор.
+  async gitContext(rootHint = '') { return gitTools.gitContext(this, rootHint) }
+  bindGitApi(api) { return gitTools.bindGitApi(this, api) }
+  bindGitRepository(repo) { return gitTools.bindGitRepository(this, repo) }
+  gitChanges(repo) { return gitTools.gitChanges(this, repo) }
+  gitLists(root) { return gitTools.gitLists(this, root) }
+  async saveGitLists(root, value) { return gitTools.saveGitLists(this, root, value) }
+  async syncGitLists(root, changes) { return gitTools.syncGitLists(this, root, changes) }
+  paintGitViewChrome(input) { return gitTools.paintGitViewChrome(this, input) }
+  postToolWindow(kind, message) { return gitTools.postToolWindow(this, kind, message) }
+  async refreshToolWindowSnapshot(kind, extra = {}) { return gitTools.refreshToolWindowSnapshot(this, kind, extra) }
+  async toolWindowSnapshot(kind) { return gitTools.toolWindowSnapshot(this, kind) }
+  async gitNumstat(root) { return gitTools.gitNumstat(this, root) }
+  async gitStashes(root) { return gitTools.gitStashes(this, root) }
+  gitPushTargets(repo, upstream) { return gitTools.gitPushTargets(this, repo, upstream) }
+  async commitPaths(root, message, paths, amend = false) { return gitTools.commitPaths(this, root, message, paths, amend) }
+  async gitFileCommand(repo, method, uris) { return gitTools.gitFileCommand(this, repo, method, uris) }
+  async pushCurrentBranch(repo) { return gitTools.pushCurrentBranch(this, repo) }
+  async handleGitAction(message) { return gitTools.handleGitAction(this, message) }
   consumeCompanionRejection() {
     const rejected = Boolean(this.companionRejectedAnswer)
     this.companionRejectedAnswer = false

@@ -20,6 +20,8 @@ const { createCoreLog } = require('./core-log')
 const { createCoreLease } = require('./core-lease')
 const { createGitTools } = require('./git-tool-controller')
 const { createHubSurfaces } = require('./hub-surfaces-controller')
+const { createHubPolling } = require('./hub-polling-controller')
+const { createCompanionThreads } = require('./companion-thread-controller')
 const { createChatDocuments, companionDocumentHtml, POINT_COMPANION_ARCHIVES_KEY } = require('./chat-documents')
 const {
   companionFactPairs,
@@ -146,6 +148,8 @@ const coreLog = createCoreLog({ fs, path, crypto, hostLogEnabled, hostLogStamp }
 const coreLease = createCoreLease({ fs, path, crypto, normalizedWorkspaceRoot, removeFileIfExists, readJsonFile, processIsAlive })
 const gitTools = createGitTools({ GIT_LISTS_KEY, dispatchGitAction, normalizedWorkspaceRoot, path, runGit, vscode })
 const hubSurfaces = createHubSurfaces({ collectExtensionGarbage, createChatDocuments, cursorRuntime, escapeHtml, normalizedWorkspaceRoot, vscode })
+const hubPolling = createHubPolling({ cursorRuntime, describeCoreFailure, vscode })
+const companionThreads = createCompanionThreads()
 
 class BackendService {
   constructor(context, output, onStatus) {
@@ -1955,226 +1959,20 @@ class AgentViewProvider {
     this.postState()
   }
 
-  startPolling() {
-    if (!this.shouldPollRun()) {
-      this.stopRunPolling(false)
-      return
-    }
-    if (this.pollTimer) return
-    if (this.pollInFlight) return
-    const tick = async () => {
-      this.pollTimer = undefined
-      if (!this.shouldPollRun()) return
-      this.pollInFlight = true
-      let keepPolling = false
-      try {
-        if (!this.activeRunId || this.service.state !== 'running') return
-        const visible = this.hubVisible()
-        await this.loadRun(this.activeRunId, visible, true)
-        keepPolling = this.shouldPollRun()
-        if (keepPolling) {
-          this.companionPollTick += 1
-          if (visible && this.companionPollTick % 4 === 0) await this.refreshLiveCompanionInterventions()
-        }
-        if (!keepPolling) {
-          await this.refreshRuntimeState({ companion: true })
-          await this.coordinateActiveFlows(false)
-          keepPolling = this.shouldPollRun()
-          if (visible) this.postState()
-        }
-      } catch (error) { this.notify(error) }
-      finally {
-        this.pollInFlight = false
-        if (keepPolling && !this.pollTimer) this.pollTimer = setTimeout(tick, this.hubVisible() ? 1500 : 2500)
-      }
-    }
-    this.pollTimer = setTimeout(tick, 600)
-  }
-
-  shouldPollRun() {
-    const status = this.details?.run?.status
-    return Boolean(this.activeRunId) && (status === 'running' || (this.hubVisible() && status === 'waiting_approval'))
-  }
-
-  async loadWorkflowRun(id, post = true, asDelta = false) {
-    this.workflowDetails = await this.service.request(`/api/workflow-runs/${encodeURIComponent(id)}`)
-    this.activeWorkflowRunId = id
-    void this.maybeRunCursorWorkflowStep()
-    this.updateAgentBusy()
-    if (post) {
-      if (asDelta) this.postRunDelta()
-      else this.postState()
-    }
-    if (['running', 'waiting_approval'].includes(this.workflowDetails.status)) this.startWorkflowPolling()
-  }
-
-  async maybeRunCursorWorkflowStep() {
-    const run = this.workflowDetails
-    if (this.cursorRun || this.cursorWorkflowStepBusy || !run || !['running', 'waiting_approval'].includes(run.status)) return
-    const step = (run.stepRuns || []).find(item => item.status === 'waiting_approval' && item.kind === 'cursor')
-    if (!step?.stepId) return
-    const definition = (run.snapshot?.workflow?.steps || []).find(item => item.id === step.stepId)
-    const profile = this.boot?.profiles?.find(item => item.id === (step.profileId || definition?.profileId))
-    if (!profile || profile.provider !== 'cursor-cli') return
-    this.cursorWorkflowStepBusy = true
-    let heartbeat
-    let claimToken = ''
-    try {
-      const claimed = await this.service.request(`/api/workflow-runs/${encodeURIComponent(run.id)}/steps/${encodeURIComponent(step.stepId)}/claim`, { method: 'POST', body: '{}' })
-      claimToken = claimed?.claimToken || ''
-      if (!claimToken) throw new Error('Cursor step claim token was not issued.')
-      const cwd = this.workspaceFolder()?.uri?.fsPath
-      const runtime = await this.refreshCursorRuntime()
-      if (!cwd || !runtime.available || !runtime.authenticated) throw new Error(runtime.error || 'Cursor Agent недоступен для этапа.')
-      const task = [definition?.instruction, run.task].filter(Boolean).join('\n\n') || run.task
-      heartbeat = setInterval(() => {
-        void this.service.request(`/api/workflow-runs/${encodeURIComponent(run.id)}/steps/${encodeURIComponent(step.stepId)}/heartbeat`, {
-          method: 'POST',
-          body: JSON.stringify({ claimToken }),
-        }).catch(() => {})
-      }, 15_000)
-      this.cursorRun = cursorRuntime.startRun({
-        profile,
-        cwd,
-        task,
-        onEvent: event => this.post({ type: 'cursorRunEvent', event, workflowRunId: run.id, stepId: step.stepId }),
-      })
-      this.updateAgentBusy()
-      const result = await this.cursorRun.done
-      clearInterval(heartbeat)
-      heartbeat = undefined
-      await this.service.request(`/api/workflow-runs/${encodeURIComponent(run.id)}/steps/${encodeURIComponent(step.stepId)}/complete`, {
-        method: 'POST',
-        body: JSON.stringify({
-          claimToken,
-          status: result?.status === 'error' || result?.status === 'cancelled' ? 'failed' : 'completed',
-          result: result?.result || result?.summary || '',
-          error: result?.status === 'error' ? (result?.result || 'Cursor run failed') : '',
-        }),
-      })
-      await this.loadWorkflowRun(run.id)
-    } catch (error) {
-      if (claimToken) {
-        await this.service.request(`/api/workflow-runs/${encodeURIComponent(run.id)}/steps/${encodeURIComponent(step.stepId)}/complete`, {
-          method: 'POST',
-          body: JSON.stringify({ claimToken, status: 'failed', error: describeCoreFailure(error) }),
-        }).catch(() => {})
-      }
-      this.notify(error)
-    } finally {
-      if (heartbeat) clearInterval(heartbeat)
-      this.cursorRun = undefined
-      this.cursorWorkflowStepBusy = false
-      this.updateAgentBusy()
-    }
-  }
-
-  startWorkflowPolling() {
-    if (!this.hubVisible()) {
-      this.stopPollingTimers(false)
-      return
-    }
-    if (this.workflowPollTimer) return
-    if (this.workflowPollInFlight) {
-      this.workflowPollTimer = setTimeout(() => {
-        this.workflowPollTimer = undefined
-        this.startWorkflowPolling()
-      }, 150)
-      return
-    }
-    const tick = async () => {
-      this.workflowPollTimer = undefined
-      if (!this.hubVisible()) return
-      this.workflowPollInFlight = true
-      let keepPolling = false
-      try {
-        if (!this.activeWorkflowRunId || this.service.state !== 'running') return
-        await this.loadWorkflowRun(this.activeWorkflowRunId, true, true)
-        keepPolling = ['running', 'waiting_approval'].includes(this.workflowDetails?.status)
-        if (!keepPolling) {
-          await this.refreshRuntimeState()
-          this.postState()
-        }
-      } catch (error) { this.notify(error) }
-      finally {
-        this.workflowPollInFlight = false
-        if (keepPolling && this.hubVisible() && !this.workflowPollTimer) this.workflowPollTimer = setTimeout(tick, 1500)
-      }
-    }
-    this.workflowPollTimer = setTimeout(tick, 600)
-  }
-
-  hubVisible() {
-    return Boolean(
-      (this.panel && this.panel.visible)
-      || (this.view && this.view.visible)
-      || (this.companionSidebar && this.companionSidebar.visible)
-      || (this.companionPopup && this.companionPopup.visible)
-      || (this.connectionsPanel && this.connectionsPanel.visible)
-      || (this.statisticsPanel && this.statisticsPanel.visible)
-      || (this.dockerPanel && this.dockerPanel.visible)
-      || [...this.toolWindows.values()].some(view => view && view.visible),
-    )
-  }
-
-  stopPollingTimers(clearInFlight = true) {
-    this.stopRunPolling(clearInFlight)
-    this.stopWorkflowPolling(clearInFlight)
-    this.stopFlowCoordinator(clearInFlight)
-  }
-
-  stopRunPolling(clearInFlight = true) {
-    if (this.pollTimer) clearTimeout(this.pollTimer)
-    this.pollTimer = undefined
-    if (clearInFlight) this.pollInFlight = false
-  }
-
-  stopWorkflowPolling(clearInFlight = true) {
-    if (this.workflowPollTimer) clearTimeout(this.workflowPollTimer)
-    this.workflowPollTimer = undefined
-    if (clearInFlight) this.workflowPollInFlight = false
-  }
-
-  stopFlowCoordinator(clearInFlight = true) {
-    if (this.flowCoordinatorTimer) clearTimeout(this.flowCoordinatorTimer)
-    this.flowCoordinatorTimer = undefined
-    if (clearInFlight) {
-      this.flowCoordinatorInFlight = false
-      this.pendingExecutionLaunchInFlight = false
-    }
-  }
-
-  resumePollingIfNeeded() {
-    if (!this.hubVisible()) return
-    if (this.activeRunId && ['running', 'waiting_approval'].includes(this.details?.run?.status)) this.startPolling()
-    if (this.activeWorkflowRunId && ['running', 'waiting_approval'].includes(this.workflowDetails?.status)) this.startWorkflowPolling()
-  }
-
-  updateAgentBusy() {
-    const active = status => ['running', 'waiting_approval'].includes(status)
-    this.onAgentBusy(Boolean(this.cursorRun) || active(this.details?.run?.status) || active(this.workflowDetails?.status))
-  }
-
-  onHubVisibility(visible) {
-    if (visible) {
-      this.postState(true)
-      if (vscode.workspace.isTrusted && vscode.workspace.getConfiguration('localAgent').get('autoStart', true)) {
-        this.scheduleAutoStart()
-      }
-      this.resumePollingIfNeeded()
-    } else {
-      if (this.details?.run?.status === 'running') this.startPolling()
-      else this.stopRunPolling(false)
-      this.stopWorkflowPolling(false)
-    }
-  }
-
-  onServiceStatus(value) {
-    if (value?.state === 'running') this.updateAgentBusy()
-    else this.onAgentBusy(false)
-    this.postState()
-  }
-
+  startPolling() { return hubPolling.startPolling(this) }
+  shouldPollRun() { return hubPolling.shouldPollRun(this) }
+  async loadWorkflowRun(id, post = true, asDelta = false) { return hubPolling.loadWorkflowRun(this, id, post, asDelta) }
+  async maybeRunCursorWorkflowStep() { return hubPolling.maybeRunCursorWorkflowStep(this) }
+  startWorkflowPolling() { return hubPolling.startWorkflowPolling(this) }
+  hubVisible() { return hubPolling.hubVisible(this) }
+  stopPollingTimers(clearInFlight = true) { return hubPolling.stopPollingTimers(this, clearInFlight) }
+  stopRunPolling(clearInFlight = true) { return hubPolling.stopRunPolling(this, clearInFlight) }
+  stopWorkflowPolling(clearInFlight = true) { return hubPolling.stopWorkflowPolling(this, clearInFlight) }
+  stopFlowCoordinator(clearInFlight = true) { return hubPolling.stopFlowCoordinator(this, clearInFlight) }
+  resumePollingIfNeeded() { return hubPolling.resumePollingIfNeeded(this) }
+  updateAgentBusy() { return hubPolling.updateAgentBusy(this) }
+  onHubVisibility(visible) { return hubPolling.onHubVisibility(this, visible) }
+  onServiceStatus(value) { return hubPolling.onServiceStatus(this, value) }
   notify(error, request = '') {
     const message = describeCoreFailure(error)
     if (!vscode.workspace.isTrusted) {
@@ -2280,186 +2078,17 @@ class AgentViewProvider {
     this.onCompanionState(this.boot)
   }
 
-  companionWebviewTraffic(type) {
-    return [
-      'focusCompanion',
-      'companionChatStarted',
-      'companionChatStopped',
-      'companionChatResult',
-      'companionChatError',
-      'companionChatProgress',
-      'companionChatDelta',
-      'companionThreadSync',
-      'companionSetupTestResult',
-      'companionSetupTestError',
-      'companionHistoryCleared',
-      'companionThreadCreated',
-      'companionIdeContext',
-      'companionActionApplied',
-      'companionInterventions',
-    ].includes(type)
-  }
-
-  beginCompanionThread(message, requestId) {
-    const text = String(message || '').trim()
-    const messages = [...(this.companionThreadCache?.messages || [])]
-    const last = messages[messages.length - 1]
-    if (text && !(last?.role === 'user' && last.content === text)) messages.push({ role: 'user', content: text })
-    this.companionThreadCache = {
-      ...(this.companionThreadCache || {}),
-      messages: messages.slice(-80),
-      streamReply: '',
-      loading: true,
-      requestId: Number(requestId || 0),
-      updatedAt: Date.now(),
-    }
-  }
-
-  updateCompanionThreadStream(reply, requestId) {
-    if (Number(requestId || 0) !== Number(this.companionThreadCache?.requestId || 0)) return
-    this.companionThreadCache = {
-      ...this.companionThreadCache,
-      streamReply: String(reply || ''),
-      loading: true,
-      updatedAt: Date.now(),
-    }
-  }
-
-  finishCompanionThread(response, requestId) {
-    if (Number(requestId || 0) !== Number(this.companionThreadCache?.requestId || 0)) return
-    const reply = String(response?.reply || response?.content || this.companionThreadCache?.streamReply || '').trim()
-      || 'Компаньон ответил без текста. Спросите ещё раз или проверьте подключение модели.'
-    const messages = [...(this.companionThreadCache?.messages || [])]
-    const last = messages[messages.length - 1]
-    if (!(last?.role === 'assistant' && last.content === reply)) {
-      messages.push({ ...response, role: 'assistant', content: reply })
-    }
-    this.companionThreadCache = {
-      ...this.companionThreadCache,
-      messages: messages.slice(-80),
-      streamReply: '',
-      loading: false,
-      requestId: 0,
-      updatedAt: Date.now(),
-    }
-  }
-
-  failCompanionThread(message, requestId) {
-    if (Number(requestId || 0) !== Number(this.companionThreadCache?.requestId || 0)) return
-    const text = String(message || 'Компаньон не смог ответить.')
-    const messages = [...(this.companionThreadCache?.messages || [])]
-    const last = messages[messages.length - 1]
-    if (!(last?.role === 'assistant' && last.content === text)) {
-      messages.push({ role: 'assistant', content: text, level: 'warning', mode: 'error' })
-    }
-    this.companionThreadCache = {
-      ...this.companionThreadCache,
-      messages: messages.slice(-80),
-      streamReply: '',
-      loading: false,
-      requestId: 0,
-      updatedAt: Date.now(),
-    }
-  }
-
-  finishCompanionThreadStopped(requestId, superseded = false) {
-    if (requestId && Number(requestId) !== Number(this.companionThreadCache?.requestId || 0)) return
-    const partial = String(this.companionThreadCache?.streamReply || '').trim()
-    const text = partial
-      ? `${partial}\n\n— ${superseded ? 'остановлено новым сообщением' : 'остановлено'}. Можно сразу спросить снова.`
-      : superseded
-        ? 'Предыдущий запрос остановлен новым сообщением.'
-        : 'Запрос остановлен. Можно сразу спросить снова.'
-    const messages = [...(this.companionThreadCache?.messages || [])]
-    const last = messages[messages.length - 1]
-    if (!(last?.role === 'assistant' && last.mode === 'cancelled')) {
-      messages.push({ role: 'assistant', content: text, level: 'warning', mode: 'cancelled' })
-    }
-    this.companionThreadCache = {
-      ...this.companionThreadCache,
-      messages: messages.slice(-80),
-      streamReply: '',
-      loading: false,
-      requestId: 0,
-      updatedAt: Date.now(),
-    }
-  }
-
-  rememberCompanionThread(payload = {}) {
-    const incomingRequestId = Number(payload.requestId || 0)
-    const activeRequestId = Number(this.companionActiveChatRequestId || 0)
-    const stale = Boolean(activeRequestId && incomingRequestId && incomingRequestId !== activeRequestId)
-    this.companionThreadCache = {
-      messages: !stale && Array.isArray(payload.messages) ? payload.messages.slice(-80) : (this.companionThreadCache?.messages || []),
-      draft: !stale && typeof payload.draft === 'string' ? payload.draft : (this.companionThreadCache?.draft || ''),
-      streamReply: !stale && typeof payload.streamReply === 'string' ? payload.streamReply : (this.companionThreadCache?.streamReply || ''),
-      loading: activeRequestId ? true : Boolean(payload.loading),
-      pendingSend: typeof payload.pendingSend === 'string' ? payload.pendingSend : (this.companionThreadCache?.pendingSend || ''),
-      requestId: activeRequestId || incomingRequestId,
-      updatedAt: Date.now(),
-    }
-  }
-
-  pushCompanionThreadSync(target) {
-    const cache = this.companionThreadCache
-    if (!cache?.messages?.length && !cache?.streamReply && !cache?.draft && !cache?.loading) return
-    const message = {
-      type: 'companionThreadSync',
-      messages: cache.messages || [],
-      draft: cache.draft || '',
-      streamReply: cache.streamReply || '',
-      loading: Boolean(this.companionActiveChatRequestId || cache.loading),
-      pendingSend: cache.pendingSend || '',
-      requestId: this.companionActiveChatRequestId || Number(cache.requestId || 0),
-    }
-    if (target === 'peek' && this.companionPopup) void this.companionPopup.webview.postMessage(message)
-    else if (target === 'sidebar' && this.companionSidebar) void this.companionSidebar.webview.postMessage(message)
-    else if (target === 'dock' && this.view) void this.view.webview.postMessage(message)
-    else this.post(message)
-  }
-
-  preferLiveCompanionSurface(fallback = 'peek') {
-    if (this.companionFocusTarget === 'dock' && this.view && this.view.visible !== false) return 'dock'
-    if (this.companionFocusTarget === 'sidebar' && this.companionSidebar && this.companionSidebar.visible !== false) return 'sidebar'
-    if (this.companionFocusTarget === 'peek' && this.companionPopup && this.companionPopup.visible !== false) return 'peek'
-    if (this.companionPopup && this.companionPopup.visible !== false) return 'peek'
-    if (this.companionSidebar && this.companionSidebar.visible !== false) return 'sidebar'
-    if (this.view && this.view.visible !== false) return 'dock'
-    if (fallback === 'dock' || fallback === 'sidebar') return fallback
-    return 'peek'
-  }
-
-  queueCompanionFocus(payload = {}) {
-    this.pendingCompanionFocus = {
-      message: typeof payload.message === 'string' ? payload.message : '',
-      send: Boolean(payload.send),
-      surface: payload.surface === 'peek' ? 'peek' : payload.surface === 'dock' ? 'dock' : 'sidebar',
-    }
-    this.companionFocusTarget = this.pendingCompanionFocus.surface
-    this.flushCompanionFocus()
-  }
-
-  flushCompanionFocus() {
-    if (!this.pendingCompanionFocus) return
-    const payload = this.pendingCompanionFocus
-    const target = payload.surface || this.companionFocusTarget || 'dock'
-    if (target === 'dock' && this.companionDockReady && this.view) {
-      this.pendingCompanionFocus = undefined
-      void this.view.webview.postMessage({ type: 'focusCompanion', message: payload.message, send: payload.send })
-      return
-    }
-    if (target === 'peek' && this.companionPopupReady && this.companionPopup) {
-      this.pendingCompanionFocus = undefined
-      void this.companionPopup.webview.postMessage({ type: 'focusCompanion', message: payload.message, send: payload.send })
-      return
-    }
-    if (target === 'sidebar' && this.companionSidebarReady && this.companionSidebar) {
-      this.pendingCompanionFocus = undefined
-      void this.companionSidebar.webview.postMessage({ type: 'focusCompanion', message: payload.message, send: payload.send })
-      return
-    }
-  }
-
+  companionWebviewTraffic(type) { return companionThreads.companionWebviewTraffic(this, type) }
+  beginCompanionThread(message, requestId) { return companionThreads.beginCompanionThread(this, message, requestId) }
+  updateCompanionThreadStream(reply, requestId) { return companionThreads.updateCompanionThreadStream(this, reply, requestId) }
+  finishCompanionThread(response, requestId) { return companionThreads.finishCompanionThread(this, response, requestId) }
+  failCompanionThread(message, requestId) { return companionThreads.failCompanionThread(this, message, requestId) }
+  finishCompanionThreadStopped(requestId, superseded = false) { return companionThreads.finishCompanionThreadStopped(this, requestId, superseded) }
+  rememberCompanionThread(payload = {}) { return companionThreads.rememberCompanionThread(this, payload) }
+  pushCompanionThreadSync(target) { return companionThreads.pushCompanionThreadSync(this, target) }
+  preferLiveCompanionSurface(fallback = 'peek') { return companionThreads.preferLiveCompanionSurface(this, fallback) }
+  queueCompanionFocus(payload = {}) { return companionThreads.queueCompanionFocus(this, payload) }
+  flushCompanionFocus() { return companionThreads.flushCompanionFocus(this) }
   post(message) { return hubSurfaces.post(this, message) }
   postCursorRuntime() { return hubSurfaces.postCursorRuntime(this) }
   async refreshCursorRuntime() { return hubSurfaces.refreshCursorRuntime(this) }

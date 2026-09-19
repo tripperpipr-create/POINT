@@ -16,6 +16,8 @@ const { spawn } = require('child_process')
 const cursorRuntime = require('./cursor-runtime')
 const { restoreSystemBackup } = require('./backup-controller')
 const { createNdjsonReader } = require('./core-stream')
+const { createCoreLog } = require('./core-log')
+const { createCoreLease } = require('./core-lease')
 const { createChatDocuments, companionDocumentHtml, POINT_COMPANION_ARCHIVES_KEY } = require('./chat-documents')
 const {
   companionFactPairs,
@@ -136,6 +138,11 @@ function newRequestId() {
 const GIT_LISTS_KEY = 'point.git.lists'
 const GIT_DEFAULT_LIST = 'default'
 
+// Хроника и протокол аренд живут своими модулями: служба приходит первым
+// доводом, в классе остаётся строка-переходник — приём от `core-stream.js`.
+const coreLog = createCoreLog({ fs, path, crypto, hostLogEnabled, hostLogStamp })
+const coreLease = createCoreLease({ fs, path, crypto, normalizedWorkspaceRoot, removeFileIfExists, readJsonFile, processIsAlive })
+
 class BackendService {
   constructor(context, output, onStatus) {
     this.context = context
@@ -197,38 +204,16 @@ class BackendService {
     return found
   }
 
-  hostLog(level, message) {
-    if (!hostLogEnabled(level)) return
-    const line = `${hostLogStamp()} ${String(level).toUpperCase().padEnd(5)} ${message}`
-    this.output.appendLine(line)
-    this.appendLog(`${line}\n`)
-  }
-
-  enqueueCoreLog(text, toOutput = true) {
-    if (!text) return
-    if (toOutput) this.output.append(text)
-    this.logBuffer += text
-    if (this.logBuffer.length > 256 * 1024) {
-      this.flushCoreLog()
-      return
-    }
-    if (this.logFlushTimer) return
-    this.logFlushTimer = setTimeout(() => {
-      this.logFlushTimer = undefined
-      this.flushCoreLog()
-    }, 100)
-  }
-
-  flushCoreLog() {
-    if (this.logFlushTimer) {
-      clearTimeout(this.logFlushTimer)
-      this.logFlushTimer = undefined
-    }
-    if (!this.logBuffer) return
-    const chunk = this.logBuffer
-    this.logBuffer = ''
-    this.appendLog(chunk)
-  }
+  hostLog(level, message) { return coreLog.hostLog(this, level, message) }
+  enqueueCoreLog(text, toOutput = true) { return coreLog.enqueueCoreLog(this, text, toOutput) }
+  flushCoreLog() { return coreLog.flushCoreLog(this) }
+  async ensureLogDir() { return coreLog.ensureLogDir(this) }
+  acquireLogRotationLock() { return coreLog.acquireLogRotationLock(this) }
+  releaseLogRotationLock(handle) { return coreLog.releaseLogRotationLock(this, handle) }
+  moveBoundedLog(source, target) { return coreLog.moveBoundedLog(this, source, target) }
+  rotateLogIfNeeded(incomingBytes = 0) { return coreLog.rotateLogIfNeeded(this, incomingBytes) }
+  appendLog(text) { return coreLog.appendLog(this, text) }
+  readLogSnapshot(maxLines = 260) { return coreLog.readLogSnapshot(this, maxLines) }
 
   corePid() {
     return this.process?.pid || this.attachedPid || undefined
@@ -247,272 +232,16 @@ class BackendService {
     this.onStatus({ state, detail: this.lastDetail, pid: this.corePid(), logPath: this.logPath })
   }
 
-  async ensureLogDir() {
-    fs.mkdirSync(path.dirname(this.logPath), { recursive: true })
-  }
-
-  acquireLogRotationLock() {
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      try {
-        const handle = fs.openSync(this.logRotationLockPath, 'wx', 0o600)
-        fs.writeFileSync(handle, JSON.stringify({ pid: process.pid, createdAt: Date.now() }))
-        return handle
-      } catch (error) {
-        if (error?.code !== 'EEXIST') return undefined
-        try {
-          const stale = Date.now() - fs.statSync(this.logRotationLockPath).mtimeMs > 10_000
-          if (!stale) return undefined
-          fs.unlinkSync(this.logRotationLockPath)
-        } catch { /* another extension host released it */ }
-      }
-    }
-    return undefined
-  }
-
-  releaseLogRotationLock(handle) {
-    if (handle === undefined) return
-    try { fs.closeSync(handle) } catch { /* already closed */ }
-    try { fs.unlinkSync(this.logRotationLockPath) } catch { /* another host may have cleaned a stale lock */ }
-  }
-
-  moveBoundedLog(source, target) {
-    if (!fs.existsSync(source)) return
-    try { fs.unlinkSync(target) } catch (error) { if (error?.code !== 'ENOENT') throw error }
-    const temporary = `${target}.rotate-${process.pid}-${crypto.randomUUID()}`
-    fs.renameSync(source, temporary)
-    try {
-      const size = fs.statSync(temporary).size
-      if (size <= this.maxLogBytes) {
-        fs.renameSync(temporary, target)
-        return
-      }
-      const length = Math.min(size, this.maxLogBytes)
-      const buffer = Buffer.allocUnsafe(length)
-      const handle = fs.openSync(temporary, 'r')
-      try {
-        fs.readSync(handle, buffer, 0, length, size - length)
-      } finally {
-        fs.closeSync(handle)
-      }
-      // Start the compacted archive at a line boundary whenever possible.
-      const newline = buffer.indexOf(0x0a)
-      fs.writeFileSync(target, newline >= 0 ? buffer.subarray(newline + 1) : buffer, { mode: 0o600 })
-    } finally {
-      try { fs.unlinkSync(temporary) } catch { /* renamed whole file or cleanup raced */ }
-    }
-  }
-
-  rotateLogIfNeeded(incomingBytes = 0) {
-    try {
-      if (!fs.existsSync(this.logPath)) return
-      const size = fs.statSync(this.logPath).size
-      if (size + Math.max(0, Number(incomingBytes) || 0) < this.maxLogBytes) return
-      const lock = this.acquireLogRotationLock()
-      if (lock === undefined) return
-      try {
-        if (!fs.existsSync(this.logPath)) return
-        const currentSize = fs.statSync(this.logPath).size
-        if (currentSize + Math.max(0, Number(incomingBytes) || 0) < this.maxLogBytes) return
-        for (let index = this.maxLogArchives; index >= 2; index -= 1) {
-          this.moveBoundedLog(`${this.logPath}.${index - 1}`, `${this.logPath}.${index}`)
-        }
-        this.moveBoundedLog(this.logPath, `${this.logPath}.1`)
-      } finally {
-        this.releaseLogRotationLock(lock)
-      }
-    } catch { /* ignore rotation failures */ }
-  }
-
-  appendLog(text) {
-    try {
-      this.rotateLogIfNeeded(Buffer.byteLength(text, 'utf8'))
-      fs.appendFileSync(this.logPath, text, 'utf8')
-    } catch { /* ignore disk failures; Output still receives the line */ }
-  }
-
-  readLogSnapshot(maxLines = 260) {
-    this.flushCoreLog()
-    const empty = { path: this.logPath, lines: [], counts: { error: 0, warning: 0, info: 0, debug: 0 } }
-    try {
-      if (!fs.existsSync(this.logPath)) return empty
-      const size = fs.statSync(this.logPath).size
-      const length = Math.min(size, 256 * 1024)
-      const buffer = Buffer.alloc(length)
-      const handle = fs.openSync(this.logPath, 'r')
-      try { fs.readSync(handle, buffer, 0, length, Math.max(0, size - length)) } finally { fs.closeSync(handle) }
-      let rows = buffer.toString('utf8').split(/\r?\n/).filter(Boolean)
-      if (size > length && rows.length) rows = rows.slice(1)
-      rows = rows.slice(-Math.max(20, Math.min(500, Number(maxLines) || 260)))
-      const counts = { error: 0, warning: 0, info: 0, debug: 0 }
-      const lines = rows.map((raw, index) => {
-        let time = ''
-        let level = 'info'
-        let message = raw
-        if (raw.trimStart().startsWith('{')) {
-          try {
-            const item = JSON.parse(raw)
-            time = String(item.time || item.ts || item.timestamp || '')
-            level = String(item.level || item.severity || 'info').toLowerCase()
-            message = String(item.msg || item.message || raw)
-          } catch { /* plain text line */ }
-        } else {
-          const match = raw.match(/^(\S+(?:\s+\S+)?)\s+(DEBUG|INFO|WARN|WARNING|ERROR)\s+(.+)$/i)
-          if (match) {
-            time = match[1]
-            level = match[2].toLowerCase()
-            message = match[3]
-          }
-        }
-        if (level === 'warn') level = 'warning'
-        if (!Object.prototype.hasOwnProperty.call(counts, level)) level = 'info'
-        counts[level] += 1
-        const sourceMatch = message.match(/^\[([^\]]+)\]\s*(.*)$/)
-        const source = sourceMatch?.[1] || (/companion|model/i.test(message) ? 'model' : /api|http/i.test(message) ? 'api' : /index/i.test(message) ? 'index' : 'core')
-        if (sourceMatch) message = sourceMatch[2]
-        return { id: `${size}-${index}`, time, level, source: String(source).slice(0, 48), message: String(message).slice(0, 1000) }
-      })
-      return { path: this.logPath, size, lines, counts }
-    } catch (error) {
-      return { ...empty, error: error instanceof Error ? error.message : String(error) }
-    }
-  }
-
-  runtimePaths(folder) {
-    const workspaceRoot = normalizedWorkspaceRoot(folder.uri.fsPath)
-    const workspaceKey = crypto.createHash('sha256').update(workspaceRoot).digest('hex').slice(0, 24)
-    const runtimeDir = path.join(this.dataDirPath, 'runtime')
-    fs.mkdirSync(runtimeDir, { recursive: true })
-    this.runtimeWorkspaceKey = workspaceKey
-    this.runtimeDescriptorPath = path.join(runtimeDir, `core-${workspaceKey}.json`)
-    this.runtimeLockPath = path.join(runtimeDir, `core-${workspaceKey}.lock`)
-    this.runtimeLeasePath = path.join(runtimeDir, `lease-${workspaceKey}-${this.runtimeLeaseId}.json`)
-    return { workspaceRoot, workspaceKey, runtimeDir, descriptorPath: this.runtimeDescriptorPath, lockPath: this.runtimeLockPath }
-  }
-
-  async isHealthy(baseUrl, timeoutMs = 1200) {
-    if (!/^http:\/\/127\.0\.0\.1:\d+$/.test(String(baseUrl || ''))) return false
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), timeoutMs)
-    try {
-      const response = await fetch(`${baseUrl}/api/health`, { signal: controller.signal })
-      return response.ok
-    } catch {
-      return false
-    } finally {
-      clearTimeout(timer)
-    }
-  }
-
-  async tryAttachSharedCore(folder) {
-    const runtime = this.runtimePaths(folder)
-    const descriptor = readJsonFile(runtime.descriptorPath)
-    if (!descriptor) return false
-    const sameWorkspace = normalizedWorkspaceRoot(descriptor.workspaceRoot) === runtime.workspaceRoot
-    const safeAddress = /^http:\/\/127\.0\.0\.1:\d+$/.test(String(descriptor.baseUrl || ''))
-    if (!sameWorkspace || !safeAddress || !(await this.isHealthy(descriptor.baseUrl))) {
-      removeFileIfExists(runtime.descriptorPath)
-      return false
-    }
-    this.process = undefined
-    this.attachedPid = Number(descriptor.pid) || undefined
-    this.baseUrl = descriptor.baseUrl
-    this.apiToken = await this.readApiToken()
-    this.lastHealthAt = Date.now()
-    this.startLease()
-    this.hostLog('info', `[service] attached shared point-core pid=${this.attachedPid || 'unknown'} workspace=${folder.uri.fsPath}`)
-    return true
-  }
-
-  async acquireRuntimeLock(folder) {
-    const runtime = this.runtimePaths(folder)
-    const deadline = Date.now() + 35_000
-    while (Date.now() < deadline) {
-      if (await this.tryAttachSharedCore(folder)) return false
-      try {
-        const fd = fs.openSync(runtime.lockPath, 'wx')
-        fs.writeFileSync(fd, JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString() }))
-        fs.closeSync(fd)
-        this.ownsRuntimeLock = true
-        return true
-      } catch (error) {
-        if (error?.code !== 'EEXIST') throw error
-        try {
-          const lock = readJsonFile(runtime.lockPath)
-          const age = Date.now() - fs.statSync(runtime.lockPath).mtimeMs
-          if (age > 35_000 && !processIsAlive(lock?.pid)) {
-            removeFileIfExists(runtime.lockPath)
-            continue
-          }
-        } catch { /* another host may be replacing the lock */ }
-        await new Promise(resolve => setTimeout(resolve, 160))
-      }
-    }
-    throw new Error('Другое окно Point слишком долго запускает общее ядро.')
-  }
-
-  releaseRuntimeLock() {
-    if (!this.runtimeLockPath || !this.ownsRuntimeLock) return
-    removeFileIfExists(this.runtimeLockPath)
-    this.ownsRuntimeLock = false
-  }
-
-  writeRuntimeDescriptor(folder) {
-    if (!this.runtimeDescriptorPath || !this.baseUrl || !this.process?.pid) return
-    const descriptor = {
-      version: 1,
-      pid: this.process.pid,
-      baseUrl: this.baseUrl,
-      workspaceRoot: normalizedWorkspaceRoot(folder.uri.fsPath),
-      startedAt: new Date().toISOString(),
-    }
-    const temporary = `${this.runtimeDescriptorPath}.${process.pid}.${Date.now()}.tmp`
-    fs.writeFileSync(temporary, `${JSON.stringify(descriptor, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 })
-    removeFileIfExists(this.runtimeDescriptorPath)
-    fs.renameSync(temporary, this.runtimeDescriptorPath)
-  }
-
-  startLease() {
-    if (!this.runtimeLeasePath) return
-    const write = () => {
-      try {
-        fs.writeFileSync(this.runtimeLeasePath, JSON.stringify({ pid: process.pid, updatedAt: Date.now() }), { encoding: 'utf8', mode: 0o600 })
-      } catch { /* closing windows may race removal of the runtime directory */ }
-    }
-    write()
-    if (this.runtimeLeaseTimer) clearInterval(this.runtimeLeaseTimer)
-    this.runtimeLeaseTimer = setInterval(write, 5000)
-    this.runtimeLeaseTimer.unref?.()
-  }
-
-  releaseLease() {
-    if (this.runtimeLeaseTimer) {
-      clearInterval(this.runtimeLeaseTimer)
-      this.runtimeLeaseTimer = undefined
-    }
-    if (this.runtimeLeasePath) removeFileIfExists(this.runtimeLeasePath)
-  }
-
-  otherLiveLeaseCount() {
-    if (!this.runtimeWorkspaceKey || !this.runtimeDescriptorPath) return 0
-    const runtimeDir = path.dirname(this.runtimeDescriptorPath)
-    const prefix = `lease-${this.runtimeWorkspaceKey}-`
-    let count = 0
-    for (const name of fs.readdirSync(runtimeDir).filter(item => item.startsWith(prefix) && item.endsWith('.json'))) {
-      const file = path.join(runtimeDir, name)
-      if (file === this.runtimeLeasePath) continue
-      const lease = readJsonFile(file)
-      const fresh = Date.now() - Number(lease?.updatedAt || 0) < 20_000
-      if (fresh && processIsAlive(lease?.pid)) count += 1
-      else removeFileIfExists(file)
-    }
-    return count
-  }
-
-  removeRuntimeDescriptorForPid(pid) {
-    if (!this.runtimeDescriptorPath) return
-    const descriptor = readJsonFile(this.runtimeDescriptorPath)
-    if (!descriptor || Number(descriptor.pid) === Number(pid)) removeFileIfExists(this.runtimeDescriptorPath)
-  }
+  runtimePaths(folder) { return coreLease.runtimePaths(this, folder) }
+  async isHealthy(baseUrl, timeoutMs = 1200) { return coreLease.isHealthy(this, baseUrl, timeoutMs) }
+  async tryAttachSharedCore(folder) { return coreLease.tryAttachSharedCore(this, folder) }
+  async acquireRuntimeLock(folder) { return coreLease.acquireRuntimeLock(this, folder) }
+  releaseRuntimeLock() { return coreLease.releaseRuntimeLock(this) }
+  writeRuntimeDescriptor(folder) { return coreLease.writeRuntimeDescriptor(this, folder) }
+  startLease() { return coreLease.startLease(this) }
+  releaseLease() { return coreLease.releaseLease(this) }
+  otherLiveLeaseCount() { return coreLease.otherLiveLeaseCount(this) }
+  removeRuntimeDescriptorForPid(pid) { return coreLease.removeRuntimeDescriptorForPid(this, pid) }
 
   async ensureStarted() {
     if (this.state === 'running' && this.baseUrl && Date.now() - this.lastHealthAt < 3000) return

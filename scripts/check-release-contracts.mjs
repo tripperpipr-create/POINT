@@ -594,6 +594,7 @@ for (const token of [
   "require('./companion-controller')", "require('./ide-action-controller')",
   "require('./ide-navigation-controller')", "require('./connection-controller')",
   "require('./project-index-controller')", "require('./console-ssh-controller')",
+  "require('./core-log')", "require('./core-lease')",
 ]) {
   requireText(extensionSource, token, 'extension module boundary')
 }

@@ -23,6 +23,8 @@ import { createAgentConstructor, CONSTRUCTOR_STEPS as AGENT_CONSTRUCTOR_STEPS } 
 import { createHubRuntimeUi } from './hub-runtime-ui.js'
 import { handleGitClickAction, handleGitChangeAction } from './git-actions.js'
 import { handleHubClickAction } from './hub-actions.js'
+import { handleCompanionClickAction } from './companion-actions.js'
+import { handleOnboardingClickAction } from './onboarding-actions.js'
 import { createDecisionViews } from './decision-views.js'
 import { createCompanionThreadViews } from './companion-thread-views.js'
 import { createKeyboardNavigation } from './keyboard-navigation.js'
@@ -2120,8 +2122,21 @@ const modularUiState = {
   get apiKey() { return apiKey }, set apiKey(value) { apiKey = value },
   get blueprintSyncDirection() { return blueprintSyncDirection }, set blueprintSyncDirection(value) { blueprintSyncDirection = value },
   get blueprintSyncPreview() { return blueprintSyncPreview }, set blueprintSyncPreview(value) { blueprintSyncPreview = value },
+  get companionAppliedNotice() { return companionAppliedNotice }, set companionAppliedNotice(value) { companionAppliedNotice = value },
+  get companionDraft() { return companionDraft }, set companionDraft(value) { companionDraft = value },
+  get companionFeedbackMarks() { return companionFeedbackMarks }, set companionFeedbackMarks(value) { companionFeedbackMarks = value },
+  get companionInterventionProbe() { return companionInterventionProbe }, set companionInterventionProbe(value) { companionInterventionProbe = value },
+  get companionLoading() { return companionLoading }, set companionLoading(value) { companionLoading = value },
+  get companionMessages() { return companionMessages }, set companionMessages(value) { companionMessages = value },
+  get companionPendingSend() { return companionPendingSend }, set companionPendingSend(value) { companionPendingSend = value },
   get companionProviderProbe() { return companionProviderProbe }, set companionProviderProbe(value) { companionProviderProbe = value },
+  get companionSetupDraft() { return companionSetupDraft }, set companionSetupDraft(value) { companionSetupDraft = value },
   get companionSetupOpen() { return companionSetupOpen }, set companionSetupOpen(value) { companionSetupOpen = value },
+  get companionSetupQuiet() { return companionSetupQuiet }, set companionSetupQuiet(value) { companionSetupQuiet = value },
+  get companionSetupStatus() { return companionSetupStatus }, set companionSetupStatus(value) { companionSetupStatus = value },
+  get companionSetupStep() { return companionSetupStep }, set companionSetupStep(value) { companionSetupStep = value },
+  get companionSetupTestResult() { return companionSetupTestResult }, set companionSetupTestResult(value) { companionSetupTestResult = value },
+  get companionStreamReply() { return companionStreamReply }, set companionStreamReply(value) { companionStreamReply = value },
   get constructorDraft() { return constructorDraft }, set constructorDraft(value) { constructorDraft = value },
   get constructorStep() { return constructorStep }, set constructorStep(value) { constructorStep = value },
   get compiledPromptPreview() { return compiledPromptPreview }, set compiledPromptPreview(value) { compiledPromptPreview = value },
@@ -2212,6 +2227,7 @@ const modularUiState = {
   get memoryDraft() { return memoryDraft }, set memoryDraft(value) { memoryDraft = value },
   get memoryEditId() { return memoryEditId }, set memoryEditId(value) { memoryEditId = value },
   get onboardingDraft() { return onboardingDraft }, set onboardingDraft(value) { onboardingDraft = value },
+  get onboardingLockNotice() { return onboardingLockNotice }, set onboardingLockNotice(value) { onboardingLockNotice = value },
   get onboardingStep() { return onboardingStep }, set onboardingStep(value) { onboardingStep = value },
   get pendingSkillEquip() { return pendingSkillEquip }, set pendingSkillEquip(value) { pendingSkillEquip = value },
   get profileDraft() { return profileDraft }, set profileDraft(value) { profileDraft = value },
@@ -3226,569 +3242,29 @@ root.addEventListener('click', event => {
     }
     vscode.postMessage({ type: 'selectTab', tab })
   }
-  if (action === 'stop-companion-chat') stopCompanionChat()
-  if (action === 'companion-scroll-latest') scrollCompanionThread(true)
-  if (action === 'copy-companion-message' || action === 'copy-companion-code') {
-    const source = action === 'copy-companion-code'
-      ? target.closest?.('.companion-code-wrap')?.querySelector?.('code')
-      : target.closest?.('.companion-msg')?.querySelector?.('.companion-msg-body, p')
-    const text = String(source?.innerText || source?.textContent || '').trim()
-    if (text) {
-      vscode.postMessage({ type: 'copyCompanionText', text })
-      const previous = target.textContent
-      target.textContent = 'Скопировано ✓'
-      setTimeout(() => { if (target.isConnected) target.textContent = previous }, 1400)
-    }
-  }
-  if (action === 'regenerate-companion-message') {
-    const index = Number(target.dataset.messageIndex || -1)
-    const previous = companionMessages.slice(0, index).reverse().find(item => item?.role === 'user')
-    if (previous?.content && !companionLoading) sendCompanionUserMessage(previous.content, { retry: true })
-  }
-  if (action === 'feedback-companion-message') {
-    const index = Number(target.dataset.messageIndex || -1)
-    const item = companionMessages[index]
-    vscode.postMessage({
-      type: 'companionFeedback',
-      messageId: target.dataset.messageId || item?.id || '',
-      value: target.dataset.value === 'down' ? 'down' : 'up',
-      content: String(item?.content || '').slice(0, 400),
-    })
-    // Отметка сразу попадает в состояние: ответ расширения придёт позже, а
-    // перерисовка может случиться раньше него.
-    const markedId = String(target.dataset.messageId || item?.id || '')
-    if (markedId) companionFeedbackMarks.set(markedId, target.dataset.value === 'down' ? 'down' : 'up')
-    render()
-  }
-  if (action === 'open-companion-message-details') {
-    const index = Number(target.dataset.messageIndex || -1)
-    const item = companionMessages[index]
-    const request = companionMessages.slice(0, index).reverse().find(entry => entry?.role === 'user')
-    if (item) vscode.postMessage({ type: 'openCompanionMessageDetails', item, request: request?.content || '' })
-  }
-  if (action === 'new-companion-thread') {
-    if (companionLoading) stopCompanionChat()
-    vscode.postMessage({ type: 'newCompanionThread', messages: companionMessages })
-  }
-  if (action === 'show-companion-archives') vscode.postMessage({ type: 'showCompanionArchives' })
-  if (action === 'clear-companion-pending') {
-    companionPendingSend = ''
-    companionDraft = ''
-    persistDraft()
-    render()
-    focusCompanionInput()
-  }
-  if (action === 'close-companion-popup') vscode.postMessage({ type: 'closeCompanionPopup' })
-  if (action === 'open-companion-popup') vscode.postMessage({ type: 'openCompanionPopup' })
-  if (action === 'open-companion-sidebar') {
-    vscode.postMessage({
-      type: 'companionThreadUpdate',
-      messages: companionMessages,
-      draft: companionDraft,
-      streamReply: companionStreamReply,
-      loading: companionLoading,
-      pendingSend: companionPendingSend,
-    })
-    vscode.postMessage({ type: 'openCompanionSidebar' })
-  }
-  if (action === 'dismiss-companion-applied') {
-    companionAppliedNotice = undefined
-    render()
-  }
-  if (action === 'companion-continue') {
-    sendCompanionUserMessage('Продолжи прошлый ответ с места обрыва, не повторяя написанное.')
-  }
-  if (action === 'companion-retry-last') {
-    const lastUser = [...companionMessages].reverse().find(item => item.role === 'user')
-    if (lastUser?.content) sendCompanionUserMessage(lastUser.content)
-  }
-  if (action === 'focus-hub') vscode.postMessage({ type: 'focusHub', tab: target.dataset.tab || 'overview' })
-  if (action === 'clear-companion-history') vscode.postMessage({ type: 'clearCompanionHistory' })
-  if (action === 'dismiss-companion-intervention') vscode.postMessage({ type: 'dismissCompanionIntervention', id: target.dataset.id || '', occurrenceKey: target.dataset.occurrence || '' })
-  if (action === 'restore-companion-interventions') vscode.postMessage({ type: 'restoreCompanionInterventions' })
-  if (action === 'companion-intervention-action') {
-    const relatedId = target.dataset.relatedId || ''
-    const actionKind = target.dataset.kind || ''
-    if (actionKind === 'probe_connection' && relatedId) {
-      companionInterventionProbe = {
-        interventionId: target.dataset.interventionId || '',
-        connectionId: relatedId,
-        loading: true,
-      }
-      render()
-      vscode.postMessage({ type: 'probeCompanionConnection', connectionId: relatedId })
-      return
-    }
-    if (actionKind === 'companion_prompt' && target.dataset.message && !companionLoading) {
-      companionDraft = target.dataset.message
-      persistDraft()
-      vscode.postMessage({ type: 'openCompanionPopup', message: target.dataset.message, send: false })
-      render()
-      focusCompanionInput()
-      return
-    }
-    const execution = (state.boot?.executions || []).find(item => item.id === relatedId)
-    const runId = execution?.runId || ''
-    if (actionKind === 'message_run' && runId && target.dataset.message) {
-      vscode.postMessage({ type: 'messageRun', runId, message: target.dataset.message })
-    } else if (runId) {
-      vscode.postMessage({ type: 'loadRun', id: runId })
-    } else if (target.dataset.tab) {
-      vscode.postMessage({ type: 'selectTab', tab: canonicalTab(target.dataset.tab) })
-    }
-  }
-  if (action === 'companion-quick-prompt') {
-    sendCompanionUserMessage(target.dataset.prompt || '')
-  }
-  if (action === 'companion-prefill') {
-    companionDraft = target.dataset.prompt || ''
-    persistDraft()
-    render()
-    focusCompanionInput()
-  }
-  if (action === 'companion-answer') {
-    sendCompanionUserMessage(target.dataset.prompt || '')
-  }
-  if (action === 'open-companion-setup') {
-    companionSetupOpen = true
-    companionSetupStep = normalizeCompanionSetupStep(target.dataset.step || 'brain')
-    companionSetupDraft = companionSetupDraftFromConfig()
-    companionProviderProbe = undefined
-    companionSetupStatus = ''
-    companionSetupTestResult = undefined
-    agentConstructorOpen = false
-    persistDraft()
-    render()
-  }
-  if (action === 'close-companion-setup') {
-    companionSetupDraft = currentCompanionSetupDraft()
-    companionSetupOpen = false
-    companionSetupStatus = ''
-    companionProviderProbe = undefined
-    persistDraft()
-    render()
-  }
-  if (action === 'companion-setup-step') {
-    companionSetupDraft = currentCompanionSetupDraft()
-    companionSetupStep = normalizeCompanionSetupStep(target.dataset.step || 'role')
-    companionSetupStatus = ''
-    companionSetupQuiet = false
-    persistDraft()
-    refreshCompanionSetup({ quiet: true })
-  }
-  if (action === 'companion-setup-move') {
-    companionSetupDraft = currentCompanionSetupDraft()
-    const currentIndex = Math.max(0, COMPANION_SETUP_STEPS.findIndex(item => item.id === companionSetupStep))
-    const direction = Number(target.dataset.direction || 1)
-    const issue = direction > 0 ? companionSetupValidation(companionSetupStep, companionSetupDraft) : ''
-    if (issue) { companionSetupStatus = issue; refreshCompanionSetup({ quiet: true }); return }
-    companionSetupStatus = ''
-    companionSetupStep = COMPANION_SETUP_STEPS[Math.max(0, Math.min(COMPANION_SETUP_STEPS.length - 1, currentIndex + direction))].id
-    persistDraft()
-    refreshCompanionSetup({ quiet: false })
-  }
-  if (action === 'companion-select-mode') {
-    const mode = 'model'
-    let draft = onboardingCompanionActive() ? onboardingCompanionDraft() : currentCompanionSetupDraft()
-    if (!draft.connectionId) {
-      const connection = companionConnections()[0]
-      const preset = defaultCompanionProviderPreset()
-      draft = sanitizeCompanionSetupDraft({ ...draft, mode, connectionMode: connection ? 'existing' : 'new', connectionId: connection?.id || '', connectionName: connection?.displayName || '', providerPreset: connection?.presetId || preset?.id || '', provider: connection?.provider || preset?.kind || '', baseUrl: connection?.baseUrl || preset?.baseUrl || '', model: draft.model || preset?.defaultModel || '' })
-    } else {
-      draft.mode = mode
-    }
-    if (onboardingCompanionActive()) writeOnboardingCompanionDraft(draft)
-    else companionSetupDraft = draft
-    companionSetupStatus = ''
-    persistDraft()
-    refreshCompanionSetup({ quiet: true })
-  }
-  if (action === 'probe-companion-connection') {
-    const draft = onboardingCompanionActive() ? onboardingCompanionDraft() : currentCompanionSetupDraft()
-    if (!onboardingCompanionActive()) companionSetupDraft = draft
-    companionProviderProbe = { loading: true, models: [] }
-    companionSetupStatus = ''
-    refreshCompanionSetup({ quiet: true })
-    vscode.postMessage({ type: 'probeCompanionConnection', connectionId: target.dataset.id || draft.connectionId })
-  }
-  if (action === 'companion-select-model') {
-    if (onboardingOrchestratorActive()) {
-      writeOnboardingOrchestratorDraft({ ...currentOnboardingOrchestratorValues(), model: target.dataset.model || '' })
-      persistDraft()
-      render()
-      return
-    }
-    const draft = onboardingCompanionActive() ? onboardingCompanionDraft() : currentCompanionSetupDraft()
-    draft.model = target.dataset.model || ''
-    if (onboardingCompanionActive()) writeOnboardingCompanionDraft(draft)
-    else companionSetupDraft = draft
-    persistDraft()
-    refreshCompanionSetup({ quiet: true })
-  }
-  if (action === 'companion-setup-preset') {
-    const preset = COMPANION_PRESETS.find(item => item.id === target.dataset.preset)
-    if (preset) {
-      companionSetupDraft = sanitizeCompanionSetupDraft({ ...currentCompanionSetupDraft(), preset: preset.id, ...preset.values })
-      companionSetupStatus = ''
-      refreshCompanionSetup({ liveOnly: true })
-    }
-  }
-  if (action === 'companion-toggle-auto-act') {
-    companionSetupDraft = sanitizeCompanionSetupDraft({ ...currentCompanionSetupDraft(), autoAct: target.dataset.autoAct === 'true' })
-    companionSetupStatus = ''
-    refreshCompanionSetup({ liveOnly: true })
-  }
-  if (action === 'companion-select-example') {
-    companionSetupDraft = currentCompanionSetupDraft()
-    companionSetupDraft.examplePrompt = target.dataset.prompt || COMPANION_EXAMPLES[0].prompt
-    companionSetupDraft.sampleScene = companionNormalizeSceneId(companionSetupDraft.examplePrompt)
-    companionSetupTestResult = undefined
-    persistDraft()
-    refreshCompanionSetup({ quiet: true })
-  }
-  if (action === 'companion-select-scene') {
-    const scene = companionSceneById(target.dataset.scene)
-    if (root.querySelector('.companion-onboarding') && !companionSetupOpen) {
-      onboardingDraft = { ...onboardingDraft, sampleScene: scene.id }
-      persistDraft()
-      refreshCompanionLiveSurfaces(onboardingCompanionDraft(), root.querySelector('.companion-onboarding') || root)
-      return
-    }
-    companionSetupDraft = sanitizeCompanionSetupDraft({ ...currentCompanionSetupDraft(), sampleScene: scene.id, examplePrompt: scene.prompt })
-    refreshCompanionSetup({ liveOnly: true })
-  }
-  if (action === 'save-test-companion') {
-    companionSetupDraft = currentCompanionSetupDraft()
-    const issue = companionSetupValidation('brain', companionSetupDraft) || companionSetupValidation('boundaries', companionSetupDraft) || companionSetupValidation('skills', companionSetupDraft)
-    if (issue) { companionSetupStatus = issue; render(); return }
-    companionLoading = true
-    companionSetupStatus = ''
-    companionSetupTestResult = undefined
-    persistDraft()
-    render()
-    vscode.postMessage({ type: 'saveCompanionConfigAndChat', config: companionConfigFromDraft(companionSetupDraft), message: companionSetupDraft.examplePrompt })
-  }
-  if (action === 'cursor-login') vscode.postMessage({type:'cursorLogin'})
-  if (action === 'complete-onboarding') vscode.postMessage({type:'completeOnboarding'})
-  if (action === 'complete-master-onboarding') {
-    persistOnboardingOrchestrator(false)
-    const issue = orchestratorSetupValidation(onboardingOrchestratorDraft())
-    if (issue) {
-      companionSetupStatus = issue
-      persistDraft()
-      render()
-      return
-    }
-    companionSetupStatus = ''
-    persistOnboardingOrchestrator(true)
-    onboardingDraft = { ...onboardingDraft, orchestratorFinished: true }
-    persistDraft()
-    vscode.postMessage({type:'completeOnboarding'})
-  }
-  if (action === 'restart-onboarding') {
-    onboardingStep = 'orchestrator-brain'
-    onboardingDraft = { ...onboardingDraft, orchestratorFinished: false }
-    persistDraft()
-    vscode.postMessage({type:'restartOnboarding'})
-  }
-  if (action === 'onboarding-step') {
-    const nextStep = target.dataset.step || 'welcome'
-    const currentIndex = Math.max(0, ONBOARDING_STEPS.findIndex(item => item.id === onboardingStep))
-    const nextIndex = Math.max(0, ONBOARDING_STEPS.findIndex(item => item.id === nextStep))
-    const advancing = nextIndex > currentIndex
-    if (onboardingStep === 'companion-brain' && advancing) {
-      persistOnboardingCompanion(false)
-      const issue = companionSetupValidation('brain', onboardingCompanionDraft())
-      if (issue) {
-        companionSetupStatus = issue
-        persistDraft()
-        render()
-        return
-      }
-      companionSetupStatus = ''
-      persistOnboardingCompanion(true)
-      onboardingDraft = { ...onboardingDraft, companionFinished: true }
-    } else if (isCompanionOnboardingStep(onboardingStep)) {
-      persistOnboardingCompanion(advancing)
-    }
-    if (onboardingStep === 'orchestrator-brain' && advancing) {
-      persistOnboardingOrchestrator(false)
-      const issue = orchestratorSetupValidation(onboardingOrchestratorDraft())
-      if (issue) {
-        companionSetupStatus = issue
-        persistDraft()
-        render()
-        return
-      }
-      companionSetupStatus = ''
-      persistOnboardingOrchestrator(true)
-      // Подключение уже сохранено, но первый запуск завершится только после
-      // следующего экрана с политикой Мастера.
-      onboardingDraft = { ...onboardingDraft, orchestratorFinished: false }
-    } else if (isOrchestratorOnboardingStep(onboardingStep)) {
-      persistOnboardingOrchestrator(advancing)
-    }
-    if (onboardingStep === 'first-agent' && advancing && !onboardingPrimaryAgent()) {
-      acceptFirstAgentProposal()
-    }
-    if (nextStep === 'first-agent' && !onboardingDraft.agentTemplateId) {
-      onboardingDraft = { ...onboardingDraft, agentTemplateId: companionSuggestedTemplateId() }
-    }
-    if (!canEnterOnboardingStep(nextStep)) {
-      onboardingLockNotice = onboardingLockReason(nextStep) || 'Шаг откроется позже'
-      persistDraft()
-      render()
-      return
-    }
-    onboardingLockNotice = ''
-    onboardingStep = nextStep
-    persistDraft()
-    render()
-  }
-  if (action === 'onboarding-orchestrator-preset') {
-    const preset = ORCHESTRATOR_PRESETS.find(item => item.id === target.dataset.preset) || ORCHESTRATOR_PRESETS[0]
-    writeOnboardingOrchestratorDraft({ ...onboardingOrchestratorDraft(), preset: preset.id, ...preset.values })
-    persistDraft()
-    render()
-  }
-  if (action === 'orchestrator-select-mode') {
-    let draft = onboardingOrchestratorDraft()
-    const mode = target.dataset.mode === 'model' ? 'model' : 'local'
-    if (mode === 'model' && !draft.connectionId) {
-      const connection = companionConnections()[0]
-      const preset = defaultCompanionProviderPreset()
-      draft = sanitizeOrchestratorDraft({ ...draft, mode, connectionMode: connection ? 'existing' : 'new', connectionId: connection?.id || '', connectionName: connection?.displayName || '', providerPreset: connection?.presetId || preset?.id || '', provider: connection?.provider || preset?.kind || '', baseUrl: connection?.baseUrl || preset?.baseUrl || '', model: draft.model || connection?.model || preset?.defaultModel || '' })
-    } else {
-      draft.mode = mode
-    }
-    writeOnboardingOrchestratorDraft(draft)
-    companionProviderProbe = undefined
-    companionSetupStatus = ''
-    persistDraft()
-    render()
-  }
-  if (action === 'probe-orchestrator-connection') {
-    const draft = currentOnboardingOrchestratorValues()
-    writeOnboardingOrchestratorDraft(draft)
-    companionProviderProbe = { loading: true, models: [] }
-    companionSetupStatus = ''
-    persistDraft()
-    render()
-    vscode.postMessage({ type: 'probeCompanionConnection', connectionId: target.dataset.id || draft.connectionId })
-  }
-  if (action === 'open-orchestrator-setup') {
-    state.selectedTab = 'onboarding'
-    // Расширение обязано знать о переходе. Без этого его selectedTab оставался
-    // прежним, и первое же состояние — от нажатия «перестроить индекс», от
-    // проверки связи, от любого фонового опроса — возвращало прежнюю вкладку и
-    // закрывало настройку Мастера на середине.
-    vscode.postMessage({ type: 'selectTab', tab: 'onboarding' })
-    onboardingStep = 'orchestrator-brain'
-    persistDraft()
-    render()
-  }
-  if (action === 'onboarding-companion-preset') {
-    const presetId = target.dataset.preset || 'balanced'
-    const preset = COMPANION_PRESETS.find(item => item.id === presetId) || COMPANION_PRESETS[0]
-    onboardingDraft = { ...onboardingDraft, companionPreset: preset.id, ...preset.values }
-    persistDraft()
-    render()
-  }
-  if (action === 'onboarding-agent-template') {
-    onboardingDraft = { ...onboardingDraft, agentTemplateId: target.dataset.template || '' }
-    persistDraft()
-    render()
-  }
-  if (action === 'save-onboarding-companion') {
-    persistOnboardingCompanion(true)
-  }
-  if (action === 'onboarding-create-agent') {
-    acceptFirstAgentProposal()
-  }
-  if (action === 'onboarding-edit-agent') {
-    const proposal = firstAgentProposal()
-    const name = (root.querySelector('#onboarding-agent-name')?.value.trim() || onboardingDraft.agentName || proposal.name || '').trim()
-    onboardingDraft = { ...onboardingDraft, agentName: name, agentTemplateId: proposal.template?.id || onboardingDraft.agentTemplateId }
-    constructorDraft = firstAgentDraftFromProposal(proposal)
-    constructorStep = 'identity'
-    agentConstructorOpen = true
-    profileEditorOpen = false
-    persistDraft()
-    render()
-  }
-  if (action === 'onboarding-apply-connection') {
-    const connection = (state.boot?.connections || []).find(item => item.id === target.dataset.id)
-    if (!connection) return
-    const preset = providerCatalog().find(item => item.id === connection.presetId || item.kind === connection.provider)
-    onboardingDraft = { ...onboardingDraft, connectionId: connection.id, providerPreset: connection.presetId || preset?.id || '' }
-    persistDraft()
-    patchOnboardingAgent({
-      provider: connection.provider || preset?.kind || '',
-      providerPreset: connection.presetId || preset?.id || '',
-      baseUrl: connection.baseUrl || preset?.baseUrl || '',
-      primaryModel: onboardingDraft.agentModel || preset?.defaultModel || '',
-      model: onboardingDraft.agentModel || preset?.defaultModel || '',
-    })
-    render()
-  }
-  if (action === 'onboarding-use-cursor') {
-    const preset = companionProviderPresets().find(item => item.local) || companionProviderPresets()[0]
-    if (!preset) return
-    onboardingDraft = { ...onboardingDraft, providerPreset: preset.id, companionProvider: preset.kind }
-    persistDraft()
-    patchOnboardingAgent({ provider: preset.kind, providerPreset: preset.id, primaryModel: preset.defaultModel || '', model: preset.defaultModel || '', baseUrl: preset.baseUrl || '' })
-    render()
-  }
-  if (action === 'onboarding-pick-provider') {
-    onboardingDraft = { ...onboardingDraft, providerPreset: target.dataset.preset || '', companionProvider: target.dataset.provider || '' }
-    persistDraft()
-    render()
-    const select = root.querySelector('#connection-provider')
-    if (select && target.dataset.provider) select.value = target.dataset.provider
-  }
-  if (action === 'onboarding-agent-cycle') {
-    const templates = onboardingAgentTemplates()
-    if (!templates.length) return
-    const current = companionSuggestedTemplateId(templates)
-    const index = Math.max(0, templates.findIndex(item => item.id === current))
-    const next = templates[(index + 1) % templates.length]
-    onboardingDraft = { ...onboardingDraft, agentTemplateId: next.id }
-    persistDraft()
-    render()
-  }
-  if (action === 'open-agent-constructor' || action === 'open-agent-constructor-edit') {
-    // Незавершённый онбординг системных агентов держит порядок и остаётся.
-    if (state.selectedTab === 'onboarding' && isSystemOnboardingStep(onboardingStep)) return
-    // А открытая настройка компаньона просто закрывается: панель не должна
-    // молча съедать нажатие на «Нанять агента».
-    if (companionSetupOpen) companionSetupOpen = false
-    agentConstructorOpen = true
-    profileEditorOpen = false
-    profileDraft = undefined
-    createStepError = ''
-    constructorStep = 'identity'
-    if (action === 'open-agent-constructor-edit') {
-      // Кнопка может назвать агента прямо: карточка наряда ведёт в мастерскую
-      // того исполнителя, которого утверждение только что создало, а не того,
-      // кто случайно выбран в ростере.
-      const named = target.dataset.id ? agentById(String(target.dataset.id)) : null
-      if (named) selectedProfileId = named.id
-      const selected = named || agentById(selectedProfileId) || hubAgents()[0]
-      constructorDraft = newConstructorDraft(selected ? {
-        ...selected,
-        primaryModel: selected.primaryModel || selected.model,
-        model: selected.primaryModel || selected.model,
-      } : undefined)
-    } else {
-      constructorDraft = newConstructorDraft()
-    }
-    persistDraft()
-    render()
-  }
-  if (action === 'close-agent-constructor') {
-    agentConstructorOpen = false
-    constructorDraft = undefined
-    constructorStep = 'identity'
-    createStepError = ''
-    resetCompiledPromptPreview()
-    persistDraft()
-    render()
-  }
-  if (action === 'reload-compiled-prompt') {
-    resetCompiledPromptPreview()
-    render()
-  }
-  if (action === 'constructor-step') {
-    const draft = currentConstructorForm()
-    if (draft) constructorDraft = draft
-    createStepError = ''
-    constructorStep = target.dataset.step || 'identity'
-    persistDraft()
-    render()
-  }
-  if (action === 'constructor-advance') {
-    const draft = currentConstructorForm()
-    if (draft) constructorDraft = draft
-    createStepError = ''
-    constructorStep = target.dataset.step || constructorStep
-    persistDraft()
-    render()
-  }
-  if (action === 'constructor-scratch') {
-    constructorDraft = newConstructorDraft()
-    constructorStep = 'identity'
-    render()
-  }
-  if (action === 'constructor-template') {
-    const templateId = target.dataset.template || ''
-    const blueprint = (state.boot?.blueprints || []).find(item => item.id === templateId)
-    const profileTemplate = (state.boot?.profileTemplates || []).find(item => item.id === templateId)
-    const source = blueprint || profileTemplate
-    if (source) {
-      constructorDraft = newConstructorDraft({
-        ...source,
-        id: '',
-        primaryModel: source.primaryModel || source.model,
-        model: source.primaryModel || source.model,
-        blueprintId: blueprint?.id || '',
-      })
-      constructorStep = 'identity'
-      render()
-    }
-  }
-  if (action === 'constructor-tool-preset') {
-    const preset = TOOL_PRESETS.find(item => item.id === target.dataset.preset)
-    const values = preset?.tools === null ? (state.boot?.toolCatalog || []).map(item => item.name) : (preset?.tools || [])
-    for (const input of root.querySelectorAll('input[name="constructor-tool"]')) input.checked = values.includes(input.value)
-    const draft = currentConstructorForm()
-    if (draft) constructorDraft = draft
-    render()
-  }
-  if (action === 'save-constructor') {
-    const draft = currentConstructorForm()
-    if (!draft) return
-    if (!(draft.name || '').trim()) { createStepError = 'Укажите имя агента'; constructorDraft = draft; render(); return }
-    const dropped = legacySaveWouldDrop(draft)
-    if (dropped) { createStepError = dropped; constructorDraft = draft; render(); return }
-    constructorDraft = draft
-    createStepError = ''
-    if (hubModeAvailable()) {
-      vscode.postMessage({ type: 'saveProjectAgent', agent: constructorToProjectAgent(draft) })
-    } else {
-      vscode.postMessage({ type: 'saveProfile', profile: constructorToProfile(draft) })
-    }
-  }
-  if (action === 'apply-blueprint') {
-    const draft = currentConstructorForm()
-    if (draft) constructorDraft = draft
-    if (draft?.id) {
-      blueprintSyncDirection = 'apply-blueprint'
-      blueprintSyncPreview = { projectAgentId: draft.id, loading: true }
-      render()
-      vscode.postMessage({ type: 'previewBlueprintSync', agentId: draft.id, direction: blueprintSyncDirection })
-    }
-  }
-  if (action === 'update-blueprint') {
-    const draft = currentConstructorForm()
-    if (draft) constructorDraft = draft
-    if (draft?.id) {
-      blueprintSyncDirection = 'update-blueprint'
-      blueprintSyncPreview = { projectAgentId: draft.id, loading: true }
-      render()
-      vscode.postMessage({ type: 'previewBlueprintSync', agentId: draft.id, direction: blueprintSyncDirection })
-    }
-  }
-  if (action === 'cancel-blueprint-sync') {
-    blueprintSyncPreview = undefined
-    blueprintSyncDirection = ''
-    render()
-  }
-  if (action === 'confirm-blueprint-sync') {
-    const agentId = blueprintSyncPreview?.projectAgentId
-    if (!agentId) return
-    const type = blueprintSyncDirection === 'update-blueprint' ? 'updateBlueprintFromAgent' : 'applyBlueprintToAgent'
-    vscode.postMessage({ type, agentId })
-  }
+  if (handleCompanionClickAction({
+    action, target, root, ui: modularUiState, vscode, persistDraft, render,
+    stopCompanionChat, scrollCompanionThread, sendCompanionUserMessage, focusCompanionInput, canonicalTab,
+    normalizeCompanionSetupStep, companionSetupDraftFromConfig, currentCompanionSetupDraft,
+    companionSetupValidation, companionConfigFromDraft, refreshCompanionSetup, refreshCompanionLiveSurfaces,
+    sanitizeCompanionSetupDraft, companionConnections, companionNormalizeSceneId, companionSceneById,
+    defaultCompanionProviderPreset, onboardingCompanionActive, onboardingCompanionDraft,
+    writeOnboardingCompanionDraft, onboardingOrchestratorActive, writeOnboardingOrchestratorDraft,
+    currentOnboardingOrchestratorValues,
+  })) return
+  if (handleOnboardingClickAction({
+    ui: modularUiState,
+    action, target, root, vscode, persistDraft, render, ONBOARDING_STEPS, ORCHESTRATOR_PRESETS, TOOL_PRESETS,
+    acceptFirstAgentProposal, agentById, canEnterOnboardingStep, companionConnections, companionProviderPresets,
+    companionSetupValidation, companionSuggestedTemplateId, constructorToProfile, constructorToProjectAgent,
+    currentConstructorForm, currentOnboardingOrchestratorValues, defaultCompanionProviderPreset,
+    firstAgentDraftFromProposal, firstAgentProposal, hubAgents, hubModeAvailable, isCompanionOnboardingStep,
+    isOrchestratorOnboardingStep, isSystemOnboardingStep, legacySaveWouldDrop, newConstructorDraft,
+    onboardingAgentTemplates, onboardingCompanionDraft, onboardingLockReason, onboardingOrchestratorDraft,
+    onboardingPrimaryAgent, orchestratorSetupValidation, patchOnboardingAgent, persistOnboardingCompanion,
+    persistOnboardingOrchestrator, providerCatalog, resetCompiledPromptPreview, sanitizeOrchestratorDraft,
+    writeOnboardingOrchestratorDraft,
+  })) return
   if (action === 'companion-suggest-ignore') {
     ignoredCompanionSuggestions.add(target.dataset.suggestId || '')
     persistDraft()

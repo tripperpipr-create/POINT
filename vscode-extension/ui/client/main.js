@@ -28,6 +28,7 @@ import { handleOnboardingClickAction } from './onboarding-actions.js'
 import { createCompanionTransport } from './companion-transport.js'
 import { createMasterInbox } from './master-inbox.js'
 import { createHubEntityInbox } from './hub-entity-inbox.js'
+import { createRunInbox } from './run-inbox.js'
 import { createDecisionViews } from './decision-views.js'
 import { createCompanionThreadViews } from './companion-thread-views.js'
 import { createKeyboardNavigation } from './keyboard-navigation.js'
@@ -1979,6 +1980,8 @@ const modularUiState = {
   get compiledPromptError() { return compiledPromptError }, set compiledPromptError(value) { compiledPromptError = value },
   get compiledPromptSignature() { return compiledPromptSignature }, set compiledPromptSignature(value) { compiledPromptSignature = value },
   get contextInspectorRunId() { return contextInspectorRunId }, set contextInspectorRunId(value) { contextInspectorRunId = value },
+  get contextInspector() { return contextInspector }, set contextInspector(value) { contextInspector = value },
+  get contextInspectorStatus() { return contextInspectorStatus }, set contextInspectorStatus(value) { contextInspectorStatus = value },
   get contextItems() { return contextItems }, set contextItems(value) { contextItems = value },
   get contextPreview() { return contextPreview }, set contextPreview(value) { contextPreview = value },
   get contextPreviewError() { return contextPreviewError }, set contextPreviewError(value) { contextPreviewError = value },
@@ -1999,6 +2002,7 @@ const modularUiState = {
   get chatDirectoryStatus() { return chatDirectoryStatus }, set chatDirectoryStatus(value) { chatDirectoryStatus = value },
   get decisionPick() { return decisionPick }, set decisionPick(value) { decisionPick = value },
   get decisionsData() { return decisionsData }, set decisionsData(value) { decisionsData = value },
+  get decisionsError() { return decisionsError }, set decisionsError(value) { decisionsError = value },
   get decisionsStatus() { return decisionsStatus }, set decisionsStatus(value) { decisionsStatus = value },
   get dockerData() { return dockerData }, set dockerData(value) { dockerData = value },
   get dockerLogs() { return dockerLogs }, set dockerLogs(value) { dockerLogs = value },
@@ -2007,6 +2011,7 @@ const modularUiState = {
   get experienceSearchItems() { return experienceSearchItems }, set experienceSearchItems(value) { experienceSearchItems = value },
   get experienceSearchQuery() { return experienceSearchQuery }, set experienceSearchQuery(value) { experienceSearchQuery = value },
   get experienceSearchStatus() { return experienceSearchStatus }, set experienceSearchStatus(value) { experienceSearchStatus = value },
+  get fileHistoryStatus() { return fileHistoryStatus }, set fileHistoryStatus(value) { fileHistoryStatus = value },
   get flowDraft() { return flowDraft }, set flowDraft(value) { flowDraft = value },
   get flowLegacyMode() { return flowLegacyMode }, set flowLegacyMode(value) { flowLegacyMode = value },
   get gitAmend() { return gitAmend }, set gitAmend(value) { gitAmend = value },
@@ -2026,6 +2031,7 @@ const modularUiState = {
   get gitTarget() { return gitTarget }, set gitTarget(value) { gitTarget = value },
   get hireAfterSave() { return hireAfterSave }, set hireAfterSave(value) { hireAfterSave = value },
   get hirePreviewTemplateId() { return hirePreviewTemplateId }, set hirePreviewTemplateId(value) { hirePreviewTemplateId = value },
+  get keptRunId() { return keptRunId }, set keptRunId(value) { keptRunId = value },
   get manualLearningDraft() { return manualLearningDraft }, set manualLearningDraft(value) { manualLearningDraft = value },
   get manualLearningPreview() { return manualLearningPreview }, set manualLearningPreview(value) { manualLearningPreview = value },
   get manualLearningStatus() { return manualLearningStatus }, set manualLearningStatus(value) { manualLearningStatus = value },
@@ -2079,6 +2085,7 @@ const modularUiState = {
   get questConstraintsDraft() { return questConstraintsDraft }, set questConstraintsDraft(value) { questConstraintsDraft = value },
   get questCriteriaDraft() { return questCriteriaDraft }, set questCriteriaDraft(value) { questCriteriaDraft = value },
   get questGoalDraft() { return questGoalDraft }, set questGoalDraft(value) { questGoalDraft = value },
+  get runStarting() { return runStarting }, set runStarting(value) { runStarting = value },
   get selectedCustomToolId() { return selectedCustomToolId }, set selectedCustomToolId(value) { selectedCustomToolId = value },
   get selectedFlowId() { return selectedFlowId }, set selectedFlowId(value) { selectedFlowId = value },
   get selectedFlowNodeId() { return selectedFlowNodeId }, set selectedFlowNodeId(value) { selectedFlowNodeId = value },
@@ -4599,6 +4606,25 @@ const FAILED_REQUEST_SECTIONS = {
   applyManualLearning: 'manualLearning',
 }
 
+// Всё вокруг запуска — свой модуль: предпросмотры, старт, откат и разбор
+// отказа, который отпускает всё, что ждало ответа.
+const applyRunMessage = createRunInbox({
+  ui: modularUiState, render: (...args) => render(...args),
+  persistDraft: (...args) => persistDraft(...args),
+  countOf: (...args) => countOf(...args),
+  FAILED_REQUEST_SECTIONS,
+  invalidateAgentRunPreview: (...args) => invalidateAgentRunPreview(...args),
+  requestContextPreview: (...args) => requestContextPreview(...args),
+  releaseMasterAgentCards: (...args) => releaseMasterAgentCards(...args),
+  forgetMasterSent: (...args) => forgetMasterSent(...args),
+  stopMasterWaitClock: (...args) => stopMasterWaitClock(...args),
+  masterClient, masterSentText, masterWorkOrderBusy,
+  proposalStarting, proposalModifying,
+  companionActionApplying, companionActionModifying,
+  agentCapabilityInflight, agentCapabilityFailed,
+  orchestratorPolicyInflight, orchestratorPolicyFailed,
+})
+
 window.addEventListener('message', event => {
   const message=event.data
   if (message.type === 'collectGarbage') {
@@ -4970,150 +4996,7 @@ window.addEventListener('message', event => {
     persistDraft()
     refreshCompanionSetup({ quiet: true })
   }
-  if (message.type === 'contextAdded') {
-    const incoming=Array.isArray(message.items)?message.items:[]
-    for(const item of incoming){
-      const duplicate=contextItems.some(current=>current.kind===item.kind&&current.path===item.path&&current.label===item.label&&current.content===item.content)
-      if(!duplicate&&contextItems.length<16)contextItems.push(item)
-    }
-    persistDraft()
-    requestContextPreview()
-  }
-  if (message.type === 'contextPreview') { contextPreview=message.preview; contextPreviewStatus='ready'; contextPreviewError=''; render() }
-  if (message.type === 'contextPreviewError') { contextPreview=undefined; contextPreviewStatus='error'; contextPreviewError=message.message||'Не удалось проверить вложения'; render() }
-  if (message.type === 'agentRunPreview') { agentRunPreview=message.preview;agentRunPreviewStatus='ready';agentRunPreviewError='';render() }
-  if (message.type === 'agentRunPreviewError') { agentRunPreview=undefined;agentRunPreviewStatus='error';agentRunPreviewError=message.message||'Не удалось проверить запуск';render() }
-  if (message.type === 'compiledPromptPreview') { compiledPromptPreview=message.preview;compiledPromptStatus='ready';compiledPromptError='';render() }
-  if (message.type === 'compiledPromptPreviewError') { compiledPromptPreview=undefined;compiledPromptStatus='error';compiledPromptError=message.message||'Не удалось собрать runtime-промпт';render() }
-  if (message.type === 'customToolPreview') { customToolPreview=message.preview;customToolPreviewStatus='ready';customToolPreviewError='';render() }
-  if (message.type === 'customToolPreviewError') { customToolPreview=undefined;customToolPreviewStatus='error';customToolPreviewError=message.message||'Не удалось проверить инструмент';render() }
-  if (message.type === 'runUndoResult') {
-    const result = message.result || {}
-    const reverted = Array.isArray(result.reverted) ? result.reverted.length : 0
-    const skipped = Array.isArray(result.skipped) ? result.skipped : []
-    if (reverted) {
-      transientError = skipped.length
-        ? `Откатили ${countOf(reverted, 'правка', 'правки', 'правок')}. Не всё: ${skipped.join('; ')}`
-        : `Откатили ${countOf(reverted, 'правка', 'правки', 'правок')}.`
-      if (!skipped.length && result.runId && keptRunId === result.runId) keptRunId = ''
-    } else if (skipped.length) {
-      transientError = `Не удалось откатить: ${skipped.join('; ')}`
-    } else if (message.message) {
-      transientError = message.message
-    }
-    persistDraft()
-    render()
-  }
-  if (message.type === 'runStarted') {
-    runStarting = false
-    masterSending = false
-    stopMasterWaitClock()
-    taskDraft='';questGoalDraft='';questCriteriaDraft='';questConstraintsDraft='';invalidateAgentRunPreview();contextItems=[]; contextPreview=undefined; contextPreviewStatus='idle'; contextPreviewError=''; persistDraft()
-    if (message.fastAgent) {
-      keptRunId = ''
-      masterDraft = ''
-      persistDraft()
-      if (masterClient?.acceptTurn) {
-        const runId = state.details?.run?.id || ''
-        masterClient.acceptTurn({
-          id: 'fast_' + Date.now().toString(36),
-          conversationId: masterClient.active,
-          status: 'ready',
-          reply: runId ? `Агент запущен (run ${runId}). Правки появятся ниже — Keep / Undo.` : 'Агент запущен.',
-        })
-      }
-    }
-  }
-  if (message.type === 'workflowRunStarted') { contextItems=[]; contextPreview=undefined; contextPreviewStatus='idle'; contextPreviewError=''; persistDraft() }
-  if (message.type === 'error') {
-    providerProbe = undefined
-    companionProviderProbe = undefined
-    // Запуск не состоялся — форму отпираем, иначе повторить будет нельзя.
-    runStarting = false
-    // Какое из предложений не запустилось, отказ не называет — отпускаем все:
-    // застрявшая навсегда кнопка хуже лишнего разблокированного нажатия,
-    // которое ядро всё равно отвергнет.
-    const failedRequest = String(message.request || '')
-    if (!failedRequest || failedRequest === 'approveMasterWorkOrderV2' || failedRequest === 'reviseMasterWorkOrderV2' || failedRequest === 'controlMasterWorkOrderQuestV2' || failedRequest === 'controlMasterApplicationV2') masterWorkOrderBusy.clear()
-    if (!failedRequest || failedRequest === '/api/quest-proposals/decide') {
-      proposalStarting.clear()
-      proposalModifying.clear()
-    }
-    if (!failedRequest || failedRequest === '/api/companion/actions/decide') {
-      companionActionApplying.clear()
-      companionActionModifying.clear()
-    }
-    // Отказ ядра обязан отпускать и карточку исполнителя: иначе её кнопка
-    // остаётся запертой навсегда, а набранное человеком некуда отправить.
-    releaseMasterAgentCards()
-    submittingForm = ''
-    // Годность персонажа и политика мастера ждут ответа в своих наборах, а
-    // снимались оттуда только ответом. После отказа ключ оставался ждать
-    // вечно: повтор блокировал сам себя, кэш пустовал, и оба экрана держали
-    // заглушку загрузки. Хуже того, готовность при неполученном ответе
-    // намеренно не отрицается — персонаж навсегда объявлялся готовым по
-    // данным, которых никто не присылал.
-    for (const key of agentCapabilityInflight) agentCapabilityFailed.add(key)
-    agentCapabilityInflight.clear()
-    for (const key of orchestratorPolicyInflight) orchestratorPolicyFailed.add(key)
-    orchestratorPolicyInflight.clear()
-    transientError = message.message
-    if (contextInspectorStatus === 'loading') {
-      contextInspectorStatus = 'error'
-      contextInspector = { error: message.message }
-    }
-    // Раздел уходит в «загрузку» перед запросом, а выходит из неё только
-    // приходом ответа. При отказе ответа не будет: полоса ошибки скажет
-    // причину, но раздел так и останется в «загрузка…» до переоткрытия панели.
-    // Спасали двоих из девяти — теперь всех. Состояние 'error' тупиковое
-    // намеренно: места запроса смотрят на 'idle', и автоповтор превратил бы
-    // постоянный отказ в бесконечный цикл запросов. Повторяет человек.
-    //
-    // Если ядро назвало упавший запрос и он знаком — гасим только его раздел,
-    // чтобы не винить соседей. Незнакомый или неназванный гасит всё ждущее:
-    // лишняя пометка сама сойдёт с приходом ответа, а вечная «загрузка» — нет.
-    const only = FAILED_REQUEST_SECTIONS[String(message.request || '')] || ''
-    const hit = name => !only || only === name
-    if (hit('statistics') && statisticsStatus === 'loading') statisticsStatus = 'error'
-    if (hit('docker') && dockerStatus === 'loading') dockerStatus = 'error'
-    if (hit('fileHistory') && fileHistoryStatus === 'loading') fileHistoryStatus = 'error'
-    if (hit('master') && masterStatus === 'loading') masterStatus = 'error'
-    if (hit('chatDirectory') && chatDirectoryStatus === 'loading') chatDirectoryStatus = 'error'
-    // Отправка Мастеру запирает поле и кнопку до ответа. Ответа не будет —
-    // и без снятия замка разговор вставал намертво: «Думает…» висело вечно,
-    // писать было нечем, а разморозить это могло только переоткрытие панели.
-    // Реплика цела в masterSentText и возвращается в поле — отправить её снова,
-    // а не набирать заново. Причину человек уже читает в полосе ошибки.
-    //
-    // Возврат делается только в пустое поле: ход больше не запирает композер, и
-    // человек мог написать в него следующую мысль, пока ответ не пришёл. Затереть
-    // её отказавшей репликой значило бы потерять обе.
-    const restoreSent = () => {
-      const sent = masterSentText()
-      if (sent && !String(masterDraft || '').trim()) masterDraft = sent
-      forgetMasterSent()
-    }
-    if (hit('master')) { masterSending = false; restoreSent(); stopMasterWaitClock(); runStarting = false }
-    if (hit('agent')) { runStarting = false; masterSending = false; restoreSent() }
-    if (hit('dbQuery') && dbQueryStatus === 'loading') dbQueryStatus = 'error'
-    if (hit('experienceSearch') && experienceSearchStatus === 'loading') experienceSearchStatus = 'error'
-    if (hit('manualLearning') && (manualLearningStatus === 'loading' || manualLearningStatus === 'applying')) manualLearningStatus = 'error'
-    // Эти двое объясняются не статусом, а своей строкой ошибки: без неё раздел
-    // вышел бы из спиннера и молча показал пустоту.
-    if (hit('compiledPrompt') && compiledPromptStatus === 'loading') {
-      compiledPromptStatus = 'error'
-      compiledPromptError = String(message.message || '') || 'запрос не удался'
-    }
-    if (hit('contextPreview') && contextPreviewStatus === 'loading') {
-      contextPreviewStatus = 'error'
-      contextPreviewError = String(message.message || '') || 'запрос не удался'
-    }
-    if (hit('decisions') && decisionsStatus === 'loading') {
-      decisionsStatus = 'error'
-      decisionsError = String(message.message || '') || 'запрос не удался'
-    }
-    render()
-  }
+  if (applyRunMessage(message)) return
   if (applyCompanionChatMessage(message)) return
   if (message.type === 'skillEquipPreview') {
     pendingSkillEquip = {

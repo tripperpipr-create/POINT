@@ -26,6 +26,7 @@ import { handleHubClickAction } from './hub-actions.js'
 import { handleCompanionClickAction } from './companion-actions.js'
 import { handleOnboardingClickAction } from './onboarding-actions.js'
 import { createCompanionTransport } from './companion-transport.js'
+import { createMasterInbox } from './master-inbox.js'
 import { createDecisionViews } from './decision-views.js'
 import { createCompanionThreadViews } from './companion-thread-views.js'
 import { createKeyboardNavigation } from './keyboard-navigation.js'
@@ -2026,20 +2027,21 @@ const modularUiState = {
   get manualLearningDraft() { return manualLearningDraft }, set manualLearningDraft(value) { manualLearningDraft = value },
   get manualLearningPreview() { return manualLearningPreview }, set manualLearningPreview(value) { manualLearningPreview = value },
   get manualLearningStatus() { return manualLearningStatus }, set manualLearningStatus(value) { manualLearningStatus = value },
-  get masterComposeNote() { return masterComposeNote },
+  get hiringReloadFor() { return hiringReloadFor }, set hiringReloadFor(value) { hiringReloadFor = value },
+  get masterComposeNote() { return masterComposeNote }, set masterComposeNote(value) { masterComposeNote = value },
   get masterTurn() { return masterClient.turns[masterClient.active] },
   get masterData() { return masterData }, set masterData(value) { masterData = value },
   get masterOpenReasoning() { return masterOpenReasoning },
   get masterOpenLive() { return masterClient.openLive },
   get masterOpenSteps() { return masterOpenSteps },
   get masterExpandedSteps() { return masterExpandedSteps },
-  get masterFindQuery() { return masterFindQuery },
+  get masterFindQuery() { return masterFindQuery }, set masterFindQuery(value) { masterFindQuery = value },
   get masterFindOpen() { return masterFindOpen },
   get masterFindIndex() { return masterFindIndex }, set masterFindIndex(value) { masterFindIndex = value },
   set masterFindSummary(value) { masterFindSummary = value },
   get masterAutoFollow() { return masterAutoFollow },
   get masterFindSummary() { return masterFindSummary },
-  get masterLoadingEarlier() { return masterLoadingEarlier },
+  get masterLoadingEarlier() { return masterLoadingEarlier }, set masterLoadingEarlier(value) { masterLoadingEarlier = value },
   get masterDiscussionProposalId() { return masterDiscussionProposalId }, set masterDiscussionProposalId(value) { masterDiscussionProposalId = value },
   get masterDraft() { return masterDraft }, set masterDraft(value) { masterDraft = value },
   get masterSentText() { return masterSentText() },
@@ -2055,6 +2057,7 @@ const modularUiState = {
   // Панель задания открыта у своего разговора: у каждого чата задание своё.
   get masterBriefPanelOpen() { return Boolean(masterClient.briefPanel[masterClient.active]) },
   set masterBriefPanelOpen(value) { if (masterClient.active) masterClient.briefPanel[masterClient.active] = Boolean(value) },
+  get masterRequestId() { return masterRequestId }, set masterRequestId(value) { masterRequestId = value },
   get masterSending() { return masterSending }, set masterSending(value) { masterSending = value },
   get masterStatus() { return masterStatus }, set masterStatus(value) { masterStatus = value },
   get memoryDraft() { return memoryDraft }, set memoryDraft(value) { memoryDraft = value },
@@ -2118,6 +2121,24 @@ const {
   patchCompanionStreamingBubble: (...args) => patchCompanionStreamingBubble(...args),
   pendingQuestProposals: (...args) => pendingQuestProposals(...args),
   pendingActionProposals: (...args) => pendingActionProposals(...args),
+})
+
+// Ответы Мастера разбираются своим модулем: тринадцать веток, у которых на
+// другом конце один и тот же `masterClient` и одна и та же лента.
+const applyMasterMessage = createMasterInbox({
+  ui: modularUiState, root, vscode, render: (...args) => render(...args),
+  persistDraft: (...args) => persistDraft(...args),
+  masterClient, masterSessionDrafts,
+  masterTraceMindPatch: (...args) => masterTraceMindPatch(...args),
+  acceptMasterMentionItems: (...args) => acceptMasterMentionItems(...args),
+  receiveMasterContext: (...args) => receiveMasterContext(...args),
+  clearMasterContext: (...args) => clearMasterContext(...args),
+  forgetMasterSent: (...args) => forgetMasterSent(...args),
+  replaceMasterThreadHtml: (...args) => replaceMasterThreadHtml(...args),
+  syncMasterComposeState: (...args) => syncMasterComposeState(...args),
+  stopMasterWaitClock: (...args) => stopMasterWaitClock(...args),
+  sendMasterMessage: (...args) => sendMasterMessage(...args),
+  applyMasterFind: (...args) => applyMasterFind(...args),
 })
 // Экран «Решения» живёт отдельным модулем: очередь, карточка и горячие
 // клавиши — одна тема, и трогают её вместе.
@@ -5332,113 +5353,7 @@ window.addEventListener('message', event => {
     render()
   }
   if (message.viewId && message.viewId !== masterViewId) return
-  if (message.type==='master' && message.requestId && message.requestId!==masterRequestId) return
-  if (message.type==='masterTurn') {masterClient.acceptTurn(message.turn);if(message.turn.conversationId===masterClient.active){masterSending=masterClient.running();render()};persistDraft()}
-  if (message.type==='masterEvent') {
-    masterClient.acceptEvent(message.event)
-    if(message.event.conversationId===masterClient.active){
-      masterSending=masterClient.running()
-      const text=root.querySelector('.hall-stream-text')
-      if(message.event.type==='reply'&&text){text.textContent=message.event.text;const thread=root.querySelector('#master-thread');if(thread&&masterAutoFollow)thread.scrollTop=thread.scrollHeight}
-      else if(message.event.type==='reasoning'&&masterTraceMindPatch(root,masterClient.turns[masterClient.active],masterAutoFollow)) {}
-      else replaceMasterThreadHtml()
-    }
-  }
-  if (message.type==='masterStreamError' && message.conversationId===masterClient.active){masterComposeNote=message.message;masterSending=false;render()}
-  if (message.type==='masterWorkOrder') {
-    // Наблюдение за живым квестом продолжается и после перехода в другой
-    // разговор: его обновление не должно подкладывать чужую карточку.
-    if(message.conversationId && message.conversationId!==masterClient.active) return
-    const current=Array.isArray(masterData?.workOrders)?masterData.workOrders:[]
-    masterData={...(masterData || {}),workOrders:[message.workOrder,...current.filter(item=>item.id!==message.workOrder.id)]}
-    if (hiringReloadFor && hiringReloadFor === message.workOrder?.id) {
-      hiringReloadFor = ''
-      vscode.postMessage({ type: 'loadMaster', conversationId: masterClient.active })
-    }
-    render()
-  }
-  if (message.type==='masterWorkOrderApproved') {
-    const order=message.approval?.workOrder
-    if(order){masterWorkOrderBusy.delete(order.id);const current=Array.isArray(masterData?.workOrders)?masterData.workOrders:[];masterData={...(masterData || {}),workOrders:[order,...current.filter(item=>item.id!==order.id)]}}
-	masterComposeNote=message.approval?.message || `Квест: ${message.approval?.status || 'preflight'}`
-    render()
-  }
-  if (message.type==='masterWorkOrderDeleted') {
-    const id=String(message.workOrderId || '');const current=Array.isArray(masterData?.workOrders)?masterData.workOrders:[]
-    masterData={...(masterData || {}),workOrders:current.filter(item=>item.id!==id)};masterComposeNote='Наряд убран';render()
-  }
-  if (message.type==='masterWorkOrderRevised') {
-    const order=message.workOrder
-    if(order){masterWorkOrderBusy.delete(order.id);const current=Array.isArray(masterData?.workOrders)?masterData.workOrders:[];masterData={...(masterData || {}),workOrders:[order,...current.filter(item=>item.id!==order.id)]}}
-    masterComposeNote=`Карточка сохранена как версия ${Number(order?.version)||'—'}`
-    render()
-  }
-  if (message.type==='masterWorkOrderControlled') {
-    const order=message.workOrder
-    if(order){masterWorkOrderBusy.delete(order.id);const current=Array.isArray(masterData?.workOrders)?masterData.workOrders:[];masterData={...(masterData || {}),workOrders:[order,...current.filter(item=>item.id!==order.id)]}}
-    masterComposeNote=`Квест: ${message.result?.status || order?.runtime?.status || 'обновлён'}`
-    render()
-  }
-  if (message.type==='masterApplicationControlled') {
-    const order=message.workOrder
-    if(order){masterWorkOrderBusy.delete(order.id);const current=Array.isArray(masterData?.workOrders)?masterData.workOrders:[];masterData={...(masterData || {}),workOrders:[order,...current.filter(item=>item.id!==order.id)]}}
-    const status=message.result?.status || 'обновлено'
-    masterComposeNote=status==='running'?'Приложение запущено':status==='stopped'?'Приложение остановлено':`Приложение: ${status}`
-    render()
-  }
-  if (message.type==='masterPage' && message.conversationId===masterClient.active && (message.query || '')===masterClient.query){const items=message.page.items || [];masterData.history=items;masterData.paginated=true;masterData.before=message.page.before;masterData.truncated=message.page.hasMore;masterLoadingEarlier=false;replaceMasterThreadHtml();syncMasterComposeState();applyMasterFind()}
-  if (message.type === 'masterContextSuggestions') { if (acceptMasterMentionItems(message.query, message.items)) render() }
-  if (message.type === 'masterContext') { try {receiveMasterContext(message);masterDraft=masterDraft.replace(/@$/, '');persistDraft();render()} catch(error){masterComposeNote=error.message;render()} }
-  if (message.type === 'master') {
-    if(message.turn) masterClient.acceptTurn(message.turn)
-    for(const turn of message.master?.activeTurns || []) masterClient.acceptTurn(turn)
-    const incomingConversation=message.master?.sessions?.active
-    if(message.turnFinished && incomingConversation && incomingConversation!==masterClient.active) {persistDraft();return}
-    if(message.sessionChanged || message.loaded){masterClient.restoreScroll=masterClient.scroll[incomingConversation] ?? Infinity;masterClient.query='';masterFindQuery=''}
-    masterClient.active=incomingConversation || masterClient.active
-    if (message.turnFinished) {
-      clearMasterContext(masterData?.sessions?.active)
-      // Все чипы, а не первый: querySelector возвращал один узел, и после хода
-      // с тремя вложениями на экране оставалось два призрака.
-      root.querySelectorAll?.('.hall-context-file')?.forEach?.(node => node.remove?.())
-      const activeId = incomingConversation || masterClient.active
-      const current = masterClient.turns[activeId]
-      if (current && !message.turn) masterClient.acceptTurn({ ...current, status: 'done' })
-    }
-    const previousSession = masterData?.sessions?.active
-    if (message.sessionChanged && previousSession) masterSessionDrafts[previousSession] = masterDraft
-    if (message.sessionChanged && previousSession !== message.master?.sessions?.active) masterDiscussionProposalId = ''
-    const sessionTitleChanged = JSON.stringify(masterData?.sessions?.items) !== JSON.stringify(message.master?.sessions?.items)
-    masterData = message.master
-    if(message.regenerate)setTimeout(()=>sendMasterMessage(message.draft || '',{retry:true}),0)
-    const nextProposal = masterData?.response?.proposal
-    if (nextProposal?.brief) {
-      masterDiscussionProposalId = nextProposal.brief.state === 'discussion' || nextProposal.brief.mode === 'project' ? nextProposal.id : ''
-    }
-    masterStatus = 'ready'
-    masterSending = masterClient.running()
-    masterComposeNote = ''
-    masterLoadingEarlier = false
-    stopMasterWaitClock()
-    // Черновик поля ход больше не трогает: его очищает сама отправка, а смена
-    // разговора — своим сохранённым значением.
-    if (message.draft != null || message.sessionChanged || message.loaded) {
-      masterDraft = message.draft ?? (masterSessionDrafts[masterData?.sessions?.active] ?? (message.loaded ? masterDraft : ''))
-    }
-    if (message.turnFinished || message.turn?.status === 'done') forgetMasterSent()
-    persistDraft()
-    // Причины полной отрисовки перечислены явно. Незаданный Мастер меняет весь
-    // раздел, а не ленту; отсутствие ленты означает, что человек смотрит другой
-    // раздел и обновлять нечего. Всё остальное — предложения, состав, наём,
-    // основания — рисуется внутри самой ленты и переживает точечную замену.
-    const needsFullRender = message.sessionChanged || sessionTitleChanged || masterData?.configured === false || !root.querySelector('#master-thread')
-    if (needsFullRender) {
-      render()
-    } else {
-      replaceMasterThreadHtml()
-      syncMasterComposeState()
-    }
-  }
+  if (applyMasterMessage(message)) return
   if (message.type === 'decisions') {
     decisionsData = message.decisions
     decisionsStatus = 'ready'

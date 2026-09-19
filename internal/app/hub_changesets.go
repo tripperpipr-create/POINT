@@ -3,6 +3,8 @@ package app
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -32,6 +34,12 @@ func (a *App) startSandboxedExecutionWithSeed(projectAgentID, task, questID, par
 	}
 	agent, err := a.store.GetProjectAgent(context.Background(), projectAgentID)
 	if err != nil {
+		// «sql: no rows in result set» — это не объяснение. Запуск без
+		// заведённого исполнителя отвечал человеку строкой из драйвера базы,
+		// по которой не видно ни того, что искали, ни что делать дальше.
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.ExecutionInstance{}, fmt.Errorf("исполнитель %q не найден в этом проекте: заведите агента в Гильдии или попросите Мастера собрать его", projectAgentID)
+		}
 		return domain.ExecutionInstance{}, err
 	}
 	now := time.Now().UTC()

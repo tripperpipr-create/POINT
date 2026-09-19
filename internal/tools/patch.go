@@ -37,10 +37,41 @@ type patchTextEdit struct {
 }
 
 type patchInput struct {
-	Path    string          `json:"path"`
-	Content *string         `json:"content,omitempty"`
-	Edits   []patchTextEdit `json:"edits,omitempty"`
-	Reason  string          `json:"reason"`
+	Path    string     `json:"path"`
+	Content *string    `json:"content,omitempty"`
+	Edits   patchEdits `json:"edits,omitempty"`
+	Reason  string     `json:"reason"`
+}
+
+// patchEdits принимает список правок и массивом, и строкой, внутри которой
+// лежит тот же массив.
+//
+// Схема объявляет массив, и формально строка — нарушение. Но на живом прогоне
+// Qwen3.6 трижды подряд прислала edits строкой, каждый раз получала отказ
+// разбора и потратила на подбор формата три шага из двадцати пяти, ничего за
+// них не сделав. Вложенный JSON строкой — известная манера моделей среднего
+// размера, и отвергать её значит платить за чужую привычку шагами человека.
+//
+// Снисходительность строго ограничена формой: содержимое разбирается тем же
+// типом и проходит все те же проверки — якоря, пределы, число правок. Принять
+// строку и принять что попало — разные вещи.
+type patchEdits []patchTextEdit
+
+func (e *patchEdits) UnmarshalJSON(raw []byte) error {
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) > 0 && trimmed[0] == '"' {
+		var inner string
+		if err := json.Unmarshal(trimmed, &inner); err != nil {
+			return err
+		}
+		trimmed = bytes.TrimSpace([]byte(inner))
+	}
+	var items []patchTextEdit
+	if err := json.Unmarshal(trimmed, &items); err != nil {
+		return err
+	}
+	*e = items
+	return nil
 }
 
 type resolvedTextEdit struct {

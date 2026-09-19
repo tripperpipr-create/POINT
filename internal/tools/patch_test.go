@@ -330,3 +330,48 @@ func FuzzPatchManagerInputNeverProducesInvalidProposal(f *testing.F) {
 		}
 	})
 }
+
+// Список правок принимается и строкой, внутри которой лежит тот же массив.
+//
+// На первом живом прогоне полигона Qwen3.6 трижды подряд прислала edits
+// строкой, трижды получила отказ разбора и потратила на подбор формата три
+// шага из двадцати пяти. Схема объявляет массив, и это верно; но отвергать
+// известную манеру моделей среднего размера значит платить за неё шагами
+// человека.
+func TestPatchAcceptsEditsSentAsJSONString(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	fs, _ := workspace.Open(root)
+	manager := NewPatchManager(fs)
+
+	asString, _ := json.Marshal(map[string]any{
+		"path":   "main.go",
+		"reason": "проверка снисходительного разбора",
+		"edits":  `[{"oldText": "func main() {}", "newText": "func main() { println(1) }"}]`,
+	})
+	result := manager.Execute(context.Background(), asString)
+	if !result.OK {
+		t.Fatalf("edits строкой отвергнуты: %#v", result)
+	}
+
+	// Снисходительность ограничена формой: содержимое проходит те же проверки.
+	badAnchor, _ := json.Marshal(map[string]any{
+		"path":   "main.go",
+		"reason": "якорь, которого нет",
+		"edits":  `[{"oldText": "такого текста в файле нет", "newText": "x"}]`,
+	})
+	if result = manager.Execute(context.Background(), badAnchor); result.OK {
+		t.Fatal("правка с несуществующим якорем принята: разбор строки не должен отменять проверки")
+	}
+
+	notJSON, _ := json.Marshal(map[string]any{
+		"path":   "main.go",
+		"reason": "строка, в которой не массив",
+		"edits":  "почини всё сам",
+	})
+	if result = manager.Execute(context.Background(), notJSON); result.OK {
+		t.Fatal("строка без массива внутри принята")
+	}
+}

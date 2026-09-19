@@ -19,8 +19,8 @@ const {
 } = await import(clientURL('master-agent-card.js'))
 const { masterWorkOrderCardsHtml } = await import(clientURL('master-work-order-v2.js'))
 const { masterHiringCardsHtml } = await import(clientURL('master-hiring-card.js'))
+const { esc } = await import(clientURL('html-escape.js'))
 
-const esc = value => String(value ?? '').replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;')
 const fail = message => { throw new Error(message) }
 const expectAll = (html, expected, label) => {
   for (const text of expected) {

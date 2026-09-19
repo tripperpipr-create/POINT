@@ -15,9 +15,8 @@
 // Состояние живёт здесь же, как у карточки найма и карточки запуска: main.js
 // стоит у своей границы в 6900 строк, и вид владеет своим раскрытием сам.
 
-import { shortLabel } from './format-units.js'
+import { list, shortLabel } from './format-units.js'
 
-const list = value => (Array.isArray(value) ? value : [])
 const text = value => String(value ?? '').trim()
 
 // Набор умений по умолчанию совпадает с конструктором (agent-constructor.js):

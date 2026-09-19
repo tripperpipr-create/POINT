@@ -86,6 +86,7 @@ const checks = [
   'smoke-point-split-windows.js',
   'smoke-setup-survives-core-refusal.js',
   'smoke-skill-cannot-loosen-deny.js',
+  'smoke-world-state-isolation.js',
 ];
 
 const failures = [];

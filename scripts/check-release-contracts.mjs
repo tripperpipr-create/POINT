@@ -672,6 +672,10 @@ for (const [file, maximum] of Object.entries({
   'vscode-extension/ui/client/hall-onboarding-views.js': 1500,
   'vscode-extension/ui/client/agent-workflow-editors.js': 1500,
   'vscode-extension/ui/client/view-runtime.js': 1500,
+  // Общие чистые помощники вебвью: экранирование и единицы. Растут только
+  // тем, что в них съезжается очередная разошедшаяся копия.
+  'vscode-extension/ui/client/html-escape.js': 40,
+  'vscode-extension/ui/client/format-units.js': 120,
   'vscode-extension/ui/client/keyboard-navigation.js': 300,
   'vscode-extension/ui/client/model-picker.js': 400,
   'vscode-extension/ui/client/companion-studio-views.js': 400,

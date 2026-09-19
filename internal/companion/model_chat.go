@@ -322,7 +322,14 @@ func (s Service) chatWithModel(ctx context.Context, cfg domain.CompanionConfig, 
 	if streamErr != nil {
 		usage.Outcome = "companion_model_error"
 		if !s.UsageManagedExternally {
-			_ = s.Store.InsertUsageRecord(context.Background(), usage)
+			if usageErr := s.Store.InsertUsageRecord(context.Background(), usage); usageErr != nil {
+				log.Warn("companion usage record not stored",
+					"workspace_id", req.WorkspaceID,
+					"outcome", usage.Outcome,
+					"total_tokens", usage.TotalTokens,
+					"error", usageErr,
+				)
+			}
 		}
 		log.Error("companion model stream failed",
 			"workspace_id", req.WorkspaceID,
@@ -392,7 +399,14 @@ func (s Service) chatWithModel(ctx context.Context, cfg domain.CompanionConfig, 
 	if err != nil {
 		usage.Outcome = "companion_model_invalid"
 		if !s.UsageManagedExternally {
-			_ = s.Store.InsertUsageRecord(context.Background(), usage)
+			if usageErr := s.Store.InsertUsageRecord(context.Background(), usage); usageErr != nil {
+				log.Warn("companion usage record not stored",
+					"workspace_id", req.WorkspaceID,
+					"outcome", usage.Outcome,
+					"total_tokens", usage.TotalTokens,
+					"error", usageErr,
+				)
+			}
 		}
 		log.Error("companion model invalid envelope",
 			"workspace_id", req.WorkspaceID,
@@ -404,7 +418,14 @@ func (s Service) chatWithModel(ctx context.Context, cfg domain.CompanionConfig, 
 	}
 	usage.Outcome = "companion_model"
 	if !s.UsageManagedExternally {
-		_ = s.Store.InsertUsageRecord(context.Background(), usage)
+		if usageErr := s.Store.InsertUsageRecord(context.Background(), usage); usageErr != nil {
+			log.Warn("companion usage record not stored",
+				"workspace_id", req.WorkspaceID,
+				"outcome", usage.Outcome,
+				"total_tokens", usage.TotalTokens,
+				"error", usageErr,
+			)
+		}
 	}
 	log.Info("companion model stream ok",
 		"workspace_id", req.WorkspaceID,

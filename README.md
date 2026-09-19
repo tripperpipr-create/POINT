@@ -203,6 +203,19 @@ Windows/Electron E2E и installer smoke перечислены в
 [IDE-CAPABILITY-MATRIX.md](docs/IDE-CAPABILITY-MATRIX.md). Правила изменения
 проекта — в [CONTRIBUTING.md](CONTRIBUTING.md).
 
+Отдельно от затвора стоит живой прогон — он проверяет не код, а работу:
+
+```bash
+make loop
+```
+
+Агент получает лёгкое задание в настоящем проекте («добавь эндпоинт с тестом»)
+и ведёт его до конца, а `go test ./...` после него запускает сам харнесс —
+отчёт агента о собственной работе доказательством не считается. Круг стоит
+полминуты. В `make test` и в CI он не входит: ему нужна живая модель, а затвор
+обязан работать в чистом клоне без сети. Как включить — в
+[CONTRIBUTING.md](CONTRIBUTING.md).
+
 То же самое гоняет CI на каждый push в `main`/`master` и на каждый pull
 request — [`.github/workflows/ci.yml`](.github/workflows/ci.yml), пять
 независимых job:

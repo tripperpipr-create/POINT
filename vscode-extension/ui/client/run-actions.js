@@ -18,17 +18,20 @@ export function handleRunClickAction({
     if (runId) ui.keptRunId = runId
     persistDraft()
     render()
+    return
     return true
   }
   if (action === 'undo-run-all') {
     const runId = String(target.dataset.runId || ui.state.details?.run?.id || '')
     if (runId) vscode.postMessage({ type: 'undoRunPatches', runId })
+    return
     return true
   }
   if (action === 'undo-run-file') {
     const runId = String(target.dataset.runId || ui.state.details?.run?.id || '')
     const patchIds = String(target.dataset.patchIds || '').split(',').map(item => item.trim()).filter(Boolean)
     if (runId) vscode.postMessage({ type: 'undoRunPatches', runId, patchIds })
+    return
     return true
   }
   if (action === 'repeat-quest') {
@@ -65,7 +68,7 @@ export function handleRunClickAction({
   if (action === 'submit-quest-replan') {
     const questId = String(target.dataset.questId || '')
     const panel = target.closest('.quest-midflight')
-    if (!questId || !panel) return true
+    if (!questId || !panel) return
     const nodeId = String(panel.querySelector('[name="replanNodeId"]')?.value || '').trim()
     const instruction = String(panel.querySelector('[name="replanInstruction"]')?.value || '').trim()
     const reason = String(panel.querySelector('[name="replanReason"]')?.value || '').trim()
@@ -73,7 +76,7 @@ export function handleRunClickAction({
     if (!nodeId || !reason) {
       ui.transientError = 'Для replan нужны этап и причина'
       render()
-      return true
+      return
     }
     vscode.postMessage({
       type: 'replanQuest',
@@ -87,13 +90,13 @@ export function handleRunClickAction({
   if (action === 'submit-quest-revise') {
     const questId = String(target.dataset.questId || '')
     const panel = target.closest('.quest-midflight')
-    if (!questId || !panel || target.disabled) return true
+    if (!questId || !panel || target.disabled) return
     const expectedVersion = Number(target.dataset.expectedVersion || 0)
     const goal = String(panel.querySelector('[name="reviseGoal"]')?.value || '').trim()
     if (!goal) {
       ui.transientError = 'Новая цель пуста'
       render()
-      return true
+      return
     }
     const quest = (ui.state.boot?.quests || []).find(item => item.id === questId)
     const brief = { ...(quest?.brief || {}), goal }
@@ -123,19 +126,37 @@ export function handleRunClickAction({
     return true
   }
   if (action === 'launch-execution') {
-    vscode.postMessage({ type: 'launchExecution', id: target.dataset.id, ui.apiKey })
+    vscode.postMessage({ type: 'launchExecution', id: target.dataset.id, apiKey: ui.apiKey })
     return true
   }
   if (action === 'cancel-cursor-execution') {
     vscode.postMessage({ type: 'cancelCursorExecution', id: target.dataset.id })
     return true
   }
-  if (action === 'cancel-cursor') vscode.postMessage({type:'cancelCursorRun'; return true }
-  if (action === 'revert-patch') vscode.postMessage({type:'revertPatch',id:target.dataset.id; return true }
-  if (action === 'apply-changeset') vscode.postMessage({ type: 'applyChangeSet', id: target.dataset.id; return true }
-  if (action === 'apply-changeset-chain') vscode.postMessage({ type: 'applyChangeSetChain', id: target.dataset.id; return true }
-  if (action === 'reject-changeset') vscode.postMessage({ type: 'rejectChangeSet', id: target.dataset.id; return true }
-  if (action === 'revert-changeset') vscode.postMessage({ type: 'revertChangeSet', id: target.dataset.id; return true }
+  if (action === 'cancel-cursor') {
+    vscode.postMessage({type:'cancelCursorRun'})
+    return true
+  }
+  if (action === 'revert-patch') {
+    vscode.postMessage({type:'revertPatch',id:target.dataset.id})
+    return true
+  }
+  if (action === 'apply-changeset') {
+    vscode.postMessage({ type: 'applyChangeSet', id: target.dataset.id })
+    return true
+  }
+  if (action === 'apply-changeset-chain') {
+    vscode.postMessage({ type: 'applyChangeSetChain', id: target.dataset.id })
+    return true
+  }
+  if (action === 'reject-changeset') {
+    vscode.postMessage({ type: 'rejectChangeSet', id: target.dataset.id })
+    return true
+  }
+  if (action === 'revert-changeset') {
+    vscode.postMessage({ type: 'revertChangeSet', id: target.dataset.id })
+    return true
+  }
   if (action === 'resolve-changeset') {
     const content = target.closest('.conflict-row')?.querySelector('.conflict-manual-content')?.value ?? ''
     vscode.postMessage({
@@ -147,12 +168,27 @@ export function handleRunClickAction({
     })
     return true
   }
-  if (action === 'load-run') vscode.postMessage({type:'loadRun',id:target.dataset.id; return true }
-  if (action === 'cancel') vscode.postMessage({type:'cancelRun',runId:target.dataset.id; return true }
-  if (action === 'pause-run') vscode.postMessage({ type: 'pauseRun', runId: target.dataset.runId; return true }
-  if (action === 'resume-run') vscode.postMessage({ type: 'resumeRun', runId: target.dataset.runId, ui.apiKey; return true }
-  if (action === 'extend-active-time') vscode.postMessage({ type: 'extendActiveTime', runId: target.dataset.runId, ui.apiKey; return true }
-  if (action === 'preview-run') { const quest=questPayload();if(quest.task){ui.agentRunPreview=undefined;ui.agentRunPreviewError='';ui.agentRunPreviewStatus='loading';render();vscode.postMessage({type:'previewRun',profileId:ui.selectedProfileId,...quest,ui.contextItems})}; return true }
+  if (action === 'load-run') {
+    vscode.postMessage({type:'loadRun',id:target.dataset.id})
+    return true
+  }
+  if (action === 'cancel') {
+    vscode.postMessage({type:'cancelRun',runId:target.dataset.id})
+    return true
+  }
+  if (action === 'pause-run') {
+    vscode.postMessage({ type: 'pauseRun', runId: target.dataset.runId })
+    return true
+  }
+  if (action === 'resume-run') {
+    vscode.postMessage({ type: 'resumeRun', runId: target.dataset.runId, apiKey: ui.apiKey })
+    return true
+  }
+  if (action === 'extend-active-time') {
+    vscode.postMessage({ type: 'extendActiveTime', runId: target.dataset.runId, apiKey: ui.apiKey })
+    return true
+  }
+  if (action === 'preview-run') { const quest=questPayload();if(quest.task){ui.agentRunPreview=undefined;ui.agentRunPreviewError='';ui.agentRunPreviewStatus='loading';render();vscode.postMessage({type:'previewRun',profileId:ui.selectedProfileId,...quest,contextItems: ui.contextItems})}; return true }
   if (action === 'load-context-inspector') {
     ui.contextInspectorRunId = target.dataset.runId || ''
     ui.contextInspectorStatus = 'loading'
@@ -190,8 +226,14 @@ export function handleRunClickAction({
     return true
   }
   if (action === 'remove-context') { ui.contextItems.splice(Number(target.dataset.index),1); persistDraft(); requestContextPreview(); return true }
-  if (action === 'attach-files') vscode.postMessage({type:'attachFiles'; return true }
-  if (action === 'attach-selection') vscode.postMessage({type:'attachSelection'; return true }
+  if (action === 'attach-files') {
+    vscode.postMessage({type:'attachFiles'})
+    return true
+  }
+  if (action === 'attach-selection') {
+    vscode.postMessage({type:'attachSelection'})
+    return true
+  }
   if (action === 'pick-decision') { ui.decisionPick = target.dataset.id || ''; render(); return true }
   if (action === 'retry-decisions') {
     ui.decisionsStatus = 'idle'
@@ -209,6 +251,9 @@ export function handleRunClickAction({
     if (item) sendDecisionResolve(id, decisionIntents(item)[target.dataset.intent === 'reject' ? 'reject' : 'accept'])
     return true
   }
-  if (action === 'resolve') vscode.postMessage({type:'resolveApproval',id:target.dataset.id,allow:target.dataset.allow==='true'; return true }
+  if (action === 'resolve') {
+    vscode.postMessage({type:'resolveApproval',id:target.dataset.id,allow:target.dataset.allow==='true'})
+    return true
+  }
   return false
 }

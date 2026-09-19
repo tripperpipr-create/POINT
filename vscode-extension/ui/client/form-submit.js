@@ -42,7 +42,7 @@ export function handleFormSubmit({
     // здесь повтор порождает новую сущность, а не повторяет старую.
     if (ui.runStarting) return
     ui.runStarting = true
-    vscode.postMessage({ type: 'startRun', profileId: ui.selectedProfileId, ...quest, ui.apiKey, ui.contextItems, preflightFingerprint: ui.agentRunPreview?.fingerprint || '' })
+    vscode.postMessage({ type: 'startRun', profileId: ui.selectedProfileId, ...quest, apiKey: ui.apiKey, contextItems: ui.contextItems, preflightFingerprint: ui.agentRunPreview?.fingerprint || '' })
   }
   if (event.target.id === 'settings-form') {
     const profile=currentFormProfile()
@@ -91,7 +91,7 @@ export function handleFormSubmit({
     const task=root.querySelector('#workflow-task')?.value.trim()
     const apiKeys={}
     for(const input of root.querySelectorAll('.workflow-api-key'))if(input.value)apiKeys[input.dataset.profileId]=input.value
-    if(task&&ui.selectedWorkflowId)vscode.postMessage({type:'startWorkflow',workflowId:ui.selectedWorkflowId,task,apiKeys,ui.contextItems})
+    if(task&&ui.selectedWorkflowId)vscode.postMessage({type:'startWorkflow',workflowId:ui.selectedWorkflowId,task,apiKeys,contextItems: ui.contextItems})
   }
   if (event.target.id === 'companion-setup-form') {
     ui.companionSetupDraft = currentCompanionSetupDraft()

@@ -49,6 +49,7 @@ export function handleInfraClickAction({ action, target, ui, root, vscode, rende
     vscode.postMessage({type:'enableDockerSandbox'})
     ui.masterComposeNote='Включаем Docker sandbox и перезапускаем ядро…'
     render()
+    return
     return true
   }
   if (action === 'probe-server') {
@@ -88,7 +89,7 @@ export function handleInfraClickAction({ action, target, ui, root, vscode, rende
     root.querySelector('#connection-form')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
     return true
   }
-  if (action === 'save-connection') { saveConnectionFromFields(); return true }
+  if (action === 'save-connection') { saveConnectionFromFields(); return; return true }
   if (action === 'cancel-edit-connection') {
     ui.connectionEditingId = ''
     render()
@@ -143,7 +144,7 @@ export function handleInfraClickAction({ action, target, ui, root, vscode, rende
     return true
   }
   if (action === 'apply-db-write') {
-    if (!ui.dbWritePending?.connectionId || !ui.dbWritePending?.sql) return true
+    if (!ui.dbWritePending?.connectionId || !ui.dbWritePending?.sql) return
     ui.dbQueryStatus = 'loading'
     const pending = ui.dbWritePending
     ui.dbWritePending = null

@@ -14,11 +14,15 @@
 const assert = require('assert')
 const fs = require('fs')
 const path = require('path')
+const { extensionHostSource } = require('./lib/extension-host-source')
 
 const root = path.resolve(__dirname, '..')
 const read = file => fs.readFileSync(path.join(root, file), 'utf8')
 
-const extension = read('vscode-extension/extension.js')
+// Хост читается пакетом, а не одним файлом: показ окна связей уехал в
+// `hub-surfaces-controller.js`, где провайдер приходит доводом. Приёмник
+// сводится к `this.`, чтобы утверждения ниже значили то же, что и раньше.
+const extension = extensionHostSource(root).split('provider.').join('this.')
 const main = read('vscode-extension/ui/client/main.js')
 const clientDir = path.join(root, 'vscode-extension/ui/client')
 const client = fs.readdirSync(clientDir)

@@ -19,7 +19,10 @@ export function handleRosterClickAction({
   firstUnreadinessStep, newProfile, prepareAgentConstructor, profileReadiness,
   providerCatalog, resetCustomToolPreview, stepValidationIssue,
 }) {
-  if (action === 'open-roster') vscode.postMessage({type:'openRoster'; return true }
+  if (action === 'open-roster') {
+    vscode.postMessage({type:'openRoster'})
+    return true
+  }
   if (action === 'select-roster-profile') { ui.selectedProfileId=target.dataset.id||''; ui.profileDraft=undefined; persistDraft(); render(); return true }
   if (action === 'edit-roster-profile') {
     const selected=(ui.state.boot?.profiles||[]).find(item=>item.id===ui.selectedProfileId)||(ui.state.boot?.profiles||[])[0]
@@ -50,7 +53,7 @@ export function handleRosterClickAction({
     const nextStep=target.dataset.step||'identity'
     if(dir==='next'){
       const issue=stepValidationIssue(ui.profileEditorStep, profile||ui.profileDraft)
-      if(issue){ui.createStepError=issue;render();return true}
+      if(issue){ui.createStepError=issue;render();return}
     }
     ui.createStepError=''
     ui.profileEditorStep=nextStep
@@ -118,7 +121,7 @@ export function handleRosterClickAction({
     if (!ui.taskDraft.trim()) {
       ui.transientError = EMPTY_TASK_REASON
       render()
-      return true
+      return
     }
     if (ui.state.cursorRuntime?.available && ui.state.cursorRuntime?.authenticated) {
       ui.cursorRunEvents=[]
@@ -160,9 +163,9 @@ export function handleRosterClickAction({
   }
   if (action === 'hire-and-quest') {
     const profile=currentFormProfile()
-    if(!profile) return true
+    if(!profile) return
     const issue=stepValidationIssue('limits', profile) || (!profileReadiness(profile).ready ? profileReadiness(profile).issues[0] : '')
-    if(issue){ui.createStepError=issue;ui.profileDraft=profile;render();return true}
+    if(issue){ui.createStepError=issue;ui.profileDraft=profile;render();return}
     ui.hireAfterSave='quest'
     ui.profileDraft=profile
     if (hubModeAvailable()) vscode.postMessage({ type: 'saveProjectAgent', agent: constructorToProjectAgent(newConstructorDraft(profile)) })
@@ -172,19 +175,31 @@ export function handleRosterClickAction({
   if (action === 'start-roster-quest') {
     const selected=(ui.state.boot?.profiles||[]).find(item=>item.id===ui.selectedProfileId)||(ui.state.boot?.profiles||[])[0]
     const readiness=profileReadiness(selected)
-    if(selected && !readiness.ready){ui.profileEditorOpen=true;ui.profileDraft=undefined;ui.profileEditorStep=firstUnreadinessStep(selected);render();return true}
+    if(selected && !readiness.ready){ui.profileEditorOpen=true;ui.profileDraft=undefined;ui.profileEditorStep=firstUnreadinessStep(selected);render();return}
     ui.profileEditorOpen=false; vscode.postMessage({type:'selectTab',tab:'chat'})
     return true
   }
   if (action === 'cancel-profile') { ui.profileDraft=undefined; ui.profileEditorOpen=false; ui.profileEditorStep='identity'; ui.createStepError=''; ui.hireAfterSave=''; ui.selectedProfileId=ui.state.boot?.profiles?.[0]?.id||''; render(); return true }
-  if (action === 'delete-profile') vscode.postMessage({type:'deleteProfile',id:target.dataset.id; return true }
-  if (action === 'disband-agent') vscode.postMessage({ type: 'deleteProjectAgent', id: target.dataset.id; return true }
-  if (action === 'delete-blueprint') vscode.postMessage({ type: 'deleteBlueprint', id: target.dataset.id; return true }
+  if (action === 'delete-profile') {
+    vscode.postMessage({type:'deleteProfile',id:target.dataset.id})
+    return true
+  }
+  if (action === 'disband-agent') {
+    vscode.postMessage({ type: 'deleteProjectAgent', id: target.dataset.id })
+    return true
+  }
+  if (action === 'delete-blueprint') {
+    vscode.postMessage({ type: 'deleteBlueprint', id: target.dataset.id })
+    return true
+  }
   if (action === 'export-profile') { const profile=currentFormProfile(); if(profile)vscode.postMessage({type:'exportProfile',profile}); return true }
-  if (action === 'import-profile') vscode.postMessage({type:'importProfile'; return true }
+  if (action === 'import-profile') {
+    vscode.postMessage({type:'importProfile'})
+    return true
+  }
   if (action === 'probe-provider') {
     const profile=currentFormProfile()
-    if(profile){ui.profileDraft=profile;ui.providerProbe={loading:true,models:[]};render();vscode.postMessage({type:'probeProvider',provider:profile.provider,baseUrl:profile.baseUrl,ui.apiKey})}
+    if(profile){ui.profileDraft=profile;ui.providerProbe={loading:true,models:[]};render();vscode.postMessage({type:'probeProvider',provider:profile.provider,baseUrl:profile.baseUrl,apiKey: ui.apiKey})}
     return true
   }
   if (action === 'probe-model-capability') {
@@ -255,8 +270,14 @@ export function handleRosterClickAction({
     return true
   }
   if (action === 'cancel-custom-tool') { resetCustomToolPreview();ui.customToolDraft=undefined;ui.selectedCustomToolId=ui.state.boot?.customTools?.[0]?.id||'';render(); return true }
-  if (action === 'delete-custom-tool') vscode.postMessage({type:'deleteCustomTool',id:target.dataset.id; return true }
+  if (action === 'delete-custom-tool') {
+    vscode.postMessage({type:'deleteCustomTool',id:target.dataset.id})
+    return true
+  }
   if (action === 'export-custom-tool') { const tool=currentCustomToolForm();if(tool)vscode.postMessage({type:'exportCustomTool',tool}); return true }
-  if (action === 'import-custom-tool') vscode.postMessage({type:'importCustomTool'; return true }
+  if (action === 'import-custom-tool') {
+    vscode.postMessage({type:'importCustomTool'})
+    return true
+  }
   return false
 }

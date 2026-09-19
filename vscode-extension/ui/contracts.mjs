@@ -799,8 +799,12 @@ const TYPE_SCALE = new Set(
 //     середине: нажали «перестроить индекс» — и настройки нет. Новый прямой
 //     `this.selectedTab = …` вернёт ту же болезнь молча, поэтому список мест
 //     закрыт. Поведение проверяет scripts/smoke-hub-onboarding-not-closed.js.
+//     19 сентября `focusTab` и `showWideHere` уехали в
+//     `hub-surfaces-controller.js`, где провайдер приходит доводом.
+//     Счёт теперь идёт по всему пакету и сводит `provider.selectedTab`
+//     с `this.selectedTab`: смена приёмника не меняет опасности.
 {
-  const ext = read('vscode-extension/extension.js')
+  const ext = extensionPackage.split('provider.selectedTab = ').join('this.selectedTab = ')
   const allowed = new Map([
     ["this.selectedTab = this.onboardingComplete ? 'master' : 'onboarding'", 1], // конструктор
     ["this.selectedTab = 'master'", 1],     // completeOnboarding
@@ -820,8 +824,8 @@ const TYPE_SCALE = new Set(
       fail(`«${text}» встречается ${count} раз при ${expected} разрешённых — побочная навигация закроет онбординг; используйте focusTab()`)
     }
   }
-  const guard = ext.match(/focusTab\(tab\) {[\s\S]*?\n {2}}/)
-  if (!guard) fail('в extension.js нет focusTab — побочной навигации нечем себя сдержать')
+  const guard = ext.match(/function focusTab\([^)]*\) {[\s\S]*?\n {2}}/)
+  if (!guard) fail('в пакете расширения нет focusTab — побочной навигации нечем себя сдержать')
   else if (!/selectedTab === 'onboarding'/.test(guard[0])) {
     fail('focusTab больше не защищает онбординг — вкладку снесёт первым же следствием')
   }

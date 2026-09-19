@@ -595,7 +595,7 @@ for (const token of [
   "require('./ide-navigation-controller')", "require('./connection-controller')",
   "require('./project-index-controller')", "require('./console-ssh-controller')",
   "require('./core-log')", "require('./core-lease')",
-  "require('./git-tool-controller')",
+  "require('./git-tool-controller')", "require('./hub-surfaces-controller')",
 ]) {
   requireText(extensionSource, token, 'extension module boundary')
 }
@@ -662,8 +662,9 @@ for (const [file, maximum] of Object.entries({
   'vscode-extension/media/chronicle.js': 59,
   'internal/app/app.go': 720,
   'internal/companion/service.go': 600,
-  'vscode-extension/extension.js': 4500,
+  'vscode-extension/extension.js': 4100,
   'vscode-extension/git-tool-controller.js': 400,
+  'vscode-extension/hub-surfaces-controller.js': 400,
   'vscode-extension/companion-controller.js': 1500,
   'vscode-extension/ide-action-controller.js': 1500,
   'vscode-extension/ide-navigation-controller.js': 1500,

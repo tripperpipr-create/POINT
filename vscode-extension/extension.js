@@ -19,6 +19,7 @@ const { createNdjsonReader } = require('./core-stream')
 const { createCoreLog } = require('./core-log')
 const { createCoreLease } = require('./core-lease')
 const { createGitTools } = require('./git-tool-controller')
+const { createHubSurfaces } = require('./hub-surfaces-controller')
 const { createChatDocuments, companionDocumentHtml, POINT_COMPANION_ARCHIVES_KEY } = require('./chat-documents')
 const {
   companionFactPairs,
@@ -144,6 +145,7 @@ const GIT_DEFAULT_LIST = 'default'
 const coreLog = createCoreLog({ fs, path, crypto, hostLogEnabled, hostLogStamp })
 const coreLease = createCoreLease({ fs, path, crypto, normalizedWorkspaceRoot, removeFileIfExists, readJsonFile, processIsAlive })
 const gitTools = createGitTools({ GIT_LISTS_KEY, dispatchGitAction, normalizedWorkspaceRoot, path, runGit, vscode })
+const hubSurfaces = createHubSurfaces({ collectExtensionGarbage, createChatDocuments, cursorRuntime, escapeHtml, normalizedWorkspaceRoot, vscode })
 
 class BackendService {
   constructor(context, output, onStatus) {
@@ -2458,399 +2460,33 @@ class AgentViewProvider {
     }
   }
 
-  post(message) {
-    const companionTraffic = this.companionWebviewTraffic(message?.type)
-    if (!this.hubVisible() && message?.type !== 'state' && !companionTraffic) return
-    if (this.companionPopup && (this.companionPopup.visible !== false || companionTraffic)) void this.companionPopup.webview.postMessage(message)
-    if (this.companionSidebar && (this.companionSidebar.visible !== false || companionTraffic)) void this.companionSidebar.webview.postMessage(message)
-    if (this.view && (this.view.visible !== false || companionTraffic)) void this.view.webview.postMessage(message)
-    if (this.panel && (this.panel.visible !== false || companionTraffic)) void this.panel.webview.postMessage(message)
-    if (this.connectionsPanel && this.connectionsPanel.visible !== false && !companionTraffic) void this.connectionsPanel.webview.postMessage(message)
-    if (this.statisticsPanel && this.statisticsPanel.visible !== false && !companionTraffic) void this.statisticsPanel.webview.postMessage(message)
-    if (this.dockerPanel && this.dockerPanel.visible !== false && !companionTraffic) void this.dockerPanel.webview.postMessage(message)
-    if (!companionTraffic) {
-      for (const view of this.toolWindows.values()) {
-        if (view && view.visible !== false) void view.webview.postMessage(message)
-      }
-    }
-  }
-
-  postCursorRuntime() {
-    this.post({ type: 'cursorRuntime', ...this.cursorRuntimeState })
-  }
-
-  async refreshCursorRuntime() {
-    this.cursorRuntimeState = await cursorRuntime.status()
-    this.postCursorRuntime()
-    return this.cursorRuntimeState
-  }
-
-  async show(tab = 'overview') {
-    this.showWide(tab)
-  }
-
-  showWide(tab = 'overview') {
-    if (!this.agentsWindowMode) {
-      void this.openAgentsWindow(tab)
-      return
-    }
-    this.showWideHere(tab)
-  }
-
-  normalizedAgentImprovementFocus(agentId, constructorStep = 'review') {
-    const normalizedAgentId = String(agentId || '').trim().slice(0, 160)
-    if (!normalizedAgentId) return undefined
-    const allowedSteps = new Set(['identity', 'role', 'mission', 'rules', 'brain', 'skills', 'tools', 'memory', 'permissions', 'review'])
-    const step = allowedSteps.has(constructorStep) ? constructorStep : 'review'
-    this.agentImprovementFocusSequence += 1
-    return {
-      requestId: `agent-improvement-${Date.now()}-${this.agentImprovementFocusSequence}`,
-      agentId: normalizedAgentId,
-      constructorStep: step,
-    }
-  }
-
-  focusAgentImprovement(agentId, constructorStep = 'review') {
-    const focus = this.normalizedAgentImprovementFocus(agentId, constructorStep)
-    if (!focus) return
-    if (!this.agentsWindowMode) {
-      void this.openAgentsWindow('agents', focus)
-      return
-    }
-    this.agentImprovementFocus = focus
-    this.showWideHere('agents')
-  }
-
-  async openAgentsWindow(tab = 'master', focus = undefined) {
-    // Production uses a real Agents window. Moving an editor tab after a fixed
-    // timeout was a race against the active editor: if focus changed during
-    // those 100 ms, Point moved or focused the IDE editor instead of the Hub.
-    // An auxiliary editor also belongs to the IDE window lifecycle, so it
-    // cannot remain an independently usable Agent Hub. Keep that route only
-    // as an explicit diagnostic fallback.
-    if (process.env.POINT_AUXILIARY_HUB === '1') {
-      this.agentsWindowMode = true
-      this.auxiliaryHubMode = true
-      if (focus?.agentId) this.agentImprovementFocus = this.normalizedAgentImprovementFocus(focus.agentId, focus.constructorStep)
-      this.showWideHere(tab || 'master')
-      await new Promise(resolve => setTimeout(resolve, 100))
-      await vscode.commands.executeCommand('workbench.action.moveEditorToNewWindow')
-      return
-    }
-    const folder = this.workspaceFolder()
-    const payload = { tab: tab || 'master' }
-    if (focus?.agentId) {
-      payload.agentId = focus.agentId
-      payload.constructorStep = focus.constructorStep
-    }
-    const initialQuery = `point-hub:${encodeURIComponent(JSON.stringify(payload))}`
-    await vscode.commands.executeCommand('workbench.action.openAgentsWindow', {
-      ...(folder ? { folderUri: folder.uri.toJSON() } : {}),
-      initialQuery,
-    })
-  }
-
-  // Каталог чатов всех миров. Живёт рядом с состоянием, а не внутри него:
-  // приходит своим сообщением, потому что нужен раньше и чаще, чем `boot`.
-  async postChatDirectory() {
-    if (!this.hubPanelReady && !this.panel) return
-    if (this.service.state !== 'running') return
-    try {
-      const directory = await this.service.request('/api/master/directory', { allowStart: false })
-      this.lastChatDirectory = directory
-      this.post({ type: 'chatDirectory', directory })
-    } catch (error) {
-      this.service.hostLog('warn', `[chat] каталог не собрался: ${error?.message || error}`)
-      this.post({ type: 'chatDirectory', directory: { currentWorkspaceId: '', worlds: [] }, failed: true })
-    }
-  }
-
-  // Ожидающий разговор отдаётся ровно один раз и только тому миру, ради
-  // которого его запомнили: переключение могло уйти в сторону, и выбирать в
-  // чужом мире чужой id — верный способ показать «разговор не найден».
-  takePendingMasterConversation() {
-    const pending = this.pendingMasterConversation
-    if (!pending?.id && !pending?.create) return undefined
-    const folder = this.workspaceFolder()
-    if (!folder || normalizedWorkspaceRoot(folder.uri.fsPath) !== normalizedWorkspaceRoot(pending.path)) return undefined
-    this.pendingMasterConversation = undefined
-    return pending
-  }
-
-  // Уход из мира, где мастер ещё отвечает. Ядро не гасится — ход допишется в
-  // общую базу, и реплику человек увидит, вернувшись. Но сказать об этом надо:
-  // молча увести экран с идущего ответа значит соврать, что его не было.
-  async confirmLeavingBusyWorld() {
-    const busy = this.masterTurnStreams?.size > 0
-    if (!busy) return true
-    const folder = this.workspaceFolder()
-    const answer = await vscode.window.showWarningMessage(
-      `Мастер ещё отвечает в проекте «${folder?.name || 'текущем'}». Переключиться?`,
-      { modal: true, detail: 'Ответ допишется и будет ждать вас в этом чате.' },
-      'Переключиться',
-    )
-    return answer === 'Переключиться'
-  }
-
-  // Путь из вебвью — не путь, а ключ поиска. Сверяем с тем самым списком,
-  // который вебвью и показали: пересобирать его на каждый клик нельзя (это до
-  // сорока обращений к диску ровно в тот момент, скорость которого мы и меряем),
-  // а брать на веру присланную строку — значит открыть произвольную папку по
-  // сообщению из вебвью.
-  knownProject(value) {
-    const wanted = normalizedWorkspaceRoot(String(value || ''))
-    if (!wanted) return undefined
-    return (this.lastProjectList || []).find(item => normalizedWorkspaceRoot(item.path) === wanted)?.path
-  }
-
-  // Галерея миров доступна и с открытым проектом: это домашний экран Чертога, а
-  // не только заглушка «проект не выбран».
-  openProjectGallery() {
-    this.post({ type: 'projectGallery', open: true })
-    void this.postProjects?.()
-  }
-
-  enterAgentsWindow(tab = 'master', focus = undefined) {
-    this.agentsWindowMode = true
-    this.auxiliaryHubMode = false
-    if (focus?.agentId) this.agentImprovementFocus = this.normalizedAgentImprovementFocus(focus.agentId, focus.constructorStep)
-    void vscode.commands.executeCommand('setContext', 'point.agentsWindow', true)
-    this.showWideHere(tab || 'master')
-  }
-
-  // Побочная навигация не выбрасывает из онбординга.
-  //
-  // Полтора десятка обработчиков ставят вкладку как следствие своего дела:
-  // сохранил навык — «Навыки», запустил флоу — «Обзор», открыл прогон —
-  // «Квесты». Пока человек в онбординге, любое такое следствие закрывало первый
-  // запуск, и он терял место. Заметнее всего это в настройке Мастера, куда
-  // заходят из Чертога уже после первого запуска: там вкладка «onboarding» не
-  // закреплена, и её сносило любым состоянием — от нажатия «перестроить индекс»
-  // до фонового опроса. Явный переход (selectTab с рейки, restartOnboarding,
-  // команда «Открыть Point») идёт мимо сторожа: там человек сам сказал, куда.
-  focusTab(tab) {
-    if (this.selectedTab === 'onboarding' && tab !== 'onboarding') return
-    this.selectedTab = tab
-  }
-
-  showWideHere(tab = 'master') {
-    if (this.hubGarbageTimer) clearTimeout(this.hubGarbageTimer)
-    this.hubGarbageTimer = undefined
-    this.selectedTab = tab
-    if (this.panel) {
-      if (this.auxiliaryHubMode) void vscode.commands.executeCommand('point.focusAgentHubWindow')
-      else this.panel.reveal(vscode.ViewColumn.One)
-      this.postState()
-      this.flushCompanionFocus()
-      return
-    }
-    this.panel = vscode.window.createWebviewPanel(
-      'point.agentHub',
-      'Агенты Point',
-      vscode.ViewColumn.One,
-      {
-        enableScripts: true,
-        retainContextWhenHidden: true,
-        localResourceRoots: [vscode.Uri.joinPath(this.context.extensionUri, 'media')],
-      },
-    )
-    this.panelStateSignature = ''
-    this.panel.iconPath = vscode.Uri.joinPath(this.context.extensionUri, 'media', 'agent.svg')
-    this.panel.webview.html = this.html(this.panel.webview, 'wide')
-    const panel = this.panel
-    const panelListeners = [
-      panel.webview.onDidReceiveMessage(message => this.handleMessage(message)),
-      panel.onDidChangeViewState(event => { this.onHubVisibility(Boolean(event.webviewPanel.visible)) }),
-    ]
-    panel.onDidDispose(() => {
-      for (const listener of panelListeners.splice(0)) listener.dispose()
-      if (this.panel === panel) this.panel = undefined
-      if (this.auxiliaryHubMode) {
-        this.agentsWindowMode = false
-        this.auxiliaryHubMode = false
-      }
-      this.panelStateSignature = ''
-      this.hubPanelReady = false
-      this.scheduleHubGarbageCollection()
-      if (!this.hubVisible()) this.onHubVisibility(false)
-    })
-    this.postState()
-  }
-
-  showStatistics() {
-    if (!this.agentsWindowMode) {
-      void this.openAgentsWindow('statistics')
-      return
-    }
-    this.showWideHere('statistics')
-    this.post({ type: 'loadStatistics' })
-  }
-
-  scheduleHubGarbageCollection() {
-    if (this.hubGarbageTimer) clearTimeout(this.hubGarbageTimer)
-    this.hubGarbageTimer = setTimeout(() => {
-      this.hubGarbageTimer = undefined
-      if (this.panel) return
-      this.collectWebviewGarbage()
-      collectExtensionGarbage()
-      void vscode.commands.executeCommand('point.collectHubGarbage').then(() => {}, () => {})
-    }, 750)
-  }
-
-  collectWebviewGarbage() {
-    const surfaces = [this.view, this.companionSidebar, this.companionPopup, this.connectionsPanel, this.statisticsPanel, this.dockerPanel, ...this.toolWindows.values()]
-    for (const surface of surfaces) {
-      if (!surface?.webview) continue
-      void Promise.resolve(surface.webview.postMessage({ type: 'collectGarbage' })).catch(() => {})
-    }
-  }
-
-  showDocker() {
-    if (!this.agentsWindowMode) {
-      void this.openAgentsWindow('docker')
-      return
-    }
-    this.showWideHere('docker')
-    this.post({ type: 'dockerNeedRefresh' })
-  }
-
-  showCompanionPeek() {
-    this.companionFocusTarget = 'peek'
-    if (this.companionPopup) {
-      this.companionPopup.reveal(vscode.ViewColumn.Beside, true)
-      this.flushCompanionFocus()
-      this.pushCompanionThreadSync('peek')
-      this.postState(true)
-      return 'peek'
-    }
-    this.companionPopupReady = false
-    this.companionPopup = vscode.window.createWebviewPanel(
-      'point.companionPeek',
-      'Компаньон',
-      { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
-      {
-        enableScripts: true,
-        retainContextWhenHidden: true,
-        localResourceRoots: [vscode.Uri.joinPath(this.context.extensionUri, 'media')],
-      },
-    )
-    this.companionPopupStateSignature = ''
-    this.companionPopup.iconPath = vscode.Uri.joinPath(this.context.extensionUri, 'media', 'agent.svg')
-    this.companionPopup.webview.html = this.html(this.companionPopup.webview, 'companion-peek')
-    this.companionPopup.webview.onDidReceiveMessage(message => this.handleMessage(message), undefined, this.context.subscriptions)
-    this.companionPopup.onDidChangeViewState(() => { this.onHubVisibility(this.hubVisible()) }, undefined, this.context.subscriptions)
-    this.companionPopup.onDidDispose(() => {
-      this.companionPopup = undefined
-      this.companionPopupReady = false
-      this.companionPopupStateSignature = ''
-      if (!this.hubVisible()) this.onHubVisibility(false)
-    }, undefined, this.context.subscriptions)
-    this.postState(true)
-    this.pushCompanionThreadSync('peek')
-    return 'peek'
-  }
-
-  showCompanionPopup() {
-    return this.showCompanionPeek()
-  }
-
-  // Подключения — своё окно, а не вкладка Хаба. Их заводят один раз и надолго,
-  // а потом только выбирают в разговоре; место внутри Хаба означало бы, что за
-  // сменой модели надо идти в агентов. Поверхность та же, что у остальных
-  // страниц (`layout: 'connections'`), поэтому обработчики подключений,
-  // рассылка состояния и разбор сообщений остаются общими.
-  showConnections() {
-    if (this.connectionsPanel) {
-      this.connectionsPanel.reveal(vscode.ViewColumn.Active, false)
-      this.postState(true)
-      return
-    }
-    this.connectionsPanel = vscode.window.createWebviewPanel(
-      'point.connections',
-      'Подключения Point',
-      vscode.ViewColumn.Active,
-      {
-        enableScripts: true,
-        retainContextWhenHidden: true,
-        localResourceRoots: [vscode.Uri.joinPath(this.context.extensionUri, 'media')],
-      },
-    )
-    this.connectionsStateSignature = ''
-    this.connectionsPanel.iconPath = vscode.Uri.joinPath(this.context.extensionUri, 'media', 'agent.svg')
-    this.connectionsPanel.webview.html = this.html(this.connectionsPanel.webview, 'connections')
-    this.connectionsPanel.webview.onDidReceiveMessage(message => this.handleMessage(message), undefined, this.context.subscriptions)
-    this.connectionsPanel.onDidChangeViewState(() => { this.onHubVisibility(this.hubVisible()) }, undefined, this.context.subscriptions)
-    this.connectionsPanel.onDidDispose(() => {
-      this.connectionsPanel = undefined
-      this.connectionsStateSignature = ''
-      if (!this.hubVisible()) this.onHubVisibility(false)
-    }, undefined, this.context.subscriptions)
-    this.postState(true)
-  }
-
-  async waitForCompanionSurface(surface, timeoutMs = 1600) {
-    const ready = () => {
-      if (surface === 'sidebar') return Boolean(this.companionSidebar && this.companionSidebar.visible !== false)
-      if (surface === 'dock') return Boolean(this.view && this.view.visible !== false)
-      return Boolean(this.companionPopup && this.companionPopup.visible !== false)
-    }
-    const deadline = Date.now() + timeoutMs
-    while (!ready() && Date.now() < deadline) {
-      await new Promise(resolve => setTimeout(resolve, 80))
-    }
-    return ready()
-  }
-
-  async showCompanionDock() {
-    return this.showCompanionSidebar()
-  }
-
-  async showCompanionSidebar() {
-    this.companionFocusTarget = 'sidebar'
-    const closeLeftAssistant = Boolean(this.view && this.view.visible !== false)
-    try {
-      await vscode.commands.executeCommand('workbench.view.extension.pointCompanion')
-    } catch { /* the view may already be visible */ }
-    try {
-      await vscode.commands.executeCommand('localAgent.companionChat.focus')
-    } catch { /* opening the container above is sufficient on older hosts */ }
-    try {
-      await vscode.commands.executeCommand('workbench.action.focusAuxiliaryBar')
-    } catch { /* older hosts may not expose the command */ }
-    if (!await this.waitForCompanionSurface('sidebar')) {
-      this.service.hostLog('warn', '[ui] assistant right sidebar did not become visible; opening editor chat fallback')
-      return this.showCompanionPeek()
-    }
-    if (closeLeftAssistant) {
-      try {
-        await vscode.commands.executeCommand('workbench.action.closeSidebar')
-      } catch { /* the primary sidebar may already be closed */ }
-    }
-    this.flushCompanionFocus()
-    this.pushCompanionThreadSync('sidebar')
-    this.postState(true)
-    return 'sidebar'
-  }
-
-  closeCompanionPopup() {
-    if (!this.companionPopup) return
-    this.companionPopup.dispose()
-  }
-
-  // Страница диалога, окно сведений и архив живут в chat-documents.js. Собираем
-  // их по первому обращению, а не в конструкторе: смоуки зовут эти методы через
-  // prototype на подставном объекте, и поле, заполняемое конструктором, там
-  // осталось бы пустым. Контекст читается замыканием — при перезапуске панели
-  // он подменяется, а сохранённая ссылка указывала бы на прежний.
-  get chatDocuments() {
-    if (!this.chatDocumentsCache) {
-      this.chatDocumentsCache = createChatDocuments({
-        escapeHtml, extensionUri: this.context?.extensionUri, readContext: () => this.context,
-      })
-    }
-    return this.chatDocumentsCache
-  }
-
+  post(message) { return hubSurfaces.post(this, message) }
+  postCursorRuntime() { return hubSurfaces.postCursorRuntime(this) }
+  async refreshCursorRuntime() { return hubSurfaces.refreshCursorRuntime(this) }
+  async show(tab = 'overview') { return hubSurfaces.show(this, tab) }
+  showWide(tab = 'overview') { return hubSurfaces.showWide(this, tab) }
+  normalizedAgentImprovementFocus(agentId, constructorStep = 'review') { return hubSurfaces.normalizedAgentImprovementFocus(this, agentId, constructorStep) }
+  focusAgentImprovement(agentId, constructorStep = 'review') { return hubSurfaces.focusAgentImprovement(this, agentId, constructorStep) }
+  async openAgentsWindow(tab = 'master', focus = undefined) { return hubSurfaces.openAgentsWindow(this, tab, focus) }
+  async postChatDirectory() { return hubSurfaces.postChatDirectory(this) }
+  takePendingMasterConversation() { return hubSurfaces.takePendingMasterConversation(this) }
+  async confirmLeavingBusyWorld() { return hubSurfaces.confirmLeavingBusyWorld(this) }
+  knownProject(value) { return hubSurfaces.knownProject(this, value) }
+  openProjectGallery() { return hubSurfaces.openProjectGallery(this) }
+  enterAgentsWindow(tab = 'master', focus = undefined) { return hubSurfaces.enterAgentsWindow(this, tab, focus) }
+  focusTab(tab) { return hubSurfaces.focusTab(this, tab) }
+  showWideHere(tab = 'master') { return hubSurfaces.showWideHere(this, tab) }
+  showStatistics() { return hubSurfaces.showStatistics(this) }
+  scheduleHubGarbageCollection() { return hubSurfaces.scheduleHubGarbageCollection(this) }
+  collectWebviewGarbage() { return hubSurfaces.collectWebviewGarbage(this) }
+  showDocker() { return hubSurfaces.showDocker(this) }
+  showCompanionPeek() { return hubSurfaces.showCompanionPeek(this) }
+  showCompanionPopup() { return hubSurfaces.showCompanionPopup(this) }
+  showConnections() { return hubSurfaces.showConnections(this) }
+  async waitForCompanionSurface(surface, timeoutMs = 1600) { return hubSurfaces.waitForCompanionSurface(this, surface, timeoutMs) }
+  async showCompanionDock() { return hubSurfaces.showCompanionDock(this) }
+  async showCompanionSidebar() { return hubSurfaces.showCompanionSidebar(this) }
+  closeCompanionPopup() { return hubSurfaces.closeCompanionPopup(this) }
   companionDocument(title, subtitle, messages, details = '') { return companionDocumentHtml(title, subtitle, messages, details, escapeHtml) }
   showCompanionMessageDetails(item, request) { return this.chatDocuments.showCompanionMessageDetails(item, request) }
   showCompanionArchives() { return this.chatDocuments.showCompanionArchives() }

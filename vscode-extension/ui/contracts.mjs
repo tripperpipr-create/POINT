@@ -61,6 +61,18 @@ const readGoPackage = directory => {
 // are both covered without depending on esbuild's formatting.
 const webviewSource = readSources('vscode-extension/ui/client')
 
+// Расширение читается тем же правилом, что и пакет Go: корнем каталога, а не
+// именем файла. 19 сентября `formatIndexStatus` уехала в
+// `project-index-controller.js`, и договорённость о состояниях индекса
+// перестала находить словарь — сверять стало не с чем. Модули верхнего уровня
+// `vscode-extension/` и есть одна единица: `extension.js` их только связывает.
+const extensionPackage = fs.readdirSync(path.join(root, 'vscode-extension'), { withFileTypes: true })
+  .filter(entry => entry.isFile() && entry.name.endsWith('.js'))
+  .map(entry => entry.name)
+  .sort()
+  .map(name => fs.readFileSync(path.join(root, 'vscode-extension', name), 'utf8'))
+  .join('\n')
+
 const failures = []
 const fail = message => failures.push(message)
 
@@ -316,7 +328,7 @@ const TYPE_SCALE = new Set(
 //    невозможно разблокировать, и молчит об этом.
 {
   const go = read('internal/app/decisions.go')
-  const ext = read('vscode-extension/extension.js') + '\n' + read('vscode-extension/extension-utils.js')
+  const ext = extensionPackage
 
   const patterns = [
     ...[...go.matchAll(/(?:Path|Reject):\s*fmt\.Sprintf\("([^"]+)"/g)].map(m => m[1]),
@@ -434,7 +446,7 @@ const TYPE_SCALE = new Set(
 {
   const indexGo = readGoPackage('internal/workspace')
   const appGo = read('internal/app/app.go')
-  const ext = read('vscode-extension/extension.js')
+  const ext = extensionPackage
   const js = webviewSource
 
   const coreStates = new Set([

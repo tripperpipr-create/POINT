@@ -285,7 +285,7 @@ func EnsureProjectPipeline(flow domain.FlowGraph, agentIDs []string) domain.Flow
 			ID: domain.NewID("node"), Kind: domain.FlowNodeAgent, Name: "Implementation review", AgentID: reviewer,
 			Config: map[string]any{
 				"stageRole": domain.StageRoleImplReview, "writeFiles": false,
-				"instruction": DefaultStageInstruction(domain.StageRoleImplReview),
+				"instruction":  DefaultStageInstruction(domain.StageRoleImplReview),
 				"workContract": domain.WorkContract{ForbiddenPaths: []string{"src", "vendor"}, MergePlan: "read-only"},
 			},
 		})

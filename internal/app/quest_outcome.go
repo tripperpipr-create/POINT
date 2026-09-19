@@ -398,8 +398,8 @@ func (a *App) completionProofFromRun(ctx context.Context, runID string, quest do
 // sandbox tip and must not demand a separate merged-result completion check.
 func (a *App) requiresMergedResultCheck(ctx context.Context, quest domain.Quest, executions []domain.ExecutionInstance, byID map[string]*domain.Quest) bool {
 	type writerMeta struct {
-		id       string
-		parents  []string
+		id        string
+		parents   []string
 		hasRecord bool
 	}
 	writers := make([]writerMeta, 0, len(executions))

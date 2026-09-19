@@ -22,14 +22,14 @@ import (
 type DecisionKind string
 
 const (
-	DecisionApproval     DecisionKind = "approval"      // патч, команда, пользовательский инструмент
-	DecisionChangeSet    DecisionKind = "change-set"    // набор изменений на применение
-	DecisionConflict     DecisionKind = "conflict"      // трёхстороннее слияние после Join
-	DecisionFlowGate     DecisionKind = "flow-gate"     // узел-approval внутри флоу
-	DecisionQuest        DecisionKind = "quest"         // предложение квеста
-	DecisionAction       DecisionKind = "action"        // предложенное действие
-	DecisionEgress       DecisionKind = "egress"        // сеть/git вне allowlist → Мастер→пользователь
-	DecisionSupervision  DecisionKind = "supervision"   // надзор Мастера (антизависание)
+	DecisionApproval    DecisionKind = "approval"    // патч, команда, пользовательский инструмент
+	DecisionChangeSet   DecisionKind = "change-set"  // набор изменений на применение
+	DecisionConflict    DecisionKind = "conflict"    // трёхстороннее слияние после Join
+	DecisionFlowGate    DecisionKind = "flow-gate"   // узел-approval внутри флоу
+	DecisionQuest       DecisionKind = "quest"       // предложение квеста
+	DecisionAction      DecisionKind = "action"      // предложенное действие
+	DecisionEgress      DecisionKind = "egress"      // сеть/git вне allowlist → Мастер→пользователь
+	DecisionSupervision DecisionKind = "supervision" // надзор Мастера (антизависание)
 )
 
 // DecisionResolve описывает, как принять или отклонить элемент.
@@ -353,7 +353,7 @@ func (a *App) Decisions(ctx context.Context) (DecisionQueue, error) {
 			WaitingMs: waitingMs(ask.CreatedAt, now),
 			Blocking:  true,
 			Resolve: DecisionResolve{
-				Path: fmt.Sprintf("/api/egress-asks/%s/resolve", ask.ID),
+				Path:  fmt.Sprintf("/api/egress-asks/%s/resolve", ask.ID),
 				Field: "action", Accept: accept, Reject: reject,
 			},
 		})

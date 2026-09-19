@@ -40,6 +40,12 @@ Line endings are mixed on purpose and `.gitattributes` disables every
 conversion (`* -text`). Release contracts store the sha256 of build materials,
 so a checkout that rewrote CRLF would fail the gate on a clean clone.
 
+One consequence: `gofmt -l` is not a gate here. It rewrites CRLF to LF, so it
+lists all 33 CRLF Go files whether or not their formatting has drifted — on
+19 September exactly one of them had. Format a file through a pipe and put its
+own endings back (`gofmt < file`, then restore CRLF if it had CRLF); never run
+`gofmt -w` across the tree.
+
 Secrets never enter the tree. `POINT_API_TOKEN` in `.env.example` is a
 placeholder for loopback development and must be replaced in any shared
 environment.

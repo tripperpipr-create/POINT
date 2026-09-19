@@ -14,8 +14,8 @@ import (
 	"strings"
 	"sync"
 
-	"local-agent-workbench/internal/osproc"
 	"local-agent-workbench/internal/mcp"
+	"local-agent-workbench/internal/osproc"
 )
 
 type CLI struct {

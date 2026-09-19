@@ -168,7 +168,7 @@ type EvidenceBundle struct {
 	BriefDigest              string                   `json:"briefDigest"`
 	EnvironmentDigest        string                   `json:"environmentDigest"`
 	StackPreset              StackPresetRef           `json:"stackPreset"`
-	CompletionProfile        CompletionProfile         `json:"completionProfile"`
+	CompletionProfile        CompletionProfile        `json:"completionProfile"`
 	DockerImages             []string                 `json:"dockerImages"`
 	NetworkPolicyDigest      string                   `json:"networkPolicyDigest,omitempty"`
 	CommitIDs                []string                 `json:"commitIds,omitempty"`

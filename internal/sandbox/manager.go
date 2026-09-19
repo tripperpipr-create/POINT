@@ -15,8 +15,8 @@ import (
 
 	"github.com/pmezard/go-difflib/difflib"
 
-	"local-agent-workbench/internal/osproc"
 	"local-agent-workbench/internal/domain"
+	"local-agent-workbench/internal/osproc"
 )
 
 // Manager creates isolated execution workspaces (git worktree or filtered copy).

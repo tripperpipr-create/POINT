@@ -27,6 +27,7 @@ import { handleCompanionClickAction } from './companion-actions.js'
 import { handleOnboardingClickAction } from './onboarding-actions.js'
 import { createCompanionTransport } from './companion-transport.js'
 import { createMasterInbox } from './master-inbox.js'
+import { createHubEntityInbox } from './hub-entity-inbox.js'
 import { createDecisionViews } from './decision-views.js'
 import { createCompanionThreadViews } from './companion-thread-views.js'
 import { createKeyboardNavigation } from './keyboard-navigation.js'
@@ -2023,6 +2024,7 @@ const modularUiState = {
   get gitSelectedStash() { return gitSelectedStash }, set gitSelectedStash(value) { gitSelectedStash = value },
   get gitTab() { return gitTab }, set gitTab(value) { gitTab = value },
   get gitTarget() { return gitTarget }, set gitTarget(value) { gitTarget = value },
+  get hireAfterSave() { return hireAfterSave }, set hireAfterSave(value) { hireAfterSave = value },
   get hirePreviewTemplateId() { return hirePreviewTemplateId }, set hirePreviewTemplateId(value) { hirePreviewTemplateId = value },
   get manualLearningDraft() { return manualLearningDraft }, set manualLearningDraft(value) { manualLearningDraft = value },
   get manualLearningPreview() { return manualLearningPreview }, set manualLearningPreview(value) { manualLearningPreview = value },
@@ -2093,6 +2095,7 @@ const modularUiState = {
   get intakeBusy() { return intakeBusy }, set intakeBusy(value) { intakeBusy = value },
   get intakeError() { return intakeError }, set intakeError(value) { intakeError = value },
   get intakeURL() { return intakeURL }, set intakeURL(value) { intakeURL = value },
+  get submittingForm() { return submittingForm }, set submittingForm(value) { submittingForm = value },
   get statisticsData() { return statisticsData }, set statisticsData(value) { statisticsData = value },
   get statisticsStatus() { return statisticsStatus }, set statisticsStatus(value) { statisticsStatus = value },
   get taskDraft() { return taskDraft }, set taskDraft(value) { taskDraft = value },
@@ -2139,6 +2142,17 @@ const applyMasterMessage = createMasterInbox({
   stopMasterWaitClock: (...args) => stopMasterWaitClock(...args),
   sendMasterMessage: (...args) => sendMasterMessage(...args),
   applyMasterFind: (...args) => applyMasterFind(...args),
+})
+
+// Ответы на правку сущностей Гильдии разбираются своим модулем: у всех
+// тринадцати одна форма — закрыть редактор и решить, куда вести дальше.
+const applyHubEntityMessage = createHubEntityInbox({
+  ui: modularUiState, vscode, render: (...args) => render(...args),
+  persistDraft: (...args) => persistDraft(...args),
+  closeQuestIfOpen: (...args) => closeQuestIfOpen(...args),
+  resetQuestReplansCache: (...args) => resetQuestReplansCache(...args),
+  releaseMasterAgentCards: (...args) => releaseMasterAgentCards(...args),
+  reviseWorkOrderRosterV2: (...args) => reviseWorkOrderRosterV2(...args),
 })
 // Экран «Решения» живёт отдельным модулем: очередь, карточка и горячие
 // клавиши — одна тема, и трогают её вместе.
@@ -4826,148 +4840,7 @@ window.addEventListener('message', event => {
     })
     focusCompanionInput()
   }
-  if (message.type === 'dbConnectionSaved') {
-    if (message.id) dbSelectedId = message.id
-    dbEditingId = ''
-    dbQueryResult = undefined
-    dbSchemaResult = undefined
-    render()
-  }
-  if (message.type === 'serverProfileSaved') {
-    serverEditingId = ''
-    render()
-  }
-  if (message.type === 'dbQueryResult') {
-    if (submittingForm === 'db-query-form') submittingForm = ''
-    dbQueryStatus = 'idle'
-    if (message.error) {
-      transientError = message.error
-      dbQueryResult = undefined
-    } else {
-      dbQueryResult = message.result
-      transientError = ''
-    }
-    render()
-  }
-  if (message.type === 'dbWriteRequired') {
-    if (submittingForm === 'db-query-form') submittingForm = ''
-    dbQueryStatus = 'idle'
-    dbWritePending = { connectionId: message.connectionId, sql: message.sql }
-    transientError = ''
-    render()
-  }
-  if (message.type === 'dbSchemaResult') {
-    dbSchemaResult = message.result
-    render()
-  }
-  if (message.type === 'profileSaved' || message.type === 'profileDeleted') {
-    const intent = hireAfterSave
-    hireAfterSave = ''
-    createStepError = ''
-    hirePreviewTemplateId = ''
-    profileDraft = undefined
-    profileEditorOpen = false
-    profileEditorStep = 'identity'
-    if (agentConstructorOpen) {
-      agentConstructorOpen = false
-      constructorDraft = undefined
-    }
-    selectedProfileId = message.profileId || ''
-    if (state.selectedTab === 'onboarding' && onboardingStep === 'first-agent') {
-      onboardingStep = 'model-connection'
-      persistDraft()
-    }
-    persistDraft()
-    if (message.type === 'profileSaved' && intent === 'quest') {
-      vscode.postMessage({ type: 'selectTab', tab: 'quests' })
-    }
-  }
-  if (message.type === 'projectAgentSaved') {
-    const intent = hireAfterSave
-    hireAfterSave = ''
-    createStepError = ''
-    blueprintSyncPreview = undefined
-    blueprintSyncDirection = ''
-    constructorDraft = undefined
-    agentConstructorOpen = false
-    selectedProfileId = message.agentId || selectedProfileId
-    if (state.selectedTab === 'onboarding' && onboardingStep === 'first-agent') {
-      onboardingStep = 'model-connection'
-    }
-    persistDraft()
-    render()
-    if (intent === 'quest') vscode.postMessage({ type: 'selectTab', tab: 'quests' })
-    if (intent.startsWith('work-order:') && message.agentId) {
-      // Наряд и черновик, ради которого нанимали. Идентификатор черновика
-      // приписан к намерению через «|»: без него подстановка не знает, кого
-      // именно заменил новый исполнитель.
-      const [orderId, draftId] = intent.slice('work-order:'.length).split('|')
-      const order = (Array.isArray(masterData?.workOrders) ? masterData.workOrders : []).find(item => item.id === orderId)
-      const agent = (state.boot?.projectAgents || []).find(item => item.id === message.agentId)
-      if (order && agent) {
-        const hired = {
-          id: agent.id, blueprintId: agent.blueprintId || '', existing: true, name: agent.name,
-          role: agent.roleDescription || '', mission: agent.mission || agent.roleDescription || '',
-          requiredTools: Array.isArray(agent.allowedTools) ? agent.allowedTools : [],
-        }
-        reviseWorkOrderRosterV2(order.id, roster => {
-          // Прежде сюда вставлялся весь состав одним человеком: наряд из трёх
-          // исполнителей после найма четвёртого оставался с одним. Заменяем
-          // только тот черновик, ради которого шли в мастерскую, а если он уже
-          // исчез — первый незаведённый; остальных не трогаем.
-          const permanent = Array.isArray(roster.permanent) ? [...roster.permanent] : []
-          if (permanent.some(draft => draft.id === agent.id)) return roster
-          const index = permanent.findIndex(draft => draft.id === draftId && !draft.existing)
-          const fallback = permanent.findIndex(draft => !draft.existing)
-          const at = index >= 0 ? index : fallback
-          if (at >= 0) permanent[at] = hired
-          else permanent.push(hired)
-          return { ...roster, permanent }
-        })
-      }
-    }
-    releaseMasterAgentCards()
-  }
-  if (message.type === 'projectAgentDeleted') {
-    // Конструктор закрываем: карточки, которую он правил, больше нет, и
-    // оставленный открытым он сохранил бы распущенного персонажа заново.
-    createStepError = ''
-    blueprintSyncPreview = undefined
-    blueprintSyncDirection = ''
-    constructorDraft = undefined
-    agentConstructorOpen = false
-    if (selectedProfileId === message.agentId) selectedProfileId = ''
-    persistDraft()
-    render()
-  }
-  if (message.type === 'blueprintSaved') {
-    createStepError = ''
-    blueprintSyncPreview = undefined
-    blueprintSyncDirection = ''
-    persistDraft()
-    render()
-  }
-  if (message.type === 'blueprintSyncPreview') {
-    blueprintSyncDirection = message.direction || blueprintSyncDirection
-    blueprintSyncPreview = message.preview
-    render()
-  }
-  if (message.type === 'questDeleted') {
-    // Раскрытой остаётся строка, которой больше нет: без сброса разбор
-    // готовности продолжал бы запрашиваться по удалённому идентификатору.
-    closeQuestIfOpen(message.questId)
-    resetQuestReplansCache()
-    transientError = ''
-    render()
-  }
-  if (message.type === 'memoryDeleted') {
-    if (memoryEditId === message.memoryId) {
-      memoryEditId = ''
-      memoryDraft = undefined
-    }
-    transientError = ''
-    render()
-  }
+  if (applyHubEntityMessage(message)) return
   if (message.type === 'companionConfigSaved') {
     transientError = ''
     companionSetupStatus = 'Настройки компаньона сохранены.'

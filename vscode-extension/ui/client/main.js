@@ -251,9 +251,18 @@ let onboardingStep = ['orchestrator-brain', 'orchestrator-choose'].includes(pers
 // Почему шаг не открылся. Клик по запертому шагу раньше просто ничего не делал:
 // человек жал и не понимал, сломано ли это, не туда ли он нажал, или так задумано.
 let onboardingLockNotice = ''
+// Черновик первого запуска всегда объект, никогда `undefined`.
+//
+// Его читают без проверки — и `ui.onboardingDraft.companionPreset`, и
+// `hasOwnProperty.call(onboardingDraft, ...)`. Сброс в `undefined` при смене мира
+// ронял отрисовку первого запуска целиком. Значение по умолчанию живёт
+// функцией, чтобы объявление и сброс не расходились.
+function freshOnboardingDraft() {
+  return { companionPreset: 'balanced', criticality: 50, creativity: 50, verbosity: 50, initiative: 50, questionStrictness: 70, riskTolerance: 30, agentName: '', agentTemplateId: '', connectionProvider: '', skillIds: [] }
+}
 let onboardingDraft = persisted.onboardingDraft && typeof persisted.onboardingDraft === 'object'
   ? persisted.onboardingDraft
-  : { companionPreset: 'balanced', criticality: 50, creativity: 50, verbosity: 50, initiative: 50, questionStrictness: 70, riskTolerance: 30, agentName: '', agentTemplateId: '', connectionProvider: '', skillIds: [] }
+  : freshOnboardingDraft()
 let agentConstructorOpen = Boolean(persisted.agentConstructorOpen)
 let constructorStep = typeof persisted.constructorStep === 'string' ? persisted.constructorStep : 'identity'
 let constructorDraft = persisted.constructorDraft && typeof persisted.constructorDraft === 'object' ? persisted.constructorDraft : undefined
@@ -646,7 +655,7 @@ function resetProjectScopedState() {
 
   toolWindowData = {}
   transientError = ''
-  onboardingDraft = undefined
+  onboardingDraft = freshOnboardingDraft()
   onboardingLockNotice = ''
   agentCapabilityCache.clear()
   agentCapabilityInflight.clear()

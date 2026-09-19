@@ -60,7 +60,7 @@ export function handleFlowClickAction({
   if (action === 'add-flow-edge') {
     const draft = captureFlowForm()
     const nodes = draft.nodes || []
-    if (nodes.length < 2) return true
+    if (nodes.length < 2) return
     draft.edges = [...(draft.edges || []), { id: `edge-${Date.now()}`, from: nodes[0].id, to: nodes[1].id }]
     ui.flowDraft = draft
     render()
@@ -116,8 +116,17 @@ export function handleFlowClickAction({
   if (action === 'add-workflow-step') { const value=currentWorkflowForm();if(value&&value.steps.length<12){value.steps.push(newWorkflowStep(value.steps.length));ui.workflowDraft=value;render()}; return true }
   if (action === 'remove-workflow-step') { const value=currentWorkflowForm();const index=Number(target.dataset.index);if(value&&value.steps.length>1){value.steps.splice(index,1);ui.workflowDraft=value;render()}; return true }
   if (action === 'move-workflow-step') { const value=currentWorkflowForm();const index=Number(target.dataset.index);const next=index+Number(target.dataset.direction);if(value&&next>=0&&next<value.steps.length){[value.steps[index],value.steps[next]]=[value.steps[next],value.steps[index]];ui.workflowDraft=value;render()}; return true }
-  if (action === 'delete-workflow') vscode.postMessage({type:'deleteWorkflow',id:target.dataset.id; return true }
-  if (action === 'load-workflow-run') vscode.postMessage({type:'loadWorkflowRun',id:target.dataset.id; return true }
-  if (action === 'cancel-workflow') vscode.postMessage({type:'cancelWorkflow',id:target.dataset.id; return true }
+  if (action === 'delete-workflow') {
+    vscode.postMessage({type:'deleteWorkflow',id:target.dataset.id})
+    return true
+  }
+  if (action === 'load-workflow-run') {
+    vscode.postMessage({type:'loadWorkflowRun',id:target.dataset.id})
+    return true
+  }
+  if (action === 'cancel-workflow') {
+    vscode.postMessage({type:'cancelWorkflow',id:target.dataset.id})
+    return true
+  }
   return false
 }

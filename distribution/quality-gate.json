@@ -169,10 +169,10 @@
     {
       "id": "SMOKE_MASTER_SESSION_CONTROLS_STALE",
       "severity": "P3",
-      "status": "open",
+      "status": "closed",
       "title": "Manual browser smoke for master session controls no longer passes: the conversation actions panel does not reveal the title input",
       "evidence": "scripts/smoke-master-session-controls.cjs",
-      "rationale": "Ручная проверка вне затвора: требует Edge и Playwright из локальной сборки Code-OSS. Записана здесь, чтобы красная проверка не считалась живой просто потому, что её никто не запускал."
+      "rationale": "Закрыт 19 сентября. Причина была в самой проверке: она вставляла исходник `master-session-ui.js` обычным <script>, вырезав экспорты. Когда в модуле появился `import`, вставка перестала исполняться целиком, обработчик кликов не навешивался и панель не открывалась. Модуль теперь собирается esbuild'ом, а стенд повторяет вызов продукта. Остаётся ручной: требует Edge и Playwright из локальной сборки Code-OSS."
     },
     {
       "id": "WEBVIEW_COMPANION_STREAM_PATCH_LOST",

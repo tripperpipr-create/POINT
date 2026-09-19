@@ -2,6 +2,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const assert = require('node:assert/strict')
 const { execFileSync } = require('node:child_process')
+const { pathToFileURL } = require('node:url')
 const { chromium } = require('../.cache/code-oss/node_modules/@playwright/test')
 
 // Страница стенда пересобирается перед прогоном. Она уже расходилась с
@@ -12,17 +13,57 @@ fs.writeFileSync(fixture, execFileSync(process.execPath,
   [path.resolve(__dirname, 'render-hub-surface.js'), 'master', 'sessions'],
   { maxBuffer: 64 * 1024 * 1024 }))
 
+// Модуль отдаётся странице так же, как продукту, — сборкой, а не вырезанием.
+//
+// Здесь и сломалась эта проверка. Скрипт вставлял исходник `master-session-ui.js`
+// обычным <script>, заменив «export function» на «function» и убрав строку
+// реэкспорта. Пока модуль ни от кого не зависел, это работало. Потом в нём
+// появился `import { masterAnswerNote… } from './master-questions-views.js'` —
+// в классическом скрипте это синтаксическая ошибка, вставка целиком не
+// исполнялась, обработчик кликов не навешивался, и панель разговора никогда не
+// открывалась. Дефект зарегистрирован как SMOKE_MASTER_SESSION_CONTROLS_STALE.
+//
+// Сборка esbuild'ом — тем же, что делает media/main.js, — переживает и
+// следующий импорт: цепочку зависимостей считает она, а не этот файл.
+async function bundleSessionUi() {
+  const { build } = require('../vscode-extension/node_modules/esbuild')
+  const resolveDir = path.resolve(__dirname, '..', 'vscode-extension', 'ui', 'client')
+  const result = await build({
+    stdin: {
+      contents: "import { handleMasterSessionAction, patchMasterAnswerNote } from './master-session-ui.js'\n"
+        + 'window.handleMasterSessionAction = handleMasterSessionAction\n'
+        + 'window.patchMasterAnswerNote = patchMasterAnswerNote\n',
+      resolveDir,
+      loader: 'js',
+    },
+    bundle: true,
+    format: 'iife',
+    platform: 'browser',
+    target: ['es2022'],
+    write: false,
+    logLevel: 'silent',
+  })
+  return result.outputFiles[0].text
+}
+
 ;(async () => {
   const browser = await chromium.launch({ channel: 'msedge', headless: true })
   try {
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } })
-    await page.goto('file:///' + path.resolve('build/master-sessions.html').replaceAll('\\', '/'))
-    const source = fs.readFileSync('vscode-extension/ui/client/master-session-ui.js', 'utf8').replaceAll('export function', 'function').replace(/^export \{.*\} from .*$/gm,'')
+    await page.goto(pathToFileURL(path.resolve('build/master-sessions.html')).href)
+    const source = await bundleSessionUi()
+    // Ввод подключён так же, как в продукте (`ui/client/main.js`): счётчик у
+    // «Продолжить» пересчитывается на каждом знаке, и без этого кнопка остаётся
+    // `aria-disabled` — отвечать было бы нечем.
     await page.addScriptTag({ content: source + `
-      window.posted = []; window.answers = [];
-      document.querySelector('#root').addEventListener('click', event => {
+      window.posted = []; window.answers = []; window.drafts = {}; window.cursor = {};
+      const hubRoot = document.querySelector('#root');
+      hubRoot.addEventListener('click', event => {
         const target = event.target.closest('[data-action]'); if (!target) return;
-        handleMasterSessionAction({action:target.dataset.action,target,root:document.querySelector('#root'),vscode:{postMessage:value=>window.posted.push(value)},sending:false,send:value=>window.answers.push(value)})
+        window.handleMasterSessionAction({action:target.dataset.action,target,root:hubRoot,vscode:{postMessage:value=>window.posted.push(value)},sending:false,send:value=>window.answers.push(value),render:()=>{},persist:()=>{},drafts:()=>window.drafts,cursor:()=>window.cursor})
+      });
+      hubRoot.addEventListener('input', event => {
+        if (event.target.closest('.hall-compose')) window.patchMasterAnswerNote(hubRoot, window.drafts);
       });` })
     // Клик мимо кнопки не отправляет реплику.
     //

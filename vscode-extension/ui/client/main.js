@@ -469,18 +469,50 @@ const TOOL_PRESETS = [
 // (фильтр журнала, вкладка и режим Git, развёрнутая рейка компаньона) человеку
 // принадлежат, а не проекту, и переживают переключение.
 function resetProjectScopedState() {
+  // Что принадлежит миру, решает ядро, а не эта функция: у мирских сущностей в
+  // `internal/storage` есть параметр `workspaceID`, у машинных его нет. Списки
+  // связей, серверов, своих инструментов, навыков, чертежей и workflow идут без
+  // него — они общие, и их черновики здесь намеренно не трогаются.
   taskDraft = ''
   questGoalDraft = ''
   questCriteriaDraft = ''
   questConstraintsDraft = ''
   contextItems = []
+  contextPreview = undefined
+  contextPreviewStatus = 'idle'
+  contextPreviewError = ''
   selectedProfileId = ''
   selectedFlowId = ''
-  keptRunId = ''
+  flowDraft = undefined
+  selectedFlowNodeId = ''
+
+  // Заявка на работу: `ListIntakeSessions` идёт по миру.
+  selectedIntakeId = ''
+  intakeBusy = false
+  intakeError = ''
+  intakeURL = ''
+
+  // Разговор с Мастером: `ListChatMessages` идёт по миру. Лента сбрасывалась и
+  // раньше, а вот что осталось открытым, найденным и закреплённым в ней — нет.
   masterData = undefined
   masterStatus = 'idle'
   masterDraft = ''
   masterDiscussionProposalId = ''
+  masterSending = false
+  masterComposeNote = ''
+  stopMasterWaitClock()
+  masterAutoFollow = true
+  masterLoadingEarlier = false
+  masterCaretToEnd = false
+  masterFindOpen = false
+  masterFindQuery = ''
+  masterFindIndex = 0
+  masterFindSummary = ''
+  masterPinnedWork.clear()
+  masterWorkOrderBusy.clear()
+  masterOpenReasoning.clear()
+  masterExpandedSteps.clear()
+  masterOpenSteps.clear()
   masterClient.active = ''
   masterClient.drafts = {}
   masterClient.scroll = {}
@@ -489,24 +521,131 @@ function resetProjectScopedState() {
   masterClient.questionDrafts = {}
   masterClient.briefPanel = {}
   masterClient.pages = {}
+
+  // Помощник: и сообщения, и его конфигурация заведены по миру
+  // (`ListCompanionMessages`, `GetCompanionConfig`), поэтому черновик настройки
+  // тоже мирской — иначе он перенесёт связь одного проекта в настройку другого.
   companionMessages = []
   companionDraft = ''
   companionStreamReply = ''
   companionLoading = false
+  companionPendingSend = ''
+  companionThinkPhase = ''
+  companionActivitySteps = []
+  companionAutoFollow = true
+  companionAppliedNotice = undefined
+  companionIdeContext = undefined
+  companionFeedbackMarks = new Map()
   ignoredCompanionSuggestions = new Set()
+  companionActionApplying.clear()
+  companionActionModifying.clear()
+  companionActionEditDrafts.clear()
+  companionActionEditId = ''
+  companionInterventionProbe = undefined
+  companionSetupOpen = false
+  companionSetupDraft = undefined
+  companionSetupStatus = ''
+  companionSetupTestResult = undefined
+  companionSetupPendingClose = false
+
+  // Предложения квестов и очередь решений: оба списка идут по миру.
+  proposalEditId = ''
+  proposalStarting.clear()
+  proposalModifying.clear()
+  proposalEditDrafts.clear()
   decisionsData = undefined
   decisionsStatus = 'idle'
-  toolWindowData = {}
+  decisionsError = ''
+  decisionPick = ''
+
+  // Прогоны и их контекст: `ListRunsForWorkspace`, `ListExecutions`.
+  keptRunId = ''
+  runStarting = false
+  cursorRunActive = false
+  cursorRunEvents = []
+  agentRunPreview = undefined
+  agentRunPreviewStatus = 'idle'
+  agentRunPreviewError = ''
+  plannerFallbackNotice = null
+  contextInspectorRunId = ''
+  contextInspector = undefined
+  contextInspectorStatus = 'idle'
+  contextInspectorNotice = ''
+
+  // Гильдия проекта: `ListProjectAgents`, `ListProjectSkills`,
+  // `ListAgentImprovements` — всё по миру. Сами чертежи и навыки общие, их
+  // формы (`skillDraft`, `customToolDraft`, `profileDraft`, `workflowDraft`)
+  // остаются: человек правит одну общую сущность, а не копию проекта.
+  agentConstructorOpen = false
+  constructorDraft = undefined
+  hirePreviewTemplateId = ''
+  hireAfterSave = ''
+  hiringReloadFor = ''
+  createStepError = ''
+  lastAgentImprovementFocusId = ''
+  blueprintSyncPreview = undefined
+  blueprintSyncDirection = ''
+  compiledPromptPreview = undefined
+  compiledPromptStatus = 'idle'
+  compiledPromptError = ''
+  compiledPromptSignature = ''
+  pendingSkillEquip = undefined
+  skillPendingEquipId = ''
+
+  // Память и опыт: `ListMemories`, `ListLearningSignals`, `ListSkillOutcomes`.
+  memoryEditId = ''
+  memoryDraft = undefined
+  experienceSearchQuery = ''
+  experienceSearchItems = []
+  experienceSearchStatus = 'idle'
+  manualLearningDraft = undefined
+  manualLearningPreview = undefined
+  manualLearningStatus = 'idle'
+
+  // Статистика — это `ListUsageRecords` по миру, и её сторож обязан сброситься
+  // вместе с данными. Пока `statisticsStatus` переживал переключение, ленивая
+  // загрузка больше не срабатывала: экран навсегда оставался на расходе
+  // прежнего проекта, а форма бюджета подставляла его лимиты в новый.
+  statisticsData = undefined
+  statisticsStatus = 'idle'
+
+  // История файла — это `ListPatchesForWorkspace`, базы — `ListDBConnections`.
+  // Docker рядом остаётся: он машинный, а не мирской.
+  fileHistoryData = undefined
+  fileHistoryPath = ''
+  fileHistoryStatus = 'idle'
+  dbSelectedId = ''
+  dbEditingId = ''
+  dbQueryResult = undefined
+  dbQueryStatus = 'idle'
+  dbSchemaResult = undefined
+  dbWritePending = null
+
+  // Git у каждого мира свой. Отмеченные файлы и свёрнутые папки сбрасывались и
+  // раньше, а выбранная строка, полка и цель — нет, хотя это тот же репозиторий.
   gitCommitDraft = ''
   gitChecked = new Set()
   gitKnown = new Set()
   gitCollapsed = new Set()
   gitFoldedOnce = false
+  gitSelected = ''
+  gitSelectedStash = ''
+  gitTarget = ''
+  gitPendingAction = ''
+  gitNotice = undefined
+  gitMenuFor = ''
+  gitDragPath = ''
+  gitAmend = false
+  gitHistoryOpen = false
+
+  toolWindowData = {}
+  transientError = ''
+  onboardingDraft = undefined
+  onboardingLockNotice = ''
   agentCapabilityCache.clear()
   agentCapabilityInflight.clear()
   agentCapabilityFailed.clear()
 }
-
 function persistDraft() {
   masterClient.remember(masterData?.sessions?.active || masterClient.active,masterDraft,root.querySelector('#master-thread')?.scrollTop)
   vscode.setState({

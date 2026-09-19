@@ -651,6 +651,12 @@ for (const [file, maximum] of Object.entries({
   'distribution/apply-overlay.mjs': 5068,
   'vscode-extension/ui/layers/07-master-quiet.css': 2110,
   'vscode-extension/ui/layers/05-hall.css': 1841,
+  // Три файла пишутся руками мимо `ui/build.mjs`: главная и Летопись
+  // подключают только `rpg-tokens.css` и в общий бандл не входят. Ни бюджета,
+  // ни шкал у них не было вовсе — теперь есть хотя бы трещотка по строкам.
+  'vscode-extension/media/home.css': 69,
+  'vscode-extension/media/chronicle.css': 79,
+  'vscode-extension/media/chronicle.js': 59,
   'internal/app/app.go': 720,
   'internal/companion/service.go': 600,
   'vscode-extension/extension.js': 7500,

@@ -88,14 +88,31 @@ for (const match of tokens.matchAll(/--(nc-t-[a-z0-9-]+|nc-r|nc-r-[a-z0-9-]+):\s
 const literalLonghand = /font-size:\s*(\d+(?:\.\d+)?)px/g
 const literalShorthand = /font:\s*[^;{}]*?\b(\d+(?:\.\d+)?)px(?=\s*\/)/g
 
-for (const name of fs.readdirSync(layersDir).filter(file => file.endsWith('.css')).sort()) {
-  const source = fs.readFileSync(path.join(layersDir, name), 'utf8')
+// Две поверхности пишутся руками мимо `ui/build.mjs`: главная (`media/home.css`)
+// и Летопись (`media/chronicle.css`). Обе подключают только `rpg-tokens.css`,
+// то есть шкала им доступна ровно та же. Летопись ею и пользуется — 23 обращения
+// к `var(--t-*)` и ни одного литерала, — и попадает под проверку, чтобы не
+// съехать обратно.
+//
+// Главная в проверку не входит намеренно: в ней 17 литералов, и три из них
+// (14px, 40px, 15px в `body`) ступени не имеют вовсе. Свести её к шкале — это
+// решение о размерах на экране, а не переформатирование; пока оно не принято,
+// честнее назвать исключение, чем молча его не проверять.
+const panels = ['chronicle.css']
+const sourcesToScan = [
+  ...fs.readdirSync(layersDir).filter(file => file.endsWith('.css')).sort()
+    .map(name => ['layers/' + name, path.join(layersDir, name)]),
+  ...panels.map(name => ['media/' + name, path.join(here, '..', 'media', name)]),
+]
+
+for (const [name, file] of sourcesToScan) {
+  const source = fs.readFileSync(file, 'utf8')
   const lines = source.split(/\r?\n/)
   for (const [index, line] of lines.entries()) {
     for (const pattern of [literalLonghand, literalShorthand]) {
       pattern.lastIndex = 0
       for (const hit of line.matchAll(pattern)) {
-        fail(`layers/${name}:${index + 1}: размер ${hit[1]}px задан числом — возьмите ступень шкалы (${hit[0].slice(0, 48)})`)
+        fail(`${name}:${index + 1}: размер ${hit[1]}px задан числом — возьмите ступень шкалы (${hit[0].slice(0, 48)})`)
       }
     }
   }

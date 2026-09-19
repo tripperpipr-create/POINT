@@ -25,6 +25,12 @@ import { handleGitClickAction, handleGitChangeAction } from './git-actions.js'
 import { handleHubClickAction } from './hub-actions.js'
 import { handleCompanionClickAction } from './companion-actions.js'
 import { handleOnboardingClickAction } from './onboarding-actions.js'
+import { handleInfraClickAction } from './infra-actions.js'
+import { handleMasterClickAction } from './master-actions.js'
+import { handleRunClickAction } from './run-actions.js'
+import { handleFlowClickAction } from './flow-actions.js'
+import { handleRosterClickAction } from './roster-actions.js'
+import { handleFormSubmit } from './form-submit.js'
 import { createCompanionTransport } from './companion-transport.js'
 import { createMasterInbox } from './master-inbox.js'
 import { createHubEntityInbox } from './hub-entity-inbox.js'
@@ -2124,12 +2130,14 @@ const modularUiState = {
   get contextInspectorRunId() { return contextInspectorRunId }, set contextInspectorRunId(value) { contextInspectorRunId = value },
   get contextInspector() { return contextInspector }, set contextInspector(value) { contextInspector = value },
   get contextInspectorStatus() { return contextInspectorStatus }, set contextInspectorStatus(value) { contextInspectorStatus = value },
+  get contextInspectorNotice() { return contextInspectorNotice }, set contextInspectorNotice(value) { contextInspectorNotice = value },
   get contextItems() { return contextItems }, set contextItems(value) { contextItems = value },
   get contextPreview() { return contextPreview }, set contextPreview(value) { contextPreview = value },
   get contextPreviewError() { return contextPreviewError }, set contextPreviewError(value) { contextPreviewError = value },
   get contextPreviewStatus() { return contextPreviewStatus }, set contextPreviewStatus(value) { contextPreviewStatus = value },
   get createStepError() { return createStepError }, set createStepError(value) { createStepError = value },
   get cursorRunActive() { return cursorRunActive }, set cursorRunActive(value) { cursorRunActive = value },
+  get cursorRunEvents() { return cursorRunEvents }, set cursorRunEvents(value) { cursorRunEvents = value },
   get customToolDraft() { return customToolDraft }, set customToolDraft(value) { customToolDraft = value },
   get customToolPreview() { return customToolPreview }, set customToolPreview(value) { customToolPreview = value },
   get customToolPreviewArguments() { return customToolPreviewArguments }, set customToolPreviewArguments(value) { customToolPreviewArguments = value },
@@ -2154,6 +2162,8 @@ const modularUiState = {
   get experienceSearchQuery() { return experienceSearchQuery }, set experienceSearchQuery(value) { experienceSearchQuery = value },
   get experienceSearchStatus() { return experienceSearchStatus }, set experienceSearchStatus(value) { experienceSearchStatus = value },
   get fileHistoryStatus() { return fileHistoryStatus }, set fileHistoryStatus(value) { fileHistoryStatus = value },
+  get fileHistoryData() { return fileHistoryData }, set fileHistoryData(value) { fileHistoryData = value },
+  get fileHistoryPath() { return fileHistoryPath }, set fileHistoryPath(value) { fileHistoryPath = value },
   get flowDraft() { return flowDraft }, set flowDraft(value) { flowDraft = value },
   get flowLegacyMode() { return flowLegacyMode }, set flowLegacyMode(value) { flowLegacyMode = value },
   get gitAmend() { return gitAmend }, set gitAmend(value) { gitAmend = value },
@@ -2187,10 +2197,11 @@ const modularUiState = {
   get masterOpenSteps() { return masterOpenSteps },
   get masterExpandedSteps() { return masterExpandedSteps },
   get masterFindQuery() { return masterFindQuery }, set masterFindQuery(value) { masterFindQuery = value },
-  get masterFindOpen() { return masterFindOpen },
+  get masterCaretToEnd() { return masterCaretToEnd }, set masterCaretToEnd(value) { masterCaretToEnd = value },
+  get masterFindOpen() { return masterFindOpen }, set masterFindOpen(value) { masterFindOpen = value },
   get masterFindIndex() { return masterFindIndex }, set masterFindIndex(value) { masterFindIndex = value },
   set masterFindSummary(value) { masterFindSummary = value },
-  get masterAutoFollow() { return masterAutoFollow },
+  get masterAutoFollow() { return masterAutoFollow }, set masterAutoFollow(value) { masterAutoFollow = value },
   get masterFindSummary() { return masterFindSummary },
   get masterLoadingEarlier() { return masterLoadingEarlier }, set masterLoadingEarlier(value) { masterLoadingEarlier = value },
   get masterDiscussionProposalId() { return masterDiscussionProposalId }, set masterDiscussionProposalId(value) { masterDiscussionProposalId = value },
@@ -2253,6 +2264,7 @@ const modularUiState = {
   get toolLogFilter() { return toolLogFilter }, set toolLogFilter(value) { toolLogFilter = value },
   get toolWindowData() { return toolWindowData }, set toolWindowData(value) { toolWindowData = value },
   get transientError() { return transientError }, set transientError(value) { transientError = value },
+  get toolEquipAfterSave() { return toolEquipAfterSave }, set toolEquipAfterSave(value) { toolEquipAfterSave = value },
   get workflowDraft() { return workflowDraft }, set workflowDraft(value) { workflowDraft = value },
 }
 
@@ -2874,18 +2886,32 @@ root.addEventListener('click', event => {
     setPlannerFallbackNotice: value => { plannerFallbackNotice = value },
     handleModelChipAction,
   })) return
-  if (action === 'master-ask') {
-    // Курсор ставится не здесь: отрисовка отложена до кадра, и поле, которому
-    // мы бы его задали, к тому времени уже заменено новым. Раньше каретка
-    // оставалась в начале — дописанное уточнение оказывалось перед вопросом.
-    masterDraft = target.dataset.question || ''
-    masterCaretToEnd = true
-    persistDraft()
-    render()
-  }
-  if (action === 'master-send-prompt') {
-    sendMasterMessage(target.dataset.message || '')
-  }
+  if (handleInfraClickAction({
+    action, target, ui: modularUiState, root, vscode, render, saveConnectionFromFields,
+  })) return
+  if (handleMasterClickAction({
+    action, target, ui: modularUiState, root, vscode, render, persistDraft, masterClient,
+    applyMasterFind: (...args) => applyMasterFind(...args),
+    updateMasterScrollCue: (...args) => updateMasterScrollCue(...args),
+    forgetMasterSent, masterAskBefore, masterMessageById, pickMasterMention,
+    sendMasterMessage, stopMasterWaitClock,
+  })) return
+  if (handleRunClickAction({
+    action, target, ui: modularUiState, vscode, render, persistDraft,
+    decisionIntents, questPayload, requestContextPreview, sendDecisionResolve, toggleOpenQuest,
+  })) return
+  if (handleFlowClickAction({
+    action, target, ui: modularUiState, vscode, render, persistDraft,
+    captureFlowForm, currentWorkflowForm, newFlowNode, newWorkflow, newWorkflowStep, workflowFromTemplate,
+  })) return
+  if (handleRosterClickAction({
+    action, target, ui: modularUiState, root, vscode, render, persistDraft,
+    CONSTRUCTOR_STEPS, EMPTY_TASK_REASON, TOOL_PRESETS,
+    agentById, hubAgents, hubModeAvailable, requestModelCapabilityProbe,
+    cloneCustomTool, composeQuestTask, currentCustomToolForm, currentFormProfile,
+    firstUnreadinessStep, newProfile: (...args) => newProfile(...args), prepareAgentConstructor,
+    profileReadiness, providerCatalog, resetCustomToolPreview, stepValidationIssue,
+  })) return
   // Согласие на создание агента — отдельный шаг перед запуском. Ядро теперь
   // тоже его требует (RosterConsent), поэтому кнопка «Подтвердить и запустить»
   // у наряда с новым исполнителем сначала раскрывает блок согласия.
@@ -2908,18 +2934,6 @@ root.addEventListener('click', event => {
     openWorkshop: (card, value) => openAgentWorkshopFromCard(card, value),
     createAgent: (card, value) => createAgentFromCard(card, value),
   })) return
-  if (action === 'approve-master-work-order-v2') {
-    const id=String(target.dataset.id || '')
-    if (!id || masterWorkOrderBusy.has(id)) return
-    const order=(Array.isArray(masterData?.workOrders)?masterData.workOrders:[]).find(item=>item.id===id)
-    const rosterConsent=(order?.roster?.permanent || []).filter(draft=>draft?.requiresConsent && !draft?.existing).map(draft=>String(draft.id || ''))
-    masterWorkOrderBusy.add(id)
-    masterAgentConsent.delete(id)
-    const idempotencyKey=globalThis.crypto?.randomUUID?.() || `approve-${Date.now()}-${Math.random().toString(36).slice(2)}`
-    vscode.postMessage({type:'approveMasterWorkOrderV2',workOrderId:id,version:Number(target.dataset.version),digest:String(target.dataset.digest || ''),idempotencyKey,rosterConsent,turnId:masterClient.turns[masterClient.active]?.id})
-    render()
-    return
-  }
   // Ревизия ростера существующим маршрутом: карточка найма меняет только состав,
   // версия и digest проверяются ядром, как при любой правке карточки запуска.
   //
@@ -2989,282 +3003,7 @@ root.addEventListener('click', event => {
     render()
   }
 
-  if (action === 'save-master-work-order-v2') {
-    const id=String(target.dataset.id || '')
-    const order=(Array.isArray(masterData?.workOrders)?masterData.workOrders:[]).find(item=>item.id===id)
-    const card=target.closest?.('.master-v2-order')
-    if (!id || !order || !card || masterWorkOrderBusy.has(id)) return
-    try {
-      const draft=JSON.parse(JSON.stringify(order))
-      delete draft.digest;delete draft.runtime;delete draft.approvedVersion;delete draft.approvedDigest
-      const lineValues=name=>String(card.querySelector(`[data-work-order-field="${name}"]`)?.value || '').split(/\r?\n/).map(value=>value.trim()).filter(Boolean)
-      draft.goal=String(card.querySelector('[data-work-order-field="goal"]')?.value || '').trim()
-      draft.scope=lineValues('scope')
-      draft.assumptions=lineValues('assumptions')
-      draft.outOfScope=lineValues('outOfScope')
-      for (const input of card.querySelectorAll('[data-work-order-json]')) {
-        const field=String(input.dataset.workOrderJson || '')
-        if (field) draft[field]=JSON.parse(String(input.value || 'null'))
-      }
-      masterWorkOrderBusy.add(id)
-      const idempotencyKey=globalThis.crypto?.randomUUID?.() || `revise-${Date.now()}-${Math.random().toString(36).slice(2)}`
-      vscode.postMessage({type:'reviseMasterWorkOrderV2',workOrderId:id,expectedVersion:Number(order.version),expectedDigest:String(order.digest || ''),idempotencyKey,workOrder:draft})
-      render()
-    } catch (error) {
-      masterComposeNote=`Карточка не сохранена: ${error instanceof Error?error.message:String(error)}`
-      render()
-    }
-    return
-  }
-  if (action === 'control-master-work-order-v2') {
-    const id=String(target.dataset.id || '')
-    const questId=String(target.dataset.questId || '')
-    const control=String(target.dataset.control || '')
-    if (!id || !questId || !['pause','resume','cancel','message'].includes(control) || masterWorkOrderBusy.has(id)) return
-    // Запущенный наряд — прогон, а не карточка: только `.master-v2-order` терял бы поле сообщения ровно там, где оно и нужно.
-    const card=target.closest?.('.master-v2-order, .master-v2-run')
-    const message=control==='message' ? String(card?.querySelector?.('[data-work-order-message]')?.value || '').trim() : ''
-    if (control==='message' && !message) { masterComposeNote='Введите сообщение активному квесту';render();return }
-    masterWorkOrderBusy.add(id)
-    vscode.postMessage({type:'controlMasterWorkOrderQuestV2',workOrderId:id,questId,action:control,message})
-    render()
-    return
-  }
-  if (action === 'enable-docker-sandbox') {
-    // Настройку и перезапуск ядра делает расширение: у вебвью нет доступа ни к
-    // конфигурации, ни к процессу. Ответ придёт обычным обновлением состояния.
-    vscode.postMessage({type:'enableDockerSandbox'})
-    masterComposeNote='Включаем Docker sandbox и перезапускаем ядро…'
-    render()
-    return
-  }
-  if (action === 'control-master-application-v2') {
-    const id=String(target.dataset.id || '')
-    const questId=String(target.dataset.questId || '')
-    const control=String(target.dataset.control || '')
-    if (!id || !questId || !['start','stop'].includes(control) || masterWorkOrderBusy.has(id)) return
-    masterWorkOrderBusy.add(id)
-    const idempotencyKey=globalThis.crypto?.randomUUID?.() || `application-${Date.now()}-${Math.random().toString(36).slice(2)}`
-    vscode.postMessage({type:'controlMasterApplicationV2',workOrderId:id,questId,action:control,version:Number(target.dataset.version),digest:String(target.dataset.digest || ''),deliveryReceiptId:String(target.dataset.receiptId || ''),idempotencyKey})
-    render()
-    return
-  }
-  if (action === 'revise-master-work-order-v2') {
-    masterDraft='Измени карточку запуска: '
-    masterCaretToEnd=true
-    persistDraft();render()
-    return
-  }
-  if (action === 'copy-master-message') {
-    const item = masterMessageById(target.dataset.id)
-    if (item) vscode.postMessage({ type: 'copyMasterText', text: String(item.content || '') })
-    return
-  }
-  if (action === 'regenerate-master-message') {
-    // «Ответить иначе» переспрашивает тот же вопрос с признаком повтора —
-    // иначе модель вернёт тот же ответ слово в слово. Ветвление ленты —
-    // отдельная кнопка master-fork-message.
-    sendMasterMessage(target.dataset.message || '', { retry: true })
-    return
-  }
-  if (action === 'master-fork-message') {
-    const anchor = target.dataset.id
-    if (anchor) vscode.postMessage({ type: 'forkMasterConversation', messageId: anchor, regenerate: false, draft: target.dataset.message || '' })
-    return
-  }
-  if (action === 'master-step-expand') {
-    const key = String(target.dataset.key || '')
-    if (!key) return
-    if (masterExpandedSteps.has(key)) masterExpandedSteps.delete(key)
-    else masterExpandedSteps.add(key)
-    render()
-    return
-  }
-  if (action === 'master-message-details') {
-    const id = String(target.dataset.id || '')
-    const item = masterMessageById(id)
-    // Окно объясняет ответ, и без вопроса объяснять нечего: показываем реплику
-    // человека, на которую отвечали, а не «запрос не найден».
-    if (item) vscode.postMessage({ type: 'openMasterMessageDetails', item, request: masterAskBefore(id) })
-    return
-  }
-  if (action === 'master-feedback') {
-    const id = String(target.dataset.id || '')
-    const item = masterMessageById(id)
-    if (!item) return
-    // Повторное нажатие снимает отметку: передумать можно, и «полезно» второй
-    // раз значит именно это, а не подтверждение.
-    const value = item.feedback === target.dataset.value ? '' : target.dataset.value
-    vscode.postMessage({ type: 'masterFeedback', messageId: id, value })
-    return
-  }
-  if (action === 'master-find-step') {
-    masterFindIndex += Number(target.dataset.step || 1)
-    applyMasterFind(true)
-    return
-  }
-  if (action === 'master-find-open') {
-    masterFindOpen = true
-    render()
-    // Раскрыли — значит собираются искать: второй клик по полю лишний.
-    // preventScroll обязателен: фокус без него утаскивает ленту (договорённость 19).
-    root.querySelector('#master-find')?.focus({ preventScroll: true })
-    return
-  }
-  if (action === 'master-find-clear') {
-    masterFindQuery = ''
-    masterClient.query = ''
-    vscode.postMessage({type:'masterPage',conversationId:masterClient.active})
-    masterFindOpen = false
-    masterFindIndex = 0
-    render()
-    return
-  }
-  if (action === 'master-scroll-latest') {
-    const thread = root.querySelector('#master-thread')
-    if (thread) thread.scrollTop = thread.scrollHeight
-    masterAutoFollow = true
-    updateMasterScrollCue()
-    return
-  }
-  if (action === 'master-load-earlier') {
-    masterLoadingEarlier = true
-    // Полный хвост за один запрос: страничная догрузка вверх на ленте с
-    // «липкими» датами дороже, чем весь разговор целиком.
-    vscode.postMessage({ type: 'loadMaster', full: true, conversationId: masterClient.active })
-    render()
-    return
-  }
   if(action==='master-load-latest'){masterClient.query='';masterFindQuery='';vscode.postMessage({type:'masterPage',conversationId:masterClient.active});return}
-  if (action === 'keep-run-all') {
-    const runId = String(target.dataset.runId || state.details?.run?.id || '')
-    if (runId) keptRunId = runId
-    persistDraft()
-    render()
-    return
-  }
-  if (action === 'undo-run-all') {
-    const runId = String(target.dataset.runId || state.details?.run?.id || '')
-    if (runId) vscode.postMessage({ type: 'undoRunPatches', runId })
-    return
-  }
-  if (action === 'undo-run-file') {
-    const runId = String(target.dataset.runId || state.details?.run?.id || '')
-    const patchIds = String(target.dataset.patchIds || '').split(',').map(item => item.trim()).filter(Boolean)
-    if (runId) vscode.postMessage({ type: 'undoRunPatches', runId, patchIds })
-    return
-  }
-  if (action === 'master-mention-pick') {
-    // Мышью — то же, что Enter с клавиатуры: путь берётся из строки, а «@» с
-    // запросом уходит из черновика.
-    const { at, query } = masterMentionState()
-    closeMasterMention()
-    pickMasterMention({ path: target.dataset.path || '' }, at, query)
-    return
-  }
-  if (action === 'master-send') sendMasterMessage()
-  if (action === 'stop-master-chat') {
-    // Без turnId расширение не звало отмену вовсе: `if (message.turnId)` не
-    // срабатывал, и кнопка только снимала local-замок. Теперь ход гасится и в ядре.
-    vscode.postMessage({ type: 'stopMasterChat', turnId: masterClient.turns[masterClient.active]?.id || '' })
-    masterSending = false
-    forgetMasterSent()
-    stopMasterWaitClock()
-    // Честно: отмена ушла, но ядро могло успеть довести ход до конца.
-    masterComposeNote = 'Ядро могло довести его до конца. Частичный текст останется в разговоре.'
-    render()
-    return
-  }
-  if (action === 'retry-master') {
-    // Тот же путь, что у очереди решений: 'idle' — единственное состояние, из
-    // которого раздел сам запрашивает переписку. Повторяет человек, не таймер.
-    masterStatus = 'idle'
-    render()
-  }
-  if (action === 'pick-decision') { decisionPick = target.dataset.id || ''; render() }
-  if (action === 'repeat-quest') {
-    // Повтор не запускает прогон молча: задача переносится в брифинг, модель и
-    // персонажа человек выбирает сам. Иначе кнопка тратила бы бюджет вслепую.
-    taskDraft = target.dataset.task || ''
-    state.selectedTab = 'quests'
-    vscode.postMessage({ type: 'selectTab', tab: 'quests' })
-    persistDraft()
-    render()
-  }
-  if (action === 'pick-file-history') {
-    fileHistoryPath = target.dataset.path || ''
-    fileHistoryStatus = 'loading'
-    fileHistoryData = undefined
-    vscode.postMessage({ type: 'loadFileHistory', path: fileHistoryPath })
-    render()
-  }
-  if (action === 'revert-file-entry') {
-    const source = target.dataset.path || ''
-    const id = (target.dataset.id || '').split('/')[0]
-    if (source.startsWith('/api/patches/')) vscode.postMessage({ type: 'revertPatch', id })
-    else if (source.startsWith('/api/change-sets/')) vscode.postMessage({ type: 'revertChangeSet', id })
-  }
-  if (action === 'retry-decisions') {
-    decisionsStatus = 'idle'
-    decisionsError = ''
-    render()
-  }
-  if (action === 'resolve-decision') {
-    // Что и куда слать, считается из самого решения, а не переносится через
-    // разметку: атрибут умеет только строку, а часть маршрутов ждёт булево —
-    // «true» строкой для них не согласие, а чужой тип. Кнопка и горячая
-    // клавиша теперь считают одинаково, потому что считают одним кодом.
-    const id = target.dataset.id || ''
-    const item = (decisionsData?.items || []).find(entry => entry.id === id)
-    if (item) sendDecisionResolve(id, decisionIntents(item)[target.dataset.intent === 'reject' ? 'reject' : 'accept'])
-  }
-  if (action === 'toggle-quest') {
-    const id = String(target.dataset.id || '')
-    toggleOpenQuest(id)
-    render()
-  }
-  if (action === 'submit-quest-replan') {
-    const questId = String(target.dataset.questId || '')
-    const panel = target.closest('.quest-midflight')
-    if (!questId || !panel) return
-    const nodeId = String(panel.querySelector('[name="replanNodeId"]')?.value || '').trim()
-    const instruction = String(panel.querySelector('[name="replanInstruction"]')?.value || '').trim()
-    const reason = String(panel.querySelector('[name="replanReason"]')?.value || '').trim()
-    const criterionIds = [...panel.querySelectorAll('input[name="replanCriterion"]:checked')].map(el => el.value)
-    if (!nodeId || !reason) {
-      transientError = 'Для replan нужны этап и причина'
-      render()
-      return
-    }
-    vscode.postMessage({
-      type: 'replanQuest',
-      questId,
-      reason,
-      criterionIds,
-      stages: [{ nodeId, instruction }],
-    })
-  }
-  if (action === 'submit-quest-revise') {
-    const questId = String(target.dataset.questId || '')
-    const panel = target.closest('.quest-midflight')
-    if (!questId || !panel || target.disabled) return
-    const expectedVersion = Number(target.dataset.expectedVersion || 0)
-    const goal = String(panel.querySelector('[name="reviseGoal"]')?.value || '').trim()
-    if (!goal) {
-      transientError = 'Новая цель пуста'
-      render()
-      return
-    }
-    const quest = (ui.state.boot?.quests || []).find(item => item.id === questId)
-    const brief = { ...(quest?.brief || {}), goal }
-    vscode.postMessage({
-      type: 'reviseQuestBrief',
-      questId,
-      brief,
-      expectedVersion,
-      approveVersion: expectedVersion + 1,
-    })
-  }
   if (action === 'tab') {
     const tab = canonicalTab(target.dataset.tab)
     if (tab !== 'onboarding' && hubNavLocked()) return
@@ -3325,14 +3064,6 @@ root.addEventListener('click', event => {
       persistDraft()
       render()
     }
-  }
-  if (action === 'master-new-discussion') {
-    masterDiscussionProposalId = ''
-    if (masterData?.response?.proposal) {
-      masterData = { ...masterData, response: { ...masterData.response, proposal: undefined } }
-    }
-    persistDraft()
-    render()
   }
   if (action === 'quest-proposal-discuss') {
     masterDiscussionProposalId = target.dataset.id || ''
@@ -3410,59 +3141,11 @@ root.addEventListener('click', event => {
     persistDraft()
     render()
   }
-  if (action === 'preview-equip-skill') {
-    vscode.postMessage({ type: 'previewEquipSkill', skillId: target.dataset.id })
-  }
-  if (action === 'confirm-equip-skill') {
-    vscode.postMessage({ type: 'equipSkill', skillId: target.dataset.id })
-    pendingSkillEquip = undefined
-  }
-  if (action === 'cancel-equip-skill') {
-    pendingSkillEquip = undefined
-    render()
-  }
-  if (action === 'revert-execution') {
-    vscode.postMessage({ type: 'revertExecution', id: target.dataset.id })
-  }
-  if (action === 'revert-quest') {
-    vscode.postMessage({ type: 'revertQuest', id: target.dataset.id })
-  }
   // Откат возвращает правки, удаление убирает саму карточку: это разные
   // действия, и подтверждение у удаления своё — его спрашивает расширение.
-  if (action === 'delete-quest') {
-    vscode.postMessage({ type: 'deleteQuest', id: target.dataset.id })
-  }
   // Отряд под квест собирается сам и переживает свой квест. Пока его нельзя
   // было распустить, он навсегда держал участников: роспуск персонажа
   // отказывал, ссылаясь на отряд, до которого было не дотянуться.
-  if (action === 'delete-team') {
-    vscode.postMessage({ type: 'deleteTeam', id: target.dataset.id })
-  }
-  if (action === 'revert-flow-node') {
-    vscode.postMessage({ type: 'revertFlowNode', flowRunId: target.dataset.flowRunId, nodeId: target.dataset.nodeId })
-  }
-  if (action === 'launch-execution') {
-    vscode.postMessage({ type: 'launchExecution', id: target.dataset.id, apiKey })
-  }
-  if (action === 'cancel-cursor-execution') {
-    vscode.postMessage({ type: 'cancelCursorExecution', id: target.dataset.id })
-  }
-  if (action === 'resolve-flow-node') {
-    vscode.postMessage({
-      type: 'resolveFlowNode',
-      flowRunId: target.dataset.flowRunId,
-      nodeId: target.dataset.nodeId,
-      approved: target.dataset.approved === 'true',
-    })
-  }
-  if (action === 'resolve-flow-merge') {
-    vscode.postMessage({
-      type: 'resolveFlowMerge',
-      flowRunId: target.dataset.flowRunId,
-      nodeId: target.dataset.nodeId,
-      resolution: { path: target.dataset.path, strategy: 'use_parent', executionId: target.dataset.executionId },
-    })
-  }
   if (action === 'resolve-flow-merge-manual' || action === 'resolve-flow-merge-delete') {
     const row = target.closest('.flow-merge-conflict-row')
     const content = row?.querySelector('.flow-merge-manual')?.value ?? ''
@@ -3483,133 +3166,16 @@ root.addEventListener('click', event => {
     const profile = root.querySelector('#quick-chat-profile')?.value || ''
     vscode.postMessage({ type: 'saveQuickChatSettings', defaultProfileId: profile })
   }
-  if (action === 'revert-patch') vscode.postMessage({type:'revertPatch',id:target.dataset.id})
-	if (action === 'apply-changeset') vscode.postMessage({ type: 'applyChangeSet', id: target.dataset.id })
-	if (action === 'apply-changeset-chain') vscode.postMessage({ type: 'applyChangeSetChain', id: target.dataset.id })
-	if (action === 'reject-changeset') vscode.postMessage({ type: 'rejectChangeSet', id: target.dataset.id })
-	if (action === 'revert-changeset') vscode.postMessage({ type: 'revertChangeSet', id: target.dataset.id })
-  if (action === 'load-run') vscode.postMessage({type:'loadRun',id:target.dataset.id})
-  if (action === 'cancel') vscode.postMessage({type:'cancelRun',runId:target.dataset.id})
-  if (action === 'pause-run') vscode.postMessage({ type: 'pauseRun', runId: target.dataset.runId })
-  if (action === 'resume-run') vscode.postMessage({ type: 'resumeRun', runId: target.dataset.runId, apiKey })
-  if (action === 'extend-active-time') vscode.postMessage({ type: 'extendActiveTime', runId: target.dataset.runId, apiKey })
-  if (action === 'load-context-inspector') {
-    contextInspectorRunId = target.dataset.runId || ''
-    contextInspectorStatus = 'loading'
-    contextInspector = undefined
-    contextInspectorNotice = ''
-    render()
-    vscode.postMessage({ type: 'loadContextInspector', runId: contextInspectorRunId })
-  }
-  if (action === 'close-context-inspector') {
-    contextInspectorRunId = ''
-    contextInspectorStatus = 'idle'
-    contextInspector = undefined
-    contextInspectorNotice = ''
-    render()
-  }
-  if (action === 'context-amend') {
-    vscode.postMessage({
-      type: 'contextAmend',
-      runId: target.dataset.runId,
-      action: target.dataset.amend,
-      itemId: target.dataset.itemId,
-    })
-  }
-  if (action === 'add-run-context-files') {
-    contextInspectorNotice = ''
-    vscode.postMessage({ type: 'addRunContextFiles', runId: target.dataset.runId })
-  }
-  if (action === 'add-run-context-selection') {
-    contextInspectorNotice = ''
-    vscode.postMessage({ type: 'addRunContextSelection', runId: target.dataset.runId })
-  }
-  if (action === 'resolve-changeset') {
-    const content = target.closest('.conflict-row')?.querySelector('.conflict-manual-content')?.value ?? ''
-    vscode.postMessage({
-      type: 'resolveChangeSet',
-      id: target.dataset.id,
-      strategy: target.dataset.strategy,
-      path: target.dataset.path,
-      content: target.dataset.strategy === 'manual' ? content : undefined,
-    })
-  }
   if (action === 'reload-statistics') {
     statisticsStatus = 'loading'
     render()
     vscode.postMessage({ type: 'loadStatistics' })
   }
-  if (action === 'create-system-backup') {
-    statisticsStatus = 'loading'
-    render()
-    vscode.postMessage({ type: 'createSystemBackup' })
-  }
-  if (action === 'restore-system-backup') {
-    vscode.postMessage({ type: 'restoreSystemBackup' })
-  }
-  if (action === 'reload-docker') {
-    dockerStatus = 'loading'
-    dockerLogs = undefined
-    render()
-    vscode.postMessage({ type: 'loadDocker' })
-  }
-  if (action === 'docker-control') {
-    vscode.postMessage({ type: 'dockerContainerAction', action: target.dataset.actionKind, container: target.dataset.container })
-  }
-  if (action === 'docker-logs') {
-    dockerLogsContainer = target.dataset.container || ''
-    vscode.postMessage({ type: 'dockerLogs', container: dockerLogsContainer })
-  }
-  if (action === 'docker-clear-logs') {
-    dockerLogs = undefined
-    dockerLogsContainer = ''
-    render()
-  }
-  if (action === 'docker-terminal-logs') {
-    vscode.postMessage({ type: 'dockerOpenTerminal', mode: 'logs', container: target.dataset.container })
-  }
-  if (action === 'docker-terminal-shell') {
-    vscode.postMessage({ type: 'dockerOpenTerminal', mode: 'shell', container: target.dataset.container })
-  }
-  if (action === 'docker-terminal-ps') {
-    vscode.postMessage({ type: 'dockerOpenTerminal', mode: 'ps' })
-  }
-  if (action === 'probe-server') {
-    vscode.postMessage({ type: 'probeServerProfile', id: target.dataset.id })
-  }
-  if (action === 'open-server-terminal') {
-    vscode.postMessage({ type: 'openServerTerminal', id: target.dataset.id })
-  }
-  if (action === 'list-server-path') {
-    vscode.postMessage({ type: 'listServerRemote', id: target.dataset.id, path: target.dataset.path || '~' })
-  }
-  if (action === 'edit-server') {
-    serverEditingId = target.dataset.id || ''
-    render()
-    requestAnimationFrame(() => {
-      root.querySelector('#server-form')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
-      root.querySelector('#server-name')?.focus?.()
-    })
-  }
-  if (action === 'cancel-edit-server') {
-    serverEditingId = ''
-    render()
-  }
-  if (action === 'delete-server') {
-    if (serverEditingId === target.dataset.id) serverEditingId = ''
-    vscode.postMessage({ type: 'deleteServerProfile', id: target.dataset.id })
-  }
   // Подключения к моделям: правка держится в интерфейсе, остальное уходит ядру.
-  if (action === 'edit-connection') {
-    connectionEditingId = target.dataset.id || ''
-    render()
-    root.querySelector('#connection-form')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
-  }
   // Во вложенной раскрывашке форма не может быть <form>, поэтому сохранение
 
   // приходит действием. Тело одно и то же.
 
-  if (action === 'save-connection') { saveConnectionFromFields(); return }
   if (action === 'save-model-routing') {
     const field = name => root.querySelector(`[data-routing-field="${name}"]`)?.value?.trim() || ''
     vscode.postMessage({
@@ -3624,61 +3190,6 @@ root.addEventListener('click', event => {
     return
   }
 
-  if (action === 'cancel-edit-connection') {
-    connectionEditingId = ''
-    render()
-  }
-  if (action === 'probe-connection') {
-    vscode.postMessage({ type: 'probeConnection', id: target.dataset.id })
-  }
-  if (action === 'default-connection') {
-    vscode.postMessage({ type: 'defaultConnection', id: target.dataset.id })
-  }
-  if (action === 'delete-connection') {
-    vscode.postMessage({ type: 'deleteConnection', id: target.dataset.id })
-  }
-  if (action === 'select-db') {
-    dbSelectedId = target.dataset.id || ''
-    dbQueryResult = undefined
-    dbSchemaResult = undefined
-    dbWritePending = null
-    render()
-  }
-  if (action === 'test-db') {
-    vscode.postMessage({ type: 'testDBConnection', id: target.dataset.id })
-  }
-  if (action === 'schema-db') {
-    vscode.postMessage({ type: 'schemaDBConnection', id: target.dataset.id || dbSelectedId })
-  }
-  if (action === 'edit-db') {
-    dbEditingId = target.dataset.id || ''
-    dbSelectedId = dbEditingId
-    render()
-    requestAnimationFrame(() => {
-      root.querySelector('#db-connection-form')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
-      root.querySelector('#db-name')?.focus?.()
-    })
-  }
-  if (action === 'cancel-edit-db') {
-    dbEditingId = ''
-    render()
-  }
-  if (action === 'delete-db') {
-    if (dbEditingId === target.dataset.id) dbEditingId = ''
-    vscode.postMessage({ type: 'deleteDBConnection', id: target.dataset.id })
-  }
-  if (action === 'apply-db-write') {
-    if (!dbWritePending?.connectionId || !dbWritePending?.sql) return
-    dbQueryStatus = 'loading'
-    const pending = dbWritePending
-    dbWritePending = null
-    render()
-    vscode.postMessage({ type: 'queryDBConnection', connectionId: pending.connectionId, sql: pending.sql, allowWrite: true, approved: true })
-  }
-  if (action === 'ignore-db-write') {
-    dbWritePending = null
-    render()
-  }
   if (action === 'memory-edit') {
     memoryEditId = target.dataset.id || ''
     memoryDraft = (state.boot?.memories || []).find(item => item.id === memoryEditId)
@@ -3700,20 +3211,6 @@ root.addEventListener('click', event => {
     vscode.postMessage({ type: 'applyManualLearning', request: { ...manualLearningDraft, confirmationToken: manualLearningPreview.confirmationToken } })
     render()
   }
-  if (action === 'skill-edit') {
-    skillEditId = target.dataset.id || ''
-    skillDraft = (state.boot?.skills || []).find(item => item.id === skillEditId)
-    skillFormError = ''
-    skillEquipAfterSave = false
-    render()
-  }
-  if (action === 'skill-cancel-edit') {
-    skillEditId = ''
-    skillDraft = undefined
-    skillFormError = ''
-    skillEquipAfterSave = true
-    render()
-  }
   if (action === 'memory-pin' || action === 'memory-delete') {
     const item = (state.boot?.memories || []).find(entry => entry.id === target.dataset.id)
     if (!item) return
@@ -3724,278 +3221,11 @@ root.addEventListener('click', event => {
     }
     vscode.postMessage({ type: 'saveMemory', memory: { ...item, pinned: target.dataset.pinned === 'true' } })
   }
-  if (action === 'flow-legacy-mode') {
-    flowLegacyMode = true
-    persistDraft()
-    render()
-  }
-  if (action === 'flow-visual-mode') {
-    flowLegacyMode = false
-    persistDraft()
-    render()
-  }
-  if (action === 'start-flow') {
-    vscode.postMessage({
-      type: 'startFlowRun',
-      flowId: target.dataset.flowId || '',
-      input: { title: (flowDraft?.name || 'Flow run') },
-    })
-  }
-  if (action === 'new-flow') {
-    flowDraft = { id: '', name: 'Новый флоу', description: '', nodes: [newFlowNode('input'), newFlowNode('agent'), newFlowNode('output')], edges: [] }
-    flowDraft.edges = [
-      { id: 'edge-0', from: flowDraft.nodes[0].id, to: flowDraft.nodes[1].id },
-      { id: 'edge-1', from: flowDraft.nodes[1].id, to: flowDraft.nodes[2].id },
-    ]
-    selectedFlowId = ''
-    selectedFlowNodeId = flowDraft.nodes[1].id
-    flowLegacyMode = false
-    persistDraft()
-    render()
-  }
-  if (action === 'add-flow-node') {
-    const draft = captureFlowForm()
-    const node = newFlowNode('agent')
-    node.positionX = 24 + ((draft.nodes?.length || 0) % 3) * 150
-    node.positionY = 24 + Math.floor((draft.nodes?.length || 0) / 3) * 96
-    draft.nodes = [...(draft.nodes || []), node]
-    flowDraft = draft
-    selectedFlowNodeId = node.id
-    render()
-  }
-  if (action === 'add-flow-edge') {
-    const draft = captureFlowForm()
-    const nodes = draft.nodes || []
-    if (nodes.length < 2) return
-    draft.edges = [...(draft.edges || []), { id: `edge-${Date.now()}`, from: nodes[0].id, to: nodes[1].id }]
-    flowDraft = draft
-    render()
-  }
-  if (action === 'select-flow-node') {
-    const draft = captureFlowForm()
-    flowDraft = draft
-    selectedFlowNodeId = target.dataset.nodeId || ''
-    render()
-  }
-  if (action === 'remove-flow-node') {
-    const draft = captureFlowForm()
-    const nodeId = target.dataset.nodeId
-    draft.nodes = (draft.nodes || []).filter(item => item.id !== nodeId)
-    draft.edges = (draft.edges || []).filter(edge => edge.from !== nodeId && edge.to !== nodeId)
-    flowDraft = draft
-    if (selectedFlowNodeId === nodeId) selectedFlowNodeId = draft.nodes[0]?.id || ''
-    render()
-  }
-  if (action === 'cancel-cursor') vscode.postMessage({type:'cancelCursorRun'})
-  if (action === 'resolve') vscode.postMessage({type:'resolveApproval',id:target.dataset.id,allow:target.dataset.allow==='true'})
   if (action === 'open-file') vscode.postMessage({type:'openFile',path:target.dataset.path,line:Number(target.dataset.line)||undefined})
-  if (action === 'open-roster') vscode.postMessage({type:'openRoster'})
-  if (action === 'select-roster-profile') { selectedProfileId=target.dataset.id||''; profileDraft=undefined; persistDraft(); render() }
-  if (action === 'edit-roster-profile') {
-    const selected=(state.boot?.profiles||[]).find(item=>item.id===selectedProfileId)||(state.boot?.profiles||[])[0]
-    if (hubModeAvailable()) {
-      const hubSelected = agentById(selectedProfileId) || hubAgents()[0]
-      prepareAgentConstructor(hubSelected, constructorStepForProfileStep(firstUnreadinessStep(hubSelected)))
-    } else {
-      profileEditorOpen=true
-      profileDraft=undefined
-      profileEditorStep=firstUnreadinessStep(selected)
-    }
-    render()
-  }
-  if (action === 'close-profile-editor') { profileEditorOpen=false; profileDraft=undefined; profileEditorStep='identity'; createStepError=''; hireAfterSave=''; render() }
-  if (action === 'profile-step') {
-    const profile=currentFormProfile()
-    if(profile) profileDraft=profile
-    createStepError=''
-    profileEditorStep=target.dataset.step||'identity'
-    render()
-  }
-  if (action === 'advance-profile-step') {
-    const profile=currentFormProfile()
-    if(profile) profileDraft=profile
-    const dir=target.dataset.dir||'next'
-    const nextStep=target.dataset.step||'identity'
-    if(dir==='next'){
-      const issue=stepValidationIssue(profileEditorStep, profile||profileDraft)
-      if(issue){createStepError=issue;render();return}
-    }
-    createStepError=''
-    profileEditorStep=nextStep
-    render()
-  }
-  if (action === 'skip-class-step') {
-    providerProbe=undefined
-    createStepError=''
-    hirePreviewTemplateId=''
-    profileDraft=newProfile({
-      name: 'Новый агент',
-      roleDescription: '',
-      systemPrompt: '',
-      goals: [],
-      rules: [],
-      allowedTools: ['project_map', 'search_code', 'list_files', 'read_file', 'search_text', 'git_diff'],
-      maxSteps: 30,
-      maxDurationSeconds: 600,
-      approvalMode: 'safe',
-    })
-    selectedProfileId=''
-    profileEditorOpen=true
-    profileEditorStep='identity'
-    render()
-  }
-  if (action === 'preview-template') {
-    hirePreviewTemplateId=target.dataset.template||''
-    render()
-  }
-  if (action === 'fix-profile-step') {
-    const step=target.dataset.step||'identity'
-    if (hubModeAvailable()) {
-      const selected = agentById(selectedProfileId) || hubAgents()[0]
-      prepareAgentConstructor(selected, constructorStepForProfileStep(step))
-    } else {
-      profileEditorStep=step
-      profileEditorOpen=true
-      createStepError=''
-    }
-    if(state.selectedTab!=='agents') vscode.postMessage({type:'selectTab',tab:'agents'})
-    else render()
-  }
-  if (action === 'rollback-agent-improvement') {
-    vscode.postMessage({ type: 'rollbackAgentImprovement', id: target.dataset.id })
-  }
-  if (action === 'promote-agent-improvement') {
-    vscode.postMessage({ type: 'promoteAgentImprovement', id: target.dataset.id })
-  }
-  if (action === 'improve-agent') {
-    const agentId = target.dataset.id || ''
-    const step = CONSTRUCTOR_STEPS.some(item => item.id === target.dataset.step) ? target.dataset.step : 'review'
-    vscode.postMessage({ type: 'focusHub', tab: 'agents', agentId, constructorStep: step })
-  }
-  if (action === 'preview-run') { const quest=questPayload();if(quest.task){agentRunPreview=undefined;agentRunPreviewError='';agentRunPreviewStatus='loading';render();vscode.postMessage({type:'previewRun',profileId:selectedProfileId,...quest,contextItems})} }
-  if (action === 'launch-cursor') {
-    const profile=(state.boot?.profiles||[]).find(item=>item.id===selectedProfileId)
-    // Тот же ответ, что и у обычного запуска: раньше эта ветка выходила молча,
-    // и одна и та же ошибка на одном экране вела себя двумя разными способами.
-    if (!taskDraft.trim()) {
-      transientError = EMPTY_TASK_REASON
-      render()
-      return
-    }
-    if (state.cursorRuntime?.available && state.cursorRuntime?.authenticated) {
-      cursorRunEvents=[]
-      vscode.postMessage({type:'startCursorRun',profileId:selectedProfileId,task:composeQuestTask()})
-    } else {
-      vscode.postMessage({type:'launchCursorAgent',task:composeQuestTask(),model:profile?.model||'auto'})
-    }
-  }
-  if (action === 'new-profile') {
-    providerProbe=undefined; createStepError=''; hireAfterSave=''; selectedProfileId=''
-    if (hubModeAvailable()) {
-      prepareAgentConstructor({ name: 'Новый агент', allowedTools: ['project_map', 'search_code', 'list_files', 'read_file', 'search_text', 'git_diff'], maxSteps: 30, maxDurationSeconds: 600, approvalMode: 'safe' })
-    } else {
-      hirePreviewTemplateId=state.boot?.profileTemplates?.[0]?.id||''; profileEditorOpen=true; profileDraft=newProfile({ name: 'Новый агент', roleDescription: '', systemPrompt: '', goals: [], rules: [], allowedTools: ['project_map', 'search_code', 'list_files', 'read_file', 'search_text', 'git_diff'], maxSteps: 30, maxDurationSeconds: 600, approvalMode: 'safe' }); profileEditorStep='class'
-    }
-    render()
-  }
-  if (action === 'setup-provider') {
-    const preset=providerCatalog().find(item=>item.id===target.dataset.preset)
-    if(preset){profileDraft={...newProfile(),provider:preset.kind,providerPreset:preset.id,baseUrl:preset.baseUrl||'',model:preset.defaultModel||'auto'};selectedProfileId='';profileEditorOpen=true;profileEditorStep='model';vscode.postMessage({type:'selectTab',tab:'agents'})}
-  }
-  if (action === 'duplicate-profile') {
-    const source=(state.boot?.profiles||[]).find(item=>item.id===selectedProfileId)
-    if(source){providerProbe=undefined;profileDraft={...source,id:'',name:`${source.name} — копия`,allowedTools:[...(source.allowedTools||[])],createdAt:undefined,updatedAt:undefined};selectedProfileId='';profileEditorOpen=true;profileEditorStep='identity';render()}
-  }
-  if (action === 'use-template') {
-    const template=(state.boot?.profileTemplates||[]).find(item=>item.id===target.dataset.template)
-    if(template){
-      providerProbe=undefined;createStepError='';hirePreviewTemplateId=template.id;selectedProfileId=''
-      if (hubModeAvailable()) prepareAgentConstructor({ ...template, id: '', blueprintId: '' }, 'identity')
-      else { profileDraft=newProfile(template);profileEditorOpen=true;profileEditorStep='model' }
-      render()
-    }
-  }
-  if (action === 'hire-and-quest') {
-    const profile=currentFormProfile()
-    if(!profile) return
-    const issue=stepValidationIssue('limits', profile) || (!profileReadiness(profile).ready ? profileReadiness(profile).issues[0] : '')
-    if(issue){createStepError=issue;profileDraft=profile;render();return}
-    hireAfterSave='quest'
-    profileDraft=profile
-    if (hubModeAvailable()) vscode.postMessage({ type: 'saveProjectAgent', agent: constructorToProjectAgent(newConstructorDraft(profile)) })
-    else vscode.postMessage({type:'saveProfile',profile})
-  }
-  if (action === 'start-roster-quest') {
-    const selected=(state.boot?.profiles||[]).find(item=>item.id===selectedProfileId)||(state.boot?.profiles||[])[0]
-    const readiness=profileReadiness(selected)
-    if(selected && !readiness.ready){profileEditorOpen=true;profileDraft=undefined;profileEditorStep=firstUnreadinessStep(selected);render();return}
-    profileEditorOpen=false; vscode.postMessage({type:'selectTab',tab:'chat'})
-  }
-  if (action === 'cancel-profile') { profileDraft=undefined; profileEditorOpen=false; profileEditorStep='identity'; createStepError=''; hireAfterSave=''; selectedProfileId=state.boot?.profiles?.[0]?.id||''; render() }
-  if (action === 'delete-profile') vscode.postMessage({type:'deleteProfile',id:target.dataset.id})
   // Персонажа Гильдии распускает свой маршрут: deleteProfile знает только
   // legacy-профили и на проектном агенте отвечал «профиль не найден».
-  if (action === 'disband-agent') vscode.postMessage({ type: 'deleteProjectAgent', id: target.dataset.id })
   // Класс, оставшийся от распущенного персонажа, убирается там же, где виден,
   // — в списке найма. Занятый класс ядро не отдаст и скажет, кто его держит.
-  if (action === 'delete-blueprint') vscode.postMessage({ type: 'deleteBlueprint', id: target.dataset.id })
-  if (action === 'export-profile') { const profile=currentFormProfile(); if(profile)vscode.postMessage({type:'exportProfile',profile}) }
-  if (action === 'import-profile') vscode.postMessage({type:'importProfile'})
-  if (action === 'probe-provider') {
-    const profile=currentFormProfile()
-    if(profile){profileDraft=profile;providerProbe={loading:true,models:[]};render();vscode.postMessage({type:'probeProvider',provider:profile.provider,baseUrl:profile.baseUrl,apiKey})}
-  }
-  if (action === 'probe-model-capability') {
-    const profile = currentFormProfile()
-    if (profile) {
-      profileDraft = profile
-      requestModelCapabilityProbe(profile)
-    }
-  }
-  if (action === 'tool-preset') {
-    const preset=TOOL_PRESETS.find(item=>item.id===target.dataset.preset)
-    const values=preset?.tools === null ? (state.boot?.toolCatalog||[]).map(item=>item.name) : (preset?.tools || [])
-    for(const input of root.querySelectorAll('input[name="allowed-tool"]'))input.checked=values.includes(input.value)
-    const profile=currentFormProfile()
-    if(profile){profileDraft=profile;render()}
-  }
-  if (action === 'attach-files') vscode.postMessage({type:'attachFiles'})
-  if (action === 'attach-selection') vscode.postMessage({type:'attachSelection'})
-  if (action === 'remove-context') { contextItems.splice(Number(target.dataset.index),1); persistDraft(); requestContextPreview() }
-  if (action === 'new-custom-tool') {
-    const source=state.boot?.customToolTemplates?.[0]?.tool||{kind:'process',displayName:'Новый инструмент',description:'Запускает новый инструмент после подтверждения.',program:'',arguments:[],parameters:[],cwd:'.',timeoutSeconds:120}
-    resetCustomToolPreview();customToolDraft=cloneCustomTool(source);selectedCustomToolId='';render()
-  }
-  if (action === 'duplicate-custom-tool') { const source=currentCustomToolForm();if(source){resetCustomToolPreview();customToolDraft=cloneCustomTool({...source,displayName:`${source.displayName} — копия`});selectedCustomToolId='';render()} }
-  if (action === 'use-custom-tool-template') {
-    const template=(state.boot?.customToolTemplates||[]).find(item=>item.id===target.dataset.template)
-    if(template){resetCustomToolPreview();customToolDraft=cloneCustomTool(template.tool);selectedCustomToolId='';render()}
-  }
-  if (action === 'add-tool-parameter') {
-    const value=currentCustomToolForm();if(value&&value.parameters.length<16){resetCustomToolPreview();const used=new Set(value.parameters.map(item=>item.name));let index=value.parameters.length+1;while(used.has(`input_${index}`))index++;value.parameters.push({name:`input_${index}`,displayName:`Параметр ${index}`,description:'Опишите допустимое значение для модели',type:'string',required:true,enumValues:[],maxLength:1024});customToolDraft=value;render()}
-  }
-  if (action === 'remove-tool-parameter') { const value=currentCustomToolForm();const index=Number(target.dataset.index);if(value){resetCustomToolPreview();value.parameters.splice(index,1);customToolDraft=value;render()} }
-  if (action === 'preview-custom-tool') {
-    const tool=currentCustomToolForm()
-    if(tool){const previewArguments={reason:'Проверка конфигурации в песочнице конструктора'};customToolPreviewArguments={};for(const parameter of tool.parameters||[]){const control=root.querySelector(`[data-preview-param="${parameter.name}"]`);if(!control||control.value==='')continue;const value=parameter.type==='integer'?Number(control.value):control.value;previewArguments[parameter.name]=value;customToolPreviewArguments[parameter.name]=value}customToolDraft=tool;customToolPreview=undefined;customToolPreviewError='';customToolPreviewStatus='loading';render();vscode.postMessage({type:'previewTool',tool,arguments:previewArguments})}
-  }
-  if (action === 'cancel-custom-tool') { resetCustomToolPreview();customToolDraft=undefined;selectedCustomToolId=state.boot?.customTools?.[0]?.id||'';render() }
-  if (action === 'delete-custom-tool') vscode.postMessage({type:'deleteCustomTool',id:target.dataset.id})
-  if (action === 'export-custom-tool') { const tool=currentCustomToolForm();if(tool)vscode.postMessage({type:'exportCustomTool',tool}) }
-  if (action === 'import-custom-tool') vscode.postMessage({type:'importCustomTool'})
-  if (action === 'new-workflow') { workflowDraft=newWorkflow();selectedWorkflowId='';render() }
-  if (action === 'use-workflow-template') { workflowDraft=workflowFromTemplate(target.dataset.template);selectedWorkflowId='';render() }
-  if (action === 'duplicate-workflow') {
-    const source=currentWorkflowForm()
-    if(source){workflowDraft={...source,id:'',name:`${source.name} — копия`,steps:source.steps.map(step=>({...step,id:''})),createdAt:undefined,updatedAt:undefined};selectedWorkflowId='';render()}
-  }
-  if (action === 'cancel-workflow-edit') { workflowDraft=undefined;selectedWorkflowId=state.boot?.workflows?.[0]?.id||'';render() }
-  if (action === 'add-workflow-step') { const value=currentWorkflowForm();if(value&&value.steps.length<12){value.steps.push(newWorkflowStep(value.steps.length));workflowDraft=value;render()} }
-  if (action === 'remove-workflow-step') { const value=currentWorkflowForm();const index=Number(target.dataset.index);if(value&&value.steps.length>1){value.steps.splice(index,1);workflowDraft=value;render()} }
-  if (action === 'move-workflow-step') { const value=currentWorkflowForm();const index=Number(target.dataset.index);const next=index+Number(target.dataset.direction);if(value&&next>=0&&next<value.steps.length){[value.steps[index],value.steps[next]]=[value.steps[next],value.steps[index]];workflowDraft=value;render()} }
-  if (action === 'delete-workflow') vscode.postMessage({type:'deleteWorkflow',id:target.dataset.id})
-  if (action === 'load-workflow-run') vscode.postMessage({type:'loadWorkflowRun',id:target.dataset.id})
-  if (action === 'cancel-workflow') vscode.postMessage({type:'cancelWorkflow',id:target.dataset.id})
 })
 
 root.addEventListener('change', event => {
@@ -4221,7 +3451,14 @@ root.addEventListener('submit', event => {
     return
   }
   const sentBefore = sentCount
-  handleSubmit(event)
+  handleFormSubmit({
+    event, ui: modularUiState, root, vscode, render,
+    EMPTY_TASK_REASON, companionConfigFromDraft, companionSetupValidation, currentCompanionSetupDraft,
+    hubModeAvailable, saveConnectionFromFields, submitGitCommit,
+    canAcceptQuest, captureFlowForm, currentConstructorForm, currentCustomToolForm, currentFormProfile,
+    currentWorkflowForm, customToolFormIssue, questPayload,
+    sendCompanionUserMessage: (...args) => sendCompanionUserMessage(...args), stepValidationIssue,
+  })
   // Заперли только если обработчик действительно что-то отправил.
   // The Companion owns its concurrency policy: a second message while a reply
   // is streaming becomes companionPendingSend. The generic entity-form lock
@@ -4262,291 +3499,6 @@ function submitGitCommit(action) {
   })
 }
 
-function handleSubmit(event) {
-  event.preventDefault()
-  if (event.target.id === 'git-commit-form') {
-    submitGitCommit('commit')
-    return
-  }
-  if (event.target.id === 'agent-form') {
-    const quest = questPayload()
-    const profile = (state.boot?.profiles || []).find(item => item.id === selectedProfileId) || (state.boot?.profiles || [])[0]
-    const gate = canAcceptQuest(profile)
-    if (!quest.task || !gate.ok) {
-      // Причина называется по существу. Пустая задача — это пустая задача, а не
-      // «завершите разведку»: человек искал бы несуществующую проблему.
-      transientError = !quest.task
-        ? EMPTY_TASK_REASON
-        : (gate.reasons[0] || 'Сначала завершите разведку и готовность персонажа')
-      render()
-      return
-    }
-    // Форма отправляется и щелчком, и по Enter, а между отправкой и ответом
-    // ядра проходит время: задача и отпечаток разведки всё ещё на месте, и
-    // вторая отправка запускала второй прогон той же задачи. Это два агента в
-    // одних файлах и двойной расход — в отличие от кнопок с собственным id,
-    // здесь повтор порождает новую сущность, а не повторяет старую.
-    if (runStarting) return
-    runStarting = true
-    vscode.postMessage({ type: 'startRun', profileId: selectedProfileId, ...quest, apiKey, contextItems, preflightFingerprint: agentRunPreview?.fingerprint || '' })
-  }
-  if (event.target.id === 'settings-form') {
-    const profile=currentFormProfile()
-    if (!profile) return
-    const submitter=event.submitter
-    hireAfterSave=submitter?.dataset?.hireIntent || 'card'
-    createStepError=''
-    const issue=stepValidationIssue(profileEditorStep === 'class' ? 'identity' : profileEditorStep, profile)
-    if(issue && !profile.id){createStepError=issue;profileDraft=profile;render();return}
-    profileDraft=profile
-    if (hubModeAvailable()) vscode.postMessage({ type: 'saveProjectAgent', agent: constructorToProjectAgent(newConstructorDraft(profile)) })
-    else vscode.postMessage({type:'saveProfile',profile})
-  }
-  if (event.target.id === 'constructor-form') {
-    event.preventDefault()
-    const draft = currentConstructorForm()
-    if (!draft) return
-    constructorDraft = draft
-    if (constructorStep !== 'review') return
-    if (!(draft.name || '').trim()) { createStepError = 'Укажите имя агента'; render(); return }
-    const dropped = legacySaveWouldDrop(draft)
-    if (dropped) { createStepError = dropped; render(); return }
-    // Кнопка «Сохранить» гасит прежнюю ошибку, а Enter — нет: имя исправили,
-    // сохранение ушло, а под шагами так и висело «Укажите имя агента».
-    createStepError = ''
-    if (hubModeAvailable()) {
-      vscode.postMessage({ type: 'saveProjectAgent', agent: constructorToProjectAgent(draft) })
-    } else {
-      vscode.postMessage({ type: 'saveProfile', profile: constructorToProfile(draft) })
-    }
-  }
-  if (event.target.id === 'custom-tool-form') {
-    const tool=currentCustomToolForm()
-    const issue=customToolFormIssue(tool)
-    if(issue){transientError=issue;render();return}
-    const equip=!tool?.id
-    toolEquipAfterSave=equip
-    transientError=''
-    if(tool)vscode.postMessage({type:'saveCustomTool',tool,equip})
-  }
-  if (event.target.id === 'workflow-form') {
-    const workflow=currentWorkflowForm()
-    if(workflow)vscode.postMessage({type:'saveWorkflow',workflow})
-  }
-  if (event.target.id === 'workflow-run-form') {
-    const task=root.querySelector('#workflow-task')?.value.trim()
-    const apiKeys={}
-    for(const input of root.querySelectorAll('.workflow-api-key'))if(input.value)apiKeys[input.dataset.profileId]=input.value
-    if(task&&selectedWorkflowId)vscode.postMessage({type:'startWorkflow',workflowId:selectedWorkflowId,task,apiKeys,contextItems})
-  }
-  if (event.target.id === 'companion-setup-form') {
-    companionSetupDraft = currentCompanionSetupDraft()
-    const issue = companionSetupValidation('brain', companionSetupDraft) || companionSetupValidation('boundaries', companionSetupDraft) || companionSetupValidation('skills', companionSetupDraft)
-    if (issue) { companionSetupStatus = issue; render(); return }
-    companionSetupPendingClose = true
-    companionSetupStatus = ''
-    vscode.postMessage({ type: 'saveCompanionConfig', config: companionConfigFromDraft(companionSetupDraft) })
-  }
-  if (event.target.id === 'budget-form') {
-    const toCents = selector => {
-      const raw = root.querySelector(selector)?.value.trim() || ''
-      if (!raw) return 0
-      const dollars = Number(raw)
-      if (!Number.isFinite(dollars) || dollars < 0) throw new Error('Бюджет должен быть неотрицательным числом')
-      return Math.round(dollars * 100)
-    }
-    try {
-      statisticsStatus = 'loading'
-      transientError = ''
-      vscode.postMessage({
-        type: 'saveBudget',
-        budget: {
-          dailyCents: toCents('#budget-daily'),
-          monthlyCents: toCents('#budget-monthly'),
-          hardStop: Boolean(root.querySelector('#budget-hard-stop')?.checked),
-        },
-      })
-      render()
-    } catch (error) {
-      transientError = error instanceof Error ? error.message : String(error)
-      render()
-    }
-  }
-  if (event.target.id === 'companion-form') {
-    const message = root.querySelector('#companion-input')?.value.trim()
-    sendCompanionUserMessage(message)
-  }
-  if (event.target.id === 'team-form') {
-    const name = root.querySelector('#team-name')?.value.trim()
-    const description = root.querySelector('#team-description')?.value.trim() || ''
-    const agentIds = [...root.querySelectorAll('input[name="team-agent"]:checked')].map(item => item.value)
-    if (!name) return
-    vscode.postMessage({ type: 'saveTeam', team: { name, description, agentIds } })
-  }
-  if (event.target.id === 'skill-form') {
-    const existing = skillEditId ? (state.boot?.skills || []).find(item => item.id === skillEditId) : null
-    const name = root.querySelector('#skill-name')?.value.trim() || ''
-    const description = root.querySelector('#skill-description')?.value.trim() || ''
-    const instructions = root.querySelector('#skill-instructions')?.value.trim() || ''
-    const requiredTools = [...root.querySelectorAll('input[name="skill-tool"]:checked')].map(item => item.value)
-	const configuration = { ...(existing?.configuration || {}) }
-	if (root.querySelector('#skill-deprecated')?.checked) configuration.lifecycleStatus = 'deprecated'
-	else delete configuration.lifecycleStatus
-    skillEquipAfterSave = Boolean(root.querySelector('#skill-equip-after-save')?.checked)
-    skillDraft = {
-      ...(existing || {}),
-      id: existing?.id || '',
-      name,
-      description,
-      instructions,
-      requiredTools,
-      permissionDelta: existing?.permissionDelta || {},
-	  configuration,
-      references: existing?.references || [],
-      scripts: existing?.scripts || [],
-    }
-    if (!name) { skillFormError = 'Укажите название Skill'; render(); return }
-    if (name.length > 120) { skillFormError = 'Название не длиннее 120 символов'; render(); return }
-    if (!instructions) { skillFormError = 'Инструкции обязательны — опишите практику и проверки'; render(); return }
-    if (!requiredTools.length) { skillFormError = 'Выберите хотя бы один требуемый tool'; render(); return }
-    skillFormError = ''
-    const alreadyEquipped = skillDraft.id && (state.boot?.projectSkills || []).some(item => item.skillId === skillDraft.id && item.enabled)
-    vscode.postMessage({
-      type: 'saveSkill',
-      skill: skillDraft,
-      equipAfterSave: skillEquipAfterSave && !alreadyEquipped,
-    })
-  }
-  if (event.target.id === 'connection-form') { saveConnectionFromFields() }
-  if (event.target.id === 'server-form') {
-    const existing = serverEditingId
-      ? (state.boot?.serverProfiles || []).find(item => item.id === serverEditingId)
-      : null
-    const displayName = root.querySelector('#server-name')?.value.trim() || ''
-    const host = root.querySelector('#server-host')?.value.trim() || ''
-    const port = Number(root.querySelector('#server-port')?.value || 22)
-    const user = root.querySelector('#server-user')?.value.trim() || ''
-    const authMethod = root.querySelector('#server-auth')?.value || 'agent'
-    const privateKeyPath = root.querySelector('#server-key')?.value.trim() || ''
-    const defaultRemotePath = root.querySelector('#server-remote-path')?.value.trim() || '~'
-    const password = root.querySelector('#server-password')?.value || ''
-    if (!host || !user) { transientError = 'Укажите хост и пользователя SSH.'; render(); return }
-    if (authMethod === 'key' && !privateKeyPath) { transientError = 'Для входа по ключу укажите абсолютный путь к ключу.'; render(); return }
-    vscode.postMessage({
-      type: 'saveServerProfile',
-      id: existing?.id || '',
-      secretRef: existing?.secretRef || '',
-      displayName,
-      host,
-      port,
-      user,
-      authMethod,
-      privateKeyPath,
-      defaultRemotePath,
-      password,
-    })
-  }
-  if (event.target.id === 'db-connection-form') {
-    const existing = dbEditingId
-      ? (state.boot?.dbConnections || []).find(item => item.id === dbEditingId)
-      : null
-    const displayName = root.querySelector('#db-name')?.value.trim() || ''
-    const driver = root.querySelector('#db-driver')?.value || 'sqlite'
-    const host = root.querySelector('#db-host')?.value.trim() || ''
-    const port = Number(root.querySelector('#db-port')?.value || 0)
-    const database = root.querySelector('#db-database')?.value.trim() || ''
-    const username = root.querySelector('#db-user')?.value.trim() || ''
-    const sslMode = root.querySelector('#db-ssl')?.value.trim() || ''
-    const password = root.querySelector('#db-password')?.value || ''
-    if (!database) { transientError = 'Укажите имя БД или путь к файлу SQLite.'; render(); return }
-    vscode.postMessage({
-      type: 'saveDBConnection',
-      id: existing?.id || '',
-      secretRef: existing?.secretRef || '',
-      displayName,
-      driver,
-      host,
-      port,
-      database,
-      username,
-      sslMode,
-      password,
-      readOnlyDefault: existing?.readOnlyDefault ?? true,
-    })
-  }
-  if (event.target.id === 'db-query-form') {
-    const sql = root.querySelector('#db-sql')?.value || ''
-    const connectionId = dbSelectedId || (state.boot?.dbConnections || [])[0]?.id || ''
-    if (!connectionId) { transientError = 'Сначала сохраните подключение к БД.'; render(); return }
-    if (!sql.trim()) { transientError = 'Введите SQL.'; render(); return }
-    dbQueryStatus = 'loading'
-    dbQueryResult = undefined
-    dbWritePending = null
-    render()
-    vscode.postMessage({ type: 'queryDBConnection', connectionId, sql, allowWrite: false, approved: false })
-  }
-  if (event.target.id === 'flow-form') {
-    const flow = captureFlowForm()
-    vscode.postMessage({ type: 'saveFlow', flow })
-  }
-  if (event.target.id === 'experience-search-form') {
-    experienceSearchQuery = root.querySelector('#experience-search-query')?.value.trim() || ''
-    if (experienceSearchQuery.length < 2) { transientError = 'Введите минимум 2 символа для поиска по опыту'; render(); return }
-    experienceSearchStatus = 'loading'
-    vscode.postMessage({ type: 'searchExperience', query: experienceSearchQuery })
-    render()
-  }
-  if (event.target.id === 'manual-learning-form') {
-    manualLearningDraft = {
-      projectAgentId: root.querySelector('#manual-learning-agent')?.value || '',
-      kind: root.querySelector('#manual-learning-kind')?.value || 'memory',
-      scope: root.querySelector('#manual-learning-scope')?.value || 'project',
-      content: root.querySelector('#manual-learning-content')?.value.trim() || '',
-    }
-    if (!manualLearningDraft.content) { transientError = 'Сформулируйте урок перед preview'; render(); return }
-    manualLearningStatus = 'loading'
-    manualLearningPreview = undefined
-    vscode.postMessage({ type: 'previewManualLearning', request: manualLearningDraft })
-    render()
-  }
-  if (event.target.id === 'memory-form') {
-    const existing = memoryEditId ? (state.boot?.memories || []).find(item => item.id === memoryEditId) : null
-    const kind = root.querySelector('#memory-kind')?.value || 'project'
-    let ownerId = root.querySelector('#memory-owner')?.value || ''
-    if (kind === 'project' || kind === 'companion') ownerId = ''
-    if (kind === 'profile' && !(state.boot?.blueprints || []).some(item => item.id === ownerId)) { transientError = 'Для переносимой памяти выберите основной профиль'; render(); return }
-    if (kind === 'agent' && !(state.boot?.projectAgents || []).some(item => item.id === ownerId)) { transientError = 'Для Agent Memory выберите агента-владельца'; render(); return }
-    if (kind === 'quest' && !(state.boot?.quests || []).some(item => item.id === ownerId)) { transientError = 'Для Quest Memory выберите квест-владельца'; render(); return }
-    const memory = {
-      ...(existing || {}),
-      id: existing?.id || '',
-      kind,
-      content: root.querySelector('#memory-content')?.value.trim() || '',
-      source: root.querySelector('#memory-source')?.value.trim() || '',
-      ownerId,
-      confidence: Number(root.querySelector('#memory-confidence')?.value ?? existing?.confidence ?? 0.5),
-      pinned: Boolean(root.querySelector('#memory-pinned')?.checked),
-    }
-    if (!memory.content) { transientError = 'Содержание памяти не может быть пустым'; render(); return }
-    vscode.postMessage({ type: 'saveMemory', memory })
-    memoryEditId = ''
-    memoryDraft = undefined
-  }
-  const execForm = event.target.closest?.('[data-exec-form]')
-  if (execForm) {
-    const runId = execForm.dataset.runId
-    const input = execForm.querySelector('input')
-    const value = input?.value.trim()
-    if (!runId || !value) return
-    if (execForm.dataset.execForm === 'message') {
-      const learningIntent = execForm.querySelector('input[name="learn-from-message"]')?.checked ? 'correction' : ''
-      vscode.postMessage({ type: 'messageRun', runId, message: value, learningIntent })
-    } else if (execForm.dataset.execForm === 'forbid') {
-      vscode.postMessage({ type: 'forbidFile', runId, path: value })
-    }
-    if (input) input.value = ''
-  }
-}
 
 
 root.addEventListener('keydown', event => {

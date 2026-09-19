@@ -18,20 +18,17 @@ export function handleRunClickAction({
     if (runId) ui.keptRunId = runId
     persistDraft()
     render()
-    return
     return true
   }
   if (action === 'undo-run-all') {
     const runId = String(target.dataset.runId || ui.state.details?.run?.id || '')
     if (runId) vscode.postMessage({ type: 'undoRunPatches', runId })
-    return
     return true
   }
   if (action === 'undo-run-file') {
     const runId = String(target.dataset.runId || ui.state.details?.run?.id || '')
     const patchIds = String(target.dataset.patchIds || '').split(',').map(item => item.trim()).filter(Boolean)
     if (runId) vscode.postMessage({ type: 'undoRunPatches', runId, patchIds })
-    return
     return true
   }
   if (action === 'repeat-quest') {
@@ -76,7 +73,7 @@ export function handleRunClickAction({
     if (!nodeId || !reason) {
       ui.transientError = 'Для replan нужны этап и причина'
       render()
-      return
+      return true
     }
     vscode.postMessage({
       type: 'replanQuest',
@@ -96,7 +93,7 @@ export function handleRunClickAction({
     if (!goal) {
       ui.transientError = 'Новая цель пуста'
       render()
-      return
+      return true
     }
     const quest = (ui.state.boot?.quests || []).find(item => item.id === questId)
     const brief = { ...(quest?.brief || {}), goal }

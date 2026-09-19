@@ -53,7 +53,9 @@ export function handleRosterClickAction({
     const nextStep=target.dataset.step||'identity'
     if(dir==='next'){
       const issue=stepValidationIssue(ui.profileEditorStep, profile||ui.profileDraft)
-      if(issue){ui.createStepError=issue;render();return}
+      // Ошибка валидации — тоже обработанное действие: показали её и остановились.
+      // Голый return отдал бы undefined, и клик пошёл бы дальше по цепочке.
+      if(issue){ui.createStepError=issue;render();return true}
     }
     ui.createStepError=''
     ui.profileEditorStep=nextStep
@@ -121,7 +123,7 @@ export function handleRosterClickAction({
     if (!ui.taskDraft.trim()) {
       ui.transientError = EMPTY_TASK_REASON
       render()
-      return
+      return true
     }
     if (ui.state.cursorRuntime?.available && ui.state.cursorRuntime?.authenticated) {
       ui.cursorRunEvents=[]
@@ -165,7 +167,7 @@ export function handleRosterClickAction({
     const profile=currentFormProfile()
     if(!profile) return
     const issue=stepValidationIssue('limits', profile) || (!profileReadiness(profile).ready ? profileReadiness(profile).issues[0] : '')
-    if(issue){ui.createStepError=issue;ui.profileDraft=profile;render();return}
+    if(issue){ui.createStepError=issue;ui.profileDraft=profile;render();return true}
     ui.hireAfterSave='quest'
     ui.profileDraft=profile
     if (hubModeAvailable()) vscode.postMessage({ type: 'saveProjectAgent', agent: constructorToProjectAgent(newConstructorDraft(profile)) })
@@ -175,7 +177,7 @@ export function handleRosterClickAction({
   if (action === 'start-roster-quest') {
     const selected=(ui.state.boot?.profiles||[]).find(item=>item.id===ui.selectedProfileId)||(ui.state.boot?.profiles||[])[0]
     const readiness=profileReadiness(selected)
-    if(selected && !readiness.ready){ui.profileEditorOpen=true;ui.profileDraft=undefined;ui.profileEditorStep=firstUnreadinessStep(selected);render();return}
+    if(selected && !readiness.ready){ui.profileEditorOpen=true;ui.profileDraft=undefined;ui.profileEditorStep=firstUnreadinessStep(selected);render();return true}
     ui.profileEditorOpen=false; vscode.postMessage({type:'selectTab',tab:'chat'})
     return true
   }

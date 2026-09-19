@@ -36,7 +36,6 @@ export function handleMasterClickAction({ action, target, ui, applyMasterFind, f
     const idempotencyKey=globalThis.crypto?.randomUUID?.() || `approve-${Date.now()}-${Math.random().toString(36).slice(2)}`
     vscode.postMessage({type:'approveMasterWorkOrderV2',workOrderId:id,version:Number(target.dataset.version),digest:String(target.dataset.digest || ''),idempotencyKey,rosterConsent,turnId:masterClient.turns[masterClient.active]?.id})
     render()
-    return
     return true
   }
   if (action === 'save-master-work-order-v2') {
@@ -64,22 +63,22 @@ export function handleMasterClickAction({ action, target, ui, applyMasterFind, f
       ui.masterComposeNote=`Карточка не сохранена: ${error instanceof Error?error.message:String(error)}`
       render()
     }
-    return
     return true
   }
   if (action === 'control-master-work-order-v2') {
     const id=String(target.dataset.id || '')
     const questId=String(target.dataset.questId || '')
     const control=String(target.dataset.control || '')
-    if (!id || !questId || !['pause','resume','cancel','message'].includes(control) || ui.masterWorkOrderBusy.has(id)) return
+    // Занятый наряд — обработанный клик: повторное нажатие «Паузы» не должно
+    // уходить дальше по цепочке обработчиков только потому, что первое ещё идёт.
+    if (!id || !questId || !['pause','resume','cancel','message'].includes(control) || ui.masterWorkOrderBusy.has(id)) return true
     // Запущенный наряд — прогон, а не карточка: только `.master-v2-order` терял бы поле сообщения ровно там, где оно и нужно.
     const card=target.closest?.('.master-v2-order, .master-v2-run')
     const message=control==='message' ? String(card?.querySelector?.('[data-work-order-message]')?.value || '').trim() : ''
-    if (control==='message' && !message) { ui.masterComposeNote='Введите сообщение активному квесту';render();return }
+    if (control==='message' && !message) { ui.masterComposeNote='Введите сообщение активному квесту';render();return true }
     ui.masterWorkOrderBusy.add(id)
     vscode.postMessage({type:'controlMasterWorkOrderQuestV2',workOrderId:id,questId,action:control,message})
     render()
-    return
     return true
   }
   if (action === 'control-master-application-v2') {
@@ -91,20 +90,17 @@ export function handleMasterClickAction({ action, target, ui, applyMasterFind, f
     const idempotencyKey=globalThis.crypto?.randomUUID?.() || `application-${Date.now()}-${Math.random().toString(36).slice(2)}`
     vscode.postMessage({type:'controlMasterApplicationV2',workOrderId:id,questId,action:control,version:Number(target.dataset.version),digest:String(target.dataset.digest || ''),deliveryReceiptId:String(target.dataset.receiptId || ''),idempotencyKey})
     render()
-    return
     return true
   }
   if (action === 'revise-master-work-order-v2') {
     ui.masterDraft='Измени карточку запуска: '
     ui.masterCaretToEnd=true
     persistDraft();render()
-    return
     return true
   }
   if (action === 'copy-master-message') {
     const item = masterMessageById(target.dataset.id)
     if (item) vscode.postMessage({ type: 'copyMasterText', text: String(item.content || '') })
-    return
     return true
   }
   if (action === 'regenerate-master-message') {
@@ -112,13 +108,11 @@ export function handleMasterClickAction({ action, target, ui, applyMasterFind, f
     // иначе модель вернёт тот же ответ слово в слово. Ветвление ленты —
     // отдельная кнопка master-fork-message.
     sendMasterMessage(target.dataset.message || '', { retry: true })
-    return
     return true
   }
   if (action === 'master-fork-message') {
     const anchor = target.dataset.id
     if (anchor) vscode.postMessage({ type: 'forkMasterConversation', messageId: anchor, regenerate: false, draft: target.dataset.message || '' })
-    return
     return true
   }
   if (action === 'master-message-details') {
@@ -127,7 +121,6 @@ export function handleMasterClickAction({ action, target, ui, applyMasterFind, f
     // Окно объясняет ответ, и без вопроса объяснять нечего: показываем реплику
     // человека, на которую отвечали, а не «запрос не найден».
     if (item) vscode.postMessage({ type: 'openMasterMessageDetails', item, request: masterAskBefore(id) })
-    return
     return true
   }
   if (action === 'master-feedback') {
@@ -138,7 +131,6 @@ export function handleMasterClickAction({ action, target, ui, applyMasterFind, f
     // раз значит именно это, а не подтверждение.
     const value = item.feedback === target.dataset.value ? '' : target.dataset.value
     vscode.postMessage({ type: 'masterFeedback', messageId: id, value })
-    return
     return true
   }
   if (action === 'master-find-open') {
@@ -147,7 +139,6 @@ export function handleMasterClickAction({ action, target, ui, applyMasterFind, f
     // Раскрыли — значит собираются искать: второй клик по полю лишний.
     // preventScroll обязателен: фокус без него утаскивает ленту (договорённость 19).
     root.querySelector('#master-find')?.focus({ preventScroll: true })
-    return
     return true
   }
   if (action === 'master-find-clear') {
@@ -157,13 +148,11 @@ export function handleMasterClickAction({ action, target, ui, applyMasterFind, f
     ui.masterFindOpen = false
     ui.masterFindIndex = 0
     render()
-    return
     return true
   }
   if (action === 'master-find-step') {
     ui.masterFindIndex += Number(target.dataset.step || 1)
     applyMasterFind(true)
-    return
     return true
   }
   if (action === 'master-scroll-latest') {
@@ -171,7 +160,6 @@ export function handleMasterClickAction({ action, target, ui, applyMasterFind, f
     if (thread) thread.scrollTop = thread.scrollHeight
     ui.masterAutoFollow = true
     updateMasterScrollCue()
-    return
     return true
   }
   if (action === 'master-load-earlier') {
@@ -180,7 +168,6 @@ export function handleMasterClickAction({ action, target, ui, applyMasterFind, f
     // «липкими» датами дороже, чем весь разговор целиком.
     vscode.postMessage({ type: 'loadMaster', full: true, conversationId: masterClient.active })
     render()
-    return
     return true
   }
   if (action === 'master-new-discussion') {
@@ -198,7 +185,6 @@ export function handleMasterClickAction({ action, target, ui, applyMasterFind, f
     const { at, query } = masterMentionState()
     closeMasterMention()
     pickMasterMention({ path: target.dataset.path || '' }, at, query)
-    return
     return true
   }
   if (action === 'master-step-expand') {
@@ -207,7 +193,6 @@ export function handleMasterClickAction({ action, target, ui, applyMasterFind, f
     if (ui.masterExpandedSteps.has(key)) ui.masterExpandedSteps.delete(key)
     else ui.masterExpandedSteps.add(key)
     render()
-    return
     return true
   }
   if (action === 'retry-master') {
@@ -227,7 +212,6 @@ export function handleMasterClickAction({ action, target, ui, applyMasterFind, f
     // Честно: отмена ушла, но ядро могло успеть довести ход до конца.
     ui.masterComposeNote = 'Ядро могло довести его до конца. Частичный текст останется в разговоре.'
     render()
-    return
     return true
   }
   if (action === 'master-send') {

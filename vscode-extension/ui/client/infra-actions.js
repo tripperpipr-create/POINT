@@ -49,7 +49,6 @@ export function handleInfraClickAction({ action, target, ui, root, vscode, rende
     vscode.postMessage({type:'enableDockerSandbox'})
     ui.masterComposeNote='Включаем Docker sandbox и перезапускаем ядро…'
     render()
-    return
     return true
   }
   if (action === 'probe-server') {

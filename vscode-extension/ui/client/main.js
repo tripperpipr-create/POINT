@@ -25,6 +25,7 @@ import { handleGitClickAction, handleGitChangeAction } from './git-actions.js'
 import { handleHubClickAction } from './hub-actions.js'
 import { handleCompanionClickAction } from './companion-actions.js'
 import { handleOnboardingClickAction } from './onboarding-actions.js'
+import { createCompanionTransport } from './companion-transport.js'
 import { createDecisionViews } from './decision-views.js'
 import { createCompanionThreadViews } from './companion-thread-views.js'
 import { createKeyboardNavigation } from './keyboard-navigation.js'
@@ -1252,180 +1253,6 @@ function patchCompanionComposeChrome() {
     existing.remove()
   }
 }
-function stopCompanionChat(options = {}) {
-  const expectedRequestId = Number(options.requestId || 0)
-  if (expectedRequestId && companionActiveRequestId && expectedRequestId !== companionActiveRequestId) return
-  if (!companionLoading && !companionPendingSend) return
-  const stoppedRequestId = companionActiveRequestId
-  companionActiveRequestId = ++companionRequestId
-  companionLoading = false
-  companionThinkPhase = ''
-  companionActivitySteps = []
-  companionPendingSend = ''
-  const partial = String(companionStreamReply || '').trim()
-  companionStreamReply = ''
-  const last = companionMessages[companionMessages.length - 1]
-  if (partial) {
-    if (last?.role === 'assistant' && (last.mode === 'streaming' || last.mode === 'cancelled')) {
-      companionMessages = [...companionMessages.slice(0, -1), {
-        role: 'assistant',
-        content: `${partial}\n\n— ${options.superseded ? 'остановлено новым сообщением' : 'остановлено'}. Можно сразу спросить снова.`,
-        level: 'warning',
-        mode: 'cancelled',
-        superseded: Boolean(options.superseded),
-      }].slice(-80)
-    } else if (!(last?.role === 'assistant' && last.mode === 'cancelled' && last.content.includes(partial))) {
-      companionMessages = [...companionMessages, {
-        role: 'assistant',
-        content: `${partial}\n\n— ${options.superseded ? 'остановлено новым сообщением' : 'остановлено'}. Можно сразу спросить снова.`,
-        level: 'warning',
-        mode: 'cancelled',
-        superseded: Boolean(options.superseded),
-      }].slice(-80)
-    }
-  } else if (!(last?.role === 'assistant' && last.mode === 'cancelled')) {
-    companionMessages = [...companionMessages, {
-      role: 'assistant',
-      content: options.superseded ? 'Предыдущий запрос остановлен новым сообщением.' : 'Запрос остановлен. Можно сразу спросить снова.',
-      level: 'warning',
-      mode: 'cancelled',
-      superseded: Boolean(options.superseded),
-    }].slice(-80)
-  }
-  if (options.notifyHost !== false) vscode.postMessage({ type: 'stopCompanionChat', requestId: stoppedRequestId })
-  persistDraft()
-  render()
-  focusCompanionInput()
-}
-// options.retry — «ответь иначе»: тот же вопрос, но другим путём. Без него
-// перегенерация при низкой температуре возвращала тот же ответ, и кнопка
-// выглядела сломанной.
-function sendCompanionUserMessage(message, options = {}) {
-  const text = String(message || '').trim()
-  if (!text) return false
-  // Узнавать о пределе после отправки поздно: реплика уже ушла из поля, а
-  // вернуть её можно только копированием из ленты.
-  const size = companionMessageBytes(text)
-  if (size > COMPANION_MESSAGE_LIMIT_BYTES) {
-    companionDraft = text
-    transientError = oversizedCompanionMessageNote(size)
-    persistDraft()
-    render()
-    focusCompanionInput()
-    return false
-  }
-  if (companionLoading) {
-    companionPendingSend = text
-    companionDraft = text
-    persistDraft()
-    patchCompanionComposeChrome()
-    focusCompanionInput()
-    return false
-  }
-  companionDraft = ''
-  companionPendingSend = ''
-  companionStreamReply = ''
-  companionMessages = [...companionMessages, { role: 'user', content: text }].slice(-80)
-  companionLoading = true
-  companionThinkPhase = ''
-  companionActivitySteps = [{ step: 'gather', status: 'running', at: Date.now() }]
-  startCompanionWaitTicker()
-  companionActiveRequestId = ++companionRequestId
-  companionSetupOpen = false
-  if (!isCompanionView() && state.selectedTab !== 'overview') {
-    state = { ...state, selectedTab: 'overview' }
-    vscode.postMessage({ type: 'selectTab', tab: 'overview' })
-  }
-  persistDraft()
-  render()
-  // A full webview render and textarea re-focus can each change the available
-  // thread height. Anchor after both layout passes; one rAF left a visible
-  // frame at scrollTop=0 on tall answers.
-  requestAnimationFrame(() => requestAnimationFrame(() => scrollCompanionThread(true)))
-  focusCompanionInput()
-  vscode.postMessage({ type: 'companionChat', message: text, requestId: companionActiveRequestId, retry: Boolean(options.retry) })
-  return true
-}
-function flushCompanionPendingSend() {
-  const next = String(companionPendingSend || '').trim()
-  if (!next || companionLoading) return
-  companionPendingSend = ''
-  sendCompanionUserMessage(next)
-}
-function isActiveCompanionRequest(message) {
-  const incoming = Number(message?.requestId || 0)
-  if (!incoming) return false
-  return incoming === companionActiveRequestId
-}
-function mergeCompanionTranscript(local, incoming, loading) {
-  if (!incoming.length) return local
-  if (!local.length) return incoming
-  const localLast = local[local.length - 1]
-  if (!loading && localLast?.role === 'assistant' && (localLast.mode === 'error' || localLast.mode === 'cancelled')) {
-    if (!incoming.some(item => item.role === 'assistant' && item.content === localLast.content)) {
-      return [...incoming, localLast].slice(-80)
-    }
-  }
-  if (loading) {
-    if (localLast?.role === 'user' && !incoming.some(item => item.role === 'user' && item.content === localLast.content)) {
-      return [...incoming, localLast].slice(-80)
-    }
-  }
-  if (incoming.length >= local.length) return incoming
-  return local
-}
-function companionStepLabel(step) {
-  const labels = {
-    gather: 'Сбор контекста',
-    focus: 'Фокус IDE',
-    roster: 'Ростер',
-    quests: 'Квесты',
-    memory: 'Память',
-    index: 'Карта проекта',
-    search: 'Поиск',
-    model: 'Модель',
-    local: 'Локальный разбор',
-  }
-  // Шаг инструмента приходит как «tool:git_log»: в ленте нужно имя того, что
-  // помощник читает прямо сейчас, — иначе десятки секунд ожидания выглядят как
-  // одно бесконечное «Сбор контекста».
-  const tool = /^tool:(.+)$/.exec(String(step || ''))
-  if (tool) return `Смотрю ${tool[1]}`
-  return labels[step] || step || 'Работа'
-}
-function upsertCompanionActivity(step, status) {
-  if (!step) return
-  const next = companionActivitySteps.filter(item => item.step !== step)
-  next.push({ step, status: status || 'running', at: Date.now() })
-  companionActivitySteps = next.slice(-8)
-}
-// Секунды идут сами: событий от молчащей модели не приходит, и без тика полоса
-// стоит на месте. Тикер гасит себя, как только ожидание кончилось.
-let companionWaitTicker = 0
-function startCompanionWaitTicker() {
-  if (companionWaitTicker || typeof setInterval !== 'function') return
-  companionWaitTicker = setInterval(() => {
-    if (!companionLoading) {
-      clearInterval(companionWaitTicker)
-      companionWaitTicker = 0
-      return
-    }
-    patchCompanionThinkingLabel()
-  }, 1000)
-}
-function companionThinkingLabel() {
-  const current = [...companionActivitySteps].reverse().find(item => item.status === 'running')
-  const step = current
-    ? companionStepLabel(current.step) + '…'
-    : companionThinkPhase === 'model' ? 'Модель…'
-      : companionThinkPhase === 'local' ? 'Локальный разбор…'
-        : 'Думает…'
-  // Ожидание считается от первого шага: от молчащей модели событий не дождаться,
-  // и без счёта секунд окно неотличимо от зависшего.
-  const startedAt = Number(companionActivitySteps[0]?.at || 0)
-  const waited = startedAt && companionLoading ? Math.floor((Date.now() - startedAt) / 1000) : 0
-  return step + companionWaitSuffix(waited)
-}
 // Годится любой ленте: у компаньона и у Мастера «внизу» значит одно и то же.
 function threadNearBottom(thread) {
   return !thread || thread.scrollHeight - thread.scrollTop - thread.clientHeight < 72
@@ -1804,6 +1631,7 @@ function companionBubbleBodyHtml(content, { streaming = false } = {}) {
 // Лента компаньона живёт отдельным модулем — как и лента Мастера.
 const {
   companionBubbleHtml, companionThreadHtml, companionNudgeBannerHtml, companionSidebarBriefHtml,
+  patchCompanionThinkingLabel, patchCompanionStreamingBubble,
 } = createCompanionThreadViews({
   live: {
     get companionAppliedNotice() { return companionAppliedNotice },
@@ -2122,6 +1950,8 @@ const modularUiState = {
   get apiKey() { return apiKey }, set apiKey(value) { apiKey = value },
   get blueprintSyncDirection() { return blueprintSyncDirection }, set blueprintSyncDirection(value) { blueprintSyncDirection = value },
   get blueprintSyncPreview() { return blueprintSyncPreview }, set blueprintSyncPreview(value) { blueprintSyncPreview = value },
+  get companionActiveRequestId() { return companionActiveRequestId }, set companionActiveRequestId(value) { companionActiveRequestId = value },
+  get companionActivitySteps() { return companionActivitySteps }, set companionActivitySteps(value) { companionActivitySteps = value },
   get companionAppliedNotice() { return companionAppliedNotice }, set companionAppliedNotice(value) { companionAppliedNotice = value },
   get companionDraft() { return companionDraft }, set companionDraft(value) { companionDraft = value },
   get companionFeedbackMarks() { return companionFeedbackMarks }, set companionFeedbackMarks(value) { companionFeedbackMarks = value },
@@ -2129,14 +1959,17 @@ const modularUiState = {
   get companionLoading() { return companionLoading }, set companionLoading(value) { companionLoading = value },
   get companionMessages() { return companionMessages }, set companionMessages(value) { companionMessages = value },
   get companionPendingSend() { return companionPendingSend }, set companionPendingSend(value) { companionPendingSend = value },
+  get companionRequestId() { return companionRequestId }, set companionRequestId(value) { companionRequestId = value },
   get companionProviderProbe() { return companionProviderProbe }, set companionProviderProbe(value) { companionProviderProbe = value },
   get companionSetupDraft() { return companionSetupDraft }, set companionSetupDraft(value) { companionSetupDraft = value },
   get companionSetupOpen() { return companionSetupOpen }, set companionSetupOpen(value) { companionSetupOpen = value },
+  get companionSetupPendingClose() { return companionSetupPendingClose }, set companionSetupPendingClose(value) { companionSetupPendingClose = value },
   get companionSetupQuiet() { return companionSetupQuiet }, set companionSetupQuiet(value) { companionSetupQuiet = value },
   get companionSetupStatus() { return companionSetupStatus }, set companionSetupStatus(value) { companionSetupStatus = value },
   get companionSetupStep() { return companionSetupStep }, set companionSetupStep(value) { companionSetupStep = value },
   get companionSetupTestResult() { return companionSetupTestResult }, set companionSetupTestResult(value) { companionSetupTestResult = value },
   get companionStreamReply() { return companionStreamReply }, set companionStreamReply(value) { companionStreamReply = value },
+  get companionThinkPhase() { return companionThinkPhase }, set companionThinkPhase(value) { companionThinkPhase = value },
   get constructorDraft() { return constructorDraft }, set constructorDraft(value) { constructorDraft = value },
   get constructorStep() { return constructorStep }, set constructorStep(value) { constructorStep = value },
   get compiledPromptPreview() { return compiledPromptPreview }, set compiledPromptPreview(value) { compiledPromptPreview = value },
@@ -2266,6 +2099,26 @@ const modularUiState = {
   get workflowDraft() { return workflowDraft }, set workflowDraft(value) { workflowDraft = value },
 }
 
+// Разговор с помощником — отдельный модуль: отправка, поток и приём ответа
+// связаны номером запроса и читаются только вместе.
+const {
+  stopCompanionChat, sendCompanionUserMessage, flushCompanionPendingSend,
+  mergeCompanionTranscript, companionThinkingLabel, applyCompanionChatMessage,
+} = createCompanionTransport({
+  ui: modularUiState, root, vscode, render: (...args) => render(...args),
+  persistDraft: (...args) => persistDraft(...args),
+  focusCompanionInput: (...args) => focusCompanionInput(...args),
+  isCompanionView: (...args) => isCompanionView(...args),
+  patchCompanionComposeChrome: (...args) => patchCompanionComposeChrome(...args),
+  replaceCompanionThreadHtml: (...args) => replaceCompanionThreadHtml(...args),
+  replaceHtmlNodes: (...args) => replaceHtmlNodes(...args),
+  scrollCompanionThread: (...args) => scrollCompanionThread(...args),
+  companionQuickPromptsHtml: (...args) => companionQuickPromptsHtml(...args),
+  patchCompanionThinkingLabel: (...args) => patchCompanionThinkingLabel(...args),
+  patchCompanionStreamingBubble: (...args) => patchCompanionStreamingBubble(...args),
+  pendingQuestProposals: (...args) => pendingQuestProposals(...args),
+  pendingActionProposals: (...args) => pendingActionProposals(...args),
+})
 // Экран «Решения» живёт отдельным модулем: очередь, карточка и горячие
 // клавиши — одна тема, и трогают её вместе.
 const {
@@ -5367,159 +5220,7 @@ window.addEventListener('message', event => {
     }
     render()
   }
-  if (message.type === 'companionChatStarted') {
-    const requestId = Number(message.requestId || 0)
-    if (!requestId) return
-    const text = String(message.message || '').trim()
-    companionRequestId = Math.max(companionRequestId, requestId)
-    companionActiveRequestId = requestId
-    companionLoading = true
-    companionThinkPhase = ''
-    companionActivitySteps = [{ step: 'gather', status: 'running', at: Date.now() }]
-    startCompanionWaitTicker()
-    companionStreamReply = ''
-    const last = companionMessages[companionMessages.length - 1]
-    if (text && !(last?.role === 'user' && last.content === text)) {
-      companionMessages = [...companionMessages, { role: 'user', content: text }].slice(-80)
-    }
-    if (companionDraft.trim() === text) companionDraft = ''
-    if (companionPendingSend.trim() === text) companionPendingSend = ''
-    persistDraft()
-    render()
-    requestAnimationFrame(() => scrollCompanionThread())
-  }
-  if (message.type === 'companionChatStopped') {
-    stopCompanionChat({ notifyHost: false, requestId: Number(message.requestId || 0), superseded: Boolean(message.superseded) })
-  }
-  if (message.type === 'companionChatProgress') {
-    if (!isActiveCompanionRequest(message) && message.requestId) return
-    companionThinkPhase = message.phase === 'model' ? 'model' : message.phase === 'local' ? 'local' : 'gather'
-    if (message.step) upsertCompanionActivity(message.step, message.status || 'running')
-    if (companionLoading) {
-      patchCompanionThinkingLabel()
-      if (!companionStreamReply) patchCompanionStreamingBubble()
-    }
-  }
-  if (message.type === 'companionChatDelta') {
-    if (!isActiveCompanionRequest(message) && message.requestId) return
-    const reply = String(message.reply || '')
-    if (!reply || reply.length < companionStreamReply.length) return
-    companionStreamReply = reply
-    companionThinkPhase = 'model'
-    upsertCompanionActivity('model', 'running')
-    if (companionLoading) {
-      patchCompanionThinkingLabel()
-      patchCompanionStreamingBubble()
-      vscode.postMessage({
-        type: 'companionThreadUpdate',
-        messages: companionMessages,
-        draft: companionDraft,
-        streamReply: companionStreamReply,
-        loading: true,
-        pendingSend: companionPendingSend,
-        requestId: companionActiveRequestId,
-      })
-    }
-  }
-  if (message.type === 'companionChatResult') {
-    if (!isActiveCompanionRequest(message) && message.requestId) return
-    if (!companionLoading && Number(message.requestId || 0) === 0) {
-      /* late reply after soft-stop without requestId — ignore if already cancelled */
-      const last = companionMessages[companionMessages.length - 1]
-      if (last?.mode === 'cancelled') return
-    }
-    companionLoading = false
-    companionActiveRequestId = 0
-    companionThinkPhase = ''
-    companionActivitySteps = []
-    companionSetupOpen = false
-    const reply = String(message.response?.reply || message.response?.content || companionStreamReply || '').trim()
-      || 'Компаньон ответил без текста. Спросите ещё раз или проверьте подключение модели.'
-    companionStreamReply = ''
-    const last = companionMessages[companionMessages.length - 1]
-    if (last?.role === 'assistant' && last.mode === 'streaming') {
-      companionMessages = [...companionMessages.slice(0, -1), {
-        ...message.response,
-        role: 'assistant',
-        content: reply,
-      }].slice(-80)
-    } else if (!(last?.role === 'assistant' && last.content === reply)) {
-      companionMessages = [...companionMessages, {
-        ...message.response,
-        role: 'assistant',
-        content: reply,
-      }].slice(-80)
-    }
-    if (message.error) transientError = message.error
-    persistDraft()
-    const needsFullRender = Boolean(message.response?.proposal) || Boolean(message.response?.actionProposal)
-      || pendingQuestProposals().length > 0 || pendingActionProposals().length > 0
-    if (needsFullRender || !root.querySelector('#companion-thread')) {
-      render()
-    } else {
-      replaceCompanionThreadHtml()
-      patchCompanionThinkingLabel()
-      patchCompanionComposeChrome()
-      if (root.querySelector('.companion-quick-prompts')) {
-        replaceHtmlNodes('.companion-quick-prompts', companionQuickPromptsHtml(Boolean(root.querySelector('.companion-quick-prompts.compact'))))
-      }
-    }
-    setTimeout(() => {
-      scrollCompanionThread()
-      if (pendingQuestProposals().length || pendingActionProposals().length) {
-        root.querySelector('#companion-review')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
-      }
-    }, 20)
-    focusCompanionInput()
-    flushCompanionPendingSend()
-  }
-  if (message.type === 'companionChatError') {
-    if (!isActiveCompanionRequest(message) && message.requestId) return
-    companionLoading = false
-    companionActiveRequestId = 0
-    companionThinkPhase = ''
-    companionActivitySteps = []
-    // Написанное до сбоя остаётся на экране. Ответ шёл потоком, человек читал
-    // его вживую — и стирать прочитанное ради дежурной строки значит терять
-    // разобранное вместе с причиной отказа. Остановка ведёт себя так же.
-    const partial = String(companionStreamReply || '').trim()
-    companionStreamReply = ''
-    const text = message.message || 'Компаньон не смог ответить.'
-    const body = partial ? `${partial}\n\n— ${text} Написанное сохранено.` : text
-    const last = companionMessages[companionMessages.length - 1]
-    if (!(last?.role === 'assistant' && last.content === body)) {
-      companionMessages = [...companionMessages, { role: 'assistant', content: body, level: 'warning', mode: 'error', failure: text }].slice(-80)
-    }
-    transientError = text
-    persistDraft()
-    render()
-    focusCompanionInput()
-    flushCompanionPendingSend()
-  }
-  if (message.type === 'companionSetupTestResult') {
-    companionLoading = false
-    companionSetupTestResult = message.response
-    const fallback = String(message.response?.fallbackReason || '').trim()
-    companionSetupStatus = fallback
-      ? `Настройки сохранены. Модель не ответила (${fallback}). Показан локальный ответ.`
-      : 'Настройки сохранены, пробный ответ добавлен в историю проекта.'
-    persistDraft()
-    render()
-  }
-  if (message.type === 'companionSetupTestError') {
-    companionLoading = false
-    companionSetupTestResult = undefined
-    companionSetupStatus = message.message
-      || (message.phase === 'save' ? 'Не удалось сохранить настройки.' : 'Настройки сохранены, пробный ответ не получен.')
-    companionSetupPendingClose = false
-    render()
-  }
-  if (message.type === 'companionHistoryCleared') {
-    companionMessages = []
-    transientError = ''
-    persistDraft()
-    render()
-  }
+  if (applyCompanionChatMessage(message)) return
   if (message.type === 'skillEquipPreview') {
     pendingSkillEquip = {
       skillId: message.preview?.skill?.id || message.skillId,

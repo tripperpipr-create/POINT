@@ -176,5 +176,11 @@ export function createCompanionThreadViews({ live, COMPANION_PRESETS, companionB
     return `<main class="companion-dock-brief"><header><span class="companion-presence" aria-hidden="true"></span><div><strong>Компаньон</strong><small>${connected ? esc(presetMeta?.label || 'Модель подключена') : 'Локальный режим'}</small></div></header>${companionIdeNowHtml()}${speak}<div class="empty-next"><button type="button" class="primary" data-action="open-companion-sidebar">Открыть чат</button><button type="button" class="secondary" data-action="open-companion-setup">Настроить</button></div></main>`
   }
 
-  return { companionBubbleHtml, companionThreadHtml, companionNudgeBannerHtml, companionSidebarBriefHtml }
+  // Обе точечные правки ленты зовёт разговор помощника: 18 сентября лента
+  // уехала сюда вместе с ними, а места вызова остались в `main.js` — и
+  // каждое событие потока роняло разбор сообщения на `ReferenceError`.
+  return {
+    companionBubbleHtml, companionThreadHtml, companionNudgeBannerHtml, companionSidebarBriefHtml,
+    patchCompanionThinkingLabel, patchCompanionStreamingBubble,
+  }
 }

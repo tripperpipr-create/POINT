@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 
 	"local-agent-workbench/internal/domain"
@@ -29,9 +30,16 @@ func (s *SQLite) FinalizeWorkOrderQuestV2(ctx context.Context, questID string, b
 		return domain.QuestBlocked, err
 	}
 	bundle.QuestID = questID
-	status, err := domain.WorkOrderEvidenceStatus(order, bundle)
-	if err != nil {
-		return domain.QuestBlocked, err
+	verdict := domain.WorkOrderEvidenceVerdict(order, bundle)
+	if verdict.Err != nil {
+		return domain.QuestBlocked, verdict.Err
+	}
+	status := verdict.Status
+	// Причина нетерминального исхода ложится в сам bundle: он сохраняется
+	// именно затем, чтобы объяснить, почему работа не принята, а прежде
+	// объяснения в нём не было — квест просто становился blocked.
+	if status != domain.QuestCompleted && strings.TrimSpace(verdict.Reason) != "" {
+		bundle.KnownLimitations = append(bundle.KnownLimitations, "Шлюз доказательств: "+verdict.Reason)
 	}
 	if bundle.CreatedAt.IsZero() {
 		bundle.CreatedAt = time.Now().UTC()

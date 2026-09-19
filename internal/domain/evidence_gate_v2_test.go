@@ -175,3 +175,62 @@ func TestWorkOrderEvidenceStatusHandsExternalConflictToReview(t *testing.T) {
 func evidenceGateModelCalls() []ModelCallLedgerEntry {
 	return []ModelCallLedgerEntry{{ID: "model-call-1", Provider: "test", Model: "model", Role: "writer", CostKnown: true, UsageReported: true, CreatedAt: time.Now().UTC()}}
 }
+
+// Шлюз обязан называть условие, на котором остановился. Прежде он отвечал
+// `blocked` без слова объяснения в пяти местах, и живая приёмка показывала
+// «0/2», не говоря, чего именно не хватило: разбор начинался с
+// воспроизведения вслепую. Тест держит это свойство — молчаливый отказ
+// вернётся первым же рефакторингом, если его не стеречь.
+func TestWorkOrderEvidenceVerdictNamesTheFailedCondition(t *testing.T) {
+	order := evidenceGateOrder("verification")
+	complete := EvidenceBundle{
+		Version: CurrentWorkOrderEvidenceVersion, PointVersion: "test", ID: "e1", QuestID: "q1", BriefDigest: WorkOrderDigest(order), SourceDigest: WorkOrderSourceDigest(order),
+		EnvironmentDigest: "env", StackPreset: order.Stack, SourceVersions: []SourceSnapshotRef{}, WorkspaceRevision: "tree-hash", DeliveryVerified: true,
+		DeliveryReceipt:    &DeliveryReceipt{ID: "d1", QuestID: "q1", WorkOrderDigest: WorkOrderDigest(order), Target: order.Workspace.Path, WorkspaceRevision: "tree-hash", DeliveredAt: time.Now().UTC()},
+		Criteria:           []CriterionEvidence{{CriterionID: "c1", Satisfied: true, Command: "go test ./...", ExitCode: intPointer(0)}},
+		VerificationChecks: []VerificationCheck{{ID: "c1", Kind: "acceptance", Command: "go test ./...", ExitCode: intPointer(0), Satisfied: true}},
+		ModelCalls:         evidenceGateModelCalls(),
+	}
+	if verdict := WorkOrderEvidenceVerdict(order, complete); verdict.Status != QuestCompleted || verdict.Reason != "" {
+		t.Fatalf("принятая работа обязана проходить молча: status=%s reason=%q", verdict.Status, verdict.Reason)
+	}
+
+	undelivered := complete
+	undelivered.DeliveryVerified = false
+	verdict := WorkOrderEvidenceVerdict(order, undelivered)
+	if verdict.Status != QuestBlocked || verdict.Err != nil {
+		t.Fatalf("недоставленная работа — честный провал, не ошибка: status=%s err=%v", verdict.Status, verdict.Err)
+	}
+	if !containsMissing(verdict.Missing, "delivery_verified") || verdict.Reason == "" {
+		t.Fatalf("отказ не назвал условие: reason=%q missing=%v", verdict.Reason, verdict.Missing)
+	}
+
+	noCalls := complete
+	noCalls.ModelCalls = nil
+	if verdict = WorkOrderEvidenceVerdict(order, noCalls); !containsMissing(verdict.Missing, "model_calls") {
+		t.Fatalf("пустой ledger обращений не назван: missing=%v", verdict.Missing)
+	}
+
+	failedCriterion := complete
+	failedCriterion.VerificationChecks = []VerificationCheck{{ID: "c1", Kind: "acceptance", Command: "go test ./...", ExitCode: intPointer(1), Satisfied: true}}
+	if verdict = WorkOrderEvidenceVerdict(order, failedCriterion); !containsMissing(verdict.Missing, "criterion:c1") {
+		t.Fatalf("проваленный критерий не назван: missing=%v", verdict.Missing)
+	}
+
+	// Структурное расхождение остаётся ошибкой: доказательство недостоверно,
+	// и транзакция шлюза обязана откатиться, а не сохранить bundle.
+	foreign := complete
+	foreign.BriefDigest = "sha256:someone-else"
+	if verdict = WorkOrderEvidenceVerdict(order, foreign); verdict.Err == nil {
+		t.Fatal("чужой дайджест обязан оставаться ошибкой, а не мягким отказом")
+	}
+}
+
+func containsMissing(values []string, needle string) bool {
+	for _, value := range values {
+		if value == needle {
+			return true
+		}
+	}
+	return false
+}

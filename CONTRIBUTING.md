@@ -180,6 +180,7 @@ or a file under `ui/layers/`, then rebuild — direct edits are overwritten.
 | `make test-extension` | `extension` | весь JS-контур: сборка ядра, CSS/JS/runtime, смоуки Хаба |
 | `make test` | все четыре | то же, что прогон CI целиком |
 | `make test-race` | отдельный шаг job `go` | детектор гонок; требует CGO и gcc в PATH |
+| `make loop` | нет | живой прогон: лёгкая правка в настоящем проекте от реплики до зелёных тестов |
 
 Раньше этот список был здесь копией и успел разойтись и с `Makefile`, и с
 `npm run check`: в нём перечислялись поимённо смоуки, которые давно входят в
@@ -189,6 +190,24 @@ or a file under `ui/layers/`, then rebuild — direct edits are overwritten.
 `make test-race` в `make test` не входит намеренно: без gcc в PATH он падает на
 сборке, и этот отказ читался бы как отказ тестов. В CI он есть — ubuntu-раннер
 gcc несёт.
+
+`make loop` не входит ни в `make test`, ни в CI, и не должен: он требует живой
+модели, а затвор обязан работать в чистом клоне без сети. Это полигон
+повседневной доводки, а не проверка — круг стоит полминуты, и на нём видно то,
+чего не видит ни один тест: сколько шагов агент тратит впустую, где встаёт цикл,
+что человек читает вместо объяснения. Без ключа он проверяет только правила
+вердикта и выходит с нулём; чтобы включить живой прогон, нужен `.env.local`
+(закрыт правилом `.env.*` в `.gitignore`):
+
+```
+POINT_LIVE_LOOP=1
+POINT_LLMUX_API_KEY=<ключ>
+```
+
+`make loop RUN=2` гоняет второй круг. Полигон закрыт не успехом, а
+воспроизводимостью: пока два прогона подряд дают разные ответы, чинить нечего —
+вы будете гоняться за шумом. Устройство и находки — в
+[`docs/PROJECT-STATUS.md`](docs/PROJECT-STATUS.md).
 
 Before a release also run production npm audits and `docker compose config`;
 the canonical list is in

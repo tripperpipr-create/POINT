@@ -170,7 +170,7 @@ Point Dark. Поэтому чужая тема продолжает работа
 ```text
 vscode-extension/ui/
   tokens.css      единственный источник истины: палитра обоих регистров и шкалы
-  layers/*.css    23 слоя каскада, порядок задан именами
+  layers/*.css    33 слоя каскада, порядок задан именами
   client/*.js     редактируемые источники webview, сборка — build-js.mjs
   build.mjs       сборка CSS, структурная проверка и трещотка бюджета
   build-js.mjs    сборка media/main.js из client/*.js

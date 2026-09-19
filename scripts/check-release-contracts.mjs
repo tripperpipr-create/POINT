@@ -593,6 +593,7 @@ for (const token of [
   "require('./ide-navigation-utils')", "require('./ssh-utils')",
   "require('./companion-controller')", "require('./ide-action-controller')",
   "require('./ide-navigation-controller')", "require('./connection-controller')",
+  "require('./project-index-controller')", "require('./console-ssh-controller')",
 ]) {
   requireText(extensionSource, token, 'extension module boundary')
 }

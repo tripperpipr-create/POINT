@@ -841,9 +841,11 @@ const TYPE_SCALE = new Set(
 // 17. Фоновое обновление boot не имеет права менять исполнителя уже
 //     подготовленного квеста. В Hub выбранный id принадлежит projectAgents.
 {
-  const main = read('vscode-extension/ui/client/main.js')
+  // Проверка идёт по дереву `ui/client`, а не по `main.js`: 19 сентября разбор
+  // снимка мира уехал в `world-state-inbox.js`, и вместе с ним имя состояния
+  // получило приставку мешка — отсюда `(?:ui\.)?`.
   const hall = read('vscode-extension/ui/client/hall-onboarding-views.js')
-  if (!main.includes('!agentById(selectedProfileId)')) {
+  if (!/!agentById\((?:ui\.)?selectedProfileId\)/.test(webviewSource)) {
     fail('boot больше не проверяет выбранного исполнителя через общий projectAgent/profile lookup')
   }
   if (!hall.includes("preferredIds.find(id => id && profiles.some(item => item.id === id))")) {

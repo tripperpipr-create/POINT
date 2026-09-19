@@ -29,6 +29,7 @@ import { createCompanionTransport } from './companion-transport.js'
 import { createMasterInbox } from './master-inbox.js'
 import { createHubEntityInbox } from './hub-entity-inbox.js'
 import { createRunInbox } from './run-inbox.js'
+import { createWorldStateInbox } from './world-state-inbox.js'
 import { createDecisionViews } from './decision-views.js'
 import { createCompanionThreadViews } from './companion-thread-views.js'
 import { createKeyboardNavigation } from './keyboard-navigation.js'
@@ -1955,7 +1956,9 @@ const modularUiState = {
   get blueprintSyncPreview() { return blueprintSyncPreview }, set blueprintSyncPreview(value) { blueprintSyncPreview = value },
   get companionActiveRequestId() { return companionActiveRequestId }, set companionActiveRequestId(value) { companionActiveRequestId = value },
   get companionActivitySteps() { return companionActivitySteps }, set companionActivitySteps(value) { companionActivitySteps = value },
+  get companionActionEditId() { return companionActionEditId }, set companionActionEditId(value) { companionActionEditId = value },
   get companionAppliedNotice() { return companionAppliedNotice }, set companionAppliedNotice(value) { companionAppliedNotice = value },
+  get companionIdeContext() { return companionIdeContext }, set companionIdeContext(value) { companionIdeContext = value },
   get companionDraft() { return companionDraft }, set companionDraft(value) { companionDraft = value },
   get companionFeedbackMarks() { return companionFeedbackMarks }, set companionFeedbackMarks(value) { companionFeedbackMarks = value },
   get companionInterventionProbe() { return companionInterventionProbe }, set companionInterventionProbe(value) { companionInterventionProbe = value },
@@ -2031,6 +2034,7 @@ const modularUiState = {
   get gitTarget() { return gitTarget }, set gitTarget(value) { gitTarget = value },
   get hireAfterSave() { return hireAfterSave }, set hireAfterSave(value) { hireAfterSave = value },
   get hirePreviewTemplateId() { return hirePreviewTemplateId }, set hirePreviewTemplateId(value) { hirePreviewTemplateId = value },
+  get lastAgentImprovementFocusId() { return lastAgentImprovementFocusId }, set lastAgentImprovementFocusId(value) { lastAgentImprovementFocusId = value },
   get keptRunId() { return keptRunId }, set keptRunId(value) { keptRunId = value },
   get manualLearningDraft() { return manualLearningDraft }, set manualLearningDraft(value) { manualLearningDraft = value },
   get manualLearningPreview() { return manualLearningPreview }, set manualLearningPreview(value) { manualLearningPreview = value },
@@ -2074,6 +2078,7 @@ const modularUiState = {
   get onboardingLockNotice() { return onboardingLockNotice }, set onboardingLockNotice(value) { onboardingLockNotice = value },
   get onboardingStep() { return onboardingStep }, set onboardingStep(value) { onboardingStep = value },
   get pendingSkillEquip() { return pendingSkillEquip }, set pendingSkillEquip(value) { pendingSkillEquip = value },
+  get projectKey() { return projectKey }, set projectKey(value) { projectKey = value },
   get profileDraft() { return profileDraft }, set profileDraft(value) { profileDraft = value },
   get profileEditorOpen() { return profileEditorOpen }, set profileEditorOpen(value) { profileEditorOpen = value },
   get profileEditorStep() { return profileEditorStep }, set profileEditorStep(value) { profileEditorStep = value },
@@ -4625,6 +4630,24 @@ const applyRunMessage = createRunInbox({
   orchestratorPolicyInflight, orchestratorPolicyFailed,
 })
 
+// Полный снимок мира разбирается своим модулем: это единственная ветка,
+// которая заменяет состояние целиком и решает, что из прежнего переживает смену.
+const applyWorldStateMessage = createWorldStateInbox({
+  ui: modularUiState, vscode, render: (...args) => render(...args),
+  persistDraft: (...args) => persistDraft(...args),
+  canonicalTab: (...args) => canonicalTab(...args),
+  resetProjectScopedState: (...args) => resetProjectScopedState(...args),
+  decisionsQueueIsStale: (...args) => decisionsQueueIsStale(...args),
+  releaseMasterAgentCards: (...args) => releaseMasterAgentCards(...args),
+  mergeCompanionTranscript: (...args) => mergeCompanionTranscript(...args),
+  prepareAgentConstructor: (...args) => prepareAgentConstructor(...args),
+  agentById: (...args) => agentById(...args),
+  hubAgents: (...args) => hubAgents(...args),
+  isWide: (...args) => isWide(...args),
+  proposalStarting, proposalModifying, proposalEditDrafts,
+  companionActionApplying, companionActionModifying, companionActionEditDrafts,
+})
+
 window.addEventListener('message', event => {
   const message=event.data
   if (message.type === 'collectGarbage') {
@@ -4695,98 +4718,7 @@ window.addEventListener('message', event => {
     render()
     return
   }
-  if (message.type === 'state') {
-    // Ответ пришёл — форму отпираем. Иначе после первой же отправки она
-    // осталась бы запертой до перезагрузки панели.
-    submittingForm = ''
-    if (String(message.workspacePath || '') !== projectKey) {
-      projectKey = String(message.workspacePath || '')
-      resetProjectScopedState()
-    }
-    state={...message, selectedTab: canonicalTab(message.selectedTab)}
-    const discussed = (state.boot?.questProposals || []).find(p => p.id === masterDiscussionProposalId)
-    if (discussed && discussed.status !== 'pending') {
-      masterDiscussionProposalId = ''
-      persistDraft()
-    }
-    // «Мастер не настроен» — ответ, который устаревает молча.
-    //
-    // Настраивают его в другом разделе, и раздел разговора об этом не узнавал:
-    // он держал прежний ответ ядра и продолжал показывать приглашение к
-    // настройке — то самое, из которого человек только что вернулся, всё
-    // сделав. Выход был один: переоткрыть панель. Мир уже сообщил, что
-    // диспетчер есть, — значит наш ответ неверен, и его надо спросить заново.
-    if (masterData?.configured === false && state.boot?.orchestrator?.id) {
-      masterData = undefined
-      masterStatus = 'idle'
-    }
-    // Очередь загружалась один раз и больше не обновлялась. Правило сверки
-    // живёт рядом со счётчиком ожидающих: оно ловит сдвиг мира в обе стороны.
-    if (decisionsStatus === 'ready' && decisionsQueueIsStale()) decisionsStatus = 'idle'
-    // Запуск предложения дошёл до ядра — кнопку отпускаем. Судим по самому
-    // предложению, а не по факту прихода состояния: состояние приходит и по
-    // чужим поводам, и отпущенная на них кнопка снова стала бы двойной.
-    for (const id of proposalStarting) {
-      const awaited = (state.boot?.questProposals || []).find(item => item.id === id)
-      if (!awaited || awaited.status === 'started') proposalStarting.delete(id)
-    }
-    for (const id of companionActionApplying) {
-      const awaited = (state.boot?.companionActionProposals || []).find(item => item.id === id)
-      if (!awaited || awaited.status === 'applied' || awaited.status === 'ignored') companionActionApplying.delete(id)
-    }
-    // Карточка исполнителя ждала ответа ядра: состояние пришло, и держать её
-    // кнопку запертой больше не на чем.
-    releaseMasterAgentCards()
-    for (const id of proposalEditDrafts.keys()) {
-      const awaited = (state.boot?.questProposals || []).find(item => item.id === id)
-      if (!awaited || awaited.status === 'started' || awaited.status === 'ignored') {
-        proposalEditDrafts.delete(id)
-        proposalModifying.delete(id)
-        if (proposalEditId === id) proposalEditId = ''
-      }
-    }
-    for (const id of companionActionEditDrafts.keys()) {
-      const awaited = (state.boot?.companionActionProposals || []).find(item => item.id === id)
-      if (!awaited || awaited.status === 'applied' || awaited.status === 'ignored') {
-        companionActionEditDrafts.delete(id)
-        companionActionModifying.delete(id)
-        if (companionActionEditId === id) companionActionEditId = ''
-      }
-    }
-    if (message.ideContext && typeof message.ideContext === 'object') companionIdeContext = message.ideContext
-    if (Array.isArray(message.companionFeedback)) {
-      companionFeedbackMarks = new Map(message.companionFeedback
-        .filter(item => item && item.messageId)
-        .map(item => [String(item.messageId), item.value === 'down' ? 'down' : 'up']))
-    }
-    if (Array.isArray(state.boot?.companionMessages)) {
-      const incoming = state.boot.companionMessages.map(item => ({ ...item, factsUsed: Array.isArray(item.factsUsed) ? item.factsUsed : [] })).slice(-80)
-      companionMessages = mergeCompanionTranscript(companionMessages, incoming, companionLoading)
-    }
-    const defaultId = state.boot?.defaultProfileId
-    // Project agents and legacy profiles share the composer. Checking only the
-    // legacy profile array made every background boot refresh discard a valid
-    // project-agent selection while a preview was being prepared.
-    if (!selectedProfileId || !agentById(selectedProfileId)) {
-      selectedProfileId = agentById(defaultId)?.id || hubAgents()[0]?.id || state.boot?.profiles?.[0]?.id || ''
-    }
-    const improvementFocus = message.agentImprovementFocus
-    if (isWide && state.selectedTab === 'agents' && improvementFocus?.requestId && improvementFocus.requestId !== lastAgentImprovementFocusId) {
-      const selected = agentById(improvementFocus.agentId)
-      if (selected) {
-        lastAgentImprovementFocusId = improvementFocus.requestId
-        selectedProfileId = selected.id
-        prepareAgentConstructor(selected, improvementFocus.constructorStep)
-        vscode.postMessage({ type: 'agentImprovementFocused', requestId: improvementFocus.requestId })
-      } else if (state.boot) {
-        lastAgentImprovementFocusId = improvementFocus.requestId
-        transientError = 'Агент из рекомендации больше не найден в ростере.'
-        vscode.postMessage({ type: 'agentImprovementFocused', requestId: improvementFocus.requestId })
-      }
-    }
-    persistDraft()
-    render()
-  }
+  if (applyWorldStateMessage(message)) return
   if (message.type === 'cursorRuntime') {
     state = { ...state, cursorRuntime: message }
     render()

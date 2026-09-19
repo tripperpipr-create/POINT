@@ -97,6 +97,118 @@ for (const name of sources) {
   }
 }
 
+// Состояние `main.js` в соседнем модуле обязано быть чем-то связано.
+//
+// При выносе очередной пачки веток каждое имя состояния переписывается либо в
+// `ui.имя`, либо в параметр модуля. Одно пропущенное остаётся свободной
+// переменной: сборка молчит, `node --check` молчит, а `ReferenceError`
+// выпадает только на живом клике — 18 сентября так уехал `onboardingDraft`.
+// Прячется он в спреде: в `{ ...onboardingDraft, … }` имя стоит после точки и
+// на поиск отзывается как свойство.
+//
+// Связанным считается имя, которое модуль объявляет сам, импортирует или
+// принимает параметром. Разбор параметров грубый и намеренно щедрый: лишняя
+// связка — это молчание о настоящей ошибке, но врать о чужом коде хуже.
+// Комментарий — не код. Имена состояния в этом дереве обсуждают словами, и без
+// вычёркивания комментариев проверка ловила бы девять объяснений вместо ошибок.
+// Строка гасится только тогда, когда `//` открывает её целиком: внутри разметки
+// живут ссылки вида `https://…`, и резать по первому `//` значило бы стирать код.
+// Текст строки — тоже не код: `'./master-chat-state.js'` и `class="… state-…"`
+// содержат имена состояния буквами. Гасится только сам текст; вставки `${…}`
+// в шаблонах остаются, потому что разметка этого дерева живёт именно в них.
+const codeOnly = text => {
+  const plain = text
+    .replace(/\/\*[\s\S]*?\*\//g, match => match.replace(/[^\n]/g, ' '))
+    .split('\n')
+    .map(line => (/^\s*\/\//.test(line) ? '' : line))
+    .join('\n')
+  const out = plain.split('')
+  const nested = []
+  let quote = ''
+  let depth = 0
+  for (let at = 0; at < plain.length; at += 1) {
+    const char = plain[at]
+    if (quote && char === '\\') {
+      if (plain[at + 1] && plain[at + 1] !== '\n') out[at + 1] = ' '
+      at += 1
+      continue
+    }
+    if (!quote) {
+      if (char === "'" || char === '"' || char === '`') { quote = char; continue }
+      if (char === '{') depth += 1
+      else if (char === '}') {
+        if (depth === 0 && nested.length) { depth = nested.pop(); quote = '`' } else depth -= 1
+      }
+      continue
+    }
+    if (char === quote) { quote = ''; continue }
+    if (quote === '`' && char === '$' && plain[at + 1] === '{') {
+      nested.push(depth)
+      depth = 0
+      quote = ''
+      at += 1
+      continue
+    }
+    if (char !== '\n') out[at] = ' '
+  }
+  return out.join('')
+}
+
+const bindingsOf = text => {
+  const bound = new Set()
+  for (const match of text.matchAll(/(?:const|let|var|function|class)\s+([A-Za-z0-9_$]+)/g)) bound.add(match[1])
+  // Разбор с фигурной скобки до парной ей — но только там, где скобка правда
+  // что-то связывает: `const { a } = deps` и список параметров `f({ a, b }) {`.
+  // Литерал `x = { ...draft, flag: true }` сюда попадать не должен, иначе
+  // `draft` посчитается связанным и спред снова уедет незамеченным.
+  for (const match of text.matchAll(/(?:\b(?:const|let|var)\b|\()\s*\{/g)) {
+    const declaration = text[match.index] !== '('
+    const open = text.indexOf('{', match.index)
+    let depth = 0
+    let end = open
+    for (let at = open; at < text.length; at += 1) {
+      if (text[at] === '{') depth += 1
+      else if (text[at] === '}') { depth -= 1; if (depth === 0) { end = at; break } }
+    }
+    if (!declaration && !/^\s*\)\s*(?:\{|=>)/.test(text.slice(end + 1))) continue
+    for (const piece of text.slice(open, end + 1).matchAll(/([A-Za-z0-9_$]+)\s*[,:}\n]/g)) bound.add(piece[1])
+  }
+  for (const match of text.matchAll(/(?:\bfunction\s+[A-Za-z0-9_$]*\s*)?\(([^)(]*)\)(?:\s*=>|\s*\{)/g)) {
+    for (const piece of match[1].split(',')) {
+      const name = piece.trim().split(/[\s=]/)[0]
+      if (/^[A-Za-z0-9_$]+$/.test(name)) bound.add(name)
+    }
+  }
+  for (const match of text.matchAll(/([A-Za-z0-9_$]+)\s*=>/g)) bound.add(match[1])
+  return bound
+}
+
+const mainState = new Set()
+for (const match of (texts.get('main.js') || '').matchAll(/^let\s+([A-Za-z0-9_$]+)/gm)) mainState.add(match[1])
+if (mainState.size < 50) {
+  errors.push(`в main.js найдено всего ${mainState.size} имён состояния — разбор сломался, проверка идёт вхолостую`)
+}
+let leaks = 0
+for (const name of sources) {
+  if (name === 'main.js') continue
+  const text = codeOnly(texts.get(name))
+  const bound = bindingsOf(text)
+  for (const key of mainState) {
+    if (bound.has(key)) continue
+    // Обращение к свойству (`details.contextItems`) — не наше имя. Спред
+    // (`...onboardingDraft`) — наше: три точки, и последняя точка стоит после
+    // точки, а не после имени. Ровно этим они и различаются.
+    // Ключ объекта (`{ state: … }`) именем не является — это свойство,
+    // совпавшее буквами; сокращённая запись `{ state }` за двоеточием не прячется.
+    for (const match of text.matchAll(new RegExp(String.raw`(?<![\w$])(?<!(?<!\.)\.)${key}\b(?!\s*:)`, 'g'))) {
+      const line = text.slice(0, match.index).split('\n').length
+      leaks += 1
+      if (leaks <= 20) errors.push(`${name}:${line}: ${key} — имя ниоткуда не приходит: это состояние main.js, и его берут через ui.`)
+    }
+  }
+}
+if (leaks > 20) errors.push(`и ещё ${leaks - 20} таких же мест`)
+
 if (checkedNames < 50) {
   errors.push(`сверено всего ${checkedNames} имён — разбор импортов сломался, проверка идёт вхолостую`)
 }
@@ -124,5 +236,6 @@ console.log(JSON.stringify({
   webviewExports: 'ok',
   modules: sources.length,
   checkedNames,
+  stateNames: mainState.size,
   unusedExports: orphans.length,
 }))

@@ -176,15 +176,6 @@ func diversityBonus(agent domain.ProjectAgent, selected map[string]bool) int {
 	return 10
 }
 
-func indexOf(values []string, needle string) int {
-	for index, value := range values {
-		if value == needle {
-			return index
-		}
-	}
-	return -1
-}
-
 func successBoost(agent domain.ProjectAgent) int {
 	if agent.TasksCompleted <= 0 {
 		return 0

@@ -57,12 +57,14 @@ func (a *App) finalizeIntakeAfterQuest(questID string, success bool) {
 		return
 	}
 	ctx := context.Background()
-	session, err := a.store.FindIntakeSessionByQuestID(ctx, questID)
-	if err != nil {
+	// Первый вызов — только проверка, что сессия вообще есть: менять статус
+	// несуществующей нечего. Сама запись берётся после syncIntakeStatus — до него
+	// она устаревает тут же.
+	if _, err := a.store.FindIntakeSessionByQuestID(ctx, questID); err != nil {
 		return
 	}
 	a.syncIntakeStatus(ctx, questID, domain.IntakeVerifying, "")
-	session, err = a.store.FindIntakeSessionByQuestID(ctx, questID)
+	session, err := a.store.FindIntakeSessionByQuestID(ctx, questID)
 	if err != nil {
 		return
 	}

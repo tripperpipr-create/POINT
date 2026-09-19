@@ -51,6 +51,21 @@ func (r *memoryRepo) SaveRun(_ context.Context, run domain.Run) error {
 	return nil
 }
 
+// run читает прогон под тем же замком, что и SaveRun.
+//
+// Большинство тестов берёт `repo.mu` вокруг чтения руками; там, где этого не
+// сделали, цикл ожидания читает map, в которую прямо сейчас пишет горутина
+// движка. Гонка здесь не просто портит значение: runtime роняет весь тестовый
+// двоичный файл через fatal error, без единой строки `--- FAIL`, и снаружи
+// такой отказ выглядит как молчаливый «exit code 1».
+//
+// Вызывать только без уже взятого `repo.mu`: мьютекс не рекурсивный.
+func (r *memoryRepo) run(id string) domain.Run {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.runs[id]
+}
+
 func (r *memoryRepo) SaveApproval(_ context.Context, a domain.Approval) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -287,7 +302,7 @@ func TestStartPersistsFailedRunWhenModelSetupFails(t *testing.T) {
 	if engine.IsActiveRun(run.ID) {
 		t.Fatal("failed run stayed active")
 	}
-	saved := repo.runs[run.ID]
+	saved := repo.run(run.ID)
 	if saved.Status != domain.RunFailed || saved.Error == "" || saved.FinishedAt == nil {
 		t.Fatalf("run not persisted as failed: %#v", saved)
 	}

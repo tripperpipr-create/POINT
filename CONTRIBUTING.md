@@ -156,25 +156,29 @@ PowerShell does not accept `&&`. Use `; if ($LASTEXITCODE -eq 0)`.
 `media/style.css` and `media/rpg-tokens.css` are build artifacts. Edit `ui/tokens.css`
 or a file under `ui/layers/`, then rebuild — direct edits are overwritten.
 
-```powershell
-node scripts/check-docs.mjs
-go test ./internal/workspace ./internal/agent ./internal/app ./internal/tools ./internal/changesets ./internal/storage
-go test -race ./internal/workspace -count=1
-cd vscode-extension; npm run check; cd ..
-node --check vscode-extension/extension.js
-node --check vscode-extension/media/main.js
-node scripts/smoke-agent-studio-ui.js
-node scripts/smoke-onboarding-wizard.js
-node scripts/smoke-hub-degenerate-data.js
-node scripts/smoke-companion-ide-routing.js
-node scripts/check-point-navigation.mjs
-node scripts/smoke-point-daily-workbench.mjs
-```
+Команды живут в `Makefile`, и цели там названы по job'ам CI — по красному job'у
+сразу видно, что запускать у себя:
 
-Full suite: `go test ./...`.
+| Цель | Job | Что внутри |
+| --- | --- | --- |
+| `make test-docs` | `docs` | три затвора документации и реестр качества |
+| `make test-go` | `go` | `go vet`, `go mod verify`, `go test ./... -count=1` |
+| `make test-frontend` | `frontend` | сборка диагностического клиента |
+| `make test-extension` | `extension` | весь JS-контур: сборка ядра, CSS/JS/runtime, смоуки Хаба |
+| `make test` | все четыре | то же, что прогон CI целиком |
+| `make test-race` | отдельный шаг job `go` | детектор гонок; требует CGO и gcc в PATH |
 
-Before a release also run `go vet ./...`, the frontend build, production npm
-audits and `docker compose config`; the canonical list is in
+Раньше этот список был здесь копией и успел разойтись и с `Makefile`, и с
+`npm run check`: в нём перечислялись поимённо смоуки, которые давно входят в
+общий прогон. Список команд в двух местах — это два ответа на вопрос «чем
+проверить», и один из них всегда устаревает.
+
+`make test-race` в `make test` не входит намеренно: без gcc в PATH он падает на
+сборке, и этот отказ читался бы как отказ тестов. В CI он есть — ubuntu-раннер
+gcc несёт.
+
+Before a release also run production npm audits and `docker compose config`;
+the canonical list is in
 [`docs/IDE-CAPABILITY-MATRIX.md`](docs/IDE-CAPABILITY-MATRIX.md).
 
 ## Documentation contracts

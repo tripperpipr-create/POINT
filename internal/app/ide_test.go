@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -18,7 +19,7 @@ func TestIDEFileSaveAndTerminal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer application.Shutdown(nil)
+	defer application.Shutdown(context.Background())
 	if _, err = application.OpenWorkspace(root); err != nil {
 		t.Fatal(err)
 	}

@@ -109,7 +109,15 @@ func TestMasterChatDirectoryGroupsWorlds(t *testing.T) {
 			}
 		}
 	}
-	if workspacePathHash(alpha) != workspacePathHash(alpha) {
-		t.Fatal("отпечаток пути нестабилен")
+	// Отпечаток берётся от нормализованного пути, и важно именно это:
+	// хост сшивает строку каталога со своей записью реестра по этому числу,
+	// а путь туда может прийти в любом написании. Раньше здесь стояло
+	// сравнение вызова с самим собой — оно не могло упасть ни на какой
+	// ошибке нормализации.
+	// Именно конкатенация, а не filepath.Join: Join чистит путь сам и отдаст
+	// уже нормализованную строку — проверять было бы нечего.
+	detour := alpha + string(filepath.Separator) + "."
+	if workspacePathHash(alpha) != workspacePathHash(detour) {
+		t.Fatalf("отпечаток зависит от написания пути: %s против %s", alpha, detour)
 	}
 }

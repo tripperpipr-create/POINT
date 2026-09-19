@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
@@ -149,13 +148,4 @@ func (a *App) advanceWorkOrderMilestoneV2(approval domain.WorkOrderApproval, suc
 		}
 	}
 	return true
-}
-
-func milestonePlanByIDV2(order domain.WorkOrder, id string) (domain.MilestonePlan, error) {
-	for _, milestone := range order.Milestones {
-		if milestone.ID == id {
-			return milestone, nil
-		}
-	}
-	return domain.MilestonePlan{}, fmt.Errorf("milestone %q is not in the approved WorkOrder", id)
 }

@@ -295,28 +295,6 @@ func (f *FS) statIndexedPath(relative string) (os.FileInfo, error) {
 	return os.Stat(abs)
 }
 
-func (f *FS) appendIndexedPath(index *projectIndex, relative string, info os.FileInfo, liveDerived bool) error {
-	if info == nil || info.IsDir() {
-		return nil
-	}
-	content, err := f.readContent(relative, false, false)
-	if err != nil {
-		return err
-	}
-	return addIndexedContent(index, relative, info, content, liveDerived)
-}
-
-func (f *FS) appendWalkedIndexPath(index *projectIndex, absolute, relative string, info os.FileInfo, liveDerived bool) error {
-	if info == nil || !info.Mode().IsRegular() {
-		return nil
-	}
-	content, err := f.readWalkedIndexFile(absolute, relative, info)
-	if err != nil {
-		return err
-	}
-	return addIndexedContent(index, relative, info, content, liveDerived)
-}
-
 func addIndexedContent(index *projectIndex, relative string, info os.FileInfo, content FileContent, liveDerived bool) error {
 	if info == nil || info.IsDir() {
 		return nil
@@ -458,33 +436,6 @@ func uniqueIndexPaths(values []string) []string {
 		result = append(result, value)
 	}
 	return result
-}
-
-func cloneProjectIndex(src *projectIndex) *projectIndex {
-	if src == nil {
-		return nil
-	}
-	dst := cloneProjectIndexForUpdate(src)
-	dst.tokens = make(map[string][]int, len(src.tokens))
-	dst.related = make(map[string][]RelatedFile, len(src.related))
-	dst.relatedKeys = make(map[string]map[string]bool, len(src.relatedKeys))
-	dst.language = cloneLanguageCounts(src.language)
-	dst.dirs = cloneLanguageCounts(src.dirs)
-	dst.symbols = append([]string(nil), src.symbols...)
-	for key, value := range src.tokens {
-		dst.tokens[key] = append([]int(nil), value...)
-	}
-	for key, value := range src.related {
-		dst.related[key] = append([]RelatedFile(nil), value...)
-	}
-	for key, value := range src.relatedKeys {
-		inner := make(map[string]bool, len(value))
-		for nested, flag := range value {
-			inner[nested] = flag
-		}
-		dst.relatedKeys[key] = inner
-	}
-	return dst
 }
 
 // cloneProjectIndexForUpdate copies the durable file/chunk maps for a COW

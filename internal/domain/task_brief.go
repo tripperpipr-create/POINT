@@ -347,22 +347,6 @@ func ValidateTaskBriefIssues(b TaskBrief) []TaskBriefValidationIssue {
 	return issues
 }
 
-func taskBriefComplete(b TaskBrief) error {
-	if b.Mode == TaskModeUndecided || b.Mode == "" {
-		return fmt.Errorf("choose a task mode before approval")
-	}
-	if strings.TrimSpace(b.Goal) == "" || b.ResultKind == "" {
-		return fmt.Errorf("task approval requires a goal and result kind")
-	}
-	if len(b.OpenQuestions) != 0 {
-		return fmt.Errorf("resolve open questions before approval")
-	}
-	if len(b.Criteria) == 0 {
-		return fmt.Errorf("task approval requires acceptance criteria")
-	}
-	return nil
-}
-
 // TaskBriefDigest is stable across JSON argument whitespace and object key order.
 // Invalid JSON returns an empty digest and can never establish valid approval.
 func TaskBriefDigest(b TaskBrief) string {

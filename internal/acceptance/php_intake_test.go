@@ -185,7 +185,6 @@ func TestPHPIntakeLiveBenchmark(t *testing.T) {
 	}
 	deadline := time.Now().Add(2*time.Hour + 15*time.Minute)
 	var final domain.IntakeSession
-	supervisionContinues := map[string]int{}
 	for time.Now().Before(deadline) {
 		final, err = application.IntakeSession(ctx, session.ID)
 		if err != nil {
@@ -194,7 +193,7 @@ func TestPHPIntakeLiveBenchmark(t *testing.T) {
 		// Headless live: clear tool gates, plan egress, and Master-watch pauses.
 		if approved.QuestID != "" {
 			hosts, remotes := headlessAllowlists(final)
-			autoApprovePendingTools(t, application, final.WorkspaceID, hosts, remotes, supervisionContinues)
+			autoApprovePendingTools(t, application, final.WorkspaceID, hosts, remotes)
 		}
 		switch final.Status {
 		case domain.IntakeCompleted, domain.IntakeNeedsReview, domain.IntakeBlocked:
@@ -310,26 +309,31 @@ func headlessDecisionAction(kind app.DecisionKind, target string, allowedHosts, 
 	}
 }
 
-func autoApprovePendingTools(t *testing.T, application *app.App, workspaceID string, allowedHosts, allowedRemotes []string, supervisionContinues map[string]int) {
+// Возвращает число решений, которые харнесс закрыл за человека.
+//
+// Раньше сюда передавали карту supervisionContinues, чтобы посчитать
+// вмешательства, но функция в неё ничего не писала. Вызывающий в приёмке MVP
+// клал `len(карты)` в отчёт как `Interventions` — и число всегда было ноль.
+// Отчёт, уверенно сообщающий ноль вместо неизвестного, хуже отсутствующего.
+func autoApprovePendingTools(t *testing.T, application *app.App, workspaceID string, allowedHosts, allowedRemotes []string) int {
 	t.Helper()
 	if strings.TrimSpace(workspaceID) == "" {
-		return
-	}
-	if supervisionContinues == nil {
-		supervisionContinues = map[string]int{}
+		return 0
 	}
 	ctx := context.Background()
 	queue, err := application.Decisions(ctx)
 	if err != nil {
 		t.Logf("decisions: %v", err)
-		return
+		return 0
 	}
+	resolved := 0
 	for _, item := range queue.Items {
 		switch item.Kind {
 		case app.DecisionApproval:
 			if err = application.ResolveApproval(item.ID, true); err != nil {
 				t.Logf("auto-approve %s: %v", item.ID, err)
 			} else {
+				resolved++
 				t.Logf("auto-approved tool gate %s (%s)", item.ID, item.Detail)
 			}
 		case app.DecisionFlowGate:
@@ -339,12 +343,14 @@ func autoApprovePendingTools(t *testing.T, application *app.App, workspaceID str
 			if _, err = application.ResumeFlowApproval(item.FlowRunID, item.NodeID, true); err != nil {
 				t.Logf("auto-approve flow gate %s: %v", item.ID, err)
 			} else {
+				resolved++
 				t.Logf("auto-approved flow gate %s", item.ID)
 			}
 		case app.DecisionChangeSet:
 			if _, err = application.ApplyChangeSet(item.ID); err != nil {
 				t.Logf("auto-apply change set %s: %v", item.ID, err)
 			} else {
+				resolved++
 				t.Logf("auto-applied change set %s", item.ID)
 			}
 		case app.DecisionEgress:
@@ -357,6 +363,7 @@ func autoApprovePendingTools(t *testing.T, application *app.App, workspaceID str
 			if _, err = application.ResolveEgressAsk(ctx, item.ID, app.ResolveEgressAskRequest{Action: action}); err != nil {
 				t.Logf("auto-resolve egress %s (%s): %v", item.ID, action, err)
 			} else {
+				resolved++
 				t.Logf("auto-resolved egress %s target=%s action=%s", item.ID, ask.Target, action)
 			}
 		case app.DecisionSupervision:
@@ -371,10 +378,12 @@ func autoApprovePendingTools(t *testing.T, application *app.App, workspaceID str
 			if err = application.ResolveSupervisionContinue(ctx, item.ID, continueRun); err != nil {
 				t.Logf("auto-resolve supervision %s (%s): %v", item.ID, action, err)
 			} else {
+				resolved++
 				t.Logf("auto-resolved supervision %s action=%s durable=%d", item.ID, action, durable)
 			}
 		}
 	}
+	return resolved
 }
 
 func wireCodingProfileToConnection(application *app.App, conn domain.Connection, model, baseURL string) error {

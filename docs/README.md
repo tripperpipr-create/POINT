@@ -65,7 +65,7 @@
 | --- | --- |
 | Версия Point | `internal/app/app.go`, `frontend/package.json`, `vscode-extension/package.json` |
 | Версия Code-OSS и хэши сборки | `distribution/version.json` |
-| HTTP-маршруты | `internal/httpapi/server.go` (таблица routes), обработчики — по семействам в том же пакете |
+| HTTP-маршруты | пакет `internal/httpapi` целиком: таблица в `server.go` плюс обработчики по семействам. Затвор читает пакет, а не список файлов, — иначе новый файл маршрутов остаётся невидимым |
 | Шаги онбординга | `vscode-extension/ui/client/main.js`, `ONBOARDING_STEPS` |
 | Команды и хоткеи | `vscode-extension/package.json` |
 | Цвета и шкалы | `vscode-extension/ui/tokens.css` |
@@ -98,6 +98,19 @@
   потому не могут быть в затворе: `probe-point-*.mjs`, `diagnose-*.mjs`,
   `verify-point-*.mjs`, `prepare-point-untrusted-workspace.mjs`, а также
   `test-point-*.ps1` и `run-hub-dogfood.mjs`, которым нужна живая модель.
+
+  Большинство `verify-point-*` зовёт свой `test-point-*.ps1` — тот поднимает
+  окно и передаёт эндпоинт. Два живут без такой пары и запускаются руками
+  по адресу CDP (`node scripts/<имя>.mjs http://127.0.0.1:<порт>`):
+
+  - `verify-point-editor-watermark.mjs` — водяной знак пустого редактора и вызов
+    Агента с него;
+  - `verify-point-safe-mode.mjs` — безопасный режим: полоса, экран версий и то,
+    что сквозь него не протекает чужой брендинг и техническая ошибка.
+
+  Названы здесь по той же причине, по которой ведётся список смоуков: на два
+  этих файла не было ни одной ссылки во всём дереве — ни из скрипта, ни из
+  документа, — то есть найти их можно было только обходом каталога.
 
 Смешение опасно ровно одним: смоук, не попавший ни в один список, гниёт молча.
 Так и случилось с `smoke-master-editor-context.cjs` и `smoke-master-stream.cjs`

@@ -92,21 +92,6 @@ func (c *activeClock) exhausted() bool {
 	return elapsed >= budget
 }
 
-func (c *activeClock) remainingMs() int64 {
-	if !c.enabled() {
-		return 0
-	}
-	elapsed, _ := c.snapshot()
-	c.mu.Lock()
-	budget := c.budgetMs
-	c.mu.Unlock()
-	left := budget - elapsed
-	if left < 0 {
-		return 0
-	}
-	return left
-}
-
 // extend grants one additional budget equal to the original ActiveSeconds.
 // A second grant without a new task approval is rejected.
 func (c *activeClock) extend() error {
@@ -145,13 +130,4 @@ func (c *activeClock) totalBudgetSeconds() int {
 		return 0
 	}
 	return int(c.budgetMs / 1000)
-}
-
-func (c *activeClock) extensionCount() int {
-	if c == nil {
-		return 0
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.extensions
 }

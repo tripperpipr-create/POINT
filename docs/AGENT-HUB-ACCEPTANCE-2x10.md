@@ -61,16 +61,23 @@ node scripts/run-app-benchmarks.mjs --ledger=.tmp/exported-run.json
 ```
 
 Running the script without `--ledger` intentionally writes `status=not_tested`
-and exits non-zero. Missing Cursor/Codex/Claude installations, Qwen endpoints or
-credentials are always `NOT TESTED`, never PASS.
+and exits non-zero. A missing endpoint, model or credential is always
+`NOT TESTED`, never PASS.
 
-Current local runtime probe on 2026-09-09:
+Local runtime probe on 2026-09-09 (historical — see the note below):
 
 - Cursor Agent CLI: `NOT TESTED` — executable not installed.
 - Codex CLI: `NOT TESTED` — executable not installed.
 - Claude Code CLI: version `2.1.263` detected; app benchmark not run.
 - Qwen3.6-35B-A3B: `NOT TESTED` — no endpoint/credential supplied to the harness.
 - Qwen3.8-27B: `NOT TESTED` — no endpoint/credential supplied to the harness.
+
+> Первые три строки больше не относятся к продукту. 14 сентября 2026 CLI-исполнители
+> (`cursor-cli`, `codex-cli`, `claude-code-cli`) сняты: мозг помощника и агента — только
+> HTTP-провайдер (`domain.IsHTTPAPIProvider`), а `scripts/run-app-benchmarks.mjs` про эти
+> рантаймы уже не знает. Запись оставлена как замер своего числа, а не как описание
+> сегодняшнего контура. Cursor Agent CLI как **интерактивный терминал** жив и к этому
+> списку отношения не имеет — см. [sandbox.md](sandbox.md).
 
 ## Ship gate
 

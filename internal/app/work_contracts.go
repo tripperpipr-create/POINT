@@ -34,13 +34,6 @@ func workContractInstructions(contract domain.WorkContract) string {
 		strings.Join(contract.InterfaceContracts, "; "), strings.Join(contract.CriterionIDs, ", "), contract.MergePlan)
 }
 
-func workContractForbiddenPaths(contract *domain.WorkContract) []string {
-	if contract == nil || len(contract.ForbiddenPaths) == 0 {
-		return nil
-	}
-	return append([]string(nil), contract.ForbiddenPaths...)
-}
-
 // workContractMidRunForbiddenPaths previously seeded SharedProjectPaths / bin
 // into engine amendments. Any seeded forbid trips toolHasWorkspaceWideAccess
 // (list_files, search_code, propose_patch) and deadlocks greenfield writers

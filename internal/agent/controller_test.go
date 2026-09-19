@@ -107,23 +107,34 @@ func TestActiveTimeBudgetIgnoresApprovalWait(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Чтение идёт через repo.run: горутина движка в этот момент жива и пишет
+	// в ту же карту. Остальные тесты пакета берут `repo.mu` вокруг чтения
+	// руками; здесь этого не делали.
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
-		stored := repo.runs[run.ID]
-		if stored.Status == domain.RunWaiting {
+		if repo.run(run.ID).Status == domain.RunWaiting {
 			break
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	if repo.runs[run.ID].Status != domain.RunWaiting {
+	waiting := repo.run(run.ID)
+	if waiting.Status != domain.RunWaiting {
 		engine.StopAll()
-		t.Fatalf("expected waiting approval, got %#v", repo.runs[run.ID])
+		t.Fatalf("expected waiting approval, got %#v", waiting)
 	}
+	// Утверждается инвариант, а не абсолютное число.
+	//
+	// Было `ActiveElapsedMs < 1000` после сна в 1200 мс — то есть весь запас
+	// проверки составляло время от старта прогона до входа в `RunWaiting`,
+	// а оно меряется циклом с шагом 20 мс и на нагруженном раннере может
+	// съесть секунду целиком. Проверяется же другое: ожидание утверждения
+	// бюджет не тратит, а это «значение не выросло».
+	before := waiting.Controller.ActiveElapsedMs
 	time.Sleep(1200 * time.Millisecond)
-	stored := repo.runs[run.ID]
-	if stored.Controller.ActiveElapsedMs >= 1000 {
+	stored := repo.run(run.ID)
+	if stored.Controller.ActiveElapsedMs != before {
 		engine.StopAll()
-		t.Fatalf("approval wait consumed active budget: %#v", stored.Controller)
+		t.Fatalf("approval wait consumed active budget: %d -> %d (%#v)", before, stored.Controller.ActiveElapsedMs, stored.Controller)
 	}
 	engine.StopAll()
 }

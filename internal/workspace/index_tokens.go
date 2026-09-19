@@ -8,7 +8,6 @@ import (
 	"sort"
 	"strings"
 	"unicode"
-	"unicode/utf8"
 )
 
 // indexedContentDigest — отпечаток прочитанного содержимого. У целого файла это
@@ -32,19 +31,6 @@ func validIndexSHA256(value string) bool {
 		}
 	}
 	return true
-}
-
-func utf8Prefix(value string, limit int) string {
-	if limit >= len(value) {
-		return value
-	}
-	if limit <= 0 {
-		return ""
-	}
-	for limit > 0 && !utf8.ValidString(value[:limit]) {
-		limit--
-	}
-	return value[:limit]
 }
 
 func scanLines(value string) []string {

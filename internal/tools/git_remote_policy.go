@@ -2,7 +2,6 @@ package tools
 
 import (
 	"fmt"
-	"net/url"
 	"regexp"
 	"strings"
 )
@@ -65,29 +64,4 @@ func extractGitRemoteTargets(command string) []string {
 		add(match)
 	}
 	return targets
-}
-
-func extractNetworkHostTargets(command string) []string {
-	var hosts []string
-	seen := map[string]bool{}
-	for _, target := range networkURLPattern.FindAllString(command, -1) {
-		host := hostFromNetworkTarget(target)
-		if host == "" || seen[host] {
-			continue
-		}
-		seen[host] = true
-		hosts = append(hosts, host)
-	}
-	return hosts
-}
-
-func hostFromNetworkTarget(raw string) string {
-	if !strings.Contains(raw, "://") {
-		raw = "https://" + raw
-	}
-	parsed, err := url.Parse(raw)
-	if err != nil {
-		return normalizeHost(raw)
-	}
-	return normalizeHost(parsed.Hostname())
 }

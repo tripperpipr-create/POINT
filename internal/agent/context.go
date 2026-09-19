@@ -12,6 +12,7 @@ import (
 
 	"local-agent-workbench/internal/domain"
 	"local-agent-workbench/internal/providers"
+	"local-agent-workbench/internal/textutil"
 )
 
 const (
@@ -349,22 +350,11 @@ func boundedEvidence(value string, maxBytes int) string {
 	marker := fmt.Sprintf("…<%d bytes; sha256:%s>…", len(value), hex.EncodeToString(digest[:8]))
 	remaining := maxBytes - len(marker)
 	if remaining <= 0 {
-		return utf8Prefix(marker, maxBytes)
+		return textutil.BoundedBytes(marker, maxBytes)
 	}
 	headBytes := remaining * 2 / 3
 	tailBytes := remaining - headBytes
-	return utf8Prefix(value, headBytes) + marker + utf8Suffix(value, tailBytes)
-}
-
-func utf8Prefix(value string, maxBytes int) string {
-	if len(value) <= maxBytes {
-		return value
-	}
-	cut := maxBytes
-	for cut > 0 && !utf8.RuneStart(value[cut]) {
-		cut--
-	}
-	return value[:cut]
+	return textutil.BoundedBytes(value, headBytes) + marker + utf8Suffix(value, tailBytes)
 }
 
 func utf8Suffix(value string, maxBytes int) string {

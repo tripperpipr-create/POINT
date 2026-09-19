@@ -28,6 +28,7 @@ import (
 
 	"local-agent-workbench/internal/domain"
 	"local-agent-workbench/internal/security"
+	"local-agent-workbench/internal/textutil"
 	"local-agent-workbench/internal/workspace"
 )
 
@@ -679,13 +680,11 @@ func digest(data []byte) string {
 	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
+// truncateUTF8 — тонкая обёртка над textutil.BoundedBytes: здесь нужен ещё
+// признак «обрезали» — девять вызывающих кладут его в метаданные
+// вложения. Само правило резки по границе руны живёт в одном месте:
+// три собственные реализации уже расходились в обработке limit <= 0.
 func truncateUTF8(value string, limit int) (string, bool) {
-	if len(value) <= limit {
-		return value, false
-	}
-	value = value[:limit]
-	for !utf8.ValidString(value) {
-		value = value[:len(value)-1]
-	}
-	return value, true
+	bounded := textutil.BoundedBytes(value, limit)
+	return bounded, len(bounded) < len(value)
 }

@@ -360,7 +360,8 @@ func TestWorkOrderMVPLiveScenario(t *testing.T) {
 	for _, grant := range order.Network {
 		hosts = append(hosts, grant.Host)
 	}
-	supervision := map[string]int{}
+	// Счётчик вмешательств считает то, что харнесс действительно закрыл.
+	interventions := 0
 	var quest domain.Quest
 	for deadline := time.Now().Add(2*time.Hour + 30*time.Minute); time.Now().Before(deadline); {
 		if quest, err = application.WorkOrderQuestV2(ctx, approval.QuestID); err != nil {
@@ -370,7 +371,7 @@ func TestWorkOrderMVPLiveScenario(t *testing.T) {
 			break
 		}
 		// Headless: the run must not stall on a gate a person would clear.
-		autoApprovePendingTools(t, application, order.WorkspaceID, hosts, nil, supervision)
+		interventions += autoApprovePendingTools(t, application, order.WorkspaceID, hosts, nil)
 		time.Sleep(5 * time.Second)
 	}
 
@@ -382,7 +383,7 @@ func TestWorkOrderMVPLiveScenario(t *testing.T) {
 	row := mvpLedgerRow{
 		Run: run, Model: model, WorkOrderID: order.ID, QuestID: approval.QuestID,
 		Status: string(quest.Status), Seconds: time.Since(started).Seconds(),
-		Interventions: len(supervision), ProfileChecks: len(bundle.VerificationChecks),
+		Interventions: interventions, ProfileChecks: len(bundle.VerificationChecks),
 		FalseComplete: quest.Status == domain.QuestCompleted && len(violations) > 0,
 		Violations:    violations, EvidenceID: bundle.ID, ModelCallCount: len(bundle.ModelCalls),
 		KnownLimits: bundle.KnownLimitations,

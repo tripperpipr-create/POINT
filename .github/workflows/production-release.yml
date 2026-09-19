@@ -190,6 +190,8 @@ jobs:
           ./scripts/test-point-chronicle.ps1
           ./scripts/test-point-connections.ps1
           ./scripts/test-point-split-windows.ps1
+          ./scripts/test-point-agent-context.ps1
+          ./scripts/test-point-guild-roster.ps1
 
       - name: Installer clean install, update and rollback
         shell: pwsh

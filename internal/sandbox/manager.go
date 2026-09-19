@@ -309,7 +309,7 @@ func (m *Manager) Merge(ctx context.Context, req MergeRequest) (MergeResult, err
 		unique := make([]MergeCandidate, 0, len(candidates))
 		seenOutcomes := map[string]bool{}
 		for _, candidate := range candidates {
-			key := candidate.Hash
+			var key string
 			if candidate.Kind == "delete" {
 				key = "delete"
 			} else {

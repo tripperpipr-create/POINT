@@ -157,13 +157,3 @@ func parseToolPolicy(raw string, fallback domain.ToolPolicy) domain.ToolPolicy {
 		return fallback
 	}
 }
-
-// EffectivePolicies returns the policy matrix shown before run start.
-func EffectivePolicies(profile domain.AgentProfile, toolNames []string) map[string]Decision {
-	out := map[string]Decision{}
-	engine := Engine{}
-	for _, name := range toolNames {
-		out[name] = engine.Evaluate(profile, name)
-	}
-	return out
-}

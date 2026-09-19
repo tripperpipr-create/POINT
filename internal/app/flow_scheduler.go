@@ -530,8 +530,6 @@ func providerNeedsAPIKey(kind domain.ProviderKind, presetID string) bool {
 			return preset.RequiresAPIKey
 		}
 	}
-	if kind == domain.ProviderOllama {
-		return false
-	}
-	return true
+	// Локальной Ollama ключ не нужен; остальным — нужен.
+	return kind != domain.ProviderOllama
 }

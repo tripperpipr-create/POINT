@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 	"unicode/utf8"
+
+	"local-agent-workbench/internal/textutil"
 )
 
 func FuzzCodeIndexSelectionIsDeterministicAndBounded(f *testing.F) {
@@ -18,10 +20,10 @@ func FuzzCodeIndexSelectionIsDeterministicAndBounded(f *testing.F) {
 			return
 		}
 		if len(first) > 8192 {
-			first = utf8Prefix(first, 8192)
+			first = textutil.BoundedBytes(first, 8192)
 		}
 		if len(second) > 8192 {
-			second = utf8Prefix(second, 8192)
+			second = textutil.BoundedBytes(second, 8192)
 		}
 		queryTokens := expandedTokens(query)
 		if len(queryTokens) == 0 || len(queryTokens) > 64 {

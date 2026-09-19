@@ -169,6 +169,8 @@ const workflowContracts = [
   'test-point-chronicle.ps1',
   'test-point-connections.ps1',
   'test-point-split-windows.ps1',
+  'test-point-agent-context.ps1',
+  'test-point-guild-roster.ps1',
   'test-point-installer-lifecycle.ps1',
   'test-point-database-dr.ps1',
   'Get-AuthenticodeSignature',
@@ -627,8 +629,24 @@ for (const token of [
 ]) {
   requireText(webviewSource, token, 'webview module boundary')
 }
+// Бюджет строк — трещотка, а не цель.
+//
+// До 18 сентября файл попадал сюда только после того, как с ним уже
+// помучились и разрезали. Поэтому самые крупные файлы дерева как раз и не
+// были ограничены ничем: ни `domain/hub.go` с его fan-in в сотни файлов, ни
+// `apply-overlay.mjs`, который кладёт заплаты в чужое дерево Code-OSS. Числа
+// ниже — их сегодняшний размер: расти дальше затвор им не даст, а падать
+// можно сколько угодно.
 for (const [file, maximum] of Object.entries({
   'internal/storage/hub.go': 100,
+  'internal/domain/hub.go': 1077,
+  'internal/flowruntime/runtime.go': 987,
+  'internal/storage/sqlite.go': 985,
+  'internal/tools/workspace_tools.go': 960,
+  'cmd/point-soak/main.go': 967,
+  'distribution/apply-overlay.mjs': 5068,
+  'vscode-extension/ui/layers/07-master-quiet.css': 2110,
+  'vscode-extension/ui/layers/05-hall.css': 1841,
   'internal/app/app.go': 720,
   'internal/companion/service.go': 600,
   'vscode-extension/extension.js': 7500,
@@ -727,6 +745,116 @@ if (checkScripts.precheck !== 'npm run build:core' || checkScripts['build:core']
 requireFile('scripts/build-core.mjs')
 requireText(ciWorkflow.slice(ciWorkflow.indexOf('  extension:')), 'actions/setup-go@', 'extension integration toolchain')
 
+// Линтер и его набор проверок — одно целое.
+//
+// Шаг без конфига включит набор по умолчанию и покраснеет на тридцати
+// ложных срабатываниях ST1005; конфиг без шага — файл, который ничего не
+// стережёт. Версия сверяется тоже: расхождение между CI и Makefile даёт
+// два разных ответа на один коммит.
+requireFile('staticcheck.conf')
+const staticcheckPin = 'honnef.co/go/tools/cmd/staticcheck@v0.8.1'
+requireText(ciWorkflow, staticcheckPin, 'CI staticcheck')
+requireText(read('Makefile'), staticcheckPin, 'Makefile staticcheck')
+requireText(read('staticcheck.conf'), 'checks = ["inherit", "-ST1005", "SA9003"]', 'staticcheck checks')
+
+// Смоук обязан быть кем-то вызван.
+//
+// Список в run-hub-smokes.mjs намеренно ручной: автопоиск по маске подключал бы
+// к затвору черновик и временное воспроизведение бага вместе с настоящей
+// проверкой. Но обратной стороны у ручного списка не было, и файлы гнили молча:
+// 2 сентября так нашлись 28 неподключённых смоуков, один из которых давно
+// разошёлся с экраном, а 18 сентября — ещё два, отставших от контракта v2.
+//
+// Признак живого смоука — упоминание в том, что умеет его запустить: раннер,
+// npm-скрипты, workflow, другой скрипт. Упоминание в документе не считается
+// намеренно: именно так выглядели все найденные мертвецы — строка в CHANGELOG
+// и ни одного вызывающего.
+const invokerRoots = ['scripts', '.github', 'distribution', 'vscode-extension/package.json', 'Makefile']
+const invokerSources = new Map()
+const collectInvokers = relative => {
+  const absolute = path.join(root, relative)
+  if (!fs.existsSync(absolute)) return
+  if (fs.statSync(absolute).isDirectory()) {
+    for (const entry of fs.readdirSync(absolute, { withFileTypes: true })) {
+      if (entry.name === 'node_modules') continue
+      collectInvokers(path.posix.join(relative, entry.name))
+    }
+    return
+  }
+  if (/\.(md|png|jpg|jpeg|webp|ico|woff2|ttf|svg|exe|dll|zip)$/i.test(relative)) return
+  invokerSources.set(relative, fs.readFileSync(absolute, 'utf8'))
+}
+for (const entry of invokerRoots) collectInvokers(entry)
+
+// Ручные браузерные проверки: вызывает человек по записанному порядку.
+// Каждая строка несёт причину, почему проверка не может жить в затворе.
+const manualSmokes = new Map([
+  ['smoke-master-session-controls.cjs',
+    'требует Edge и Playwright из локальной сборки Code-OSS; порядок — docs/master-chat-sessions.md'],
+])
+const smokeFiles = fs.readdirSync(path.join(root, 'scripts'), { withFileTypes: true })
+  .filter(entry => entry.isFile() && /^smoke-.*\.(js|mjs|cjs|ps1)$/.test(entry.name))
+  .map(entry => entry.name)
+  .sort()
+const orphanSmokes = []
+let wiredSmokes = 0
+for (const name of smokeFiles) {
+  const own = `scripts/${name}`
+  const invoked = [...invokerSources].some(([source, text]) => source !== own && text.includes(name))
+  if (invoked || manualSmokes.has(name)) wiredSmokes += 1
+  else orphanSmokes.push(name)
+}
+// Обратная сторона списка исключений: запись про удалённый файл остаётся
+// лежать и делает вид, что что-то проверяется.
+for (const [name] of manualSmokes) {
+  if (!smokeFiles.includes(name)) errors.push(`smoke coverage: manual smoke scripts/${name} is listed but missing`)
+}
+for (const name of orphanSmokes) {
+  errors.push(`smoke coverage: scripts/${name} is not invoked by any runner, npm script or workflow`)
+}
+// Сторож на случай, когда проверка ослепла сама: если «живых» смоуков вдруг
+// почти нет, сломан обход, а не дерево.
+if (smokeFiles.length && wiredSmokes < smokeFiles.length / 2) {
+  errors.push(`smoke coverage: only ${wiredSmokes} of ${smokeFiles.length} smokes look invoked — the scan itself is broken`)
+}
+
+// Имя VSIX несёт версию, и это имя лежит в пяти местах.
+//
+// `check-quality-gate` сверяет версию в трёх источниках: ядро, frontend,
+// расширение. Путь к VSIX — четвёртый, и его не сверял никто: `package.json`
+// собирает `point-ide-1.2.2.vsix`, а `ship-hub-extension.ps1`,
+// `install-vscode-extension.ps1`, `package:verify` и README ищут файл с тем же
+// именем. Подъём версии в трёх местах оставил бы сборку писать один файл, а
+// выкладку — искать другой, и разошлось бы это молча: сборка отработает, а
+// выкладка скажет «нет файла».
+//
+// Обход идёт по тем же корням, что и проверка смоуков, плюс markdown в корне и
+// в docs. Сторож на случай, когда ослепла сама проверка: находок должно быть
+// не меньше трёх.
+const vsixVersion = JSON.parse(extensionPackage).version
+const vsixPattern = /point-ide-(\d+\.\d+\.\d+)\.vsix/g
+const vsixSources = new Map(invokerSources)
+for (const relative of ['README.md', 'CONTRIBUTING.md']) {
+  if (fs.existsSync(path.join(root, relative))) vsixSources.set(relative, read(relative))
+}
+for (const entry of fs.readdirSync(path.join(root, 'docs'), { withFileTypes: true })) {
+  if (entry.isFile() && entry.name.endsWith('.md')) {
+    vsixSources.set(`docs/${entry.name}`, read(`docs/${entry.name}`))
+  }
+}
+let vsixMentions = 0
+for (const [source, text] of vsixSources) {
+  for (const match of text.matchAll(vsixPattern)) {
+    vsixMentions += 1
+    if (match[1] !== vsixVersion) {
+      errors.push(`vsix naming: ${source} names ${match[0]}, extension version is ${vsixVersion}`)
+    }
+  }
+}
+if (vsixMentions < 3) {
+  errors.push(`vsix naming: only ${vsixMentions} mentions found — the scan itself is broken`)
+}
+
 if (errors.length) {
   console.error(`Release contract check failed (${errors.length}):`)
   for (const error of errors) console.error(`- ${error}`)
@@ -740,4 +868,7 @@ console.log(JSON.stringify({
   desktopSLOs: positiveDesktop.length,
   canonicalClient: 'Code-OSS',
   alternateClient: 'Wails diagnostic',
+  smokes: smokeFiles.length,
+  manualSmokes: [...manualSmokes.keys()],
+  vsixMentions,
 }))

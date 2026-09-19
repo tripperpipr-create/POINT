@@ -100,6 +100,7 @@ const routeSources = fs.readdirSync(path.join(root, 'internal/httpapi'))
   .map(name => fs.readFileSync(path.join(root, 'internal/httpapi', name), 'utf8'))
   .join('\n')
 const sourceRoutes = new Set([...routeSources.matchAll(/HandleFunc\("((?:GET|POST|PUT|PATCH|DELETE) \/api\/[^" ]+)/g)].map(match => match[1]))
+const v2Routes = new Set([...sourceRoutes].filter(route => route.includes(' /api/v2/')))
 const apiDocument = fs.readFileSync(path.join(root, 'docs/api.md'), 'utf8')
 const documentedRoutes = new Set([...apiDocument.matchAll(/\| `((?:GET|POST|PUT|PATCH|DELETE))` \| `(\/api\/[^`?]+)(?:\?[^`]*)?`/g)].map(match => `${match[1]} ${match[2]}`))
 
@@ -120,6 +121,17 @@ for (const name of ['docs/PROJECT-STATUS.md']) {
       const claimed = Number(match[1])
       if (claimed !== sourceRoutes.size) {
         errors.push(`${name}:${index + 1}: API route claim is ${claimed}, source has ${sourceRoutes.size}`)
+      }
+    }
+    // «Эндпоинт» считается отдельно и только рядом с `/api/v2/*`.
+    //
+    // В правило выше это слово добавить нельзя: там сравнение со всеми маршрутами,
+    // а речь идёт о подмножестве. Без этой проверки число расходилось молча:
+    // документ говорил 18 в двух местах и 19 в третьем — внутри одного файла.
+    for (const match of line.matchAll(/(\d+)\s+эндпоинт(?:а|ов)?.{0,40}\/api\/v2/giu)) {
+      const claimed = Number(match[1])
+      if (claimed !== v2Routes.size) {
+        errors.push(`${name}:${index + 1}: /api/v2 endpoint claim is ${claimed}, source has ${v2Routes.size}`)
       }
     }
   }

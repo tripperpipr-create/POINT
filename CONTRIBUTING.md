@@ -8,9 +8,16 @@
 | `cmd/server` | `point-core` entry point |
 | `vscode-extension/` | Hub webview, companion routing, IDE commands, core lifecycle |
 | `distribution/` | Code-OSS overlay, Point Dark, installer scripts |
-| `scripts/` | Node smokes that assert Hub copy and routing contracts |
+| `scripts/` | Gate checks, Hub smokes, operator PowerShell and live CDP probes — four kinds, see [`docs/README.md`](docs/README.md) |
 | `vscode-extension/ui/` | Design-system sources: tokens, CSS layers, build |
 | `docs/` | Living references, status, dependency policy and historical UI/UX log |
+| `frontend/` | Wails diagnostic client (not the canonical UI) |
+| `cmd/` | `point-core`, `point-db`, the egress gateway and the performance/soak probes |
+| `acceptance/`, `examples/` | Fixture workspaces for the 2×10 suite and language probes |
+
+The JavaScript side has its own map: which host controller owns what, which
+webview module renders what, and which lists a new module must be added to —
+[`docs/js-modules.md`](docs/js-modules.md).
 
 Start documentation work from [`docs/README.md`](docs/README.md). Historical
 changelog and UI/UX journal entries are append-only evidence; update living

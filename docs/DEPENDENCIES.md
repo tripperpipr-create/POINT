@@ -3,6 +3,27 @@
 Последняя проверка: 26 августа 2026 года. Это отчёт о доступных обновлениях, а не
 разрешение автоматически поднимать версии.
 
+## Прямые Go-зависимости
+
+Канонический список — первый блок `require` в [`go.mod`](../go.mod); здесь —
+зачем каждая нужна. Девять штук на 19 сентября:
+
+| Модуль | Зачем |
+| --- | --- |
+| `github.com/go-sql-driver/mysql` | драйвер MySQL для `internal/dbconn` |
+| `github.com/jackc/pgx/v5` | драйвер PostgreSQL для `internal/dbconn` |
+| `github.com/ledongthuc/pdf` | разбор PDF в `internal/attachments` |
+| `github.com/pmezard/go-difflib` | текстовый diff для Change Set |
+| `github.com/redis/go-redis/v9` | внешний кэш в `internal/cache`, включается переменной `REDIS_ADDR`; без неё `FromEnvironment` возвращает кэш в памяти |
+| `github.com/wailsapp/wails/v2` | диагностический desktop-клиент, не основной путь |
+| `golang.org/x/sync` | `errgroup` и семафоры в агентном цикле |
+| `golang.org/x/sys` | платформенные вызовы, в том числе `internal/osproc` |
+| `modernc.org/sqlite` | хранилище без cgo |
+
+Таблица аудита ниже перечисляет не все зависимости, а только те, у которых на
+день замера была более свежая версия. Отсутствие в ней не значит, что
+зависимости нет.
+
 ## Политика
 
 1. Сначала выполнить read-only аудит.

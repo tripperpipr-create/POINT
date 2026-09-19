@@ -10,7 +10,55 @@ Point — самостоятельная Windows IDE на базе Code-OSS с �
 Мастера. Companion и постоянные агенты настраиваются позже и не блокируют
 первый запрос; Мастер предлагает нужный ростер в карточке запуска.
 
+## Что здесь чем является
+
+- **Point / Code-OSS + встроенное расширение** — канонический продукт. Всё, что
+  описано ниже как работающее, работает здесь.
+- **`point-core`** — локальное ядро на Go. Поднимается расширением само, на
+  случайном loopback-порту, и без него IDE остаётся обычным редактором.
+- **Wails-клиент (`frontend/`)** — диагностический, не имеет паритета
+  возможностей с Agent Hub и нужен для отладки слоя `internal/app`.
+- **Docker web client** — тот же слой в браузере, для проверки на другой машине.
+- **Legacy-контур** (`/api/quest-proposals/*`, `/api/change-sets/*`,
+  `/api/workflows/*`, `/api/flows/*`) сохранён как совместимость; продуктовый
+  путь идёт через WorkOrder v2 и Мастера — см.
+  [legacy-lifecycle.md](docs/legacy-lifecycle.md).
+
 ## Быстрый старт
+
+### Из чистого клона
+
+Репозиторий хранит только исходники. Собранного вебвью (`media/main.js`,
+`media/style.css`), `node_modules`, `vscode-extension/bin/`,
+`vscode-extension/dist/` и `frontend/dist/` в нём нет — первым делом их надо
+получить, иначе не запустится ни одна проверка.
+
+Требования: **Go 1.25+** (граница в `go.mod`), **Node 24** (CI выбирает major
+`24`, сборочный runtime закреплён в `distribution/version.json`) и **Windows
+x64** — packaged Cursor runtime собран только под неё.
+
+```powershell
+go build ./...
+node scripts/build-core.mjs
+Push-Location vscode-extension
+npm ci
+npm run build
+Pop-Location
+```
+
+`build-core.mjs` кладёт `point-core.exe` и `point-db.exe` в
+`vscode-extension/bin/`; `npm run build` собирает CSS, вебвью и runtime
+расширения. После этого дерево живо, и это можно проверить, не собирая IDE:
+
+```powershell
+node scripts/run-hub-smokes.mjs
+```
+
+62 сценария Хаба поднимают настоящее ядро и исполняют собранный
+`media/main.js`. Полный прогон — `npm run check` в `vscode-extension` (см.
+раздел «Проверка»). Само приложение собирается отдельным долгим шагом:
+порядок в [distribution/README.md](distribution/README.md). Куда смотреть
+дальше — [индекс документации](docs/README.md).
 
 ### Готовая Windows IDE
 
@@ -36,14 +84,11 @@ workspace `Ctrl+Alt+P` выбирает один активный корень P
 
 ### Разработка встроенного расширения
 
-Требования: Go 1.25+ (см. `go.mod`), Node 24 — CI выбирает major `24`, а `distribution/version.json`
-фиксирует сборочный runtime `24.15.0` — и Windows x64 для packaged Cursor runtime.
+Требования те же, что у чистого клона. `npm run check` сам пересобирает ядро
+перед интеграционными смоуками, поэтому Go обязан быть в `PATH`.
 
 ```powershell
-go build -trimpath -ldflags "-s -w" -o vscode-extension/bin/point-core.exe ./cmd/server
-go build -trimpath -ldflags "-s -w" -o vscode-extension/bin/point-db.exe ./cmd/point-db
 Push-Location vscode-extension
-npm ci
 npm run check
 npm run package
 Pop-Location

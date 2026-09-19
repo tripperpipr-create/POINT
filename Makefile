@@ -7,7 +7,7 @@
 # по красному job'у было видно, что запускать у себя.
 .PHONY: test test-docs test-go test-race test-frontend test-extension lint \
         check-docs check-release performance build-ui build-desktop run-api \
-        docker-up docker-down
+        docker-up docker-down loop loop-docker
 
 # job `docs`
 test-docs:
@@ -42,6 +42,22 @@ test-extension:
 	cd vscode-extension && npm run check
 
 test: test-docs test-go test-frontend test-extension
+
+# Полигон повседневной доводки: одна правка в настоящем проекте, от реплики до
+# зелёных тестов. В `test` не входит и входить не должен — он требует живой
+# модели и стоит минуты, а затвор обязан работать в чистом клоне без сети.
+# Живой прогон включается переменными: POINT_LIVE_LOOP=1, POINT_LIVE_LOOP_MODEL,
+# POINT_LLMUX_BASE_URL, POINT_LLMUX_API_KEY. Без них проверяются только правила
+# вердикта. RUN=2 гоняет второй круг: полигон закрыт, когда два подряд дают
+# один и тот же ответ.
+RUN ?= 1
+loop:
+	node scripts/run-live-loop.mjs --run=$(RUN)
+
+# Тот же прогон, но команды исполняются в контейнере. Требует собранного образа
+# песочницы — порядок в docs/sandbox.md.
+loop-docker:
+	node scripts/run-live-loop.mjs --run=$(RUN) --docker
 
 # Совместимость со старыми именами.
 check-docs:

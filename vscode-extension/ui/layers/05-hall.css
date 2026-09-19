@@ -695,7 +695,7 @@
 /* ── Индикаторы ───────────────────────────────────────────────────────────── */
 .hall-track { height: 3px; background: var(--hall-track); }
 .hall-track.is-thick { height: 6px; }
-.hall-track > i { display: block; height: 100%; background: var(--ember); }
+.hall-track > i { display: block; width: var(--fill, 0%); height: 100%; background: var(--ember); }
 .hall-track > i.is-quiet { background: var(--hub-muted-2); }
 
 /* Вложение контекста: путь, его доля и полоса под ними. Доля важнее размера в

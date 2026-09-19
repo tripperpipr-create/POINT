@@ -1,6 +1,8 @@
 // Agent constructor: draft ↔ profile/blueprint/project-agent transforms,
 // skill/tool policy helpers, and the step wizard chrome that reads the form DOM.
 
+import { fillAttribute } from './format-units.js'
+
 export const CONSTRUCTOR_STEPS = [
   { id: 'identity', label: 'Личность', hint: 'Имя и тон', why: 'Как зовут агента и какой у него тон общения' },
   { id: 'role', label: 'Роль', hint: 'Экспертиза', why: 'В чём агент эксперт и какой результат от него ожидается' },
@@ -392,7 +394,7 @@ export function createAgentConstructor({
     const index = Math.max(0, CONSTRUCTOR_STEPS.findIndex(step => step.id === activeStep))
     const progress = Math.round((index / Math.max(1, CONSTRUCTOR_STEPS.length - 1)) * 100)
     const current = CONSTRUCTOR_STEPS[index] || CONSTRUCTOR_STEPS[0]
-    return `<nav class="profile-step-nav constructor-nav" aria-label="Шаги конструктора агента"><div class="create-flow-progress"><span>ШАГ ${String(index + 1).padStart(2, '0')} / ${String(CONSTRUCTOR_STEPS.length).padStart(2, '0')}</span><div class="create-live-rail"><i style="width:${progress}%"></i></div><small>${esc(current.why || '')}</small></div><div class="create-flow-steps constructor-steps">${CONSTRUCTOR_STEPS.map((step, i) => {
+    return `<nav class="profile-step-nav constructor-nav" aria-label="Шаги конструктора агента"><div class="create-flow-progress"><span>ШАГ ${String(index + 1).padStart(2, '0')} / ${String(CONSTRUCTOR_STEPS.length).padStart(2, '0')}</span><div class="create-live-rail"><i ${fillAttribute(progress)}></i></div><small>${esc(current.why || '')}</small></div><div class="create-flow-steps constructor-steps">${CONSTRUCTOR_STEPS.map((step, i) => {
       const stateClass = step.id === activeStep ? 'on' : i < index ? 'done' : ''
       return `<button type="button" class="${stateClass}" data-action="constructor-step" data-step="${esc(step.id)}"><em>${i < index ? '✓' : String(i + 1).padStart(2, '0')}</em><span><b>${esc(step.label)}</b><small>${esc(step.hint)}</small></span></button>`
     }).join('')}</div>${ui.createStepError ? `<p class="create-step-error">${esc(ui.createStepError)}</p>` : ''}</nav>`

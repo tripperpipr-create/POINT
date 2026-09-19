@@ -249,7 +249,7 @@
 .budget-meter header { display: flex; justify-content: space-between; gap: var(--s-4); font-size: var(--t-tiny); }
 .budget-meter header span, .budget-meter small { color: var(--muted); }
 .budget-meter > div { height: 6px; overflow: hidden; border: 1px solid var(--border); background: var(--panel); }
-.budget-meter > div i { display: block; width: 0; height: 100%; background: var(--vital); }
+.budget-meter > div i { display: block; width: var(--fill, 0%); height: 100%; background: var(--vital); }
 .budget-meter.warning > div i { background: var(--ember); }
 .budget-meter.danger > div i { background: var(--vscode-errorForeground); }
 .budget-meter.unset > div i { background: transparent; }

@@ -1,5 +1,7 @@
 // Statistics owns evidence rendering only. Mutable request state and message
 // transport remain in the main webview controller through explicit adapters.
+import { fillAttribute } from './format-units.js'
+
 export function createStatisticsViews({
   getStatisticsStatus,
   setStatisticsStatus,
@@ -43,7 +45,7 @@ function budgetMeterHtml(label, used, limit) {
   const percent = Math.round(normalizedUsed / normalizedLimit * 100)
   const width = Math.min(100, Math.max(0, percent))
   const tone = percent >= 100 ? 'danger' : percent >= 80 ? 'warning' : 'safe'
-  return `<article class="budget-meter ${tone}"><header><strong>${esc(label)}</strong><span>${percent}%</span></header><div><i style="width:${width}%"></i></div><small>${formatCents(normalizedUsed)} из ${formatCents(normalizedLimit)}</small></article>`
+  return `<article class="budget-meter ${tone}"><header><strong>${esc(label)}</strong><span>${percent}%</span></header><div><i ${fillAttribute(width)}></i></div><small>${formatCents(normalizedUsed)} из ${formatCents(normalizedLimit)}</small></article>`
 }
 function budgetSettingsHtml(stats) {
   const statisticsStatus = getStatisticsStatus()

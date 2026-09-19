@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -209,5 +210,65 @@ func TestEmptyModelResponseFailsInsteadOfReportingFalseSuccess(t *testing.T) {
 	}
 	if final.Status != domain.RunFailed || !strings.Contains(final.Error, "empty response") {
 		t.Fatalf("empty response was not rejected: %#v", final)
+	}
+}
+
+// Пустой ход стоит хода, а не прогона.
+//
+// Прежде первый же пустой ответ — ни слова, ни вызова инструмента — уносил всю
+// работу немедленно: модель, потратившая бюджет вывода на размышление ровно у
+// границы, стоила человеку всего, что агент успел сделать. Теперь такой ход
+// получает нудж и повторяется, как и два соседних затыка, и только третий
+// подряд считается отказом.
+type emptyThenAnswerModel struct {
+	mu    sync.Mutex
+	calls int
+}
+
+func (m *emptyThenAnswerModel) Stream(_ context.Context, _ providers.ModelRequest, emit func(providers.ModelEvent) error) error {
+	m.mu.Lock()
+	m.calls++
+	call := m.calls
+	m.mu.Unlock()
+	if call == 1 {
+		return nil
+	}
+	return emit(providers.ModelEvent{Kind: providers.EventTextDelta, Delta: "готово: изменений не потребовалось"})
+}
+
+func TestEmptyModelResponseIsRetriedBeforeFailing(t *testing.T) {
+	repo := newMemoryRepo()
+	engine := NewEngine(repo, nil)
+	model := &emptyThenAnswerModel{}
+	engine.SetModelFactory(func(providers.Config) (providers.Model, error) { return model, nil })
+	profile := domain.DefaultProfile()
+	profile.MaxDurationSeconds = 5
+	run, err := engine.Start(StartInput{
+		Configuration: domain.NewRunConfigurationSnapshot("test", profile, nil, time.Now().UTC()),
+		Workspace:     domain.Workspace{ID: "ws", Path: t.TempDir()},
+		Task:          "survive one empty turn",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	var final domain.Run
+	for time.Now().Before(deadline) {
+		repo.mu.Lock()
+		final = repo.runs[run.ID]
+		repo.mu.Unlock()
+		if final.Status == domain.RunCompleted || final.Status == domain.RunFailed {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if final.Status != domain.RunCompleted {
+		t.Fatalf("пустой ход уронил прогон вместо повтора: status=%s error=%q", final.Status, final.Error)
+	}
+	model.mu.Lock()
+	calls := model.calls
+	model.mu.Unlock()
+	if calls < 2 {
+		t.Fatalf("повтора не было: обращений к модели %d", calls)
 	}
 }

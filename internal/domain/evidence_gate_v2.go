@@ -31,62 +31,96 @@ func WorkOrderSourceDigest(order WorkOrder) string {
 	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
+// GateVerdict — исход шлюза с названной причиной. Прежде шлюз отвечал
+// `(QuestBlocked, nil)` в пяти местах: отказ без объяснения. Живая приёмка от
+// этого показывала «0/2» и молчала о том, какое из условий не сошлось, а
+// разбор приходилось начинать с воспроизведения вслепую.
+//
+// Err — структурное расхождение: доказательство недостоверно, и транзакция
+// шлюза откатывается. Reason и Missing — честный провал: bundle сохраняется,
+// потому что он и есть объяснение, почему работа не принята.
+type GateVerdict struct {
+	Status  QuestStatus
+	Err     error
+	Reason  string
+	Missing []string
+}
+
+func gateRejected(err error) GateVerdict {
+	return GateVerdict{Status: QuestBlocked, Err: err, Reason: err.Error()}
+}
+
+func gateFailed(reason string, missing ...string) GateVerdict {
+	return GateVerdict{Status: QuestBlocked, Reason: reason, Missing: missing}
+}
+
 // WorkOrderEvidenceStatus is the only semantic path from verification to a
 // terminal v2 quest state. Structural mismatches are rejected as untrusted
 // evidence; genuine failed checks are retained and produce blocked.
+//
+// Причину отказа даёт WorkOrderEvidenceVerdict — эта пара сохранена для
+// вызывающих, которым довольно статуса.
 func WorkOrderEvidenceStatus(order WorkOrder, bundle EvidenceBundle) (QuestStatus, error) {
+	verdict := WorkOrderEvidenceVerdict(order, bundle)
+	return verdict.Status, verdict.Err
+}
+
+// WorkOrderEvidenceVerdict — тот же шлюз, что и прежде, слово в слово по
+// правилам; отличается он только тем, что называет условие, на котором
+// остановился.
+func WorkOrderEvidenceVerdict(order WorkOrder, bundle EvidenceBundle) GateVerdict {
 	if strings.TrimSpace(bundle.ID) == "" || strings.TrimSpace(bundle.QuestID) == "" {
-		return QuestBlocked, errors.New("evidence id and quest id are required")
+		return gateRejected(errors.New("evidence id and quest id are required"))
 	}
 	if bundle.Version != CurrentWorkOrderEvidenceVersion || strings.TrimSpace(bundle.PointVersion) == "" {
-		return QuestBlocked, fmt.Errorf("completed requires evidence bundle version %d with Point version", CurrentWorkOrderEvidenceVersion)
+		return gateRejected(fmt.Errorf("completed requires evidence bundle version %d with Point version", CurrentWorkOrderEvidenceVersion))
 	}
 	if bundle.BriefDigest != WorkOrderDigest(order) {
-		return QuestBlocked, errors.New("evidence is bound to a different work order digest")
+		return gateRejected(errors.New("evidence is bound to a different work order digest"))
 	}
 	if bundle.SourceDigest != WorkOrderSourceDigest(order) {
-		return QuestBlocked, errors.New("evidence is bound to different source snapshots")
+		return gateRejected(errors.New("evidence is bound to different source snapshots"))
 	}
 	if strings.TrimSpace(bundle.EnvironmentDigest) == "" {
-		return QuestBlocked, errors.New("environment evidence is required")
+		return gateRejected(errors.New("environment evidence is required"))
 	}
 	if strings.TrimSpace(bundle.StackPreset.ID) == "" || strings.TrimSpace(bundle.StackPreset.Version) == "" {
-		return QuestBlocked, errors.New("versioned stack preset evidence is required")
+		return gateRejected(errors.New("versioned stack preset evidence is required"))
 	}
 	if len(bundle.ModelCalls) == 0 {
-		return QuestBlocked, nil
+		return gateFailed("model call ledger is empty", "model_calls")
 	}
 	if err := validateModelCallLedger(bundle.ModelCalls); err != nil {
-		return QuestBlocked, err
+		return gateRejected(err)
 	}
 	if err := validateContextDisclosureLedger(bundle.ContextDisclosures); err != nil {
-		return QuestBlocked, err
+		return gateRejected(err)
 	}
 	if len(bundle.SourceVersions) != len(order.Sources) {
-		return QuestBlocked, errors.New("source version ledger does not match the approved work order")
+		return gateRejected(errors.New("source version ledger does not match the approved work order"))
 	}
 	for index := range order.Sources {
 		if bundle.SourceVersions[index].ID != order.Sources[index].ID || bundle.SourceVersions[index].Digest != order.Sources[index].Digest {
-			return QuestBlocked, errors.New("source version ledger contains a different snapshot")
+			return gateRejected(errors.New("source version ledger contains a different snapshot"))
 		}
 	}
 	byID := make(map[string]CriterionEvidence, len(bundle.Criteria))
 	for _, item := range bundle.Criteria {
 		if item.CriterionID == "" {
-			return QuestBlocked, errors.New("criterion evidence id is required")
+			return gateRejected(errors.New("criterion evidence id is required"))
 		}
 		if _, duplicate := byID[item.CriterionID]; duplicate {
-			return QuestBlocked, fmt.Errorf("duplicate evidence for criterion %q", item.CriterionID)
+			return gateRejected(fmt.Errorf("duplicate evidence for criterion %q", item.CriterionID))
 		}
 		byID[item.CriterionID] = item
 	}
 	checksByID := make(map[string]VerificationCheck, len(bundle.VerificationChecks))
 	for _, check := range bundle.VerificationChecks {
 		if strings.TrimSpace(check.ID) == "" || strings.TrimSpace(check.Kind) == "" {
-			return QuestBlocked, errors.New("verification checks require id and kind")
+			return gateRejected(errors.New("verification checks require id and kind"))
 		}
 		if _, duplicate := checksByID[check.ID]; duplicate {
-			return QuestBlocked, fmt.Errorf("duplicate verification check %q", check.ID)
+			return gateRejected(fmt.Errorf("duplicate verification check %q", check.ID))
 		}
 		checksByID[check.ID] = check
 	}
@@ -95,10 +129,15 @@ func WorkOrderEvidenceStatus(order WorkOrder, bundle EvidenceBundle) (QuestStatu
 	// before the user accepts the isolated result.
 	hasManual := order.Delivery.ApplyMode == "manual"
 	allMachineSatisfied := true
+	// Незакрытые условия собираются поимённо, а не сводятся к одному флагу:
+	// «работа не принята» и «не принята вот по этим двум критериям» стоят
+	// человеку разного времени.
+	var missing []string
 	for _, criterion := range order.Criteria {
 		item, ok := byID[criterion.ID]
 		if !ok {
 			allMachineSatisfied = false
+			missing = append(missing, "criterion:"+criterion.ID+" (нет доказательства)")
 			continue
 		}
 		if criterion.Kind == "manual" {
@@ -108,16 +147,17 @@ func WorkOrderEvidenceStatus(order WorkOrder, bundle EvidenceBundle) (QuestStatu
 		check, checkOK := checksByID[criterion.ID]
 		if !item.Satisfied || !checkOK || !verificationCheckSatisfiesCriterion(criterion, item, check) {
 			allMachineSatisfied = false
+			missing = append(missing, "criterion:"+criterion.ID)
 		}
 	}
 	if len(byID) != len(order.Criteria) {
-		return QuestBlocked, errors.New("evidence contains unknown or missing criteria")
+		return gateRejected(errors.New("evidence contains unknown or missing criteria"))
 	}
 	// An external change to the workspace is not a failed quest: the transfer
 	// was rolled back whole, and the verified result waits for a human to
 	// reconcile it rather than for this gate to call it broken.
 	if bundle.DeliveryConflict && !bundle.DeliveryVerified && allMachineSatisfied {
-		return QuestNeedsReview, nil
+		return GateVerdict{Status: QuestNeedsReview, Reason: "workspace changed outside the approved delivery; transfer rolled back whole"}
 	}
 	// A profile entry nobody executed is a promise, not proof. This only
 	// judges a bundle that claims a delivered result: a quest that never got
@@ -131,38 +171,52 @@ func WorkOrderEvidenceStatus(order WorkOrder, bundle EvidenceBundle) (QuestStatu
 			}
 			check, ok := checksByID[CompletionCheckEvidenceID(required.Kind)]
 			if !ok {
-				return QuestBlocked, fmt.Errorf("completion profile check %q has no executed evidence", required.Kind)
+				return gateRejected(fmt.Errorf("completion profile check %q has no executed evidence", required.Kind))
 			}
 			if strings.TrimSpace(check.Command) != strings.TrimSpace(required.Command) {
-				return QuestBlocked, fmt.Errorf("completion profile check %q was executed with a different command", required.Kind)
+				return gateRejected(fmt.Errorf("completion profile check %q was executed with a different command", required.Kind))
 			}
 			if !check.Satisfied || check.ExitCode == nil || *check.ExitCode != required.ExpectedExitCode {
 				allMachineSatisfied = false
+				missing = append(missing, "completion:"+required.Kind)
 			}
 		}
 	}
 	if !allMachineSatisfied || !bundle.DeliveryVerified || strings.TrimSpace(bundle.WorkspaceRevision) == "" {
-		return QuestBlocked, nil
+		if !bundle.DeliveryVerified {
+			missing = append(missing, "delivery_verified")
+		}
+		if strings.TrimSpace(bundle.WorkspaceRevision) == "" {
+			missing = append(missing, "workspace_revision")
+		}
+		return gateFailed("work is not proven: "+strings.Join(missing, ", "), missing...)
 	}
 	receipt := bundle.DeliveryReceipt
 	if receipt == nil || strings.TrimSpace(receipt.ID) == "" || receipt.QuestID != bundle.QuestID ||
 		receipt.WorkOrderDigest != bundle.BriefDigest || receipt.WorkspaceRevision != bundle.WorkspaceRevision ||
 		strings.TrimSpace(receipt.Target) == "" || receipt.DeliveredAt.IsZero() {
-		return QuestBlocked, errors.New("delivery receipt is missing or does not match verified evidence")
+		return gateRejected(errors.New("delivery receipt is missing or does not match verified evidence"))
 	}
 	if order.Delivery.CommitMode == "squash" && strings.TrimSpace(receipt.CommitID) == "" {
-		return QuestBlocked, errors.New("squash delivery requires a commit receipt")
+		return gateRejected(errors.New("squash delivery requires a commit receipt"))
 	}
 	// A promised application that is not actually running is a failed delivery,
 	// not untrusted evidence. Erroring here would roll back the bundle and take
 	// the failed service check — the only explanation the user has — with it.
 	if order.Delivery.KeepServicesRunning && (receipt.URL != order.Delivery.ApplicationURL || strings.TrimSpace(receipt.ComposeFile) == "" || !receipt.ServicesRunning) {
-		return QuestBlocked, nil
+		switch {
+		case !receipt.ServicesRunning:
+			return gateFailed("promised application is not running", "services_running")
+		case strings.TrimSpace(receipt.ComposeFile) == "":
+			return gateFailed("promised application has no compose file", "compose_file")
+		default:
+			return gateFailed("delivered application URL does not match the approved one", "application_url")
+		}
 	}
 	if hasManual {
-		return QuestNeedsReview, nil
+		return GateVerdict{Status: QuestNeedsReview, Reason: "manual delivery or a manual criterion: a human accepts the result"}
 	}
-	return QuestCompleted, nil
+	return GateVerdict{Status: QuestCompleted}
 }
 
 func validateModelCallLedger(items []ModelCallLedgerEntry) error {

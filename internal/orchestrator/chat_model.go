@@ -38,6 +38,14 @@ const (
 	// Пределы снимка мира: промпт не должен расти вместе с историей проекта.
 	maxWorldProposals = 5
 	maxWorldQuests    = 5
+	// Сколько ждём заголовков ответа. Ход Мастера живёт минутами по замыслу —
+	// в нём и раунды инструментов, и починка формата, — поэтому общий срок
+	// обрывал бы живой ответ на полуслове. Молчание же видно по заголовкам:
+	// принявший запрос провайдер присылает их сразу. Прежде отдельного срока
+	// здесь не было, и молчащий шлюз держал разговор весь TimeoutSeconds,
+	// показывая человеку «Ожидаю модель…». Сорок пять — как у планировщика,
+	// который ходит к тому же рантайму.
+	masterProviderHeaderTimeoutSeconds = 45
 )
 
 // ModelFactory — точка подмены модели в тестах; в бою это providers.New.
@@ -292,6 +300,7 @@ func (s ChatService) chatWithModel(ctx context.Context, req ChatRequest, world s
 	timeoutSeconds := masterTurnTimeoutSeconds(req.Config)
 	model, err := factory(providers.Config{
 		Kind: req.Config.Provider, Preset: req.Config.ProviderPreset, BaseURL: req.Config.BaseURL, APIKey: req.APIKey, APIVersion: req.Config.APIVersion, TimeoutSeconds: timeoutSeconds,
+		HeaderTimeoutSeconds: masterProviderHeaderTimeoutSeconds,
 	})
 	if err != nil {
 		return masterEnvelope{}, fmt.Errorf("создать модель Мастера: %w", err)

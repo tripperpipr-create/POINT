@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url'
 const root = path.resolve(import.meta.dirname, '..')
 const moduleURL = pathToFileURL(path.join(root, 'vscode-extension', 'ui', 'client', 'master-work-order-v2.js')).href
 const { masterWorkOrderCardsHtml } = await import(moduleURL)
-const esc = value => String(value ?? '').replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;')
+const { esc } = await import(pathToFileURL(path.join(root, 'vscode-extension', 'ui', 'client', 'html-escape.js')).href)
 const base = {
   id: 'workorder-1', state: 'approved', version: 2, goal: 'Проверить управление',
   scope: [], criteria: [], roster: {}, network: [], secrets: [], sources: [], assumptions: [], outOfScope: [],

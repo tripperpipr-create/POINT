@@ -1,14 +1,6 @@
 import { workOrderRunHtml } from './work-order-execution-views.js'
 import { masterAgentConsent } from './master-agent-card.js'
-
-const list = value => Array.isArray(value) ? value : []
-const countOf = (value, one, few, many) => {
-  const count = Number(value) || 0
-  const mod100 = Math.abs(count) % 100
-  const mod10 = mod100 % 10
-  const form = mod100 >= 11 && mod100 <= 19 ? many : mod10 === 1 ? one : mod10 >= 2 && mod10 <= 4 ? few : many
-  return `${count} ${form}`
-}
+import { countOf, list } from './format-units.js'
 
 const labels = {
   discussion: 'Нужно уточнение', ready: 'Готов к запуску', approved: 'Утверждён',

@@ -14,7 +14,7 @@ const clientURL = name => pathToFileURL(path.join(root, 'vscode-extension', 'ui'
 const { masterWorkOrderCardsHtml } = await import(clientURL('master-work-order-v2.js'))
 const { masterAgentCardsFor, masterAgentCardsHtml, masterAgentConsent } = await import(clientURL('master-agent-card.js'))
 const { workOrderExecutionHtml } = await import(clientURL('work-order-execution-views.js'))
-const esc = value => String(value ?? '').replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;')
+const { esc } = await import(clientURL('html-escape.js'))
 const ui = { state: {} }
 
 const base = {

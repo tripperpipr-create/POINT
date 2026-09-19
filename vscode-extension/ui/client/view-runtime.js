@@ -1,3 +1,6 @@
+import { countOf, plural } from './format-units.js'
+import { esc } from './html-escape.js'
+
 export function createViewRuntime({ getState, createCompanionMarkdownFormatter }) {
   const statusLabels = { pending:'ОЖИДАЕТ', running:'В ПОХОДЕ', waiting:'НУЖНО РЕШЕНИЕ', waiting_approval:'НУЖНО РЕШЕНИЕ', paused:'ПАУЗА', completed:'ЗАВЕРШЁН', failed:'ПРОВАЛЕН', cancelled:'ОТМЕНЁН', interrupted:'ПРЕРВАН' }
   const toolLabels = { project_map:'Карта проекта', search_code:'Умный поиск кода', list_files:'Список файлов', read_file:'Чтение файла', search_text:'Поиск по проекту', propose_patch:'Изменение файла', run_command:'Запуск команды', git_diff:'Git diff', read_skill:'Чтение навыка', docker_inspect:'Docker: обзор', docker_control:'Docker: start/stop', ssh_test_connection:'Проверка SSH', ssh_list_remote:'Список на сервере', ssh_exec_remote:'Команда на сервере', db_list_connections:'Список БД', db_schema:'Схема БД', db_query:'SQL-запрос', db_exec:'SQL-запись' }
@@ -11,17 +14,6 @@ export function createViewRuntime({ getState, createCompanionMarkdownFormatter }
   stopReasonLabels.agent_stalled = 'агент остановлен из-за повторяющихся действий'
   stopReasonLabels.completion_evidence_missing = 'не хватает проверяемых доказательств готовности'
 
-  function plural(count, one, few, many) {
-    const n = Math.abs(Number(count) || 0)
-    const tens = n % 100
-    if (tens > 10 && tens < 20) return many
-    const ones = n % 10
-    if (ones === 1) return one
-    if (ones >= 2 && ones <= 4) return few
-    return many
-  }
-  function countOf(count, one, few, many) { return `${Number(count) || 0} ${plural(count, one, few, many)}` }
-  function esc(value) { return String(value ?? '').replace(/[&<>"']/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[character])) }
   const formatCompanionMarkdown = createCompanionMarkdownFormatter(esc)
   function data(value) { return value && typeof value === 'object' ? value : {} }
   function toolName(value) { return getState().boot?.toolCatalog?.find(item=>item.name===value)?.displayName || toolLabels[value] || value }

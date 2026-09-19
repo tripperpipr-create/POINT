@@ -14,7 +14,7 @@ import { pathToFileURL } from 'node:url'
 const root = path.resolve(import.meta.dirname, '..')
 const clientURL = name => pathToFileURL(path.join(root, 'vscode-extension', 'ui', 'client', name)).href
 const { masterHiringCardsHtml } = await import(clientURL('master-hiring-card.js'))
-const esc = value => String(value ?? '').replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;')
+const { esc } = await import(clientURL('html-escape.js'))
 
 const base = { workOrderId: 'workorder-1', goal: 'Собрать API', maxAgents: 2, allowSubagents: false }
 const fail = message => { throw new Error(message) }

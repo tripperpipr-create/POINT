@@ -15,11 +15,10 @@
 //
 // Состояние раскрытия живёт здесь же, как и у карточки запуска: main.js стоит у
 // своей границы в 6900 строк, и вид владеет своим раскрытием сам.
-import { shortLabel } from './format-units.js'
+import { list, shortLabel } from './format-units.js'
 
 export const masterHiringOpen = new Set()
 
-const list = value => (Array.isArray(value) ? value : [])
 
 const READINESS = { READY: 'готов', DEGRADED: 'с оговорками', BLOCKED: 'не готов' }
 const STATE_LABELS = {

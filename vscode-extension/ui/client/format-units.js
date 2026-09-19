@@ -41,3 +41,36 @@ export function shortLabel(name, limit) {
   const runes = [...text]
   return runes.length > limit ? runes.slice(0, limit - 1).join('').trimEnd() + '\u2026' : text
 }
+
+// Список, каким бы он ни пришёл из ядра.
+//
+// Хаб обязан держаться на неполных данных, а `null` вместо списка — штатный ответ.
+// Охранник жил четырьмя копиями в соседних карточках Мастера и двумя написаниями
+// одной строки.
+export function list(value) {
+  return Array.isArray(value) ? value : []
+}
+
+// Русское склонение по числу — одно правило на весь вебвью.
+//
+// В ядре это правило уже собирали из двух копий в `internal/textutil` после того, как
+// очередь решений описала набор из одного файла как «1 файлов». В вебвью копий
+// снова стало две: каноническая в `view-runtime.js` и своя в карточке наряда.
+//
+// Затвор `ui/plural.mjs` такого не ловит: он смотрит на места вызова — на
+// жёстко выбранную форму рядом с подстановкой, — а не на число определений правила.
+// Вторая копия проходит его молча и разойдётся тоже молча.
+export function plural(count, one, few, many) {
+  const n = Math.abs(Number(count) || 0)
+  const tens = n % 100
+  if (tens > 10 && tens < 20) return many
+  const ones = n % 10
+  if (ones === 1) return one
+  if (ones >= 2 && ones <= 4) return few
+  return many
+}
+
+// Число и согласованная с ним форма слова вместе: разделённые, они расходятся.
+export function countOf(count, one, few, many) {
+  return `${Number(count) || 0} ${plural(count, one, few, many)}`
+}

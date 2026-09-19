@@ -19,6 +19,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 const here = dirname(fileURLToPath(import.meta.url))
 const extension = join(here, '..', 'vscode-extension')
 const { createGitViews } = await import(pathToFileURL(join(extension, 'ui', 'client', 'git-views.js')))
+const { esc } = await import(pathToFileURL(join(extension, 'ui', 'client', 'html-escape.js')))
 
 const out = resolve(process.argv[2] || join(here, '..', 'build', 'preview', 'git-panel.html'))
 const widths = (process.argv[3] || '300,420').split(',').map(value => Number(value.trim())).filter(Boolean)
@@ -68,7 +69,6 @@ const makeUi = (extra = {}) => ({
   flat: false, menuFor: '', commitDraft: '', amend: false, pendingAction: '', notice: null, target: '',
   foldedOnce: false, ...extra,
 })
-const esc = value => String(value).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch])
 // Склонение по числу — то же правило, что в вебвью (ui/plural.mjs следит, чтобы
 // подстановки не расходились).
 const countOf = (count, one, few, many) => {

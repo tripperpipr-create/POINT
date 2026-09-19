@@ -1,4 +1,5 @@
 import { masterPlanHtml, masterPlanState } from './master-plan-views.js'
+import { list } from './format-units.js'
 
 // Экран выполнения утверждённого наряда.
 //
@@ -16,7 +17,6 @@ import { masterPlanHtml, masterPlanState } from './master-plan-views.js'
 // Модуль отдельный, потому что main.js стоит у границы своего бюджета строк
 // (scripts/check-release-contracts.mjs), и расти там нельзя.
 
-const list = value => Array.isArray(value) ? value : []
 
 // Пометка этапа, которую перечень плана рисует справа. Совпадает по смыслу с
 // STAGE_NOTE ленты разговора: состояние узла, а не его название.

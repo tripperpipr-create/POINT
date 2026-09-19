@@ -9,8 +9,8 @@
 import assert from 'node:assert/strict'
 import { createMasterChatState, masterStreamHtml } from '../vscode-extension/ui/client/master-chat-state.js'
 import { masterTraceTitle, masterTraceDuration } from '../vscode-extension/ui/client/master-live-trace.js'
+import { esc } from '../vscode-extension/ui/client/html-escape.js'
 
-const esc = value => String(value).replace(/[&<>"]/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[character]))
 const state = createMasterChatState()
 const event = (type, detail, text) => ({ turnId: 't1', conversationId: 'c1', type, text: text || '', detail: detail ? JSON.stringify(detail) : '' })
 

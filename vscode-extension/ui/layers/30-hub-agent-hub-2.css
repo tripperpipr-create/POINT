@@ -341,7 +341,7 @@ body[data-layout="wide"] .agent-studio form > .profile-config-block { grid-colum
 .create-flow-progress > span { color: var(--point-mana); font: 650 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace; letter-spacing: .1em; }
 .create-flow-progress > small { color: var(--point-muted); font-size: var(--t-tiny); line-height: 1.4; }
 .create-live-rail { height: 3px; background: var(--point-void); border: 1px solid var(--point-border); overflow: hidden; }
-.create-live-rail > i { display: block; height: 100%; background: var(--point-ember); }
+.create-live-rail > i { display: block; width: var(--fill, 0%); height: 100%; background: var(--point-ember); }
 .create-flow-steps { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: var(--s-2); }
 .create-flow .create-flow-steps { grid-template-columns: repeat(5, minmax(0,1fr)); }
 .profile-step-nav .create-flow-steps > button { display: grid; grid-template-columns: 28px minmax(0,1fr); gap: var(--s-4); align-items: center; min-height: 44px; padding: var(--s-3) var(--s-4); color: var(--point-muted); background: var(--point-void); border: 1px solid var(--point-border); border-radius: var(--r-1); text-align: left; }

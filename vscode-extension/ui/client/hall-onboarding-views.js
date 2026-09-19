@@ -1,4 +1,4 @@
-import { formatDateTime } from './format-units.js'
+import { fillAttribute, formatDateTime } from './format-units.js'
 import { normalizeBrainMode } from './companion-compose.js'
 import { createAgentWorkTranscript } from './agent-work-transcript.js'
 import {
@@ -543,7 +543,7 @@ export function createHallOnboardingViews(dependencies) {
   
   function orchestratorPreviewHtml(draft) {
     const preset = ORCHESTRATOR_PRESETS.find(item => item.id === draft.preset)
-    return `<aside class="companion-persona-dock companion-live-preview" data-orchestrator-preview><header><span>${esc(preset?.icon || '⬡')}</span><div><strong>${esc(preset?.label || 'Компаньон')}</strong><small>Системный агент квестов, не компаньон IDE</small></div></header><div class="companion-trait-bars">${ORCHESTRATOR_TRAIT_FIELDS.map(item => `<span><small>${esc(item.label)}</small><i><b style="width:${Math.max(0, Math.min(100, Number(draft[item.id]) || 0))}%"></b></i></span>`).join('')}</div><ul>${orchestratorPolicyLines(draft).map(item => `<li>${esc(item)}</li>`).join('')}</ul></aside>`
+    return `<aside class="companion-persona-dock companion-live-preview" data-orchestrator-preview><header><span>${esc(preset?.icon || '⬡')}</span><div><strong>${esc(preset?.label || 'Компаньон')}</strong><small>Системный агент квестов, не компаньон IDE</small></div></header><div class="companion-trait-bars">${ORCHESTRATOR_TRAIT_FIELDS.map(item => `<span><small>${esc(item.label)}</small><i><b ${fillAttribute(draft[item.id])}></b></i></span>`).join('')}</div><ul>${orchestratorPolicyLines(draft).map(item => `<li>${esc(item)}</li>`).join('')}</ul></aside>`
   }
   function orchestratorModeCardsHtml(draft) {
     return `<div class="companion-mode-grid"><button type="button" class="companion-mode-card ${draft.mode === 'model' ? 'selected' : ''}" data-action="orchestrator-select-mode" data-mode="model"><span>⬡</span><strong>Своя модель мастера</strong><p>Отдельный мозг для назначения отряда и глубины плана. Это не диалог компаньона.</p><ul class="companion-mode-can"><li>Своя модель, не компаньон</li><li>Планирование квеста и партии</li><li>Исполнение — движок Point</li></ul><small>Нужна локальная или облачная модель</small></button><button type="button" class="companion-mode-card ${draft.mode === 'local' ? 'selected' : ''}" data-action="orchestrator-select-mode" data-mode="local"><span>⌁</span><strong>Движок Point</strong><p>Детерминированный движок: пресет сам решает размер отряда и автостарт Flow.</p><ul class="companion-mode-can"><li>Без ключа и токенов</li><li>Предсказуемые правила</li><li>Работает сразу</li></ul><small>Рекомендуется на старте</small></button></div>`

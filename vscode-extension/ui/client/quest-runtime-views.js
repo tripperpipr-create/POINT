@@ -1,4 +1,4 @@
-import { formatBytes } from './format-units.js'
+import { fillAttribute, formatBytes } from './format-units.js'
 export function createQuestRuntimeViews(dependencies) {
   const {
     CREATE_FLOW_STAGES,
@@ -649,7 +649,7 @@ export function createQuestRuntimeViews(dependencies) {
     ]
     const capabilityBlock = agentCapabilityHtml(profile)
     const done = checks.filter(item => item.ok).length
-    return `<aside class="create-live-check ${readiness.ready ? 'ready' : ''}"><header><strong>Готовность</strong><span>${done}/${checks.length}</span></header><div class="create-live-rail"><i style="width:${Math.round(done / checks.length * 100)}%"></i></div><ul>${checks.map(item => `<li class="${item.ok ? 'ok' : ''}"><i></i>${esc(item.label)}</li>`).join('')}</ul>${readiness.unknown ? '<p>Ядро не ответило на проверку — готовность неизвестна.</p>' : readiness.ready ? '<p>Можно нанимать и сразу открыть квест.</p>' : `<p>${esc(readiness.issues[0] || 'Заполните шаги слева')}</p>`}</aside>${capabilityBlock}`
+    return `<aside class="create-live-check ${readiness.ready ? 'ready' : ''}"><header><strong>Готовность</strong><span>${done}/${checks.length}</span></header><div class="create-live-rail"><i ${fillAttribute(done / checks.length * 100)}></i></div><ul>${checks.map(item => `<li class="${item.ok ? 'ok' : ''}"><i></i>${esc(item.label)}</li>`).join('')}</ul>${readiness.unknown ? '<p>Ядро не ответило на проверку — готовность неизвестна.</p>' : readiness.ready ? '<p>Можно нанимать и сразу открыть квест.</p>' : `<p>${esc(readiness.issues[0] || 'Заполните шаги слева')}</p>`}</aside>${capabilityBlock}`
   }
   function hireSummaryPanel(profile, readiness) {
     const preset = providerPreset(profile)
@@ -670,7 +670,7 @@ export function createQuestRuntimeViews(dependencies) {
     const index = Math.max(0, stages.findIndex(step => step.id === activeStep))
     const progress = Math.round((index / Math.max(1, stages.length - 1)) * 100)
     const current = stages[index] || stages[0]
-    return `<nav class="profile-step-nav create-flow-nav" aria-label="Шаги карточки персонажа"><div class="create-flow-progress"><span>ШАГ 0${index + 1} / 0${stages.length}</span><div class="create-live-rail"><i style="width:${progress}%"></i></div><small>${esc(current?.why || '')}</small></div><div class="create-flow-steps">${stages.map((step, i) => {
+    return `<nav class="profile-step-nav create-flow-nav" aria-label="Шаги карточки персонажа"><div class="create-flow-progress"><span>ШАГ 0${index + 1} / 0${stages.length}</span><div class="create-live-rail"><i ${fillAttribute(progress)}></i></div><small>${esc(current?.why || '')}</small></div><div class="create-flow-steps">${stages.map((step, i) => {
       const stateClass = step.id === activeStep ? 'on' : i < index ? 'done' : ''
       return `<button type="button" class="${stateClass}" data-action="profile-step" data-step="${esc(step.id)}"><em>${i < index ? '✓' : `0${i + 1}`}</em><span><b>${esc(step.label)}</b><small>${esc(step.hint)}</small></span></button>`
     }).join('')}</div>${creating ? '<p>Интерактивный найм: класс → личность → модель → умения → лимиты → сводка.</p>' : '<p>Правите только нужный шаг — сохранить можно с любого.</p>'}${ui.createStepError ? `<p class="create-step-error">${esc(ui.createStepError)}</p>` : ''}</nav>`

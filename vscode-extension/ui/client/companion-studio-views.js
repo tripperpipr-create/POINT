@@ -1,3 +1,4 @@
+import { fillAttribute } from './format-units.js'
 import { COMPANION_EXAMPLES, companionSceneById } from './companion-compose.js'
 
 // Студия характера компаньона: роль, стиль, шесть черт и живой образец ответа.
@@ -189,7 +190,7 @@ export function createCompanionStudioViews({
   }
   function companionTraitBarsHtml(value) {
     const draft = sanitizeCompanionSetupDraft(value)
-    return `<div class="companion-trait-bars">${COMPANION_TRAIT_FIELDS.map(item => `<span><small>${esc(item.label)}</small><i><b style="width:${Math.max(0, Math.min(100, Number(draft[item.id]) || 0))}%"></b></i></span>`).join('')}</div>`
+    return `<div class="companion-trait-bars">${COMPANION_TRAIT_FIELDS.map(item => `<span><small>${esc(item.label)}</small><i><b ${fillAttribute(draft[item.id])}></b></i></span>`).join('')}</div>`
   }
   function companionPersonalityPreviewHtml(value, compact = false) {
     const draft = sanitizeCompanionSetupDraft(value)

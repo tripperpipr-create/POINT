@@ -1,4 +1,4 @@
-import { formatBytes } from './format-units.js'
+import { fillAttribute, formatBytes } from './format-units.js'
 // Hub runtime UI helpers: live run status, exec controls, pending reviews,
 // quest progress strips, and context inspector chrome shared by overview/hall/master.
 
@@ -183,11 +183,11 @@ export function createHubRuntimeUi({
     if (!quest || quest.legacyRun) return ''
     const flowRuns = (getState().boot?.flowRuns || []).filter(run => run.questId === quest.id)
     const flowRun = flowRuns[0]
-    if (!flowRun?.nodeStates) return `<div class="quest-progress-rail"><i style="width:8%"></i></div>`
+    if (!flowRun?.nodeStates) return `<div class="quest-progress-rail"><i ${fillAttribute(8)}></i></div>`
     const states = Object.values(flowRun.nodeStates)
     const done = states.filter(item => item.status === 'completed' || item.status === 'skipped').length
     const pct = states.length ? Math.round((done / states.length) * 100) : 0
-    return `<div class="quest-progress-rail" title="${pct}%"><i style="width:${pct}%"></i><small>${pct}%</small></div>`
+    return `<div class="quest-progress-rail" title="${pct}%"><i ${fillAttribute(pct)}></i><small>${pct}%</small></div>`
   }
 
   function runPatchGroups(details) {

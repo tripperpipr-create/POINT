@@ -1,3 +1,4 @@
+import { fillAttribute } from './format-units.js'
 import { createMasterChatState } from './master-chat-state.js'
 import { masterTraceMindPatch } from './master-live-trace.js'
 import { bindMasterContexts, installMasterDropzone, receiveMasterContext, clearMasterContext, masterContextPayload, handleMasterContextAction } from './master-context-ui.js'
@@ -937,7 +938,7 @@ function onboardingStepNav(activeStep) {
     }).join('')
     return `<div class="onboarding-chapter${currentChapter ? ' current' : ''}${done ? ' done' : ''}"><small>${esc(chapter.label)}</small>${buttons}</div>`
   }).join('')
-  return `<nav class="onboarding-nav" aria-label="Шаги онбординга"><div class="create-flow-progress"><span>ШАГ ${String(index + 1).padStart(2, '0')} / ${String(ONBOARDING_STEPS.length).padStart(2, '0')}</span><div class="create-live-rail"><i style="width:${progress}%"></i></div><small>${esc(current.why || '')}</small></div><div class="onboarding-step-rail">${rail}</div>${onboardingLockNotice
+  return `<nav class="onboarding-nav" aria-label="Шаги онбординга"><div class="create-flow-progress"><span>ШАГ ${String(index + 1).padStart(2, '0')} / ${String(ONBOARDING_STEPS.length).padStart(2, '0')}</span><div class="create-live-rail"><i ${fillAttribute(progress)}></i></div><small>${esc(current.why || '')}</small></div><div class="onboarding-step-rail">${rail}</div>${onboardingLockNotice
     ? `<p class="onboarding-lock-note" role="status">${esc(onboardingLockNotice)}</p>`
     : ''}</nav>`
 }
@@ -991,7 +992,7 @@ function questContextBarsHtml(details) {
         <span class="hall-context-path">${esc(item.path || item.label || item.kind || 'вложение')}</span>
         <span class="hall-context-share">${percent}%</span>
       </div>
-      <div class="hall-track"><i style="width:${percent}%"></i></div>
+      <div class="hall-track"><i ${fillAttribute(percent)}></i></div>
     </div>`
   }).join('')
 }

@@ -74,3 +74,18 @@ export function plural(count, one, few, many) {
 export function countOf(count, one, few, many) {
   return `${Number(count) || 0} ${plural(count, one, few, many)}`
 }
+
+// Заполнение полосы прогресса — атрибутом, а не инлайновым стилем.
+//
+// CSP вебвью выбрасывает style="" целиком, поэтому style="width:45%" не
+// доезжал никогда: полоса без width занимала всю ширину родителя и показывала
+// «готово» при любом настоящем значении. Величина идёт атрибутом, а в ширину
+// её переводит слой ui/layers/11-progress-fill.css.
+//
+// Шаг в пять процентов — цена приёма: ступеней ровно столько, сколько правил
+// в слое. Для полосы в три пикселя высотой разница между 43 и 45 процентами
+// не видна глазу, а числом рядом её показывают точной.
+export function fillAttribute(value) {
+  const percent = Math.max(0, Math.min(100, Math.round(Number(value) || 0)))
+  return `data-fill="${Math.round(percent / 5) * 5}"`
+}

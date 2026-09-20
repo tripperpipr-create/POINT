@@ -46,16 +46,27 @@
 .master-v2-order.state-approved > header > span { color: var(--vital); }
 .master-v2-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--s-5); border-bottom: 1px solid var(--hub-border-soft); }
 .master-v2-summary section, .master-v2-grid section { display: grid; align-content: start; gap: var(--s-2); min-width: 0; }
-/* Рубрика — одна композиция на всю карточку: шапка, колонки, сетка деталей,
-   подписи полей редактора. Раньше их было три с разной разрядкой. */
-.master-v2-order b,
-.master-v2-order > header small,
-.master-v2-runtime-controls > label > span,
-.master-v2-editor label > span {
+/* Подпись карточки — единственный капс.
+   Он работает, пока один: метка «ЕДИНАЯ КАРТОЧКА ЗАПУСКА · V1» называет весь
+   документ, и прописные здесь читаются как гриф. Когда тем же грифом были
+   набраны ещё и «ЧТО БУДЕТ СДЕЛАНО», «КРИТЕРИИ ГОТОВНОСТИ» и «МАСТЕРУ НУЖЕН
+   ОТВЕТ», четыре ступени спорили за одну роль, и ни одна не была старшей. */
+.master-v2-order > header small {
   color: var(--hub-muted);
   font: var(--fw-semibold) var(--t-micro) / 1 var(--font-mono);
   letter-spacing: var(--tracking-label);
   text-transform: uppercase;
+}
+/* Подзаголовки разделов и подписи полей — обычный регистр. Иерархию держат
+   вес, тон и отступ; разрядка на строчных буквах их только расплывает, а
+   прописные в 10px читаются хуже строчных в 11px. */
+.master-v2-order b,
+.master-v2-runtime-controls > label > span,
+.master-v2-editor label > span {
+  color: var(--hub-muted);
+  font: var(--fw-semibold) var(--t-small) / var(--lh-base) var(--font-ui);
+  letter-spacing: normal;
+  text-transform: none;
 }
 .master-v2-order ul { display: grid; gap: var(--s-2); margin: 0; padding: 0; color: var(--hub-text-2); font-size: var(--t-body); line-height: var(--lh-base); list-style: none; }
 /* Пункт держится висячим тире: маркер браузера уводил текст вправо на разную

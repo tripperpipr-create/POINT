@@ -213,9 +213,9 @@
    отвлекают. Возврат остаётся одной кнопкой, а тревога очереди — единственное,
    что имеет право остаться на виду. */
 .hall.is-focused .hall-main { max-width: var(--hall-focus-max); margin-inline: auto; }
-.hall-head-focused { justify-content: flex-start; }
-.hall-head-focused .hall-crumb { flex: 0 1 auto; }
-.hall-head-focused .hall-alarm { margin-left: auto; }
+.hall-head-chat { justify-content: flex-start; }
+.hall-head-chat .hall-crumb { flex: 0 1 auto; }
+.hall-head-chat .hall-alarm { margin-left: auto; }
 
 /* Контейнер разделов — flex-колонка, а не блок.
    Раздел объявляет прокрутку одной из двух идиом: `height: 100%` или
@@ -1558,12 +1558,12 @@ button.hall-panel-row:focus-visible { outline: 1px solid var(--ember); outline-o
 .hall-chat-heading { display: flex; flex-direction: column; gap: var(--s-2); min-width: 0; }
 .hall-chat-heading strong { font: var(--fw-semibold) var(--t-lead) / 1.2 var(--font-ui); color: var(--hub-text); }
 .hall-chat-heading span { font: var(--fw-normal) var(--t-body) / 1.4 var(--font-ui); color: var(--hub-muted); }
-.hall-head-focused .hall-chat-settings { margin-left: auto; font-family: var(--font-ui); letter-spacing: normal; }
-.hall-head-focused .hall-chat-settings + .hall-alarm { margin-left: 0; }
+.hall-head-chat .hall-chat-settings { margin-left: auto; font-family: var(--font-ui); letter-spacing: normal; }
+.hall-head-chat .hall-chat-settings + .hall-alarm { margin-left: 0; }
 /* Диалог Мастера — плотность и тишина как у Cursor Agent chat. */
 .hall-dialogue { --hall-who-col: 40px; --hall-msg-indent: calc(40px + var(--s-4)); }
-.hall-dialogue .hall-thread { gap: var(--s-5); padding-block: var(--s-6) var(--s-5); scrollbar-gutter: stable; }
-.hall-dialogue .hall-thread > * { width: 100%; max-width: 760px; margin-inline: auto; box-sizing: border-box; flex-shrink: 0; }
+.hall-dialogue .hall-thread { gap: var(--s-5); padding-block: var(--s-6) var(--s-5); scrollbar-gutter: stable both-edges; }
+.hall-dialogue .hall-thread > * { width: 100%; max-width: var(--hall-read-col); margin-inline: auto; box-sizing: border-box; flex-shrink: 0; }
 .hall-dialogue .hall-turn { gap: var(--s-2); }
 .hall-dialogue .hall-msg { gap: var(--s-4); }
 .hall-dialogue .hall-msg .who { display: flex; flex-direction: column; align-items: center; gap: var(--s-2); color: var(--hub-muted); font-size: var(--t-micro); letter-spacing: normal; }
@@ -1586,7 +1586,7 @@ button.hall-panel-row:focus-visible { outline: 1px solid var(--ember); outline-o
 .hall-dialogue .hall-answer-badge b { font-weight: var(--fw-medium); letter-spacing: normal; text-transform: none; }
 .hall-dialogue .hall-answer-badge:not(.is-fallback) > span { padding: var(--s-1) var(--s-3); border: 1px solid color-mix(in srgb, var(--hub-border) 70%, transparent); border-radius: 2px; background: transparent; font-family: var(--font-mono); }
 .hall-dialogue .hall-answer-badge.is-fallback { padding: var(--s-4) var(--s-5); background: var(--ember-wash); border-radius: 4px; }
-.hall-dialogue .hall-compose { box-sizing: border-box; width: calc(100% - 32px); max-width: 760px; margin: var(--s-3) auto var(--s-5); padding: var(--s-4) var(--s-5); gap: var(--s-3); border: 1px solid color-mix(in srgb, var(--hub-border-loud) 70%, transparent); border-radius: 4px; background: color-mix(in srgb, var(--hub-raised) 55%, var(--hub-void)); box-shadow: none; }
+.hall-dialogue .hall-compose { box-sizing: border-box; width: calc(100% - 32px); max-width: var(--hall-read-col); margin: var(--s-3) auto var(--s-5); padding: var(--s-4) var(--s-5); gap: var(--s-3); border: 1px solid color-mix(in srgb, var(--hub-border-loud) 70%, transparent); border-radius: 4px; background: color-mix(in srgb, var(--hub-raised) 55%, var(--hub-void)); box-shadow: none; }
 .hall-dialogue .hall-compose:focus-within { border-color: color-mix(in srgb, var(--vscode-focusBorder, var(--ember)) 55%, var(--hub-border)); box-shadow: none; }
 .hall-compose-label { font: var(--fw-medium) var(--t-body) / 1.4 var(--font-ui); color: var(--hub-muted); }
 .hall-dialogue #master-discussion-context:empty { display: none; }
@@ -1639,8 +1639,8 @@ button.hall-panel-row:focus-visible { outline: 1px solid var(--ember); outline-o
 .hall-dialogue .master-starters strong i { color: var(--hub-muted); font-style: normal; }
 .hall-dialogue .master-starters .hall-chip > span { color: var(--hub-faint-2); font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui); }
 @media (max-width: 640px) {
-  .hall-head-focused .hall-chat-heading span { display: none; }
-  .hall-head-focused { flex-wrap: wrap; gap: var(--s-4); }
+  .hall-head-chat .hall-chat-heading span { display: none; }
+  .hall-head-chat { flex-wrap: wrap; gap: var(--s-4); }
   .hall-dialogue { --hall-who-col: 32px; --hall-msg-indent: calc(32px + var(--s-4)); }
   .hall-dialogue .hall-thread { padding: var(--s-5); gap: var(--s-5); }
   .hall-dialogue .hall-msg .who { font-size: var(--t-micro); }
@@ -1744,18 +1744,58 @@ button.hall-panel-row:focus-visible { outline: 1px solid var(--ember); outline-o
    (07-master-quiet.css), а абсолютный потомок считает left от padding-box —
    то есть от внешнего края, под которым и стоит рельса. Обе цифры держатся
    на одной строке, чтобы правка рельсы не оставила композер на прежнем месте. */
-/* Приглушённые ступени переезжают вместе с остальными. Пока они оставались
-   тёплыми ступенями Чертога (#8A8780 / #838079 / #7E7B74), на нейтральных
-   поверхностях тихого регистра они давали 2.95–4.3 при пороге 4.5 — и
-   аудит находил это по одному месту за раз: метка происхождения ответа,
-   довод шага, путь вложения, стрелка отправки. Причина у всех одна, и
-   чинится она здесь, а не в каждом правиле отдельно. Четвёртая ступень —
-   линии, а не буквы, и остаётся собой. */
-.hall.is-focused { --hub-panel: var(--ui-panel); --hub-raised: var(--ui-raised); --hub-void: var(--ui-void); --hub-selected: var(--ui-selected); --hub-text: var(--ui-text); --hub-text-2: var(--ui-text); --hub-muted: var(--ui-muted); --hub-faint: var(--ui-faint); --hub-faint-2: var(--ui-faint); --hub-faint-3: var(--ui-faint); --hub-border: var(--ui-border); --hub-border-strong: var(--ui-border); --hub-border-loud: var(--ui-border); }
+/* Палитра тихого регистра: своя, а не занятая у оболочки.
+   ==========================================================================
+
+   Здесь стояла подмена всех ступеней на `--ui-*`. Причина была настоящей:
+   тёплые приглушённые ступени Чертога давали на светлых поверхностях
+   оболочки (#171717 … #262626) контраст 2.95–4.3 при пороге 4.5, и аудит
+   находил это по одному месту за раз — метка происхождения ответа, довод
+   шага, путь вложения, стрелка отправки.
+
+   Но подмена лечила следствие и заводила два своих. Первое: десять ступеней
+   схлопывались в три — `--hub-text` и `--hub-text-2` в один цвет, три
+   приглушённых в один, три границы в одну, — и иерархия, которую в плотном
+   интерфейсе держит тон, переставала работать. Второе: подменялись не все
+   ступени, и лесенка перемешивалась — `--hub-text` уходил в холодный
+   #e9e9e9, а нетронутый `--hub-text-3` оставался тёплым #C9C5BD, стоя с ним
+   в одном ряду кнопок.
+
+   Причина снимается фоном, а не палитрой. На тёмных поверхностях тихого
+   регистра тёплым ступеням хватает контраста: нижняя из них даёт 4.80 на
+   самой светлой плашке #17171A и 5.02 на #121214 — проверено замером на всех
+   состояниях разговора, а не арифметикой на бумаге.
+
+   Ступени тише канонических на один шаг: разговор длинный, и та же яркость,
+   что уместна на странице статистики, здесь утомляет. Сами значения — в
+   ui/tokens.css (группа --quiet-*): слой применяет регистр, но не заводит
+   собственных цветов, и трещотка сборки за этим следит. */
+.hall.is-focused {
+  --hub-void: var(--quiet-void);
+  --hub-panel: var(--quiet-panel);
+  --hub-raised: var(--quiet-raised);
+  --hub-selected: var(--quiet-selected);
+
+  --hub-text: var(--quiet-text);
+  --hub-text-2: var(--quiet-text-2);
+  --hub-text-3: var(--quiet-text-3);
+  --hub-text-4: var(--quiet-text-4);
+  --hub-muted: var(--quiet-muted);
+  --hub-muted-2: var(--quiet-muted-2);
+  --hub-faint: var(--quiet-faint);
+  --hub-faint-2: var(--quiet-faint-2);
+  --hub-faint-3: var(--quiet-faint-3);
+  --hub-faint-4: var(--quiet-faint-4);
+
+  --hub-border: rgba(255, 255, 255, .07);
+  --hub-border-soft: rgba(255, 255, 255, .05);
+  --hub-border-strong: rgba(255, 255, 255, .11);
+  --hub-border-loud: rgba(255, 255, 255, .15);
+}
 .hall.is-focused .hall-main { max-width: none; width: 100%; }
-.hall.is-focused .hall-head-focused { padding: var(--s-5) var(--s-7); background: var(--ui-panel); }
-.hall-dialogue { position: relative; box-sizing: border-box; padding-left: 200px; --hall-rail-offset: 200px; --hall-quest-offset: 0px; --hall-quest-width: clamp(320px, 24vw, 380px); }
-.hall-conversations { position: absolute; inset: 0 auto 0 0; width: 200px; box-sizing: border-box; display: flex; flex-direction: column; gap: var(--s-5); padding: var(--s-6) var(--s-5); background: var(--ui-void); border-right: 1px solid var(--hub-border); }
+.hall.is-focused .hall-head-chat { padding: var(--s-5) var(--s-7); background: var(--hub-panel); }
+.hall-dialogue { position: relative; box-sizing: border-box; padding-left: 200px; --hall-read-col: 720px; --hall-rail-offset: 200px; --hall-quest-offset: 0px; --hall-quest-width: clamp(320px, 24vw, 380px); }
+.hall-conversations { position: absolute; inset: 0 auto 0 0; width: 200px; box-sizing: border-box; display: flex; flex-direction: column; gap: var(--s-5); padding: var(--s-6) var(--s-5); background: var(--hub-void); border-right: 1px solid var(--hub-border); }
 .hall-conversations header { display: flex; align-items: center; justify-content: space-between; font: var(--fw-medium) var(--t-base) / 1.5 var(--font-ui); }
 .hall-conversations input { box-sizing: border-box; width: 100%; padding: var(--s-4); border: 1px solid var(--hub-border); border-radius: 8px; background: var(--hub-raised); color: var(--hub-text); font: var(--fw-normal) var(--t-body) / 1.5 var(--font-ui); }
 .hall-conversation-items { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: var(--s-2); }

@@ -267,7 +267,10 @@ func TestRunEventsCarryHubCorrelation(t *testing.T) {
 
 func resolveNextApproval(t *testing.T, engine *Engine, runID, excludedID string, allow bool) string {
 	t.Helper()
-	deadline := time.Now().Add(4 * time.Second)
+	// Под race detector построение индекса для больших fixture занимает больше
+	// четырёх секунд. Ждём столько же, сколько общий helper завершения run:
+	// это проверка события, а не производственный latency-SLO.
+	deadline := time.Now().Add(15 * time.Second)
 	for time.Now().Before(deadline) {
 		pending := engine.PendingApprovals(runID)
 		for _, approval := range pending {

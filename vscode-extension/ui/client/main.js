@@ -6,6 +6,7 @@ import { acceptMasterMentionItems, closeMasterMention, handleMasterMentionKey, m
 import { handleMasterSessionAction, patchMasterAnswerNote } from './master-session-ui.js'
 import { taskBriefCardHtml, taskBriefActionsHtml, taskBriefBodyHtml, taskBriefReady, taskBriefStateLabel, proposalEditorHtml, readProposalDecisionEditor } from './task-brief-views.js'
 import { createMasterBriefPanel } from './master-brief-panel.js'
+import { masterCardOpen, useMasterCardOpen } from './master-card-open.js'
 import { createStatisticsViews } from './statistics-views.js'
 import { createInfrastructureViews } from './infrastructure-views.js'
 import { createToolWindowFrame } from './tool-window-frame.js'
@@ -310,6 +311,11 @@ let masterWaitTimer = 0
 // Какие «Рассуждение» и «Что смотрел» раскрыты. Лента заменяется точечно на
 // каждом ходе, и без памяти о раскрытом длинное рассуждение схлопывалось бы
 // прямо под читающим — прочесть его до конца было бы нельзя.
+// Карточки ленты помнят раскрытое по разговору, а не набором в модуле: это
+// единственная раскрытость, кроме панели задания, которая обязана пережить
+// перезапуск панели — подробности наряда человек открывает, чтобы читать их
+// долго, а не до следующего хода Мастера.
+useMasterCardOpen(() => (masterClient.active ? (masterClient.cardOpen[masterClient.active] ||= {}) : null))
 const masterOpenReasoning = new Set()
 const masterExpandedSteps = new Set()
 const masterOpenSteps = new Set()
@@ -2836,9 +2842,12 @@ root.addEventListener('toggle', event => {
   const block = event.target
   const kind = block?.dataset?.masterOpen
   if (!kind) return
-  const set = kind === 'live' ? masterClient.openLive : kind === 'steps' ? masterOpenSteps : masterOpenReasoning
+  const set = kind === 'card' ? masterCardOpen : kind === 'live' ? masterClient.openLive : kind === 'steps' ? masterOpenSteps : masterOpenReasoning
   if (block.open) set.add(block.dataset.id)
   else set.delete(block.dataset.id)
+  // Карточки — единственный род, который переживает перезапуск: решение уходит
+  // в снимок состояния тем же путём, что и открытая панель задания.
+  if (kind === 'card') persistDraft()
 }, true)
 
 root.addEventListener('click', event => {

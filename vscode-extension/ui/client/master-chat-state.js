@@ -11,6 +11,10 @@ export function createMasterChatState(saved = {}) {
     // Панель задания открыта по разговору, а не на весь раздел: задание своё
     // у каждого чата, и открытая панель соседнего чата — чужая раскрытая дверь.
     briefPanel: saved.briefPanel || {},
+    // Раскрытые подробности карточек ленты — по разговору и по ключу карточки.
+    // Значение трёхзначное: отсутствие ключа значит «не трогали», и тогда
+    // работает умолчание вида (master-card-open.js).
+    cardOpen: saved.cardOpen || {},
     // Раскрытые строки живого следа. Набор живёт при разговоре, а не в
     // разметке: лента перерисовывается на каждое событие хода, и раскрытие,
     // оставленное в DOM, схлопывалось бы прямо под читающим.
@@ -42,7 +46,7 @@ export function createMasterChatState(saved = {}) {
       // следующему открытию панели ход уже закончится своей репликой — с
       // теми же шагами и рассуждением, сохранёнными ядром.
       const lean=values=>Object.fromEntries(Object.entries(durable(values)).map(([id,turn])=>[id,{...turn,trace:undefined}]))
-      return {historyHidden:this.historyHidden,active:this.active.startsWith('temporary')?'':this.active,drafts:durable(this.drafts),scroll:durable(this.scroll),attachments:durable(this.attachments),turns:lean(this.turns),questionDrafts:durable(this.questionDrafts),questionCursor:durable(this.questionCursor),briefPanel:durable(this.briefPanel)}
+      return {historyHidden:this.historyHidden,active:this.active.startsWith('temporary')?'':this.active,drafts:durable(this.drafts),scroll:durable(this.scroll),attachments:durable(this.attachments),turns:lean(this.turns),questionDrafts:durable(this.questionDrafts),questionCursor:durable(this.questionCursor),briefPanel:durable(this.briefPanel),cardOpen:durable(this.cardOpen)}
     },
   }
 }

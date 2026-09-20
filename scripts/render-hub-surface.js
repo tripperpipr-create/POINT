@@ -65,6 +65,16 @@ const context = {
         ? { masterChat: { active: 'pay', briefPanel: { pay: true } } }
         : undefined
       if (briefPanel) return briefPanel
+      // Раскрытые подробности карточек приходят тем же путём, каким они живут у
+      // человека, — сохранённым состоянием разговора. Прежде стенд жал на
+      // раскрывашку кликом; кликать больше некуда, `<details>` открывает себя
+      // сам, а на статической странице стенда этого «сам» не случается.
+      const cardOpen = {
+        'agent-card': { active: 'pay', cardOpen: { pay: { 'agent:order:workorder-bench:agentdraft-bench': true } } },
+        'work-order-open': { active: 'ship', cardOpen: { ship: { 'order:workorder-bench': true } } },
+        'brief-open': { active: 'pay', cardOpen: { pay: { 'brief:qp-brief': true } } },
+      }[String(process.argv[3] || '')]
+      if (requestedSurface === 'master' && cardOpen) return { masterChat: cardOpen }
       if (!seedStep) return undefined
       return {
         onboardingStep: seedStep,
@@ -591,7 +601,7 @@ if (process.argv[2] === 'master') {
         scope: ['Обработчик вебхука и его хранилище идемпотентности', 'Регресс-набор по оплате'],
         outOfScope: ['Публичный контракт API', 'Миграции биллинга'],
         criteria: [
-          { id: 'c1', text: 'Повторная доставка с тем же идентификатором не создаёт второй платёж', kind: 'automatic' },
+          { id: 'c1', text: 'Повторная доставка с тем же идентификатором не создаёт второй платёж', kind: 'verification' },
           { id: 'c2', text: 'Отказ воспроизводится до правки и не воспроизводится после', kind: 'reproduction' },
         ],
         decisions: [],
@@ -618,7 +628,7 @@ if (process.argv[2] === 'master') {
       ],
       response: { proposal },
     } } })
-  } else if (variant === 'brief') {
+  } else if (variant === 'brief' || variant === 'brief-open') {
     // Карточка задания: из чего состоит работа и по чему её примут. До правки
     // всё это лежало за одной свёрнутой строкой «Состав задания», и ни одна
     // страница стенда карточку с брифом не рисовала — она правилась вслепую.
@@ -630,8 +640,8 @@ if (process.argv[2] === 'master') {
         scope: ['Обработчик вебхука и его хранилище идемпотентности', 'Регресс-набор по оплате'],
         outOfScope: ['Публичный контракт API', 'Миграции биллинга'],
         criteria: [
-          { id: 'c1', text: 'Повторная доставка с тем же идентификатором не создаёт второй платёж', kind: 'automatic' },
-          { id: 'c2', text: 'Регресс-набор по оплате проходит целиком', kind: 'automatic', tool: 'run_command', arguments: { command: 'go test ./internal/billing/...' } },
+          { id: 'c1', text: 'Повторная доставка с тем же идентификатором не создаёт второй платёж', kind: 'verification' },
+          { id: 'c2', text: 'Регресс-набор по оплате проходит целиком', kind: 'verification', tool: 'run_command', arguments: { command: 'go test ./internal/billing/...' } },
           { id: 'c3', text: 'Отказ воспроизводится до правки и не воспроизводится после', kind: 'reproduction' },
           { id: 'c4', text: 'Логи не содержат дублей по одному идентификатору', kind: 'manual' },
         ],
@@ -644,6 +654,11 @@ if (process.argv[2] === 'master') {
     boot.questProposals = [proposal]
     listeners['window:message']({ data: { type: 'master', master: {
       configured: true, config: boot.orchestrator,
+      // Разговор назван только у сцены с раскрытыми подробностями: память
+      // раскрытия живёт по разговору, и без его имени сеять её некуда. У самой
+      // страницы `master-brief` разговора не было с самого начала — трогать её
+      // ради соседки значило бы менять то, что уже отмерено.
+      ...(variant === 'brief-open' ? { sessions: { active: 'pay', mode: 'auto', workMode: 'discuss', items: [{ id: 'pay', title: 'Оплата' }] } } : {}),
       history: [
         { id: 'mb-1', role: 'user', content: 'Вебхук оплаты падает на повторной доставке', createdAt: today(12, 1) },
         { id: 'mb-2', role: 'assistant', mode: 'model', model: 'qwen2.5-coder:7b', content: 'Собрал задание. Проверьте условия готовности перед запуском.', proposalId: proposal.id, createdAt: today(12, 4) },
@@ -748,7 +763,6 @@ if (process.argv[2] === 'master') {
         ],
       }],
     } } })
-    click({ action: 'agent-card-toggle', card: 'order:workorder-bench:agentdraft-bench' })
   } else if (variant === 'mention') {
     // Открытый список файлов под кареткой. Он перекрывает ленту и стоит выше
     // вуали — проверить это можно только замером, и до этой страницы его не
@@ -831,6 +845,21 @@ if (process.argv[2] === 'master') {
       ] },
       delivery: { applyMode: 'automatic', commitMode: 'none', keepPartialDays: 30, keepServicesRunning: true, applicationUrl: 'http://localhost:8080' },
     }
+    // Квест в пути: строка с пульсом, этапы наполовину, поток работы агента
+    // раскрыт. Состояния квеста расходятся именно между «идёт» и «взят», и без
+    // этой страницы первое не мерил никто.
+    if (variant === 'work-order-running') {
+      order.state = 'approved'
+      order.runtime = {
+        questId: 'quest-bench', status: 'running', flowRunId: 'flowrun-bench',
+        agentIds: ['agentdraft-bench'],
+        stages: [
+          { id: 'node-scaffold', name: 'Развернуть Symfony', kind: 'agent', status: 'completed', agentId: 'agentdraft-bench', runId: 'run-bench-1' },
+          { id: 'node-health', name: 'Добавить health-эндпоинт', kind: 'agent', status: 'running', agentId: 'agentdraft-bench', runId: 'run-bench-2' },
+          { id: 'node-verify', name: 'Проверить запуск и README', kind: 'verifier', status: 'pending' },
+        ],
+      }
+    }
     if (state === 'approved') {
       const zero = 0
       order.runtime = {
@@ -849,6 +878,15 @@ if (process.argv[2] === 'master') {
           id: 'evidence-bench', version: 3, workspaceRevision: 'sha256:tree', deliveryTarget: 'C:\\Users\\Rif\\Point\\systemio',
           changedFiles: ['composer.json', 'src/Controller/HealthController.php', 'README.md'], commitIds: ['a1b2c3d'],
           knownLimitations: [],
+          // Закрытость условий ядро кладёт сюда — по записи на каждое условие
+          // наряда, включая ручное. Ручное остаётся незакрытым даже у взятого
+          // квеста: его закрывает человек, а не прогон, и страница обязана
+          // показывать именно это, а не круглое «всё зелёное».
+          criteria: [
+            { criterionId: 'compose', satisfied: true, command: 'composer show symfony/framework-bundle', exitCode: zero },
+            { criterionId: 'health', satisfied: true, command: 'curl -fsS http://localhost:8080/health', exitCode: zero },
+            { criterionId: 'readme', satisfied: false, summary: 'Требуется ручная приёмка' },
+          ],
           verificationChecks: [
             { id: 'completion:automated_tests', kind: 'automated_tests', command: 'vendor/bin/phpunit', exitCode: zero, satisfied: true },
             { id: 'completion:service_start', kind: 'service_start', command: 'docker compose up -d --wait', exitCode: zero, satisfied: true },

@@ -14,7 +14,7 @@ const root = path.resolve(import.meta.dirname, '..')
 const clientURL = name => pathToFileURL(path.join(root, 'vscode-extension', 'ui', 'client', name)).href
 const {
   handleMasterAgentCardAction, masterAgentCardFromAction, masterAgentCardHtml, masterAgentCardsFor,
-  masterAgentCardsHtml, masterAgentConsent, masterAgentDrafts, masterAgentIssue, masterAgentOpen,
+  masterAgentCardsHtml, masterAgentConsent, masterAgentDrafts, masterAgentIssue,
   masterAgentValue, readMasterAgentCardInput,
 } = await import(clientURL('master-agent-card.js'))
 const { masterWorkOrderCardsHtml } = await import(clientURL('master-work-order-v2.js'))
@@ -53,7 +53,7 @@ const hiring = {
   draft, blueprints: [{ blueprintId: 'bp', name: 'Кузнец', role: 'Правит backend', why: 'совпало с задачей', tools: ['read_file'] }],
 }
 
-const reset = () => { masterAgentDrafts.clear(); masterAgentOpen.clear(); masterAgentConsent.clear() }
+const reset = () => { masterAgentDrafts.clear(); masterAgentConsent.clear() }
 
 // 1. Черновик наряда даёт одну карточку, заполненную тем, что прислало ядро.
 reset()
@@ -61,7 +61,7 @@ const cards = masterAgentCardsFor({ workOrders: [order], hiring: [hiring] })
 if (cards.length !== 1) fail(`черновик наряда обязан дать ровно одну карточку, а дал ${cards.length}`)
 const html = masterAgentCardsHtml(cards, esc, deps)
 expectAll(html, [
-  'class="hall-panel master-agent"', 'Новый исполнитель',
+  'class="hall-deck master-agent"', 'Новый исполнитель',
   'value="Разработчик проекта"', 'value="Владелец реализации"', 'health-эндпоинт',
   'value="Qwen3.8-27B"', 'Локальный Ollama',
   'data-action="agent-card-create"', 'data-action="agent-card-later"', 'data-action="agent-card-workshop"',
@@ -117,7 +117,7 @@ const action = masterAgentCardFromAction({
   agent: { name: 'Хранитель', roleDescription: 'Ведёт бэкенд', mission: 'Держать сборку зелёной', primaryModel: 'qwen3-coder:30b', allowedTools: ['read_file'] },
 })
 const actionHtml = masterAgentCardHtml(action, esc, deps)
-expectAll(actionHtml, ['class="hall-panel master-agent"', 'value="Хранитель"', 'value="qwen3-coder:30b"', 'data-action="agent-card-dismiss"'], 'предложение ядра')
+expectAll(actionHtml, ['class="hall-deck master-agent"', 'value="Хранитель"', 'value="qwen3-coder:30b"', 'data-action="agent-card-dismiss"'], 'предложение ядра')
 if (actionHtml.includes('quest-proposal-card') || actionHtml.includes('companion-action-card')) {
   fail('предложение ядра снова рисуется классами чужого регистра')
 }

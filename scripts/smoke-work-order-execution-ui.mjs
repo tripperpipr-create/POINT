@@ -50,7 +50,7 @@ for (const expected of ['hall-plan', 'Написать API', 'Проверить
 // 3. Состав задания у утверждённого наряда сворачивается: решать в нём нечего,
 // а место нужно тому, что происходит сейчас.
 if (!stalledHtml.includes('Состав задания')) throw new Error('approved WorkOrder did not collapse its composition')
-if (stalledHtml.includes('Проверить детали и разрешения')) {
+if (stalledHtml.includes('Подробности')) {
   throw new Error('approved WorkOrder still spends the screen on pre-approval details')
 }
 
@@ -98,9 +98,11 @@ if ((waitingHtml.match(/Собрать API/g) || []).length !== 1) {
 // 3c. Запуск убирает карточку из ленты и оставляет на её месте прогон.
 //
 // Карточка — предложение: её читают, правят и утверждают. После запуска решать
-// в ней нечего, и «ЕДИНАЯ КАРТОЧКА ЗАПУСКА» над работающим квестом читалась как
-// незакрытая форма, к которой надо вернуться. Поток работы при этом обязан
-// лежать открытым: логи — то, ради чего на запущенный квест и смотрят.
+// в ней нечего, и бланк над работающим квестом читался как незакрытая форма, к
+// которой надо вернуться. Запущенный квест сжимается в строку, но поток работы
+// при этом обязан лежать раскрытым: логи — то, ради чего на него и смотрят.
+// Свернуть их человек вправе сам, и его решение переживает опрос наряда
+// (master-card-open.js); умолчание вида — «раскрыто».
 const liveRun = {
   ...base,
   runtime: {
@@ -122,11 +124,16 @@ const liveHtml = masterWorkOrderCardsHtml([liveRun], esc, new Set(), {
   agentWorkTranscriptHtml: () => '<div class="agent-work-transcript is-compact">поток</div>',
 })
 if (liveHtml.includes('master-v2-order')) throw new Error('running quest still renders the launch card in the feed')
-if (liveHtml.includes('ЕДИНАЯ КАРТОЧКА ЗАПУСКА')) throw new Error('running quest still reads as a form awaiting approval')
+if (liveHtml.includes('Квест ждёт решения')) throw new Error('running quest still reads as a form awaiting approval')
 if (!liveHtml.includes('master-v2-run')) throw new Error('running quest has no run block to replace the card')
 if (!liveHtml.includes('agent-work-transcript')) throw new Error('running quest shows no work log')
 if (liveHtml.includes('<details class="work-order-exec-log"')) {
   throw new Error('work log is hidden behind a disclosure on the screen built to show it')
+}
+// Строка живого квеста раскрыта по умолчанию: свёрнутый поток у идущей работы
+// означал бы, что смотреть не на что.
+if (!/<details class="hall-quest-run"[^>]* open>/.test(liveHtml)) {
+  throw new Error('running quest collapses its own work log by default')
 }
 // Цель и исход названы один раз: шапка прогона взяла их себе, и экран
 // выполнения свою шапку больше не рисует.
@@ -138,9 +145,11 @@ if ((liveHtml.match(/Квест выполняется/g) || []).length !== 1) {
 if (!liveHtml.includes('data-work-order-message')) throw new Error('running quest lost the message field')
 // До запуска карточка на месте: утверждать всё ещё есть что.
 const beforeLaunch = masterWorkOrderCardsHtml([{ ...base, state: 'ready', digest: 'sha256:ready', runtime: undefined }], esc, new Set(), { ui })
-if (!beforeLaunch.includes('master-v2-order') || !beforeLaunch.includes('ЕДИНАЯ КАРТОЧКА ЗАПУСКА')) {
+if (!beforeLaunch.includes('master-v2-order') || !beforeLaunch.includes('Квест ждёт решения')) {
   throw new Error('unapproved WorkOrder lost its launch card')
 }
+// Условия готовности — главное в карточке квеста: по ним его принимают.
+if (!beforeLaunch.includes('hall-quest-check')) throw new Error('launch card lost its readiness checklist')
 
 // 4. Провал — не зелёная галочка. Ключа failed не было ни в подписях, ни в
 // знаках, ни в тонах, и все три словаря отдавали запасное значение «готово».

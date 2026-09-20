@@ -80,7 +80,7 @@ export function createMasterBriefPanel({
     const opts = { esc, countOf, editing, busy, editor: editing ? proposalEditorHtml(item) : '', rosterReady: rosterHasAgent() }
     return `<aside class="hall-brief-panel" id="master-brief-panel" role="tabpanel" tabindex="-1" aria-labelledby="master-brief-tab"${open ? '' : ' hidden'}>
       <header class="hall-brief-panel-head"><b>Задание</b><small>Версия ${Number(item.brief.version)} · ${taskBriefStateLabel(item.brief, rosterHasAgent())}</small><button type="button" class="hall-chip hall-brief-panel-drop" data-action="master-brief-close" aria-label="Закрыть панель задания">×</button></header>
-      <div class="hall-brief-panel-body"><section class="hall-panel hall-proposal">${taskBriefBodyHtml(item, opts)}${taskBriefActionsHtml(item, { ...opts, withStart: false })}</section></div>
+      <div class="hall-brief-panel-body"><section class="hall-deck hall-proposal">${taskBriefBodyHtml(item, opts)}${taskBriefActionsHtml(item, { ...opts, withStart: false })}</section></div>
     </aside>`
   }
 

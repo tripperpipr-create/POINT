@@ -1,5 +1,6 @@
 import { masterPlanHtml, masterPlanState } from './master-plan-views.js'
-import { list } from './format-units.js'
+import { countOf, list } from './format-units.js'
+import { masterCardMoreAttrs } from './master-card-open.js'
 
 // Экран выполнения утверждённого наряда.
 //
@@ -157,6 +158,27 @@ export function workOrderExecutionHtml(order, ui, deps = {}) {
 // Договор при этом никуда не девается: состав задания лежит под свёрнутым
 // заголовком, а доказательства и управление приложением встают после потока —
 // там, где их ищут, когда работа кончилась.
+// Итог квеста — четыре факта, а не отчёт. Их читают, чтобы понять, взят
+// квест или нет; остальное лежит под доказательствами.
+function questOutcomeChips(order, esc) {
+  const runtime = order?.runtime || {}
+  const evidence = runtime.evidence
+  if (!evidence?.id) return ''
+  const checks = list(evidence.verificationChecks)
+  const passed = checks.filter(item => item.satisfied).length
+  const files = list(evidence.changedFiles).length
+  const tokens = list(evidence.modelCalls).reduce((sum, item) => sum + Number(item.inputTokens || 0) + Number(item.outputTokens || 0), 0)
+  const url = runtime.deliveryReceipt?.url
+  const chips = [
+    checks.length ? `${passed}/${countOf(checks.length, 'проверка', 'проверки', 'проверок')}` : '',
+    files ? countOf(files, 'файл', 'файла', 'файлов') : '',
+    tokens ? `${tokens.toLocaleString('ru-RU')} ток.` : '',
+    url ? `живо ${String(url).replace(/^https?:\/\//, '')}` : '',
+  ].filter(Boolean)
+  if (!chips.length) return ''
+  return `<div class="hall-quest-chips">${chips.map((text, index) => `<span class="hall-quest-chip${url && index === chips.length - 1 ? ' is-done' : ''}">${esc(text)}</span>`).join('')}</div>`
+}
+
 export function workOrderRunHtml(order, ui, deps = {}) {
   const esc = requireEsc(deps)
   const runtime = order?.runtime || {}
@@ -164,23 +186,50 @@ export function workOrderRunHtml(order, ui, deps = {}) {
   const tone = deps.tone || ''
   const mark = deps.mark || '·'
   const live = ['preflight', 'running', 'verifying', 'applying'].includes(status)
+  const stages = list(runtime.stages)
+  const done = stages.filter(stage => stage.status === 'completed' || stage.status === 'skipped').length
+  const share = stages.length ? Math.round((done / stages.length) * 100) : 0
+  // Запущенный квест — строка, а не карточка.
+  //
+  // Решать в нём нечего: договор утверждён, и место в ленте нужно разговору, а
+  // не журналу работы. Строка называет квест, показывает, где он идёт, и
+  // раскрывается в то, что происходит внутри. У живого квеста раскрыто по
+  // умолчанию — поток агента и есть то, ради чего на него смотрят; у
+  // законченного закрыто, и наверху остаётся итог четырьмя фактами.
+  //
+  // Умолчание здесь именно умолчание: решение человека старше его и живёт в
+  // общей памяти карточек (master-card-open.js), поэтому свёрнутый живой квест
+  // не распахнётся обратно на следующем опросе наряда.
   return `<section class="master-v2-run ${esc(tone)}${live ? ' is-live' : ''}" data-work-order-id="${esc(order.id)}" data-quest-id="${esc(runtime.questId || '')}">
-      <header class="master-v2-run-head">
-        ${/* Колонка маркера пустует у всех, кроме работающего квеста: знак
-             исхода принадлежит строке состояния и рисовать его дважды —
-             значит показать «✓» дважды у одной галочки. Живой квест получает
-             сюда пульс: у него в строке знака нет. */''}
-        <span class="master-v2-run-mark" aria-hidden="true"></span>
-        <div>
-          <strong>${esc(order.goal || 'Задание')}</strong>
-          <span class="master-v2-approved ${esc(tone)}">${live ? '' : esc(mark) + ' '}${esc(deps.statusText || status)}</span>
-        </div>
-      </header>
-      ${deps.createdHtml || ''}
-      ${workOrderExecutionHtml(order, ui, { ...deps, headless: true })}
-      ${deps.controlsHtml || ''}
-      ${deps.compositionHtml || ''}
-      ${deps.applicationHtml || ''}
-      ${deps.evidenceHtml || ''}
+      <details class="hall-quest-run"${masterCardMoreAttrs(`run-live:${order.id}`, { esc, open: live })}>
+        <summary>
+          <span class="hall-quest-row">
+            <span class="hall-quest-dot" aria-hidden="true"></span>
+            <strong class="hall-quest-name">${esc(order.goal || 'Задание')}</strong>
+            <span class="master-v2-approved ${esc(tone)}">${live ? '' : esc(mark) + ' '}${esc(deps.statusText || status)}</span>
+            ${/* Счёт в строке — этапы работы, а не условия готовности: этапы
+                 двигаются всю дорогу, а условия закрывает только проверка в
+                 конце, и «0 / 4» весь прогон не сказало бы ничего. Числа
+                 стоят через одну строку друг от друга, поэтому счёт называет
+                 себя: голое «1/3» рядом с «0 / 3» читается как спор двух
+                 счётчиков, а голосом не читается вовсе. */''}
+            ${stages.length ? `<span class="hall-quest-bar is-sm" role="img" aria-label="Этапы: ${done} из ${stages.length}"><span style="width:${share || 2}%"></span></span><span class="hall-quest-count" title="Этапы работы" aria-hidden="true">${done}/${stages.length}</span>` : ''}
+          </span>
+          ${/* Итог закончившегося квеста стоит в самой строке, а не под
+               раскрытием: по нему видно, взят квест или нет, и ради этого
+               раскрывать нечего. У идущего квеста итога ещё не существует. */''}
+          ${live ? '' : questOutcomeChips(order, esc)}
+        </summary>
+        ${/* Условия готовности — первое, что видно в раскрытом квесте: у
+             идущего они говорят, по чему его примут, у законченного — какие
+             именно закрылись. Ниже стоит работа, которой их закрывали. */''}
+        ${deps.checklistHtml || ''}
+        ${deps.createdHtml || ''}
+        ${workOrderExecutionHtml(order, ui, { ...deps, headless: true })}
+        ${deps.controlsHtml || ''}
+        ${deps.compositionHtml || ''}
+        ${deps.applicationHtml || ''}
+        ${deps.evidenceHtml || ''}
+      </details>
     </section>`
 }

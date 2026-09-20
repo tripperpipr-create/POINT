@@ -72,6 +72,20 @@
       ]
     },
     {
+      "page": "master-brief-open",
+      "surface": "master",
+      "args": [
+        "brief-open"
+      ]
+    },
+    {
+      "page": "master-work-order-open",
+      "surface": "master",
+      "args": [
+        "work-order-open"
+      ]
+    },
+    {
       "page": "master-brief-panel",
       "surface": "master",
       "args": [
@@ -132,6 +146,13 @@
       "surface": "master",
       "args": [
         "work-order-ready"
+      ]
+    },
+    {
+      "page": "master-work-order-running",
+      "surface": "master",
+      "args": [
+        "work-order-running"
       ]
     },
     {

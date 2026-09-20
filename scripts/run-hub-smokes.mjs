@@ -77,6 +77,7 @@ const checks = [
   'smoke-work-order-execution-ui.mjs',
   'smoke-master-hiring-card.mjs',
   'smoke-master-agent-card.mjs',
+  'smoke-master-card-open.mjs',
   'smoke-quest-brief-state-signature.js',
   'smoke-onboarding-wizard.js',
   'smoke-point-connections.js',

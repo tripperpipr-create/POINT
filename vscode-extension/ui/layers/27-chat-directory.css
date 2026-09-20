@@ -57,32 +57,30 @@
   gap: var(--s-2);
 }
 
-/* Главное действие панели ровно одно, и только оно залито. */
-/* Новый чат — контур, а не акцент.
-   Залитым акцентом на экране разговора имеет право быть ровно один шаг — тот,
-   что меняет состояние проекта (запуск наряда). Пока эта кнопка носила рамку и
-   заливку янтаря, акцент означал сразу три разных вещи: «начать здесь»,
-   «требует решения» и «запустить». Кнопка не теряется и контуром: она стоит
-   первой строкой панели и занимает всю её ширину. */
+/* Главное действие панели ровно одно, и акцентом оно не залито: акцент на
+   экране разговора принадлежит одному шагу — тому, что меняет состояние
+   проекта. Но и контура у панели больше нет.
+   Три обведённые вещи — «Новый чат», «＋» и поиск — стояли рядом с лентой, где
+   ни у реплики, ни у карточки, ни у поля ввода рамки нет: панель читалась
+   куском другого экрана. Опознаёт их заливка, та же, что у жетонов карточки
+   ввода, — форма без контура, как у всего остального в разговоре. */
 .hall-chats-new {
   flex: 1 1 auto;
   min-height: var(--hit);
-  border: 1px solid var(--hub-border-strong);
-  border-radius: var(--r-1);
-  background: transparent;
+  border: 0;
+  border-radius: var(--r-2);
+  background: color-mix(in srgb, var(--hub-text) 6%, transparent);
   color: var(--hub-text-2);
   font-size: var(--t-small);
   cursor: pointer;
 }
 .hall-chats-new:hover {
-  border-color: var(--hub-border-loud);
-  background: color-mix(in srgb, var(--hub-text) 6%, transparent);
+  background: color-mix(in srgb, var(--hub-text) 12%, transparent);
   color: var(--hub-text);
 }
 
 .hall-chats-new:disabled {
-  border-color: var(--hub-border);
-  background: transparent;
+  background: color-mix(in srgb, var(--hub-text) 4%, transparent);
   color: var(--hub-faint-4);
   cursor: default;
 }
@@ -91,31 +89,35 @@
   flex: 0 0 auto;
   width: var(--hit);
   height: var(--hit);
-  border: 1px solid var(--hub-border-strong);
-  border-radius: var(--r-1);
-  background: transparent;
+  border: 0;
+  border-radius: var(--r-2);
+  background: color-mix(in srgb, var(--hub-text) 6%, transparent);
   color: var(--hub-muted);
   cursor: pointer;
 }
 
 .hall-chats-world-new:hover {
-  border-color: var(--hub-border-loud);
+  background: color-mix(in srgb, var(--hub-text) 12%, transparent);
   color: var(--hub-text);
 }
 
-.hall-chats > input[type="search"] {
+/* Цепочка :not() повторена намеренно: канон полей Чертога
+   (`body[data-layout="wide"] input:not(…)`, 99-hall-canon.css) весит (0,4,2) и
+   вернул бы полю тёмную заливку с рамкой — ровно ту, от которой панель уходит.
+   Здесь (0,5,1). */
+.hall-chats > input[type="search"]:not([type="checkbox"]):not([type="radio"]):not([type="range"]) {
   min-height: var(--hit);
   padding-inline: var(--s-4);
-  border: 1px solid var(--hub-border);
-  border-radius: var(--r-1);
-  background: var(--hub-void);
+  border: 0;
+  border-radius: var(--r-2);
+  background: color-mix(in srgb, var(--hub-text) 6%, transparent);
   color: var(--hub-text);
   font-size: var(--t-body);
 }
 
-.hall-chats > input[type="search"]:focus-visible {
+.hall-chats > input[type="search"]:not([type="checkbox"]):focus-visible {
   outline: none;
-  border-color: var(--mana);
+  background: color-mix(in srgb, var(--hub-text) 10%, transparent);
 }
 
 .hall-chats-groups {
@@ -150,8 +152,13 @@
   border: 0;
   background: transparent;
   color: var(--hub-muted-2);
+  /* Разрядки нет. Прописные остаются: имя мира в данных записано как имя папки
+     («ai-ide»), и строчными оно читается техническим словом посреди русских
+     названий чатов. Кричала же не сама заглавная буква, а разрядка в .14em —
+     она растягивала метку на всю ширину панели и делала её длиннее любого
+     названия чата под ней. */
   font-size: var(--t-micro);
-  letter-spacing: .14em;
+  letter-spacing: normal;
   text-transform: uppercase;
   text-align: left;
   cursor: pointer;
@@ -351,7 +358,7 @@
 .hall-chats-temporary {
   width: 100%;
   min-height: var(--hit);
-  border: 1px solid var(--hub-border-soft);
+  border: 0;
   border-radius: var(--r-1);
   background: transparent;
   color: var(--hub-muted-2);

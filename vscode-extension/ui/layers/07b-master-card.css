@@ -1,0 +1,401 @@
+/* Карточка ленты: один бланк на четыре рода.
+   ==========================================================================
+
+   В ленте разговора живут четыре рода карточек — предложение квеста с составом
+   задания, единая карточка запуска, новый исполнитель с наймом и прогон, — и до
+   этого слоя каждая была нарисована сама по себе. Общего у них не было почти
+   ничего: три разных маркера раскрывашки (07-master-quiet.css, 08, 09), три
+   меры колонки, свои рамки, свои линии между ярусами и свой капс у рубрик.
+   Человек читает их подряд в одной ленте, и «четыре разных бланка» — это то,
+   что он видит вместо «одного разговора».
+
+   Номер «07b» — место в каскаде, а не версия: сборка складывает слои по
+   алфавиту (ui/build.mjs), и «07b-» встаёт после «07a-master-compose.css» и до
+   «08-master-work-order.css». Поэтому общие правила выигрывают у 07 порядком —
+   но проигрывают 08 и 09. Там, где 08 или 09 объявляли своё, объявление снято у
+   них, а не перекрыто отсюда: перекрытие оставило бы в дереве два ответа на
+   один вопрос.
+
+   Имена с префиксом hall-: namespaceCheck сторожит их в 05, 07 и 27, а разнобой
+   имён между слоями одной поверхности стоит дороже единообразия. Имя `hall-card`
+   занято галереей проектов (05-hall.css) — отсюда `hall-deck`. */
+
+/* ——— Поверхность карточки ———
+   Карточку называет заливка, а не контур. Это тот же приём, которым переведён
+   композер (07a-master-compose.css): рамка в тёмной панели читается как ещё
+   один контур поверх и без того расчерченного экрана, а заливка читается как
+   поверхность и держит форму на всю ширину.
+
+   Ступень — 8 % текста поверх панели, а не 10 % как у композера. Причина в
+   замере, записанном в 07a: на 14 % семнадцать подписей внутри композера
+   просели до 4.37 при пороге 4.5. Карточка держит куда больше тусклого текста,
+   чем композер, — «Потолок расхода», подписи полей, пометки согласия, — и
+   поднимать заливку можно только вместе со ступенью этих подписей. */
+.hall-dialogue .hall-deck {
+  display: grid;
+  gap: var(--s-5);
+  box-sizing: border-box;
+  margin: 0;
+  padding: var(--s-5);
+  overflow: hidden;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--hub-text) 8%, var(--hub-panel));
+  box-shadow: none;
+  transition: border-color var(--motion-base) var(--ease);
+}
+/* Кромка появляется только тогда, когда в карточке работают: в покое рамки нет
+   вовсе — ровно как у карточки ввода. */
+.hall-dialogue .hall-deck:focus-within {
+  border-color: color-mix(in srgb, var(--hub-text) 20%, transparent);
+}
+
+/* ——— Ярусы вместо линеек ———
+   Линии между ярусами исчезают: карточка — не бланк с графами. Расстояние
+   держит сетка выше, а строки внутри перестают носить своё поле: пока `padding`
+   стоял на каждой строке, поля карточки складывались вдвое. */
+.hall-dialogue .hall-deck > header,
+.hall-dialogue .hall-deck .hall-panel-row {
+  padding: 0;
+  border: 0;
+}
+/* Шапка — ряд: слева кикер с заголовком, справа состояние. Заголовок и кикер
+   идут столбцом внутри своего блока, поэтому состояние стоит на базовой линии
+   первой строки, а не посередине карточки. */
+.hall-dialogue .hall-deck > header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-4);
+}
+.hall-dialogue .hall-deck > header > div {
+  display: grid;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+/* ——— Шапка: кикер, заголовок, состояние ———
+   Кикер называет род карточки и набран строчными. Прописные тут были у трёх
+   родов из четырёх и спорили между собой: когда грифом набрано всё, старшего
+   нет. Тон тише заголовка, потому что заголовок — то, ради чего карточка. */
+.hall-dialogue .hall-deck > header b,
+.hall-dialogue .hall-deck > header > div > small {
+  color: var(--hub-muted-2);
+  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui);
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: normal;
+}
+/* Пояснение справа в шапке — служебная строка того же яруса, что и кикер. */
+.hall-dialogue .hall-deck > header small {
+  margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--hub-muted);
+  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui);
+  letter-spacing: normal;
+  text-transform: none;
+  text-overflow: ellipsis;
+}
+.hall-dialogue .hall-deck > header strong,
+.hall-dialogue .hall-deck .hall-lead {
+  color: var(--hub-text);
+  font: var(--fw-medium) var(--t-lead) / var(--lh-tight) var(--font-ui);
+  letter-spacing: normal;
+}
+
+/* ——— Подробности ———
+   Одна раскрывашка на карточку и один маркер на все роды. Прежде их было три:
+   без знака (07), поворачивающийся «›» (08) и «+»/«−» (09) — и по маркеру
+   человек не мог понять, одна ли это вещь.
+
+   Цель указателя держит --hit, а не отступы: строка в 19 пикселей — находка
+   аудита, которую 07 и 08 уже чинили порознь. */
+/* Прогон в этот список входит наравне с карточками, хотя заливки не получает:
+   раскрывашка — это способ читать, а не признак развилки. Без него у прогона
+   остался бы браузерный треугольник — единственный на экране. */
+.hall-body .hall-dialogue .hall-deck-more > summary,
+.hall-body .hall-dialogue .hall-deck details > summary,
+.hall-body .hall-dialogue .master-v2-run details > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: var(--hit);
+  padding: 0;
+  color: var(--hub-muted);
+  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui);
+  letter-spacing: normal;
+  text-transform: none;
+  list-style: none;
+  cursor: pointer;
+  transition: color var(--motion-fast) var(--ease);
+}
+.hall-body .hall-dialogue .hall-deck details > summary::-webkit-details-marker,
+.hall-body .hall-dialogue .master-v2-run details > summary::-webkit-details-marker { display: none; }
+.hall-body .hall-dialogue .hall-deck details > summary::before,
+.hall-body .hall-dialogue .master-v2-run details > summary::before {
+  content: "›";
+  flex: none;
+  width: var(--s-5);
+  color: var(--ui-faint);
+  text-align: center;
+  font: var(--fw-normal) var(--t-base) / 1 var(--font-mono);
+  transition: transform var(--motion-fast) var(--ease);
+}
+.hall-body .hall-dialogue .hall-deck details[open] > summary::before,
+.hall-body .hall-dialogue .master-v2-run details[open] > summary::before { transform: rotate(90deg); }
+.hall-body .hall-dialogue .hall-deck details > summary:hover,
+.hall-body .hall-dialogue .hall-deck details > summary:focus-visible,
+.hall-body .hall-dialogue .master-v2-run details > summary:hover,
+.hall-body .hall-dialogue .master-v2-run details > summary:focus-visible {
+  color: var(--hub-text);
+  outline: none;
+}
+.hall-body .hall-dialogue .hall-deck details > summary:hover::before,
+.hall-body .hall-dialogue .hall-deck details[open] > summary::before,
+.hall-body .hall-dialogue .master-v2-run details[open] > summary::before { color: var(--hub-muted); }
+/* Раскрытое отбивается от своей строки, а не сливается с ней. */
+.hall-body .hall-dialogue .hall-deck details[open] > summary,
+.hall-body .hall-dialogue .master-v2-run details[open] > summary { margin-bottom: var(--s-3); }
+
+/* ——— Ряд действий ———
+   Устав кнопок разговора остаётся в 07-master-quiet.css: ряд по-прежнему носит
+   класс hall-actions, и второй устав ему не нужен. Здесь только место ряда в
+   карточке — он последний ярус и не носит своего поля. */
+.hall-dialogue .hall-deck .hall-actions {
+  gap: var(--s-3);
+  padding: 0;
+}
+/* Мелкая подпись рядом с кнопками — тем же набором, что и остальные подписи
+   разговора. Мононабор 10px достался ей от Чертога, где подпись служебная; в
+   карточке она объясняет решение, и читать её приходится целиком. */
+.hall-dialogue .hall-deck .hall-fineprint {
+  color: var(--hub-muted);
+  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui);
+  letter-spacing: normal;
+}
+.hall-dialogue .hall-deck .hall-fineprint.is-trailing { margin-left: auto; }
+
+/* ——— Квест: чек-лист как главный герой ———
+   Перенос макета «Квесты в чате» (вариант 1b) в палитру приложения. В макете
+   система моно-акцентная, и под статусы там заведены два своих оттенка; здесь
+   заводить нечего — «вопрос» и «успех» у продукта уже названы: --caution и
+   --vital, акцент --ember. Ни одного цвета мимо шкалы.
+
+   Суть варианта: по квесту принимают решение не по описанию работы, а по
+   условиям, на которых его примут. Поэтому условия — список с отметками,
+   счётчиком и полосой, а «что будет сделано» уходит в подробности. */
+.hall-dialogue .hall-quest-kick {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  color: var(--ember);
+  font: var(--fw-medium) var(--t-small) / 1.4 var(--font-ui);
+  letter-spacing: normal;
+}
+/* Точка состояния — единственный знак, который квест носит всё время жизни.
+   Она меняет тон, а не форму: «ждёт решения», «нужен ответ», «в пути», «взят»
+   отличаются цветом одной и той же точки, и по ней состояние читается раньше,
+   чем прочитан текст. */
+.hall-dialogue .hall-quest-dot {
+  flex: none;
+  width: var(--s-3);
+  height: var(--s-3);
+  border-radius: var(--r-full);
+  background: currentColor;
+}
+.hall-dialogue .hall-quest-kick.is-ask { color: var(--caution); }
+.hall-dialogue .master-v2-order.state-approved .hall-quest-kick { color: var(--vital); }
+
+/* Условия готовности. Счётчик и полоса говорят то, чего перечень сам по себе не
+   говорил: сколько условий всего и сколько из них уже закрыто. */
+.hall-dialogue .hall-quest-check {
+  display: grid;
+  gap: var(--s-3);
+}
+.hall-dialogue .hall-quest-check-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-4);
+  color: var(--hub-muted);
+  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui);
+}
+/* Счётчик моноширинный: цифры разной ширины в наборном шрифте заставляют
+   строку дёргаться на каждом закрытом условии. */
+.hall-dialogue .hall-quest-check-head b,
+.hall-dialogue .hall-quest-count {
+  color: var(--hub-text-3);
+  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-mono);
+}
+.hall-dialogue .hall-quest-bar {
+  height: var(--s-1);
+  border-radius: var(--r-1);
+  background: color-mix(in srgb, var(--hub-text) 10%, transparent);
+  overflow: hidden;
+}
+.hall-dialogue .hall-quest-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: var(--r-1);
+  background: var(--ember);
+  transition: width var(--motion-base) var(--ease);
+}
+.hall-dialogue .hall-quest-bar.is-sm { flex: none; width: 84px; }
+.hall-dialogue .master-v2-run.is-done .hall-quest-bar > span { background: var(--vital); }
+.hall-dialogue .hall-quest-check ul {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* Строка условия: отметка, текст, вид проверки. Вид стоит справа и набран тише
+   всего — он отвечает на вопрос «кто это закроет», а не «что закрыть». */
+.hall-dialogue .hall-quest-check li {
+  display: grid;
+  grid-template-columns: var(--s-6) minmax(0, 1fr) auto;
+  gap: var(--s-3);
+  align-items: start;
+  padding: var(--s-1) 0;
+  color: var(--hub-text-2);
+  font: var(--fw-normal) var(--t-base) / 1.45 var(--font-ui);
+}
+.hall-dialogue .hall-quest-check li > i {
+  display: block;
+  width: var(--s-5);
+  height: var(--s-5);
+  margin-top: var(--s-1);
+  border: 1px solid color-mix(in srgb, var(--hub-text) 22%, transparent);
+  border-radius: var(--r-1);
+  color: var(--vital);
+  text-align: center;
+  font: var(--fw-normal) var(--t-small) / 1 var(--font-mono);
+  font-style: normal;
+}
+.hall-dialogue .hall-quest-check li.is-done > i {
+  border-color: color-mix(in srgb, var(--vital) 50%, transparent);
+}
+.hall-dialogue .hall-quest-check li.is-done > span { color: var(--hub-muted); }
+.hall-dialogue .hall-quest-check li > em {
+  color: var(--ui-faint);
+  font: var(--fw-normal) var(--t-small) / 1.6 var(--font-mono);
+  font-style: normal;
+}
+
+/* Итог квеста — четыре факта чипами. Отчёт лежит под доказательствами; здесь
+   ровно то, по чему видно, взят квест или нет. */
+.hall-dialogue .hall-quest-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+.hall-dialogue .hall-quest-chip {
+  padding: var(--s-1) var(--s-4);
+  border-radius: var(--r-full);
+  background: var(--hall-slot-fill);
+  color: var(--hub-text-3);
+  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-mono);
+}
+.hall-dialogue .hall-quest-chip.is-done { color: var(--vital); }
+
+/* Строка запущенного квеста. Раскрывашка здесь — вся строка: в ней нет кнопки
+   «открыть», потому что открывает её сама строка, а управление прогоном лежит
+   внутри, под потоком работы. */
+/* Строка квеста — сетка из двух ярусов: сама строка и итог чипами под ней.
+   Селектор носит .hall-body и имя прогона потому же, почему и соседние: общий
+   устав раскрывашек весит (0,3,2), и короткая запись проиграла бы ему счётом. */
+.hall-body .hall-dialogue .master-v2-run .hall-quest-run > summary {
+  display: grid;
+  gap: var(--s-3);
+  align-items: center;
+}
+.hall-dialogue .hall-quest-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  min-width: 0;
+}
+/* Знак раскрытия у строки квеста — справа, а не слева: слева стоит точка
+   состояния, и два знака подряд читались бы как один сдвоенный. Селектор
+   длиннее общего (0,3,2) намеренно — иначе спор решается счётом, а не
+   замыслом. */
+.hall-body .hall-dialogue .master-v2-run .hall-quest-run > summary::before { content: none; }
+.hall-dialogue .hall-quest-row::after {
+  content: "›";
+  flex: none;
+  width: var(--s-5);
+  color: var(--ui-faint);
+  text-align: center;
+  font: var(--fw-normal) var(--t-base) / 1 var(--font-mono);
+  transition: transform var(--motion-fast) var(--ease);
+}
+.hall-dialogue .hall-quest-run[open] > summary .hall-quest-row::after { transform: rotate(90deg); }
+.hall-dialogue .hall-quest-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--hub-text);
+  font: var(--fw-medium) var(--t-base) / 1.35 var(--font-ui);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hall-dialogue .hall-quest-run > summary .hall-quest-dot { color: var(--ember); }
+.hall-dialogue .master-v2-run.is-done .hall-quest-run > summary .hall-quest-dot { color: var(--vital); }
+.hall-dialogue .master-v2-run.is-attention .hall-quest-run > summary .hall-quest-dot { color: var(--caution); }
+/* Пульс у идущей работы: точка дышит, пока квест в пути. */
+.hall-dialogue .master-v2-run.is-live .hall-quest-run > summary .hall-quest-dot {
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--ember) 60%, transparent);
+  animation: hall-quest-pulse 2s var(--ease) infinite;
+}
+@keyframes hall-quest-pulse {
+  70% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--ember) 0%, transparent); }
+  100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--ember) 0%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hall-dialogue .master-v2-run.is-live .hall-quest-run > summary .hall-quest-dot { animation: none; }
+}
+
+/* Ряд решения: одно действие и меню. */
+.hall-dialogue .hall-quest-acts {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+/* Меню «···» — механика меню режимов из карточки ввода: `<details>` со списком.
+   Маркер раскрывашки ему не нужен — точки и есть его знак. */
+.hall-dialogue .hall-deck-menu { position: relative; }
+.hall-body .hall-dialogue .hall-deck-menu > summary {
+  justify-content: center;
+  min-width: var(--hit);
+  min-height: var(--hit);
+  border-radius: var(--r-2);
+  color: var(--hub-muted);
+  font: var(--fw-medium) var(--t-base) / 1 var(--font-ui);
+}
+/* Точки и есть знак меню: общий маркер раскрывашки ему не нужен. Селектор
+   длиннее общего намеренно — тот весит (0,3,2), и короткая запись проиграла бы
+   ему по счёту, а не по замыслу. */
+.hall-body .hall-dialogue .hall-deck .hall-deck-menu > summary::before,
+.hall-body .hall-dialogue .hall-deck-menu > summary::before { content: none; }
+.hall-body .hall-dialogue .hall-deck-menu > summary:hover {
+  background: var(--hall-slot-fill-hover);
+  color: var(--hub-text);
+}
+.hall-dialogue .hall-deck-menu > div {
+  position: absolute;
+  top: calc(100% + var(--s-2));
+  left: 0;
+  z-index: 4;
+  display: grid;
+  gap: var(--s-1);
+  min-width: 200px;
+  padding: var(--s-2);
+  border: 1px solid var(--hub-border);
+  border-radius: var(--r-2);
+  background: var(--hub-raised);
+  box-shadow: var(--e-pop, none);
+}
+.hall-dialogue .hall-deck-menu > div .hall-btn {
+  justify-content: flex-start;
+  width: 100%;
+}

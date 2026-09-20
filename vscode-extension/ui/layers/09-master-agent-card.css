@@ -12,13 +12,9 @@
    `--r-1`. Карточка запуска однажды сослалась на `--point-teal` и `--mono`,
    которых в вебвью нет, и браузер выбросил тринадцать объявлений целиком. */
 
-/* Мера — та же, что у карточки запуска: исполнитель и задание, ради которого
-   он нужен, читаются одним столбцом. Мера ленты (880px) оставляла карточку с
-   формой уже соседнего наряда, и пара выглядела ступенькой. */
-.hall-dialogue .hall-thread > .master-agent {
-  max-width: 62rem;
-  margin-inline: auto;
-}
+/* Своей меры у карточки нет: все карточки ленты стоят на одной оси с репликами
+   (--hall-read-col). Прежде их было три разных — 62rem у наряда и исполнителя,
+   мера ленты у остальных, — и пара соседних карточек выглядела ступенькой. */
 
 /* Поля формы. Одна композиция на все подписи: подпись — рубрика над полем,
    моноширинная и мелкая, как рубрики карточки запуска. */
@@ -86,28 +82,9 @@
   letter-spacing: var(--tracking-label);
 }
 
-/* Права и пределы. Своё «показать»: браузерный треугольник в регистре Чертога
-   единственный округлый знак на экране, и цель указателя у него меньше нормы. */
-.master-agent-more > summary {
-  display: flex;
-  align-items: center;
-  gap: var(--s-3);
-  min-height: var(--hit);
-  color: var(--hub-muted);
-  font: var(--fw-normal) var(--t-small) / 1.3 var(--font-ui);
-  cursor: pointer;
-  list-style: none;
-}
-.master-agent-more > summary::-webkit-details-marker { display: none; }
-.master-agent-more > summary::before {
-  content: "+";
-  width: 1em;
-  color: var(--hub-faint-2);
-  font-family: var(--font-mono);
-}
-.master-agent-more[open] > summary::before { content: "−"; }
-.master-agent-more > summary:hover,
-.master-agent-more > summary:focus-visible { color: var(--hub-text); outline: none; }
+/* Права и пределы. Строка «показать» и её знак — общие на все карточки ленты
+   (07b-master-card.css). Здесь был свой знак «+»/«−», у наряда — поворотный
+   «›», у предложения квеста — никакого: три разных ответа на один вопрос. */
 .master-agent-more[open] {
   display: grid;
   gap: var(--s-5);

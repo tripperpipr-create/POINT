@@ -582,8 +582,7 @@
 }
 .hall-dialogue .hall-reason > summary,
 .hall-dialogue .hall-steps-rest > summary,
-.hall-dialogue .hall-work-log > summary,
-.hall-dialogue .hall-proposal-more > summary {
+.hall-dialogue .hall-work-log > summary {
   display: inline-flex;
   align-items: center;
   gap: var(--s-2);
@@ -598,8 +597,7 @@
 }
 .hall-dialogue .hall-reason > summary:hover,
 .hall-dialogue .hall-steps-rest > summary:hover,
-.hall-dialogue .hall-work-log > summary:hover,
-.hall-dialogue .hall-proposal-more > summary:hover {
+.hall-dialogue .hall-work-log > summary:hover {
   color: var(--hub-text);
 }
 /* Раскрытое рассуждение держится жёлобом, а не рамкой: это черновик модели,
@@ -707,32 +705,17 @@
   color: var(--hub-muted);
 }
 /* —— Карточка решения ——
-   Предложение квеста, наём и тревожная панель остаются обведёнными: это не
-   текст, а развилка, и у развилки должна быть граница. Геометрия — та же, что у
-   композера и реплики человека: радиус 8, кромка белым 10%. Заливки нет —
-   карточка и так стоит на ленте, а заливка делала её третьим тоном на экране. */
+   Предложение квеста, наём, карточка запуска и новый исполнитель обведёнными
+   больше не бывают: их называет заливка (07b-master-card.css), как и карточку
+   ввода. Здесь остаётся тревожная панель — она живёт не в ленте разговора, а в
+   разделах Хаба, и у неё граница по делу.
+   Правило про `> header b` стояло здесь и ниже, слово в слово, отличаясь одним
+   лишь весом шрифта; побеждало нижнее, это молчало. Осталось одно, в 07b. */
 .hall-dialogue .hall-panel,
-.hall-dialogue .hall-panel.is-alarm,
-.hall-dialogue .hall-proposal,
-.hall-dialogue .hall-hire {
+.hall-dialogue .hall-panel.is-alarm {
   border: 1px solid color-mix(in srgb, var(--hub-text) 10%, transparent);
-  border-top: 1px solid color-mix(in srgb, var(--hub-text) 10%, transparent);
   border-radius: 8px;
   background: transparent;
-}
-.hall-dialogue .hall-panel > header,
-.hall-dialogue .hall-proposal > header,
-.hall-dialogue .hall-hire > header {
-  border-bottom-color: color-mix(in srgb, var(--hub-text) 8%, transparent);
-}
-.hall-dialogue .hall-panel > header b,
-.hall-dialogue .hall-proposal > header b,
-.hall-dialogue .hall-hire > header b,
-.hall-dialogue .hall-msg-resolved b {
-  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui);
-  letter-spacing: normal;
-  text-transform: none;
-  color: var(--hub-muted);
 }
 /* Ряд решения. Необратимое действие — единственное сплошное пятно акцента во
    всём разделе; остальные три кнопки тихие, иначе ряд из четырёх одинаково
@@ -763,10 +746,6 @@
   font: var(--fw-medium) var(--t-small) / 1.3 var(--font-ui);
   letter-spacing: normal;
   text-transform: none;
-}
-.hall-dialogue .hall-proposal-more,
-.hall-dialogue .hall-work-log {
-  margin-top: var(--s-3);
 }
 /* —— Тихая кнопка раздела ——
    Один устав на всё, что в разговоре нажимают, но что не является решением:
@@ -829,8 +808,6 @@
 }
 
 .hall-dialogue .hall-panel > header b,
-.hall-dialogue .hall-proposal > header b,
-.hall-dialogue .hall-hire > header b,
 .hall-dialogue .hall-msg-resolved b {
   font: var(--fw-semibold) var(--t-small) / 1.4 var(--font-ui);
   letter-spacing: normal;
@@ -1194,22 +1171,38 @@
 }
 /* Вкладка набрана уставом жетонов полосы разговора: рядом с ней «☰» и «•••»,
    и третий вес в той же строке читался бы как чужая кнопка. */
+/* Вкладка задания стоит в шапке разговора, а не внутри ленты, и правило,
+   написанное от `.hall-dialogue`, до неё не доставало: на экране она оставалась
+   кнопкой Чертога — белая рамка вокруг обрезанного названия, самая громкая вещь
+   тихого экрана. Имя шапки добавлено к тому же правилу, а не скопировано:
+   вкладка одна, и вид у неё обязан быть один. */
+.hall-head-chat .hall-brief-tab,
 .hall-dialogue .hall-brief-tab {
   display: inline-flex;
   align-items: baseline;
+  flex: 0 1 auto;
+  /* Одна строка: в шапке вкладка стоит между названием разговора и метками
+     решений, и на узком окне перенос делал из неё двухстрочный блок, который
+     поднимал всю шапку. Длинное название режется многоточием — целиком оно
+     есть в самой панели. */
+  white-space: nowrap;
   gap: var(--s-3);
   max-width: 16rem;
   min-height: var(--control-sm);
   padding: var(--s-1) var(--s-4);
   border: 0;
   border-radius: 4px;
-  background: var(--hall-slot-fill);
+  /* Заливка записана числом, а не токеном `--hall-slot-fill`: тот объявлен на
+     `.hall-dialogue`, а шапка стоит вне ленты — переменной там просто нет, и
+     жетон оставался прозрачным. Значение то же самое. */
+  background: color-mix(in srgb, var(--hub-text) 5%, transparent);
   color: var(--hub-muted);
   font: var(--fw-normal) var(--t-small) / 1.3 var(--font-ui);
   letter-spacing: normal;
   text-transform: none;
   transition: background-color var(--motion-fast) var(--ease), color var(--motion-fast) var(--ease);
 }
+.hall-head-chat .hall-brief-tab > span,
 .hall-dialogue .hall-brief-tab > span {
   min-width: 0;
   overflow: hidden;
@@ -1286,12 +1279,14 @@
 .hall-brief-panel-body { min-width: 0; }
 /* Та же причина, что и у шапки панели: состав задания лежит на светлом фоне,
    и приглушённая ступень давала 3.91 при пороге 4.5. */
-.hall-dialogue .hall-brief-panel .hall-proposal > header > small {
+.hall-dialogue .hall-brief-panel .hall-deck > header > small {
   color: var(--hub-text-3);
 }
-/* Внутри панели карточка задания — уже не карточка: рамка в рамке ничего не
-   отделяет, а меру ей задаёт сама панель. */
-.hall-dialogue .hall-brief-panel .hall-proposal {
+/* Внутри панели карточка задания — уже не карточка: заливка в панели ничего не
+   отделяет, а меру ей задаёт сама панель. Имя взято общее (hall-deck), а не
+   `hall-proposal`: заливку кладёт общий слой карточек, и оставь мы здесь только
+   частное имя — она вернулась бы в панель с первой же карточкой другого рода. */
+.hall-dialogue .hall-brief-panel .hall-deck {
   max-width: none;
   margin: 0;
   padding: 0;

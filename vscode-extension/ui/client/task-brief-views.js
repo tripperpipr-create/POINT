@@ -1,4 +1,6 @@
 import { masterPlanHtml } from './master-plan-views.js'
+import { DEFAULT_CRITERION_KIND, questChecklistHtml, questMenuHtml } from './master-quest-views.js'
+import { masterCardMoreAttrs } from './master-card-open.js'
 
 function taskBriefEditorHtml(item, esc) {
   const b = item.brief
@@ -61,14 +63,15 @@ export function readTaskBriefEditor(root, item) {
 // Условия готовности как перечень. Состояний до старта нет — планировщик
 // работает при запуске квеста, — поэтому все пункты ждут, и назван перечень
 // условиями, а не планом: обещать прогресс там, где его неоткуда взять, нельзя.
-const CRITERION_KIND = { manual: 'оценивает пользователь', reproduction: 'воспроизведение' }
-
 function briefCriteriaPlanHtml(brief, esc) {
   const criteria = Array.isArray(brief?.criteria) ? brief.criteria : []
-  return masterPlanHtml('Условия готовности', criteria.map(criterion => ({
+  // Ни одно условие здесь не закрыто и закрыться не может: задание ещё не
+  // запускали, а закрывает условия прогон своими проверками. Счётчик «0 из N»
+  // при этом честен — он говорит, сколько их всего.
+  return questChecklistHtml('Условия готовности', criteria.map(criterion => ({
     text: criterion.text,
-    state: 'wait',
-    note: CRITERION_KIND[criterion.kind] || 'машинная проверка',
+    kind: criterion.kind || DEFAULT_CRITERION_KIND,
+    done: false,
   })), esc)
 }
 
@@ -121,11 +124,40 @@ export function taskBriefStateLabel(brief, rosterReady) {
 // панель разговора, где кнопки запуска нет — пока задание обсуждают, принимать
 // нечего. Второй разметкой это быть не может: две копии одного состава
 // однажды разойдутся, и человек прочтёт разное в панели и в ленте.
-export function taskBriefBodyHtml(item, { esc, countOf, editing, editor, rosterReady }) {
+// `compact` — карточка в ленте, без него — панель задания.
+//
+// Разница не в содержании, а в том, сколько его видно сразу. В ленте карточка
+// стоит между репликами, и решают по ней одно: запускать или нет. Для этого
+// нужны цель, условия готовности и то, что ещё не решено, — границы задания и
+// его рамки человек читает, когда решил читать. В панели задание открыто
+// целиком: туда приходят именно за ним, и прятать там нечего.
+export function taskBriefBodyHtml(item, { esc, countOf, editing, editor, rosterReady, compact }) {
   const b = item.brief
   const list = (title, values) => values?.length ? `<div class="hall-dod"><b>${title}</b><ul>${values.map(v => `<li>${esc(v)}</li>`).join('')}</ul></div>` : ''
   const preparation = (b.decisions || []).filter(d => d.topic === 'Подготовка исполнителя').map(d => d.decision)
-  return `<header><b>${esc(({precise: 'Точное поручение', project: 'Автономный проект', undecided: 'Уточнение режима'})[b.mode] || b.mode)}</b><small>Версия ${Number(b.version)} · ${taskBriefStateLabel(b, rosterReady)}</small></header>
+  const modeLabel = ({precise: 'Точное поручение', project: 'Автономный проект', undecided: 'Уточнение режима'})[b.mode] || b.mode
+  // Шапка в ленте говорит состояние, шапка в панели — род документа.
+  //
+  // В ленте предложение задания стоит рядом с карточкой запуска, и это два
+  // вида одного: квеста, по которому человек принимает решение. Точка
+  // состояния была только у второго, и язык состояний читался наполовину —
+  // одна карточка говорила тоном точки, соседняя молчала.
+  //
+  // Род и версия уезжают вправо служебной строкой: «автономный проект» — это
+  // про то, как работа устроена, и решают не по нему. Прежняя правая строка
+  // называла состояние словами («готово к запуску»), и с приходом кикера
+  // сказала бы его дважды.
+  //
+  // В панели шапка остаётся прежней: туда приходят за составом задания, а не
+  // за решением по нему, и точка состояния там ничего не решает.
+  const asking = (b.openQuestions || []).length
+  const kick = asking
+    ? `Мастер ждёт ${countOf(asking, 'уточнение', 'уточнения', 'уточнений')}`
+    : taskBriefReady(b) ? 'Квест ждёт решения' : 'Квест уточняется'
+  const header = compact
+    ? `<header><span class="hall-quest-kick${asking ? ' is-ask' : ''}"><span class="hall-quest-dot" aria-hidden="true"></span>${esc(kick)}</span><small>${esc(modeLabel)} · версия ${Number(b.version)}</small></header>`
+    : `<header><b>${esc(modeLabel)}</b><small>Версия ${Number(b.version)} · ${taskBriefStateLabel(b, rosterReady)}</small></header>`
+  return `${header}
     <div class="hall-panel-row is-stack"><span class="hall-lead">${esc(b.goal)}</span>
     <small>Результат: ${esc(({code:'код в ответе', report:'отчёт', workspace_change:'изменения проекта', hub_tool:'исходники инструмента'})[b.resultKind] || 'уточняется')}</small>
     ${/* Из чего состоит работа и по чему её примут — в теле карточки, а не за
@@ -134,10 +166,12 @@ export function taskBriefBodyHtml(item, { esc, countOf, editing, editor, rosterR
          запуск блокируют. Под раскрывашкой остаются рамки — разрешения, бюджет
          и разбор подбора: это про то, как работа пойдёт, а не про то, что в ней. */''}
     ${briefCriteriaPlanHtml(b, esc)}
-    ${list('Перед выполнением', preparation)}
-    ${list('Входит в задание', b.scope)}${list('Не входит в задание', b.outOfScope)}
+    ${/* Нерешённое остаётся на виду в обоих случаях: оно задерживает запуск, и
+         спрятать его значило бы спрятать причину, по которой кнопка не нажата. */''}
     ${list('Нужно уточнить', b.openQuestions)}
-    <details class="hall-proposal-more"><summary>Рамки и подбор</summary>
+    ${compact ? '' : `${list('Перед выполнением', preparation)}${list('Входит в задание', b.scope)}${list('Не входит в задание', b.outOfScope)}`}
+    <details class="hall-proposal-more"${masterCardMoreAttrs(`brief:${item.id}`, { esc })}><summary>${compact ? 'Подробности' : 'Рамки и подбор'}</summary>
+    ${compact ? `${list('Перед выполнением', preparation)}${list('Входит в задание', b.scope)}${list('Не входит в задание', b.outOfScope)}` : ''}
     ${list('Согласованные решения', (b.decisions || []).map(d => `${d.topic}: ${d.decision}`))}
     <small>Разрешения: файлы ${b.permissions?.writeFiles ? 'можно изменять в sandbox' : 'только чтение'}; команды ${b.permissions?.executeCommands ? 'разрешены в рамках профиля' : 'запрещены'}${b.permissions?.provisionProjectAgents ? '; разрешён временный субагент под выбранным агентом' : ''}. Сеть: ${esc((b.permissions?.networkHosts || []).join(', ') || 'не разрешена')}.</small>
     <small>Бюджет: ${Number(b.budget?.tokens || 0).toLocaleString('ru-RU')} токенов${b.budget?.costCents ? ` · ${Number(b.budget.costCents)}¢` : ''} · ${Number(b.budget?.activeSeconds || 0) / 60} минут активной работы · до ${Number(b.budget?.maxParallel || 1)} параллельно · до ${countOf(Number(b.budget?.maxAttempts || 1), 'попытки', 'попыток', 'попыток')} · до ${countOf(Number(b.budget?.maxReplans || 0), 'перепланирования', 'перепланирований', 'перепланирований')}.</small>
@@ -151,15 +185,23 @@ export function taskBriefActionsHtml(item, { esc, busy, editing, withStart, rost
   const ready = taskBriefReady(b)
   const needsPreparation = briefNeedsPreparation(b, rosterReady)
   const startLabel = needsPreparation ? 'Утвердить и подготовить исполнителя' : b.mode === 'project' ? 'Утвердить и запустить' : 'Выполнить поручение'
+  // Пока задание правят, «Сохранить» — это и есть решение: оно стоит в ряду, а
+  // не в меню, иначе набранное сохраняют через выпадающий список.
+  const menu = questMenuHtml([
+    editing ? null : { action: 'quest-proposal-modify', id: item.id, label: 'Изменить', busy },
+    { action: 'quest-proposal-discuss', id: item.id, label: 'Продолжить обсуждение', busy },
+    { action: 'quest-proposal-ignore', id: item.id, label: 'Отклонить', busy },
+  ], esc)
   return `<div class="hall-panel-row hall-actions">
-    ${withStart ? `<button class="hall-btn is-primary" data-action="quest-proposal-start" data-id="${esc(item.id)}" ${busy || editing || !ready ? 'disabled' : ''}>${busy ? 'Обработка…' : startLabel}</button>` : ''}
-    <button class="hall-btn" data-action="quest-proposal-modify" data-id="${esc(item.id)}" ${busy ? 'disabled' : ''}>${editing ? 'Сохранить' : 'Изменить'}</button>
-    <button class="hall-btn" data-action="quest-proposal-discuss" data-id="${esc(item.id)}" ${busy ? 'disabled' : ''}>Продолжить обсуждение</button>
-    <button class="hall-btn" data-action="quest-proposal-ignore" data-id="${esc(item.id)}" ${busy ? 'disabled' : ''}>Отклонить</button></div>`
+    <div class="hall-quest-acts">
+      ${withStart ? `<button class="hall-btn is-primary" data-action="quest-proposal-start" data-id="${esc(item.id)}" ${busy || editing || !ready ? 'disabled' : ''}>${busy ? 'Обработка…' : startLabel}</button>` : ''}
+      ${editing ? `<button class="hall-btn${withStart ? '' : ' is-primary'}" data-action="quest-proposal-modify" data-id="${esc(item.id)}" ${busy ? 'disabled' : ''}>Сохранить</button>` : ''}
+      ${menu}
+    </div></div>`
 }
 
 export function taskBriefCardHtml(item, opts) {
-  return `<section class="hall-panel hall-proposal">${taskBriefBodyHtml(item, opts)}${taskBriefActionsHtml(item, { ...opts, withStart: true })}</section>`
+  return `<section class="hall-deck hall-proposal">${taskBriefBodyHtml(item, { ...opts, compact: true })}${taskBriefActionsHtml(item, { ...opts, withStart: true })}</section>`
 }
 
 export function proposalEditorHtml(view, agents, flows, esc, agentClass) {

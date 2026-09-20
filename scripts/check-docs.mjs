@@ -35,6 +35,14 @@ function relative(file) {
 
 const errors = []
 const repositoryPaths = trackedFiles()
+const repositoryPathSet = new Set(repositoryPaths)
+// Эти пути намеренно не хранятся в git: их создаёт сборка расширения. Документация
+// обязана иметь право называть артефакты, но их случайное наличие в рабочем дереве
+// не должно менять результат проверки.
+const generatedPaths = new Set([
+  'vscode-extension/dist/',
+  'vscode-extension/media/main.js',
+])
 const markdownFiles = repositoryPaths
   .filter(file => file.toLowerCase().endsWith('.md'))
   .map(file => path.join(root, file))
@@ -49,6 +57,13 @@ function globExpression(pattern) {
   return new RegExp(`^${escaped.replaceAll('*', '[^/]*').replaceAll('?', '[^/]')}$`)
 }
 
+function repositoryContains(reference) {
+  const normalized = reference.replaceAll('\\', '/').replace(/^\.\//, '')
+  if (repositoryPathSet.has(normalized) || generatedPaths.has(normalized)) return true
+  const directory = normalized.endsWith('/') ? normalized : `${normalized}/`
+  return repositoryPaths.some(candidate => candidate.startsWith(directory))
+}
+
 for (const file of markdownFiles) {
   const source = fs.readFileSync(file, 'utf8')
   const links = source.matchAll(/!?\[[^\]]*\]\(([^)]+)\)/g)
@@ -58,12 +73,15 @@ for (const file of markdownFiles) {
     target = target.split('#', 1)[0].split('?', 1)[0]
     try { target = decodeURIComponent(target) } catch { /* report the filesystem form below */ }
     const resolved = path.resolve(path.dirname(file), target)
-    if (!fs.existsSync(resolved)) errors.push(`${relative(file)}: broken link ${match[1]}`)
+    const referenced = relative(resolved)
+    if (referenced.startsWith('../') || !repositoryContains(referenced)) {
+      errors.push(`${relative(file)}: broken link ${match[1]}`)
+    }
   }
 
   for (const match of source.matchAll(/(?:\.\.\/?|\.\/)?scripts[\\/][A-Za-z0-9_.\\/-]+/g)) {
     const normalized = match[0].replace(/^\.\.\//, '').replace(/^\.\//, '').replaceAll('\\', '/')
-    if (!fs.existsSync(path.join(root, normalized))) {
+    if (!repositoryContains(normalized)) {
       errors.push(`${relative(file)}: missing referenced script ${match[0]}`)
     }
   }
@@ -83,7 +101,7 @@ for (const file of markdownFiles) {
       continue
     }
 
-    if (fs.existsSync(path.join(root, referenced))) continue
+    if (repositoryContains(referenced)) continue
     const extension = path.posix.extname(referenced)
     if (!extension || sourceExtensions.has(extension)) {
       errors.push(`${relative(file)}: missing referenced path ${match[1]}`)

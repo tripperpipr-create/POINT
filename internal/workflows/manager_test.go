@@ -40,15 +40,17 @@ func (e *scriptedEngine) Start(input agent.StartInput) (domain.Run, error) {
 	index := len(e.inputs)
 	e.inputs = append(e.inputs, input)
 	e.mu.Unlock()
-	run := domain.Run{ID: domain.NewID("run"), ProfileID: input.Configuration.Profile.ID, Status: domain.RunRunning, StartedAt: time.Now().UTC()}
+	runID := domain.NewID("run")
+	profileID := input.Configuration.Profile.ID
+	started := time.Now().UTC()
+	run := domain.Run{ID: runID, ProfileID: profileID, Status: domain.RunRunning, StartedAt: started}
 	go func() {
 		result := "анализ архитектуры"
 		if index == 1 {
 			result = "финальный план"
 		}
 		finished := time.Now().UTC()
-		run.Status, run.Result, run.FinishedAt = domain.RunCompleted, result, &finished
-		input.OnFinished(run)
+		input.OnFinished(domain.Run{ID: runID, ProfileID: profileID, Status: domain.RunCompleted, Result: result, StartedAt: started, FinishedAt: &finished})
 	}()
 	return run, nil
 }

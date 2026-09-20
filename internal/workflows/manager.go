@@ -72,6 +72,11 @@ func (m *Manager) Start(input StartInput) (domain.WorkflowRun, error) {
 	if len(input.Task) > 64*1024 {
 		return domain.WorkflowRun{}, errors.New("workflow task exceeds 64 KiB")
 	}
+	// Выполнение переживает Start, поэтому оно не должно держать срез шагов,
+	// принадлежащий вызывающему коду. В частности, редактор может менять
+	// определение сразу после старта, пока execute уже читает первый этап.
+	input.Workflow = cloneWorkflow(input.Workflow)
+	input.ContextItems = append([]domain.RunContextItem(nil), input.ContextItems...)
 	profiles := make(map[string]domain.AgentProfile, len(input.Profiles))
 	for _, profile := range input.Profiles {
 		profiles[profile.ID] = profile
@@ -92,7 +97,7 @@ func (m *Manager) Start(input StartInput) (domain.WorkflowRun, error) {
 		Status:   domain.RunRunning, CurrentStep: 0, StepRuns: stepRuns, StartedAt: now,
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	active := &activeExecution{run: run, cancel: cancel, external: make(chan externalCompletion, 1)}
+	active := &activeExecution{run: cloneWorkflowRun(run), cancel: cancel, external: make(chan externalCompletion, 1)}
 	m.mu.Lock()
 	if m.stopping {
 		m.mu.Unlock()
@@ -478,7 +483,25 @@ func (m *Manager) StopAll() {
 func (m *Manager) snapshot(active *activeExecution) domain.WorkflowRun {
 	active.mu.RLock()
 	defer active.mu.RUnlock()
-	return active.run
+	return cloneWorkflowRun(active.run)
+}
+
+func cloneWorkflow(workflow domain.AgentWorkflow) domain.AgentWorkflow {
+	workflow.Steps = append([]domain.WorkflowStep(nil), workflow.Steps...)
+	for index := range workflow.Steps {
+		if workflow.Steps[index].Condition != nil {
+			condition := *workflow.Steps[index].Condition
+			workflow.Steps[index].Condition = &condition
+		}
+	}
+	return workflow
+}
+
+func cloneWorkflowRun(run domain.WorkflowRun) domain.WorkflowRun {
+	run.ContextItems = append([]domain.RunContextItem(nil), run.ContextItems...)
+	run.StepRuns = append([]domain.WorkflowStepRun(nil), run.StepRuns...)
+	run.Snapshot.Workflow = cloneWorkflow(run.Snapshot.Workflow)
+	return run
 }
 
 func (m *Manager) update(active *activeExecution, change func(*domain.WorkflowRun)) {
@@ -536,7 +559,7 @@ func (m *Manager) finishCancelled(active *activeExecution) {
 }
 
 func (m *Manager) save(run domain.WorkflowRun) error {
-	safe := run
+	safe := cloneWorkflowRun(run)
 	safe.Task = security.Redact(safe.Task)
 	safe.Error = security.Redact(safe.Error)
 	safe.Result = security.Redact(safe.Result)

@@ -147,7 +147,10 @@ func (a *App) startMasterTurn(ctx context.Context, req MasterChatRequest, comple
 	key := w + "/" + turn.ID
 	a.masterTurnCancels[key] = cancel
 	a.masterTurnsWG.Add(1)
-	go func() {
+	// Ход после возврата принадлежит вызывающему коду. Горутина получает свою
+	// копию: иначе первая запись Status могла совпасть с копированием результата
+	// return и детектор гонок справедливо видел общий объект.
+	go func(turn domain.MasterTurn) {
 		defer a.masterTurnsWG.Done()
 		defer cancel()
 		defer func() { a.masterTurnsMu.Lock(); delete(a.masterTurnCancels, key); a.masterTurnsMu.Unlock() }()
@@ -222,7 +225,7 @@ func (a *App) startMasterTurn(ctx context.Context, req MasterChatRequest, comple
 		}
 		a.saveMasterTurnState(turn, "final")
 		emit("done", turn.Status)
-	}()
+	}(turn)
 	return turn, nil
 }
 func (a *App) CancelMasterTurn(ctx context.Context, id string) error {

@@ -11,52 +11,35 @@
    неё контраст 1.1 при пороге 4.5: тёмные буквы на тёмном фоне. Поэтому здесь
    не бывает цветов мимо шкалы: только `--hub-*`, `--ember`, `--caution`,
    `--vital`, `--wound`. */
-.master-v2-order {
-  margin: var(--s-5) var(--s-5) var(--s-6) calc(var(--s-6) * 2);
-  overflow: hidden;
-  border: 1px solid var(--hub-border-strong);
-  border-radius: var(--r-2);
-  background: var(--hub-raised);
-}
-/* Ярусы карточки разделены линией, а не отступом: документ с полями одной
-   ширины читается как бланк, а разнобой полей — как набор заплат. */
-.master-v2-order > header,
-.master-v2-summary,
-.master-v2-warning,
-.master-v2-order > details > summary,
-.master-v2-runtime-controls,
-.master-v2-order > footer {
-  padding: var(--s-4h) var(--s-5);
-}
-.master-v2-order > header { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-4); border-bottom: 1px solid var(--hub-border); }
-.master-v2-order > header div { display: grid; gap: var(--s-2); min-width: 0; }
+/* Поверхность, поля и ярусы карточки живут в 07b-master-card.css: бланк один на
+   все четыре рода карточек ленты, и наряд им пользуется наравне с остальными.
+   Здесь остаётся только то, чего нет у соседей, — сетка подробностей, поля
+   редактора, ряд управления прогоном и доказательства результата.
+
+   Линии между ярусами ушли вместе с рамкой: документ, расчерченный на графы,
+   читался бланком на подпись, а не разговором. Расстояние держит сетка. */
 .master-v2-order > header strong { color: var(--hub-text); font-size: var(--t-lead); line-height: var(--lh-tight); }
-/* Состояние — слово, а не пилюля: в регистре Чертога углов нет, и круглая
-   плашка была единственной скруглённой вещью на экране. */
+/* Состояние — слово: ни пилюли, ни кромки. Кромка вокруг слова была
+   единственной обведённой вещью тихого регистра, а теперь ещё и спорила бы с
+   заливкой самой карточки. Остаётся тон. */
 .master-v2-order > header > span {
   flex: 0 0 auto;
-  padding: var(--s-1) var(--s-2);
-  border: 1px solid currentColor;
-  border-radius: var(--r-1);
   color: var(--hub-muted);
-  font: var(--fw-normal) var(--t-micro) / 1 var(--font-mono);
+  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui);
 }
 .master-v2-order.state-discussion > header > span { color: var(--caution); }
 .master-v2-order.state-ready > header > span { color: var(--ember); }
 .master-v2-order.state-approved > header > span { color: var(--vital); }
-.master-v2-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--s-5); border-bottom: 1px solid var(--hub-border-soft); }
+.master-v2-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--s-5); }
 .master-v2-summary section, .master-v2-grid section { display: grid; align-content: start; gap: var(--s-2); min-width: 0; }
 /* Подпись карточки — единственный капс.
    Он работает, пока один: метка «ЕДИНАЯ КАРТОЧКА ЗАПУСКА · V1» называет весь
    документ, и прописные здесь читаются как гриф. Когда тем же грифом были
    набраны ещё и «ЧТО БУДЕТ СДЕЛАНО», «КРИТЕРИИ ГОТОВНОСТИ» и «МАСТЕРУ НУЖЕН
    ОТВЕТ», четыре ступени спорили за одну роль, и ни одна не была старшей. */
-.master-v2-order > header small {
-  color: var(--hub-muted);
-  font: var(--fw-semibold) var(--t-micro) / 1 var(--font-mono);
-  letter-spacing: var(--tracking-label);
-  text-transform: uppercase;
-}
+/* Кикер набирается общим правилом 07b: строчные, тот же тон, что у кикеров
+   соседних карточек. Прописные работали, пока гриф был один на экран; в ленте
+   из трёх карточек подряд они спорили друг с другом. */
 /* Подзаголовки разделов и подписи полей — обычный регистр. Иерархию держат
    вес, тон и отступ; разрядка на строчных буквах их только расплывает, а
    прописные в 10px читаются хуже строчных в 11px. */
@@ -80,40 +63,16 @@
    Красная коробка внутри красной рамки читалась как отказ, хотя это приглашение
    ответить. */
 .master-v2-warning {
-  border-bottom: 1px solid var(--hub-border-soft);
+  padding-left: var(--s-4);
   border-left: var(--edge-accent) solid var(--caution);
-  background: var(--caution-wash);
 }
 .master-v2-warning b { color: var(--caution); }
-.master-v2-order > details { border-bottom: 1px solid var(--hub-border-soft); }
-/* Своя стрелка вместо браузерного треугольника — тот же приём, что у «хода
-   мысли» в ленте. Высота строки держит цель указателя: аудит требует 24px. */
-.master-v2-order > details > summary,
-.master-v2-editor-advanced > summary {
-  display: flex;
-  align-items: center;
-  gap: var(--s-3);
-  min-height: var(--hit);
-  color: var(--hub-muted);
-  cursor: pointer;
-  font-size: var(--t-small);
-  list-style: none;
-}
-.master-v2-order > details > summary::-webkit-details-marker,
-.master-v2-editor-advanced > summary::-webkit-details-marker { display: none; }
-.master-v2-order > details > summary::before,
-.master-v2-editor-advanced > summary::before {
-  content: "›";
-  color: var(--hub-faint);
-  font: var(--fw-normal) var(--t-body) / 1 var(--font-mono);
-  transition: transform var(--motion-fast) var(--ease);
-}
-.master-v2-order > details[open] > summary::before,
-.master-v2-editor-advanced[open] > summary::before { transform: rotate(90deg); }
-.master-v2-order > details > summary:hover { color: var(--hub-text); }
+/* Раскрывашка — общая на все карточки ленты (07b-master-card.css): один маркер,
+   одна цель указателя, один тон. Здесь их было три на дерево, и по маркеру
+   человек не мог понять, одна ли это вещь. */
 /* Двенадцать разделов не встают в две колонки на 860: сетка сама решает,
    сколько их помещается. */
-.master-v2-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--s-5); padding: 0 var(--s-5) var(--s-5); }
+.master-v2-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--s-5); }
 .master-v2-grid section { border-left: var(--edge-accent) solid var(--hub-border-soft); padding-left: var(--s-4); }
 .master-v2-grid section > span, .master-v2-grid section > code { overflow-wrap: anywhere; color: var(--hub-muted); font-size: var(--t-small); line-height: var(--lh-base); }
 .master-v2-grid section > strong { color: var(--hub-text); font-size: var(--t-body); }
@@ -121,7 +80,7 @@
    колонку сетки и читался как заливка яруса. */
 .master-v2-grid code, .master-v2-evidence code { display: inline-block; width: max-content; max-width: 100%; padding: 0 var(--s-1); background: var(--hall-slot-fill); color: var(--hub-text-2); font-family: var(--font-mono); }
 .master-v2-empty { color: var(--hub-faint); font-size: var(--t-small); }
-.master-v2-runtime-controls { display: grid; gap: var(--s-3); border-bottom: 1px solid var(--hub-border-soft); background: var(--hall-slot-fill); }
+.master-v2-runtime-controls { display: grid; gap: var(--s-3); padding: var(--s-4); border-radius: var(--r-2); background: var(--hall-slot-fill); }
 .master-v2-runtime-controls > div { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); }
 .master-v2-runtime-controls > label { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--s-2); align-items: end; }
 .master-v2-runtime-controls > label > span { grid-column: 1 / -1; }
@@ -131,7 +90,7 @@
 .master-v2-application-controls strong { color: var(--hub-text); font-size: var(--t-body); }
 .master-v2-evidence[open] > summary { color: var(--hub-text); }
 .master-v2-evidence .master-v2-grid section > span { display: block; }
-.master-v2-editor-simple, .master-v2-editor-advanced { display: grid; gap: var(--s-3); padding: 0 var(--s-5) var(--s-4); }
+.master-v2-editor-simple, .master-v2-editor-advanced { display: grid; gap: var(--s-3); }
 .master-v2-editor label { display: grid; gap: var(--s-2); min-width: 0; }
 .master-v2-editor textarea, .master-v2-editor input {
   min-width: 0;
@@ -146,9 +105,9 @@
 .master-v2-editor textarea:focus-visible, .master-v2-editor input:focus-visible { outline: none; border-color: var(--ember-line); box-shadow: var(--e-focus); }
 .master-v2-editor-advanced { padding-top: var(--s-3); border-top: 1px solid var(--hub-border-soft); }
 .master-v2-editor-advanced > p { color: var(--hub-muted); font-size: var(--t-small); line-height: var(--lh-base); }
-.master-v2-editor-actions { display: flex; justify-content: flex-end; padding: 0 var(--s-5) var(--s-4); }
+.master-v2-editor-actions { display: flex; justify-content: flex-end; }
 /* Подвал: обсуждение слева тихим шагом, запуск справа. */
-.master-v2-order > footer { display: flex; align-items: center; justify-content: space-between; gap: var(--s-4); border-top: 1px solid var(--hub-border); }
+.master-v2-order > footer { display: flex; align-items: center; justify-content: space-between; gap: var(--s-4); }
 /* Единственная заливка на экране. Отправка в композере намеренно серая
    (07-master-quiet.css), поэтому оранжевый здесь ни с чем не спорит и означает
    ровно одно: необратимый шаг, меняющий состояние проекта. */
@@ -184,7 +143,6 @@
 .master-v2-approved.is-quiet { color: var(--hub-muted); }
 .master-v2-approved.is-active { color: var(--hub-text-3); }
 @media (max-width: 720px) {
-  .master-v2-order { margin-left: var(--s-3); margin-right: var(--s-3); }
   .master-v2-runtime-controls > label { grid-template-columns: 1fr; }
   .master-v2-runtime-controls > label > span { grid-column: auto; }
   .master-v2-order > footer { align-items: stretch; flex-direction: column; }
@@ -325,13 +283,6 @@
   .master-v2-run { margin-left: var(--s-3); margin-right: var(--s-3); padding-left: var(--s-4); }
 }
 
-/* Карточка и прогон стоят на той же оси, что и реплики ──────────────────── */
-/* У ленты появилась мера чтения: ход не растягивается шире 78 знаков и стоит по
-   центру колонки. Карточка запуска этой меры не знала и прижималась влево —
-   на широком окне разговор получал ступеньку: реплики по центру, договор сбоку.
-   Своя мера у карточки шире: в ней сетка из двух колонок, и 78 знаков ей мало. */
-.hall-dialogue .hall-thread > .master-v2-order,
-.hall-dialogue .hall-thread > .master-v2-run {
-  max-width: 62rem;
-  margin-inline: auto;
-}
+/* Своей меры у карточки больше нет: 62rem против 78 знаков у реплик давали на
+   широком окне ступеньку — реплики по центру, договор сбоку. Мера приходит от
+   ленты (--hall-read-col), общая на реплики, карточки, поиск и композер. */

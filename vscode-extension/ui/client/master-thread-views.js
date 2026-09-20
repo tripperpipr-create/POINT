@@ -7,9 +7,11 @@ import { masterComposeActionsHtml, masterComposeCountHtml, masterComposeFormClas
 import { createMasterQuestionsViews, masterParseAnswers } from './master-questions-views.js'
 import { masterMentionActiveId, masterMentionHtml } from './master-mention-ui.js'
 import { masterPlanHtml, masterPlanState } from './master-plan-views.js'
+import { questChecklistHtml, questMenuHtml } from './master-quest-views.js'
 import { masterToolName, masterToolNameNow } from './master-tool-names.js'
 import { masterHiringCardsHtml } from './master-hiring-card.js'
 import { masterAgentCardFromAction, masterAgentCardHtml, masterAgentCardsFor, masterAgentCardsHtml } from './master-agent-card.js'
+import { masterCardMoreAttrs } from './master-card-open.js'
 
 // Диалог с Мастером: лента, реплика и всё, что к ней приложено.
 //
@@ -718,19 +720,31 @@ export function createMasterThreadViews(dependencies) {
     const partyNote = proposal.teamAgentIdsLocked
       ? 'состав выбран вами и сохранён — Мастер не заменит его при запуске'
       : partyWhy
-    return `<section class="hall-panel hall-proposal">
+    return `<section class="hall-deck hall-proposal">
       <header><b>Предложен квест</b><small>${editing ? 'Редактирование' : esc(questImportanceLabel(proposal.importance))}</small></header>
       <div class="hall-panel-row is-stack">
         <span class="hall-lead">${esc(proposal.title || '')}</span>
         ${(proposal.objectives || []).length ? `<ol class="hall-objectives">${proposal.objectives.map(item => `<li>${esc(item)}</li>`).join('')}</ol>` : ''}
-        ${shownParty.length || partyNote || (proposal.definitionOfDone || []).length ? `<details class="hall-proposal-more"><summary>Состав и критерии</summary>${masterPartyHtml(shownParty)}${partyNote ? `<small class="hall-fineprint">${esc(partyNote)}</small>` : ''}${(proposal.definitionOfDone || []).length ? `<div class="hall-dod"><b>Готово, когда</b><ul>${proposal.definitionOfDone.map(item => `<li>${esc(item)}</li>`).join('')}</ul></div>` : ''}</details>` : ''}
+        ${/* «Готово, когда» вышло из-под раскрывашки: по нему решают, запускать
+             ли квест, а состав отряда — про то, кем он будет выполнен. Второе
+             читают, когда решили читать. */''}
+        ${/* Вида проверки у предложения нет: его условия — слова, а не договор
+             с ядром. Счёт и полоса при этом те же, что у задания и квеста: одна
+             форма на все три места, где условия читают. */''}
+        ${questChecklistHtml('Готово, когда', (proposal.definitionOfDone || []).map(item => ({ text: item })), esc)}
+        ${shownParty.length || partyNote ? `<details class="hall-proposal-more"${masterCardMoreAttrs(`quest:${proposal.id}`, { esc })}><summary>Кто будет делать</summary>${masterPartyHtml(shownParty)}${partyNote ? `<small class="hall-fineprint">${esc(partyNote)}</small>` : ''}</details>` : ''}
         ${editing ? questProposalEditorHtml(proposal) : ''}
       </div>
       ${Number(proposal.estimateTokens) > 0 ? `<div class="hall-panel-row"><small class="hall-fineprint">Потолок расхода: ${Number(proposal.estimateTokens).toLocaleString('ru-RU')} токенов. Дальше квест остановится сам — это предел, а не прогноз.</small></div>` : ''}
       <div class="hall-panel-row hall-actions">
-        <button class="hall-btn is-primary" data-action="quest-proposal-start" data-id="${esc(proposal.id)}" ${ui.proposalStarting.has(proposal.id) || modifying ? 'disabled' : ''}>${ui.proposalStarting.has(proposal.id) ? 'Запускаем…' : 'Запустить'}</button>
-        <button class="hall-btn" data-action="quest-proposal-modify" data-id="${esc(proposal.id)}" ${modifying ? 'disabled' : ''}>${modifying ? 'Сохраняем…' : editing ? 'Сохранить' : 'Изменить'}</button>
-        <button class="hall-btn" data-action="quest-proposal-ignore" data-id="${esc(proposal.id)}" ${modifying ? 'disabled' : ''}>Отклонить</button>
+        <div class="hall-quest-acts">
+          <button class="hall-btn is-primary" data-action="quest-proposal-start" data-id="${esc(proposal.id)}" ${ui.proposalStarting.has(proposal.id) || modifying ? 'disabled' : ''}>${ui.proposalStarting.has(proposal.id) ? 'Запускаем…' : 'Запустить'}</button>
+          ${editing ? `<button class="hall-btn" data-action="quest-proposal-modify" data-id="${esc(proposal.id)}" ${modifying ? 'disabled' : ''}>${modifying ? 'Сохраняем…' : 'Сохранить'}</button>` : ''}
+          ${questMenuHtml([
+            editing ? null : { action: 'quest-proposal-modify', id: proposal.id, label: 'Изменить', busy: modifying },
+            { action: 'quest-proposal-ignore', id: proposal.id, label: 'Отклонить', busy: modifying },
+          ], esc)}
+        </div>
         <small class="hall-fineprint is-trailing">сам квест не стартует — решение за вами</small>
       </div>
     </section>`

@@ -16,8 +16,8 @@
 // Состояние раскрытия живёт здесь же, как и у карточки запуска: main.js стоит у
 // своей границы в 6900 строк, и вид владеет своим раскрытием сам.
 import { list, shortLabel } from './format-units.js'
+import { masterCardMoreAttrs } from './master-card-open.js'
 
-export const masterHiringOpen = new Set()
 
 
 const READINESS = { READY: 'готов', DEGRADED: 'с оговорками', BLOCKED: 'не готов' }
@@ -74,7 +74,6 @@ function subagentHtml(card, esc) {
 export function masterHiringCardsHtml(cards, esc) {
   return list(cards).map(card => {
     const state = String(card.state || 'ready')
-    const open = masterHiringOpen.has(card.workOrderId)
     const selected = list(card.selected)
     const considered = list(card.considered)
     const takeable = considered.filter(candidate => candidate.readiness !== 'BLOCKED')
@@ -84,13 +83,13 @@ export function masterHiringCardsHtml(cards, esc) {
     }
     body.push(subagentHtml(card, esc))
     if (considered.length) {
-      body.push(`<details class="hall-hire-considered"${open ? ' open' : ''}><summary data-action="hire-toggle" data-work-order-id="${esc(card.workOrderId)}">Рассмотрены ещё: ${considered.length}</summary>${considered.map(candidate => candidateHtml(candidate, esc, card.workOrderId, { takeable: takeable.includes(candidate) })).join('')}</details>`)
+      body.push(`<details class="hall-hire-considered"${masterCardMoreAttrs(`hire:${card.workOrderId}`, { esc })}><summary>Рассмотрены ещё: ${considered.length}</summary>${considered.map(candidate => candidateHtml(candidate, esc, card.workOrderId, { takeable: takeable.includes(candidate) })).join('')}</details>`)
     }
     // Решать в этой карточке больше нечего: исполнителя нет, и заводят его в
     // своей карточке — она стоит прямо над этой. Пустая рамка «Кем делать ·
     // Исполнителя нет» повторяла бы её заголовок и ничего не добавляла.
     if (!body.filter(Boolean).length) return ''
-    return `<section class="hall-panel hall-hire state-${esc(state)}" data-hiring-card="${esc(card.workOrderId)}">
+    return `<section class="hall-deck hall-hire state-${esc(state)}" data-hiring-card="${esc(card.workOrderId)}">
       <header><b>Кем делать</b><small>${esc(STATE_LABELS[state] || 'Состав собран')}</small></header>
       <div class="hall-panel-row">
         ${card.reason ? `<p class="hall-hire-why">${esc(card.reason)}</p>` : ''}
@@ -108,15 +107,6 @@ export function masterHiringCardsHtml(cards, esc) {
 // форма уводят в мастерскую, где проверки профиля стоят на своём месте.
 export function handleMasterHiringAction(action, target, ctx) {
   const card = () => list(ctx.hiring).find(item => item.workOrderId === String(target.dataset.workOrderId || ''))
-  if (action === 'hire-toggle') {
-    // Раскрытие переживает перерисовку: без своей памяти список рассмотренных
-    // схлопывался на каждом ходе Мастера прямо под курсором.
-    const id = String(target.dataset.workOrderId || '')
-    if (masterHiringOpen.has(id)) masterHiringOpen.delete(id)
-    else masterHiringOpen.add(id)
-    ctx.render()
-    return true
-  }
   if (action === 'hire-into-work-order') {
     const current = card()
     const agentId = String(target.dataset.agentId || '')

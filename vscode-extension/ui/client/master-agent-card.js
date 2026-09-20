@@ -16,6 +16,7 @@
 // стоит у своей границы в 6900 строк, и вид владеет своим раскрытием сам.
 
 import { list, shortLabel } from './format-units.js'
+import { masterCardMoreAttrs } from './master-card-open.js'
 
 const text = value => String(value ?? '').trim()
 
@@ -35,7 +36,6 @@ const EFFORT_OPTIONS = [['none', 'обычное'], ['minimal', 'минимал�
 // снимали значения только при отправке, и любое из этих событий стирало
 // написанное человеком молча и целиком.
 export const masterAgentDrafts = new Map()
-export const masterAgentOpen = new Set()
 export const masterAgentBusy = new Set()
 export const masterAgentErrors = new Map()
 // Согласие «создать при запуске»: его читает карточка запуска, чтобы решить,
@@ -236,20 +236,19 @@ function blueprintsHtml(card, esc) {
 export function masterAgentCardHtml(card, esc, deps = {}) {
   if (!card) return ''
   const value = masterAgentValue(card)
-  const open = masterAgentOpen.has(card.id)
   const busy = masterAgentBusy.has(card.id)
   const consented = card.kind === 'work-order' && masterAgentConsent.has(card.workOrderId)
   const issue = masterAgentErrors.get(card.id) || ''
   const why = card.why || (card.goal ? `для задания «${card.goal}»` : '')
   const grants = `умений: ${list(value.allowedTools).length} · ${value.approvalMode === 'always' ? 'спрашивает про всё' : 'спрашивает про опасное'}`
-  return `<section class="hall-panel master-agent" data-agent-card="${esc(card.id)}">
+  return `<section class="hall-deck master-agent" data-agent-card="${esc(card.id)}">
     <header><b>Новый исполнитель</b><small>${esc(why || 'заводите вы — Мастер только предлагает')}</small></header>
     <div class="hall-panel-row is-stack">
       ${fieldsHtml(card, value, esc)}
       ${brainHtml(card, value, esc, deps)}
       ${blueprintsHtml(card, esc)}
-      <details class="master-agent-more"${open ? ' open' : ''}>
-        <summary data-action="agent-card-toggle" data-card="${esc(card.id)}">Права и пределы · ${esc(grants)}</summary>
+      <details class="master-agent-more"${masterCardMoreAttrs(`agent:${card.id}`, { esc })}>
+        <summary>Права и пределы · ${esc(grants)}</summary>
         ${toolsHtml(value, esc, deps)}
         ${limitsHtml(value, esc)}
       </details>
@@ -320,14 +319,6 @@ export function handleMasterAgentCardAction(action, target, ctx) {
   // каждое нажатие порождает новую сущность, и запертой кнопки в разметке для
   // этого мало — ответа ядра ждём заметное время, и за него успевают нажать.
   if (masterAgentBusy.has(id) && (action === 'agent-card-create' || action === 'agent-card-dismiss')) return true
-  if (action === 'agent-card-toggle') {
-    // Раскрытие переживает перерисовку: без своей памяти права и пределы
-    // схлопывались на каждом ходе Мастера прямо под курсором.
-    if (masterAgentOpen.has(id)) masterAgentOpen.delete(id)
-    else masterAgentOpen.add(id)
-    ctx.render()
-    return true
-  }
   if (action === 'agent-card-blueprint') {
     const template = String(target.dataset.template || '')
     const blueprint = ctx.blueprintById(template) || list(card.blueprints).find(item => item.blueprintId === template)

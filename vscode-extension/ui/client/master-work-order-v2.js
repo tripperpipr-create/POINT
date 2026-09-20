@@ -1,6 +1,8 @@
 import { workOrderRunHtml } from './work-order-execution-views.js'
 import { masterAgentConsent } from './master-agent-card.js'
 import { countOf, list } from './format-units.js'
+import { masterCardMoreAttrs } from './master-card-open.js'
+import { DEFAULT_CRITERION_KIND, questChecklistHtml, questMenuHtml } from './master-quest-views.js'
 
 const labels = {
   discussion: 'Нужно уточнение', ready: 'Готов к запуску', approved: 'Утверждён',
@@ -29,6 +31,42 @@ const runtimeTones = {
   completed:'is-done', needs_review:'is-attention', blocked:'is-attention', failed:'is-attention', awaiting_user:'is-attention',
   cancelled:'is-quiet', paused:'is-quiet',
   preflight:'is-active', running:'is-active', verifying:'is-active', applying:'is-active',
+}
+
+// Какие условия закрыты — поимённо.
+//
+// Закрытость приходит из `EvidenceBundle.criteria`: ядро кладёт туда по записи
+// на каждое условие наряда, с его же идентификатором в `criterionId`. До
+// запуска записей нет, и все условия ждут — это честно, потому что закрывает
+// их прогон, а не план.
+//
+// Считать по `verificationChecks` нельзя, хотя соблазн велик: список лежит
+// рядом и у него есть `satisfied`. Он отвечает на другой вопрос. Ручных
+// условий в нём нет вовсе, а проверки профиля завершения (`completion:health`
+// и такие же) есть, и их идентификаторы условиям не принадлежат. Наряд с двумя
+// проваленными условиями и четырьмя зелёными проверками профиля показывал
+// «2 / 2 закрыто».
+//
+// Сопоставление по номеру в списке не годится тем же: закрытым помечалось
+// первое условие, а не то, которое прошло.
+function criteriaDoneIds(order) {
+  const done = new Set()
+  for (const item of list(order.runtime?.evidence?.criteria)) {
+    if (item?.satisfied && item.criterionId) done.add(String(item.criterionId))
+  }
+  return done
+}
+
+// Чек-лист условий готовности — главный герой карточки квеста. Рисует его
+// общая ячейка (master-quest-views.js): та же форма стоит в составе задания и
+// в предложении квеста, и расходиться им незачем.
+function criteriaChecklistHtml(order, esc) {
+  const done = criteriaDoneIds(order)
+  return questChecklistHtml('Условия готовности', list(order.criteria).map(item => ({
+    text: item.text || item.id,
+    kind: item.kind || DEFAULT_CRITERION_KIND,
+    done: done.has(String(item.id)),
+  })), esc, { empty: 'Условия готовности не заданы' })
 }
 
 function rows(values, esc) {
@@ -64,7 +102,7 @@ export function masterWorkOrderCardsHtml(orders, esc, busyIds = new Set(), deps 
 	const tokens=calls.reduce((sum,item)=>sum+Number(item.inputTokens||0)+Number(item.outputTokens||0),0)
 	const passedChecks=checks.filter(item=>item.satisfied).length
 	const finalCommit=list(evidence?.commitIds).at(-1) || receipt?.commitId || ''
-	const evidenceSummary=evidence?.id ? `<details class="master-v2-evidence" ${runtime?.status==='completed'?'open':''}>
+	const evidenceSummary=evidence?.id ? `<details class="master-v2-evidence"${masterCardMoreAttrs(`run-evidence:${order.id}`,{esc,open:runtime?.status==='completed'})}>
 		<summary>Доказательства результата · ${passedChecks}/${countOf(checks.length,'проверка','проверки','проверок')}</summary>
         <div class="master-v2-grid">
           <section><b>EvidenceBundle</b><strong>v${Number(evidence.version)||0}</strong><code>${esc(evidence.id)}</code></section>
@@ -75,7 +113,7 @@ export function masterWorkOrderCardsHtml(orders, esc, busyIds = new Set(), deps 
           <section><b>Ревизия доставки</b><code>${esc(evidence.workspaceRevision || receipt?.workspaceRevision || '')}</code><span>${esc(evidence.deliveryTarget || receipt?.target || '')}</span></section>
         </div>
       </details>` : ''
-	const editor=order.state!=='approved' ? `<details class="master-v2-editor">
+	const editor=order.state!=='approved' ? `<details class="master-v2-editor"${masterCardMoreAttrs(`order-edit:${order.id}`,{esc})}>
         <summary>Редактировать карточку без запроса к модели</summary>
         <div class="master-v2-editor-simple">
           <label><span>Цель</span><input data-work-order-field="goal" maxlength="4096" value="${esc(order.goal || '')}"></label>
@@ -83,7 +121,7 @@ export function masterWorkOrderCardsHtml(orders, esc, busyIds = new Set(), deps 
           <label><span>Предположения · один пункт на строку</span><textarea data-work-order-field="assumptions" rows="3">${esc(list(order.assumptions).join('\n'))}</textarea></label>
           <label><span>Вне scope · один пункт на строку</span><textarea data-work-order-field="outOfScope" rows="3">${esc(list(order.outOfScope).join('\n'))}</textarea></label>
         </div>
-        <details class="master-v2-editor-advanced"><summary>Профессиональные настройки</summary>
+        <details class="master-v2-editor-advanced"${masterCardMoreAttrs(`order-edit-json:${order.id}`,{esc})}><summary>Профессиональные настройки</summary>
           <p>JSON редактирует точный контракт. Сервер проверит версии, права, секреты, сеть и критерии до создания новой immutable-версии.</p>
           ${['criteria','milestones','completion','workspace','stack','roster','routing','network','secrets','budget','delivery'].map(field=>`<label><span>${field}</span><textarea data-work-order-json="${field}" rows="${field==='criteria'||field==='milestones'?8:5}">${jsonValue(order[field],esc)}</textarea></label>`).join('')}
         </details>
@@ -122,11 +160,19 @@ export function masterWorkOrderCardsHtml(orders, esc, busyIds = new Set(), deps 
 	// нечего, а место нужно тому, что происходит сейчас. Состав уходит под один
 	// раскрывающийся заголовок, на его месте — экран выполнения.
 	const executing=order.state==='approved' && Boolean(runtime)
+	// «Что будет сделано» уходит в подробности к шагам и отряду: по нему не
+	// решают, а читают, когда решили читать. Наверху остаётся то, по чему квест
+	// принимают, — условия готовности.
 	const summaryHtml=`<div class="master-v2-summary">
         <section><b>Что будет сделано</b>${rows(order.scope,esc)}</section>
-        <section><b>Критерии готовности</b>${criteria.length?`<ul>${criteria.map(item=>`<li><i>${item.kind==='manual'?'ручная':'авто'}</i>${esc(item.text || item.id)}</li>`).join('')}</ul>`:'<span class="master-v2-empty">Не заданы</span>'}</section>
       </div>`
-	const questionsHtml=list(order.openQuestions).length?`<div class="master-v2-warning"><b>Мастеру нужен ответ</b>${rows(order.openQuestions,esc)}</div>`:''
+	// Вопрос Мастера — состояние квеста, а не примечание к нему: точка тем же
+	// тоном, что и кикер, и счёт вопросов прямо в строке.
+	const questionCount=list(order.openQuestions).length
+	const questionsHtml=questionCount?`<div class="master-v2-warning">
+        <div class="hall-quest-kick is-ask"><span class="hall-quest-dot" aria-hidden="true"></span><b>Мастер ждёт ${countOf(questionCount,'уточнение','уточнения','уточнений')}</b></div>
+        ${rows(order.openQuestions,esc)}
+      </div>`:''
 	const detailsGridHtml=`<div class="master-v2-grid">
           <section><b>Workspace</b><code>${esc(order.workspace?.path || '')}</code><span>${esc(order.workspace?.mode || '')} · ${esc(order.workspace?.isolation || '')}${order.workspace?.initializeGit?' · Git':''}</span></section>
           <section><b>Стек</b><strong>${esc(order.stack?.id || 'recommended')}</strong><span>${esc(order.stack?.category || '')} · preset ${esc(order.stack?.version || '')}</span></section>
@@ -142,8 +188,8 @@ export function masterWorkOrderCardsHtml(orders, esc, busyIds = new Set(), deps 
           <section><b>Вне scope</b>${rows(order.outOfScope,esc)}</section>
         </div>`
 	const compositionHtml=executing
-		? `<details class="master-v2-composition"><summary>Состав задания</summary>${summaryHtml}${questionsHtml}${detailsGridHtml}</details>`
-		: `${summaryHtml}${questionsHtml}<details><summary>Проверить детали и разрешения</summary>${detailsGridHtml}</details>`
+		? `<details class="master-v2-composition"${masterCardMoreAttrs(`run:${order.id}`,{esc})}><summary>Состав задания</summary>${summaryHtml}${questionsHtml}${detailsGridHtml}</details>`
+		: `${summaryHtml}${questionsHtml}<details${masterCardMoreAttrs(`order:${order.id}`,{esc})}><summary>Подробности</summary>${detailsGridHtml}</details>`
 	// Согласие на создание исполнителя живёт в своей карточке ленты.
 	//
 	// Раньше оно раскрывалось ярусом прямо здесь: черновик агента с именем,
@@ -156,7 +202,7 @@ export function masterWorkOrderCardsHtml(orders, esc, busyIds = new Set(), deps 
 	// Пока исполнителя нет, запускать нечем, и кнопка об этом говорит прямо, а
 	// не молча блокируется: причина стоит рядом с ней и называет, где решение.
 	const consentNote=consented ? '' : `<small class="master-v2-consent-note">Сначала заведите ${consentDrafts.length > 1 ? 'исполнителей' : 'исполнителя'} — карточка ниже</small>`
-	const approveLabel='Подтвердить и запустить'
+	const approveLabel='Запустить квест'
 	// Созданный исполнитель — событие, а не строка под свёрнутыми подробностями.
 	// Утверждение создаёт агента в своей транзакции, и человек имеет право сразу
 	// увидеть, кто появился, и уйти в его мастерскую.
@@ -165,6 +211,11 @@ export function masterWorkOrderCardsHtml(orders, esc, busyIds = new Set(), deps 
 	// Запущенный квест уходит из ленты как карточка и возвращается как прогон.
 	// Шапка прогона несёт цель и исход, поэтому экрану выполнения статус больше
 	// не передаётся: второй раз то же слово читается как два разных состояния.
+	// Чек-лист уходит в прогон вместе с квестом, а не пропадает на запуске.
+	// Вариант 1b макета держится на том, что карточка одна на весь квест и
+	// отметки в ней заполняются: до запуска — счёт условий, после — какие
+	// именно закрыты. Пока чек-лист рисовала только незапущенная карточка,
+	// заполняться было нечему, и «0 / 4» оставалось единственным его видом.
 	if (executing) return workOrderRunHtml(order, deps.ui, {
 		...deps, esc,
 		statusText: approvedText,
@@ -173,18 +224,38 @@ export function masterWorkOrderCardsHtml(orders, esc, busyIds = new Set(), deps 
 		resumable, resumeLabel,
 		controlsHtml: runtimeControls,
 		compositionHtml, createdHtml,
+		checklistHtml: criteriaChecklistHtml(order, esc),
 		applicationHtml: applicationControls,
 		evidenceHtml: evidenceSummary,
 	})
-    return `<section class="master-v2-order state-${esc(order.state || 'discussion')}" data-work-order-id="${esc(order.id)}">
-      <header><div><small>ЕДИНАЯ КАРТОЧКА ЗАПУСКА · v${Number(order.version)||1}</small><strong>${esc(order.goal || 'Задание')}</strong></div><span>${esc(labels[order.state] || order.state || 'Черновик')}</span></header>
+    // Шапка квеста: точка состояния, кикер и мета справа. Гриф «ЕДИНАЯ
+    // КАРТОЧКА ЗАПУСКА» прописными ушёл — он называл документ, а не то, что с
+    // ним делают, и был единственным капсом в тихом регистре разговора.
+    const kick=order.state==='approved' ? 'Квест утверждён' : order.state==='ready' ? 'Квест ждёт решения' : 'Квест уточняется'
+    return `<section class="hall-deck master-v2-order state-${esc(order.state || 'discussion')}" data-work-order-id="${esc(order.id)}">
+      <header>
+        <div>
+          <span class="hall-quest-kick"><span class="hall-quest-dot" aria-hidden="true"></span>${esc(kick)}</span>
+          <strong>${esc(order.goal || 'Задание')}</strong>
+        </div>
+        <span>${esc(labels[order.state] || order.state || 'Черновик')} · v${Number(order.version)||1}</span>
+      </header>
+      ${criteriaChecklistHtml(order, esc)}
       ${compositionHtml}
       ${runtimeControls}
       ${applicationControls}
 	  ${evidenceSummary}
 	  ${editor}
       <footer>
-        ${order.state==='approved'?`<span class="master-v2-approved ${runtime?(runtimeTones[runtime.status] || 'is-done'):'is-quiet'}">${runtime?(runtimeMarks[runtime.status] || '✓'):'·'} ${esc(approvedText)}</span>${runtime?'':`<button type="button" class="hall-btn" data-action="delete-work-order-v2" data-id="${esc(order.id)}" ${busy?'disabled':''}>Убрать наряд</button>`}`:`<button type="button" class="hall-btn" data-action="revise-master-work-order-v2" data-id="${esc(order.id)}">Обсудить с Мастером</button><button type="button" class="hall-btn is-primary" data-action="approve-master-work-order-v2" data-id="${esc(order.id)}" data-version="${Number(order.version)||1}" data-digest="${esc(order.digest || '')}" ${ready&&consented&&!busy?'':'disabled'}>${busy?'Запускаем…':esc(approveLabel)}</button>${consentNote}`}
+        ${/* Решение одно, остальное — в меню. Четыре кнопки в ряд не говорили,
+             какая из них главная: «Обсудить», «Подтвердить», «Убрать» и
+             подпись стояли одним весом, и глаз выбирал крайнюю левую. */''}
+        ${order.state==='approved'
+          ? `<span class="master-v2-approved ${runtime?(runtimeTones[runtime.status] || 'is-done'):'is-quiet'}">${runtime?(runtimeMarks[runtime.status] || '✓'):'·'} ${esc(approvedText)}</span>${runtime?'':questMenuHtml([{action:'delete-work-order-v2',id:order.id,label:'Убрать наряд',busy}],esc)}`
+          : `<div class="hall-quest-acts">
+              <button type="button" class="hall-btn is-primary" data-action="approve-master-work-order-v2" data-id="${esc(order.id)}" data-version="${Number(order.version)||1}" data-digest="${esc(order.digest || '')}" ${ready&&consented&&!busy?'':'disabled'}>${busy?'Запускаем…':esc(approveLabel)}</button>
+              ${questMenuHtml([{action:'revise-master-work-order-v2',id:order.id,label:'Обсудить с Мастером'}],esc)}
+            </div>${consentNote}`}
       </footer>
     </section>`
   }).join('')

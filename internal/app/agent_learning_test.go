@@ -18,6 +18,18 @@ import (
 	"local-agent-workbench/internal/domain"
 )
 
+func unavailableLearningProvider(t *testing.T) string {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/api/chat" {
+			t.Errorf("unexpected learning provider request: %s %s", request.Method, request.URL.Path)
+		}
+		http.Error(w, "controlled reviewer outage", http.StatusServiceUnavailable)
+	}))
+	t.Cleanup(server.Close)
+	return server.URL
+}
+
 func TestVerifiedComplexRunsCreatePatchAndRollbackLearnedSkill(t *testing.T) {
 	application := newTestApp(t)
 	view, err := application.OpenWorkspace(t.TempDir())
@@ -25,7 +37,7 @@ func TestVerifiedComplexRunsCreatePatchAndRollbackLearnedSkill(t *testing.T) {
 		t.Fatal(err)
 	}
 	agent, err := application.SaveProjectAgent(domain.ProjectAgent{
-		Name: "Backend", RoleDescription: "Backend engineer", Provider: domain.ProviderOllama, BaseURL: "http://127.0.0.1:11434", PrimaryModel: "qwen2.5-coder:7b",
+		Name: "Backend", RoleDescription: "Backend engineer", Provider: domain.ProviderOllama, BaseURL: unavailableLearningProvider(t), PrimaryModel: "qwen2.5-coder:7b",
 		AllowedTools: []string{"project_map", "list_files", "search_code", "read_file", "search_text"},
 	})
 	if err != nil {
@@ -113,7 +125,7 @@ func TestUsefulTemporarySubagentWaitsForUserBeforeParentBlueprintPromotion(t *te
 	}
 	tools := []string{"project_map", "list_files", "search_code", "read_file", "search_text"}
 	blueprint, err := application.SaveBlueprint(domain.AgentBlueprint{
-		Name: "Backend", RoleDescription: "Backend specialist", Provider: domain.ProviderOllama, BaseURL: "http://127.0.0.1:11434",
+		Name: "Backend", RoleDescription: "Backend specialist", Provider: domain.ProviderOllama, BaseURL: unavailableLearningProvider(t),
 		PrimaryModel: "qwen2.5-coder:7b", AllowedTools: tools,
 	})
 	if err != nil {
@@ -157,7 +169,7 @@ func TestLearnedSkillPromotesAcrossBlueprintProjectsAndRollsBackExactly(t *testi
 	application := newTestApp(t)
 	tools := []string{"project_map", "list_files", "search_code", "read_file", "search_text"}
 	blueprint, err := application.SaveBlueprint(domain.AgentBlueprint{
-		Name: "Backend", RoleDescription: "Permanent backend specialist", Provider: domain.ProviderOllama, BaseURL: "http://127.0.0.1:11434",
+		Name: "Backend", RoleDescription: "Permanent backend specialist", Provider: domain.ProviderOllama, BaseURL: unavailableLearningProvider(t),
 		PrimaryModel: "qwen2.5-coder:7b", AllowedTools: tools,
 	})
 	if err != nil {
@@ -429,8 +441,9 @@ func TestShortRunDoesNotCreateAutonomousImprovement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	providerURL := unavailableLearningProvider(t)
 	agent, err := application.SaveProjectAgent(domain.ProjectAgent{
-		Name: "QA", Provider: domain.ProviderOllama, BaseURL: "http://127.0.0.1:11434", PrimaryModel: "qwen2.5-coder:7b", AllowedTools: []string{"read_file"},
+		Name: "QA", Provider: domain.ProviderOllama, BaseURL: providerURL, PrimaryModel: "qwen2.5-coder:7b", AllowedTools: []string{"read_file"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -439,7 +452,7 @@ func TestShortRunDoesNotCreateAutonomousImprovement(t *testing.T) {
 	finished := now.Add(time.Second)
 	run := domain.Run{ID: "run-short", AgentID: agent.ID, ProfileID: agent.ID, WorkspaceID: view.Workspace.ID,
 		Task: "Inspect", Status: domain.RunCompleted, StartedAt: now, FinishedAt: &finished,
-		ConfigurationSnapshot: domain.NewRunConfigurationSnapshot(Version, domain.AgentProfile{Provider: domain.ProviderOllama, BaseURL: "http://127.0.0.1:11434", Model: "qwen2.5-coder:7b"}, nil, now)}
+		ConfigurationSnapshot: domain.NewRunConfigurationSnapshot(Version, domain.AgentProfile{Provider: domain.ProviderOllama, BaseURL: providerURL, Model: "qwen2.5-coder:7b"}, nil, now)}
 	if err = application.store.SaveRun(context.Background(), run); err != nil {
 		t.Fatal(err)
 	}
@@ -459,7 +472,7 @@ func TestOrdinaryRunMessageIsNotSentToLearningReviewer(t *testing.T) {
 		t.Fatal(err)
 	}
 	agent, err := application.SaveProjectAgent(domain.ProjectAgent{
-		Name: "QA", Provider: domain.ProviderOllama, BaseURL: "http://127.0.0.1:11434", PrimaryModel: "qwen2.5-coder:7b", AllowedTools: []string{"read_file", "search_text"},
+		Name: "QA", Provider: domain.ProviderOllama, BaseURL: unavailableLearningProvider(t), PrimaryModel: "qwen2.5-coder:7b", AllowedTools: []string{"read_file", "search_text"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -536,7 +549,7 @@ func TestConsentedCorrectionSkipsWhenReviewerUnavailable(t *testing.T) {
 		t.Fatal(err)
 	}
 	agent, err := application.SaveProjectAgent(domain.ProjectAgent{
-		Name: "QA", Provider: domain.ProviderOllama, BaseURL: "http://127.0.0.1:11434", PrimaryModel: "qwen2.5-coder:7b", AllowedTools: []string{"read_file", "search_text"},
+		Name: "QA", Provider: domain.ProviderOllama, BaseURL: unavailableLearningProvider(t), PrimaryModel: "qwen2.5-coder:7b", AllowedTools: []string{"read_file", "search_text"},
 	})
 	if err != nil {
 		t.Fatal(err)

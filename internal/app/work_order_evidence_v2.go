@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"sort"
 	"strings"
@@ -29,11 +30,16 @@ func (a *App) finalizeWorkOrderQuestAfterFlowV2(approval domain.WorkOrderApprova
 	ctx := context.Background()
 	quest, err := a.workOrderQuestV2(ctx, approval.WorkOrder.WorkspaceID, approval.QuestID)
 	if err != nil {
+		slog.Error("work order evidence finalizer could not load quest", "quest_id", approval.QuestID, "error", security.Redact(err.Error()))
+		if releaseErr := a.store.ReleaseWriterLeaseV2(ctx, approval.QuestID); releaseErr != nil {
+			slog.Error("work order writer lease was not released", "quest_id", approval.QuestID, "error", security.Redact(releaseErr.Error()))
+		}
 		return
 	}
 	if quest.Status == domain.QuestRunning {
 		quest, err = a.setWorkOrderQuestStatusV2(ctx, quest, domain.QuestVerifying, "Проверяем критерии на итоговой ревизии")
 		if err != nil {
+			a.blockWorkOrderFinalizationV2(ctx, quest, "Не удалось начать проверку WorkOrder: "+security.Redact(err.Error()), err)
 			return
 		}
 	}
@@ -41,7 +47,11 @@ func (a *App) finalizeWorkOrderQuestAfterFlowV2(approval domain.WorkOrderApprova
 	machineReady := workOrderMachineEvidenceSatisfiedV2(approval.WorkOrder, bundle)
 	if flowSucceeded && machineReady && approval.WorkOrder.Delivery.ApplyMode == "automatic" {
 		if quest.Status == domain.QuestVerifying {
-			quest, _ = a.setWorkOrderQuestStatusV2(ctx, quest, domain.QuestApplying, "Проверки пройдены; переносим результат в проект")
+			quest, err = a.setWorkOrderQuestStatusV2(ctx, quest, domain.QuestApplying, "Проверки пройдены; переносим результат в проект")
+			if err != nil {
+				a.blockWorkOrderFinalizationV2(ctx, quest, "Не удалось начать доставку WorkOrder: "+security.Redact(err.Error()), err)
+				return
+			}
 		}
 		applied, commits, applyErr := a.applyWorkOrderChangeSetsV2(ctx, approval.WorkOrder, quest, bundle.ID)
 		bundle.ChangedFiles = append(bundle.ChangedFiles, applied...)
@@ -97,9 +107,23 @@ func (a *App) finalizeWorkOrderQuestAfterFlowV2(approval domain.WorkOrderApprova
 			bundle.DeliveryReceipt.CommitID = bundle.CommitIDs[len(bundle.CommitIDs)-1]
 		}
 	}
-	if _, gateErr := a.store.FinalizeWorkOrderQuestV2(ctx, quest.ID, bundle); gateErr != nil {
-		_, _ = a.setWorkOrderQuestStatusV2(ctx, quest, domain.QuestBlocked, "Evidence gate не принял итог: "+security.Redact(gateErr.Error()))
+	status, gateErr := a.store.FinalizeWorkOrderQuestV2(ctx, quest.ID, bundle)
+	if gateErr != nil {
+		a.blockWorkOrderFinalizationV2(ctx, quest, "Evidence gate не принял итог: "+security.Redact(gateErr.Error()), gateErr)
+		if isFastAgentQuestV2(quest) {
+			_ = a.markFastAgentMilestoneV2(ctx, approval, domain.QuestBlocked)
+		}
+		return
 	}
+	launchMode, _ := quest.Controller["launchMode"].(string)
+	slog.Info("work order evidence finalized", "launch_mode", launchMode, "work_order_id", approval.WorkOrder.ID,
+		"quest_id", quest.ID, "run_id", a.workOrderRunIDV2(ctx, quest), "evidence_gate", status,
+		"status", status, "flow_succeeded", flowSucceeded, "delivery_verified", bundle.DeliveryVerified)
+}
+
+func isFastAgentQuestV2(quest domain.Quest) bool {
+	mode, _ := quest.Controller["launchMode"].(string)
+	return strings.EqualFold(strings.TrimSpace(mode), "fast_agent_v2")
 }
 
 func (a *App) buildWorkOrderEvidenceV2(ctx context.Context, approval domain.WorkOrderApproval, quest domain.Quest, flowSucceeded bool) domain.EvidenceBundle {

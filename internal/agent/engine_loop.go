@@ -202,6 +202,9 @@ func (e *Engine) executeWithCheckpoint(ctx context.Context, active *activeRun, p
 			}
 			reservationID := ""
 			if e.budgets != nil {
+				reservationID = active.takeInitialBudgetReservation()
+			}
+			if e.budgets != nil && reservationID == "" {
 				var reserveErr error
 				reservationID, reserveErr = e.budgets.ReserveModelBudget(ctx, ModelBudgetRequest{
 					WorkspaceID: run.WorkspaceID, QuestID: active.correlation.QuestID, ExecutionID: active.correlation.ExecutionID,

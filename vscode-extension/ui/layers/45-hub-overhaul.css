@@ -798,7 +798,7 @@
 .companion-code-lang {
   margin-right: auto;
   font: var(--fw-normal) var(--t-micro) / 1.2 var(--font-mono);
-  letter-spacing: var(--ls-caps);
+  letter-spacing: var(--tracking-label);
   color: var(--hub-faint-2);
   text-transform: lowercase;
 }

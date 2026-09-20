@@ -92,6 +92,9 @@ func (a *App) startSandboxedExecutionWithSeed(projectAgentID, task, questID, par
 	}
 	if err := a.store.SaveExecution(context.Background(), exec); err != nil {
 		_ = a.sandboxBackend.Close(context.Background(), sandboxRecord, ws.Path)
+		if cleanupErr := a.store.DeleteOrphanSandbox(context.Background(), sandboxRecord.ID, exec.ID); cleanupErr != nil {
+			slog.Warn("orphan sandbox metadata cleanup failed", "sandbox_id", sandboxRecord.ID, "execution_id", exec.ID, "error", cleanupErr)
+		}
 		return domain.ExecutionInstance{}, err
 	}
 	slog.Info("hub execution created",

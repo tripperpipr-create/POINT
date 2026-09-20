@@ -276,9 +276,18 @@ func (a *App) StartRun(request StartRunRequest) (domain.Run, error) {
 	)
 	task := agent.ComposeQuestTask(request.Task, request.Goal, request.AcceptanceCriteria, request.Constraints)
 	slog.Info("agent start progress", "execution_id", request.ExecutionID, "phase", "prepare")
-	prepared, err := a.prepareAgentRunWithRoute(request.ProfileID, task, request.ContextItems, true, request.ModelBinding == nil)
-	if err != nil {
-		return domain.Run{}, err
+	var prepared preparedAgentRun
+	var err error
+	if request.preparedAgent != nil {
+		prepared = *request.preparedAgent
+		if prepared.task != task || prepared.projectAgentID != request.ProfileID {
+			return domain.Run{}, errors.New("atomic launch preparation does not match the requested task and agent")
+		}
+	} else {
+		prepared, err = a.prepareAgentRunWithRoute(request.ProfileID, task, request.ContextItems, true, request.ModelBinding == nil)
+		if err != nil {
+			return domain.Run{}, err
+		}
 	}
 	if request.FlowRunID != "" {
 		prepared.profile.AllowedTools = appendUniqueStrings(prepared.profile.AllowedTools, "team_inbox", "team_publish")
@@ -334,14 +343,15 @@ func (a *App) StartRun(request StartRunRequest) (domain.Run, error) {
 	// Project assignments freeze the model after a real turn. Declared
 	// fallbacks stay on the profile so an empty reasoning-only response can
 	// still switch to the listed backup (engine rejects 429-style fallbacks).
-	if priorExecution != nil && brief != nil && (priorExecution.Status != domain.RunPending || priorExecution.RunID != "") {
+	precommittedRun := request.preparedRunID != "" && priorExecution != nil && priorExecution.RunID == request.preparedRunID
+	if priorExecution != nil && brief != nil && !precommittedRun && (priorExecution.Status != domain.RunPending || priorExecution.RunID != "") {
 		if resumed, resumeErr := a.resumeStructuredExecutionIfSafe(priorExecution, request.APIKey); resumeErr != nil {
 			return domain.Run{}, resumeErr
 		} else if resumed.ID != "" {
 			return resumed, nil
 		}
 	}
-	if err = validateTaskExecutionLaunch(priorExecution, brief, projectAgentID, prepared.task); err != nil {
+	if err = validateTaskExecutionLaunch(priorExecution, brief, projectAgentID, prepared.task, request.preparedRunID); err != nil {
 		return domain.Run{}, err
 	}
 	prepared.profile, err = agent.RestrictTaskProfile(prepared.profile, brief, prepared.customTools)
@@ -382,8 +392,16 @@ func (a *App) StartRun(request StartRunRequest) (domain.Run, error) {
 		return domain.Run{}, fmt.Errorf("initial context needs about %d tokens, exceeding the %d-token input budget", initialTokens, inputBudget)
 	}
 	snapshot := domain.NewRunConfigurationSnapshot(Version, prepared.profile, prepared.customTools, time.Now().UTC())
-	if err := a.enforceQuestBudget(prepared.workspace.ID, questID, int64(initialTokens+prepared.profile.MaxOutputTokens), prepared.profile); err != nil {
-		return domain.Run{}, err
+	if request.preparedConfiguration != nil {
+		if request.preparedConfiguration.ConfigurationDigest != snapshot.ConfigurationDigest {
+			return domain.Run{}, errors.New("atomic launch configuration no longer matches the prepared agent route")
+		}
+		snapshot = *request.preparedConfiguration
+	}
+	if request.initialBudgetReservationID == "" {
+		if err := a.enforceQuestBudget(prepared.workspace.ID, questID, int64(initialTokens+prepared.profile.MaxOutputTokens), prepared.profile); err != nil {
+			return domain.Run{}, err
+		}
 	}
 	if prepared.legacyProfile {
 		if err := a.recordCompatibilityUsage(context.Background(), prepared.workspace.ID, domain.CompatibilityProfileRunFallback, legacyProfileRunVersion); err != nil {
@@ -473,7 +491,7 @@ func (a *App) StartRun(request StartRunRequest) (domain.Run, error) {
 	execution := domain.ExecutionInstance{
 		ID: execID, WorkspaceID: prepared.workspace.ID, ProjectAgentID: projectAgentID,
 		QuestID: questID, FlowRunID: flowRunID, FlowNodeID: flowNodeID,
-		SandboxID: sandboxRecord.ID, Task: prepared.task, Status: domain.RunRunning, Snapshot: snapshot,
+		RunID: request.preparedRunID, SandboxID: sandboxRecord.ID, Task: prepared.task, Status: domain.RunRunning, Snapshot: snapshot,
 		StartedAt: time.Now().UTC(),
 	}
 	if err := a.store.SaveExecution(context.Background(), execution); err != nil {
@@ -482,7 +500,9 @@ func (a *App) StartRun(request StartRunRequest) (domain.Run, error) {
 	run, err := a.engine.Start(agent.StartInput{
 		TaskBrief:     brief,
 		Configuration: snapshot, Workspace: prepared.workspace, SandboxPath: sandboxRecord.Path,
-		ExecutionID: execID, QuestID: questID, FlowRunID: flowRunID, FlowNodeID: flowNodeID,
+		RunID: request.preparedRunID, AgentID: request.preparedAgentID, StartedAt: request.preparedStartedAt,
+		InitialBudgetReservationID: request.initialBudgetReservationID,
+		ExecutionID:                execID, QuestID: questID, FlowRunID: flowRunID, FlowNodeID: flowNodeID,
 		CompletionCheckKind: request.CompletionCheckKind,
 		StageRole:           request.StageRole,
 		ForbiddenPaths:      workContractMidRunForbiddenPaths(request.WorkContract),
@@ -498,10 +518,10 @@ func (a *App) StartRun(request StartRunRequest) (domain.Run, error) {
 			execution.FinishedAt = finished.FinishedAt
 			execution.DurationMs = finished.DurationMs
 			success := finished.Status == domain.RunCompleted
-			if flowRunID == "" && questID != "" {
-				a.finalizeQuestAfterFlow(questID, success)
-			}
 			_ = a.store.SaveExecution(context.Background(), execution)
+			if releaseErr := a.store.ReleaseBudgetReservations(context.Background(), finished.ID, time.Now().UTC()); releaseErr != nil {
+				slog.Warn("terminal run budget release unavailable", "run_id", finished.ID, "error", security.Redact(releaseErr.Error()))
+			}
 			if finished.Status == domain.RunCompleted || finished.Status == domain.RunFailed || finished.Status == domain.RunCancelled || finished.Status == domain.RunInterrupted {
 				baselinePath, dependencies, lineageErr := a.changeSetLineage(prepared.workspace.ID, sandboxRecord)
 				if lineageErr != nil {
@@ -531,6 +551,13 @@ func (a *App) StartRun(request StartRunRequest) (domain.Run, error) {
 					}
 				}
 				a.awardProjectAgentOutcome(projectAgentID, success)
+			}
+			// Direct WorkOrder runs need their ChangeSet before finalization: the
+			// evidence gate applies that isolated result to the approved workspace.
+			// Finalizing first produced an empty delivery receipt and only built the
+			// actual ChangeSet afterwards.
+			if flowRunID == "" && questID != "" {
+				a.finalizeQuestAfterFlow(questID, success)
 			}
 			if flowRunID != "" && flowNodeID != "" {
 				recovered := false

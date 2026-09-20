@@ -11,6 +11,7 @@ import (
 
 	"local-agent-workbench/internal/domain"
 	"local-agent-workbench/internal/flowruntime"
+	"local-agent-workbench/internal/security"
 )
 
 func (a *App) LaunchPendingExecution(executionID, apiKey string) (domain.Run, error) {
@@ -147,8 +148,24 @@ func annotateFlowVerifier(flow *domain.FlowGraph, brief *domain.TaskBrief) {
 }
 
 func (a *App) finalizeQuestAfterFlow(questID string, success bool) {
-	if approval, approvalErr := a.store.WorkOrderApprovalByQuestV2(context.Background(), questID); approvalErr == nil {
-		if a.advanceWorkOrderMilestoneV2(approval, success) {
+	ctx := context.Background()
+	quest, questErr := a.questForFinalization(ctx, questID)
+	if questErr != nil {
+		slog.Warn("quest finalization could not load quest", "quest_id", questID, "error", security.Redact(questErr.Error()))
+		return
+	}
+	if isWorkOrderQuestV2(quest) {
+		approval, approvalErr := a.store.WorkOrderApprovalByQuestV2(ctx, questID)
+		if approvalErr != nil {
+			a.blockWorkOrderFinalizationV2(ctx, quest, "Не удалось подтвердить утверждённый WorkOrder: "+security.Redact(approvalErr.Error()), approvalErr)
+			return
+		}
+		advanced, milestoneErr := a.advanceWorkOrderMilestoneV2(approval, success)
+		if milestoneErr != nil {
+			a.blockWorkOrderFinalizationV2(ctx, quest, "Не удалось завершить milestone WorkOrder: "+security.Redact(milestoneErr.Error()), milestoneErr)
+			return
+		}
+		if advanced {
 			return
 		}
 		a.finalizeWorkOrderQuestAfterFlowV2(approval, success)
@@ -217,6 +234,64 @@ func (a *App) finalizeQuestAfterFlow(questID string, success bool) {
 		a.finalizeIntakeAfterQuest(quest.ID, verified)
 		return
 	}
+}
+
+func (a *App) questForFinalization(ctx context.Context, questID string) (domain.Quest, error) {
+	ws, err := a.requireWorkspace()
+	if err != nil {
+		return domain.Quest{}, err
+	}
+	quests, err := a.store.ListQuests(ctx, ws.ID)
+	if err != nil {
+		return domain.Quest{}, err
+	}
+	for _, quest := range quests {
+		if quest.ID == questID {
+			return quest, nil
+		}
+	}
+	return domain.Quest{}, fmt.Errorf("quest %q was not found", questID)
+}
+
+func isWorkOrderQuestV2(quest domain.Quest) bool {
+	if quest.Brief != nil && quest.Brief.WorkOrder != nil {
+		return true
+	}
+	if quest.Controller == nil {
+		return false
+	}
+	source, _ := quest.Controller["source"].(string)
+	workOrderID, _ := quest.Controller["workOrderId"].(string)
+	return strings.EqualFold(strings.TrimSpace(source), "work_order_v2") || strings.TrimSpace(workOrderID) != ""
+}
+
+func (a *App) blockWorkOrderFinalizationV2(ctx context.Context, quest domain.Quest, message string, cause error) {
+	redacted := security.Redact(message)
+	if _, err := a.setWorkOrderQuestStatusV2(ctx, quest, domain.QuestBlocked, redacted); err != nil {
+		slog.Error("work order finalization failure was not persisted", "quest_id", quest.ID, "error", security.Redact(err.Error()))
+	}
+	if err := a.store.ReleaseWriterLeaseV2(ctx, quest.ID); err != nil {
+		slog.Error("work order writer lease was not released", "quest_id", quest.ID, "error", security.Redact(err.Error()))
+	}
+	workOrderID, _ := quest.Controller["workOrderId"].(string)
+	launchMode, _ := quest.Controller["launchMode"].(string)
+	slog.Error("work order finalization failed closed",
+		"launch_mode", launchMode, "work_order_id", workOrderID, "quest_id", quest.ID,
+		"run_id", a.workOrderRunIDV2(ctx, quest), "evidence_gate", "blocked",
+		"block_reason", redacted, "error", security.Redact(cause.Error()))
+}
+
+func (a *App) workOrderRunIDV2(ctx context.Context, quest domain.Quest) string {
+	executions, err := a.store.ListExecutions(ctx, quest.WorkspaceID, 200)
+	if err != nil {
+		return ""
+	}
+	for _, execution := range executions {
+		if execution.QuestID == quest.ID && strings.TrimSpace(execution.RunID) != "" {
+			return execution.RunID
+		}
+	}
+	return ""
 }
 
 func taskBriefHasManualCriteria(brief *domain.TaskBrief) bool {

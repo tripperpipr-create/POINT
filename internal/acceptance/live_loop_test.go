@@ -16,27 +16,24 @@ import (
 	"local-agent-workbench/internal/domain"
 )
 
-// Лёгкий живой прогон: одна правка в настоящем проекте, от реплики человека до
-// зелёных тестов. Он намеренно не похож на приёмку MVP (work_order_mvp_test.go)
-// и не заменяет её: там наряд, шлюз доказательств и сценарий на часы, здесь —
-// полоса «Агент» (app.StartFastAgent), десять минут и шесть фактов вместо
-// шестнадцати условий шлюза.
+// Лёгкая живая приёмка: два независимых изменения в свежих копиях проекта,
+// от реплики человека до зелёных тестов и EvidenceBundle v3. Она не заменяет
+// длинную приёмку MVP: здесь короткий одношаговый WorkOrder FastAgent, но тот
+// же fail-closed evidence/delivery gate.
 //
 // Смысл полигона — короткий круг обратной связи. Пока главный сценарий ездит
 // часами, ни один дефект не успевает быть найденным дважды; на этой полосе
 // круг стоит минуты, и вердикт можно получать десятки раз в день.
 //
-// Полоса «Агент» уже пишет в открытый проект напрямую (sandbox.LiveFileMutationEnabled
-// по умолчанию истинна), propose_patch подтверждается сам, run_command спрашивает.
-// Шлюза доказательств здесь нет вовсе: квест заводится сразу активным с одним
-// ручным критерием. Поэтому лёгкая задача едет мимо шлюза, а не сквозь ослабленный.
+// Полоса «Агент» выполняется в отдельном sandbox, автоматически переносит
+// ChangeSet и может завершиться только после точной команды go test ./... на
+// доставленной ревизии. Самоотчёт модели приёмочным фактом не считается.
 const liveLoopTask = `Добавь в HTTP-сервер эндпоинт GET /healthz: он отвечает кодом 200 ` +
 	`и телом {"status":"ok"} с заголовком Content-Type: application/json. ` +
 	`Добавь на него тест в main_test.go. Команда go test ./... должна проходить.`
 
-// liveLoopRow — строка журнала прогона. Она отвечает на шесть вопросов, и
-// четвёртый из них (testsGreen) харнесс выясняет сам, запуская go test в копии
-// проекта: отчёт агента о собственной работе доказательством не считается.
+// liveLoopRow — строка журнала прогона. Файлы и независимый go test проверяет
+// харнесс, остальное берётся из сохранённого WorkOrder/EvidenceBundle.
 type liveLoopRow struct {
 	Run             int      `json:"run"`
 	Model           string   `json:"model"`
@@ -53,6 +50,15 @@ type liveLoopRow struct {
 	EndpointPresent bool     `json:"endpointPresent"`
 	TestPresent     bool     `json:"testPresent"`
 	TestsGreen      bool     `json:"testsGreen"`
+	WorkOrderID     string   `json:"workOrderId,omitempty"`
+	QuestStatus     string   `json:"questStatus,omitempty"`
+	EvidenceVersion int      `json:"evidenceVersion,omitempty"`
+	BriefDigestOK   bool     `json:"briefDigestOk"`
+	SourceDigestOK  bool     `json:"sourceDigestOk"`
+	ModelLedgerOK   bool     `json:"modelLedgerOk"`
+	CriterionExact  bool     `json:"criterionExact"`
+	CompletionExact bool     `json:"completionExact"`
+	DeliveryExact   bool     `json:"deliveryExact"`
 	TestOutput      string   `json:"testOutput,omitempty"`
 	FirstFailure    string   `json:"firstFailure,omitempty"`
 	Violations      []string `json:"violations,omitempty"`
@@ -80,9 +86,12 @@ func TestLiveLoopScenario(t *testing.T) {
 	if apiKey == "" && provider != domain.ProviderOllama {
 		t.Fatal("live loop needs an API key for a remote provider")
 	}
-	run := 1
+	if os.Getenv("POINT_SANDBOX_BACKEND") != "docker" {
+		t.Fatal("POINT_SANDBOX_BACKEND=docker is required for the v2 live loop")
+	}
+	firstRun := 1
 	if value := strings.TrimSpace(os.Getenv("POINT_LIVE_LOOP_RUN")); value != "" {
-		fmt.Sscanf(value, "%d", &run)
+		fmt.Sscanf(value, "%d", &firstRun)
 	}
 
 	t.Setenv("POINT_AGENT_HUB_V2", "1")
@@ -94,13 +103,26 @@ func TestLiveLoopScenario(t *testing.T) {
 	t.Setenv("POINT_LIVE_WORKSPACE", "1")
 	t.Setenv("POINT_FILE_ISOLATION", "")
 
+	for offset := 0; offset < 2; offset++ {
+		run := firstRun + offset
+		t.Run(fmt.Sprintf("run-%d", run), func(t *testing.T) {
+			runLiveLoopIteration(t, provider, preset, model, baseURL, apiKey, run)
+		})
+	}
+}
+
+func runLiveLoopIteration(t *testing.T, provider domain.ProviderKind, preset, model, baseURL, apiKey string, run int) {
+	t.Helper()
 	project := prepareLoopProject(t)
-	dataDir := firstNonEmpty(os.Getenv("POINT_LIVE_LOOP_DATA_DIR"), t.TempDir())
+	dataDir := t.TempDir()
+	if base := strings.TrimSpace(os.Getenv("POINT_LIVE_LOOP_DATA_DIR")); base != "" {
+		dataDir = filepath.Join(base, fmt.Sprintf("run-%d", run))
+	}
 	application, err := app.New(dataDir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { application.Shutdown(context.Background()) })
+	defer application.Shutdown(context.Background())
 	if _, err = application.OpenWorkspace(project); err != nil {
 		t.Fatal(err)
 	}
@@ -165,6 +187,7 @@ func TestLiveLoopScenario(t *testing.T) {
 	row.EndpointPresent = loopSourceContains(t, project, "*.go", "/healthz")
 	row.TestPresent = loopSourceContains(t, project, "*_test.go", "healthz")
 	row.TestsGreen, row.TestOutput = loopTestsGreen(project)
+	collectLoopV2Evidence(t, application, final.ID, &row)
 	row.Violations = loopViolations(row)
 	writeLoopLedger(t, model, run, row)
 
@@ -177,7 +200,12 @@ func TestLiveLoopScenario(t *testing.T) {
 // которую никто не проверял на подделках, пропускает ровно тот случай, ради
 // которого её писали: прогон дошёл до completed, а работы нет.
 func TestLiveLoopVerdictRejectsFalseCompletion(t *testing.T) {
-	green := liveLoopRow{Terminal: true, EndpointPresent: true, TestPresent: true, TestsGreen: true}
+	green := liveLoopRow{
+		Terminal: true, EndpointPresent: true, TestPresent: true, TestsGreen: true,
+		QuestStatus: string(domain.QuestCompleted), EvidenceVersion: domain.CurrentWorkOrderEvidenceVersion,
+		BriefDigestOK: true, SourceDigestOK: true, ModelLedgerOK: true,
+		CriterionExact: true, CompletionExact: true, DeliveryExact: true,
+	}
 	if violations := loopViolations(green); len(violations) != 0 {
 		t.Fatalf("честный прогон объявлен нарушением: %v", violations)
 	}
@@ -195,10 +223,8 @@ func TestLiveLoopVerdictRejectsFalseCompletion(t *testing.T) {
 	}
 }
 
-// loopViolations — вердикт по шести фактам. Он намеренно не спрашивает у
-// квеста, доволен ли он собой: агент, объявивший работу сделанной, и работа,
-// которая действительно сделана, — разные утверждения, и полигон существует
-// ради второго.
+// loopViolations принимает успех только при согласии внешней проверки проекта
+// и внутреннего evidence-gate: ни один из этих источников не заменяет другой.
 func loopViolations(row liveLoopRow) []string {
 	var out []string
 	if !row.Terminal {
@@ -213,7 +239,90 @@ func loopViolations(row liveLoopRow) []string {
 	if !row.TestsGreen {
 		out = append(out, "go test ./... в проекте не проходит")
 	}
+	if row.QuestStatus != string(domain.QuestCompleted) {
+		out = append(out, fmt.Sprintf("Quest не завершён evidence-gate (status=%s)", row.QuestStatus))
+	}
+	if row.EvidenceVersion != domain.CurrentWorkOrderEvidenceVersion {
+		out = append(out, fmt.Sprintf("нет EvidenceBundle v%d", domain.CurrentWorkOrderEvidenceVersion))
+	}
+	if !row.BriefDigestOK || !row.SourceDigestOK {
+		out = append(out, "digest WorkOrder/source не совпадает с evidence")
+	}
+	if !row.ModelLedgerOK {
+		out = append(out, "model-call ledger пуст")
+	}
+	if !row.CriterionExact || !row.CompletionExact {
+		out = append(out, "точная команда go test ./... не подтверждена criterion/completion check")
+	}
+	if !row.DeliveryExact {
+		out = append(out, "delivery receipt не соответствует итоговой ревизии")
+	}
 	return out
+}
+
+func collectLoopV2Evidence(t *testing.T, application *app.App, runID string, row *liveLoopRow) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Minute)
+	for time.Now().Before(deadline) {
+		state, err := application.Bootstrap()
+		if err != nil {
+			t.Logf("bootstrap while waiting for evidence: %v", err)
+			time.Sleep(time.Second)
+			continue
+		}
+		questID := ""
+		for _, execution := range state.Executions {
+			if execution.RunID == runID {
+				questID = execution.QuestID
+				break
+			}
+		}
+		if questID == "" {
+			time.Sleep(time.Second)
+			continue
+		}
+		quest, err := application.WorkOrderQuestV2(context.Background(), questID)
+		if err != nil {
+			t.Logf("work order quest while waiting for evidence: %v", err)
+			time.Sleep(time.Second)
+			continue
+		}
+		row.QuestID, row.QuestStatus = quest.ID, string(quest.Status)
+		if quest.Brief == nil || quest.Brief.WorkOrder == nil {
+			row.FirstFailure = "v2 quest has no WorkOrder contract"
+			return
+		}
+		row.WorkOrderID = quest.Brief.WorkOrder.ID
+		order, orderErr := application.WorkOrderV2(context.Background(), row.WorkOrderID)
+		bundle, evidenceErr := application.EvidenceBundle(context.Background(), quest.ID)
+		if orderErr != nil || evidenceErr != nil {
+			if quest.Status == domain.QuestCompleted || quest.Status == domain.QuestNeedsReview || quest.Status == domain.QuestBlocked || quest.Status == domain.QuestFailed || quest.Status == domain.QuestCancelled {
+				row.FirstFailure = fmt.Sprintf("load v2 evidence: order=%v evidence=%v", orderErr, evidenceErr)
+				return
+			}
+			time.Sleep(time.Second)
+			continue
+		}
+		row.EvidenceVersion = bundle.Version
+		row.BriefDigestOK = bundle.BriefDigest == domain.WorkOrderDigest(order)
+		row.SourceDigestOK = bundle.SourceDigest == domain.WorkOrderSourceDigest(order)
+		row.ModelLedgerOK = len(bundle.ModelCalls) > 0
+		for _, criterion := range bundle.Criteria {
+			if criterion.CriterionID == "done" && criterion.Satisfied && criterion.Command == "go test ./..." && criterion.ExitCode != nil && *criterion.ExitCode == 0 {
+				row.CriterionExact = true
+			}
+		}
+		for _, check := range bundle.VerificationChecks {
+			if check.ID == domain.CompletionCheckEvidenceID("automated_tests") && check.Satisfied && check.Command == "go test ./..." && check.ExitCode != nil && *check.ExitCode == 0 {
+				row.CompletionExact = true
+			}
+		}
+		row.DeliveryExact = bundle.DeliveryVerified && bundle.DeliveryReceipt != nil &&
+			bundle.DeliveryReceipt.QuestID == quest.ID && bundle.DeliveryReceipt.WorkOrderDigest == bundle.BriefDigest &&
+			bundle.DeliveryReceipt.WorkspaceRevision == bundle.WorkspaceRevision && bundle.DeliveryReceipt.Target == order.Workspace.Path
+		return
+	}
+	row.FirstFailure = "timed out waiting for v2 evidence"
 }
 
 // awaitLoopRun ведёт прогон до терминального статуса, закрывая за человека

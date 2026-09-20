@@ -10,6 +10,10 @@ import (
 )
 
 func (s *SQLite) SaveSourceSnapshotV2(ctx context.Context, snapshot domain.SourceSnapshot) error {
+	return saveSourceSnapshotV2With(ctx, s.db, snapshot)
+}
+
+func saveSourceSnapshotV2With(ctx context.Context, db sqlExecer, snapshot domain.SourceSnapshot) error {
 	if err := domain.ValidateSourceSnapshot(snapshot); err != nil {
 		return err
 	}
@@ -17,7 +21,7 @@ func (s *SQLite) SaveSourceSnapshotV2(ctx context.Context, snapshot domain.Sourc
 	if err != nil {
 		return err
 	}
-	result, err := s.db.ExecContext(ctx, `INSERT OR IGNORE INTO source_snapshots_v2(id,workspace_id,kind,digest,storage_path,payload_json,created_at) VALUES(?,?,?,?,?,?,?)`,
+	result, err := db.ExecContext(ctx, `INSERT OR IGNORE INTO source_snapshots_v2(id,workspace_id,kind,digest,storage_path,payload_json,created_at) VALUES(?,?,?,?,?,?,?)`,
 		snapshot.ID, snapshot.WorkspaceID, snapshot.Kind, snapshot.Digest, snapshot.StoragePath, string(raw), formatTime(snapshot.CreatedAt))
 	if err != nil {
 		return err

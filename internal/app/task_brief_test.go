@@ -66,28 +66,28 @@ func TestTaskBriefCannotBeInjectedOrEnlargedThroughQuestCRUD(t *testing.T) {
 func TestTaskExecutionCannotReplayOrChangeStage(t *testing.T) {
 	b := &domain.TaskBrief{}
 	e := domain.ExecutionInstance{ProjectAgentID: "agent", Task: "agreed", Status: domain.RunPending}
-	if err := validateTaskExecutionLaunch(&e, b, "agent", "agreed"); err != nil {
+	if err := validateTaskExecutionLaunch(&e, b, "agent", "agreed", ""); err != nil {
 		t.Fatal(err)
 	}
 	for _, status := range []domain.RunStatus{domain.RunInterrupted, domain.RunRunning, domain.RunCompleted, domain.RunFailed} {
 		e.Status = status
-		if validateTaskExecutionLaunch(&e, b, "agent", "agreed") == nil {
+		if validateTaskExecutionLaunch(&e, b, "agent", "agreed", "") == nil {
 			t.Fatal("replayed " + status)
 		}
 	}
 	e.Status = domain.RunPending
 	e.RunID = "previous"
-	if validateTaskExecutionLaunch(&e, b, "agent", "agreed") == nil {
+	if validateTaskExecutionLaunch(&e, b, "agent", "agreed", "") == nil {
 		t.Fatal("lost previous run")
 	}
 	e.RunID = ""
-	if validateTaskExecutionLaunch(&e, b, "other", "agreed") == nil || validateTaskExecutionLaunch(&e, b, "agent", "expanded") == nil {
+	if validateTaskExecutionLaunch(&e, b, "other", "agreed", "") == nil || validateTaskExecutionLaunch(&e, b, "agent", "expanded", "") == nil {
 		t.Fatal("stage replaced")
 	}
-	if validateTaskExecutionLaunch(nil, b, "agent", "agreed") == nil {
+	if validateTaskExecutionLaunch(nil, b, "agent", "agreed", "") == nil {
 		t.Fatal("unplanned stage accepted")
 	}
-	if err := validateTaskExecutionLaunch(&e, nil, "other", "legacy"); err != nil {
+	if err := validateTaskExecutionLaunch(&e, nil, "other", "legacy", ""); err != nil {
 		t.Fatal("legacy behavior changed", err)
 	}
 }

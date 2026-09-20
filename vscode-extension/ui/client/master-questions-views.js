@@ -208,8 +208,19 @@ export function createMasterQuestionsViews({ esc, countOf, ui }) {
     const forward = index < last
       ? `<button type="button" class="hall-btn hall-questions-step" data-action="master-question-next" ${sending ? 'disabled' : ''}>Далее</button>`
       : ''
-    // Кнопка не заперта пустотой, а объясняет её. Запертой она остаётся только
-    // на время хода — ровно как стрелка отправки рядом (master-compose.js).
+    // Кнопка не заперта пустотой: нажатие при пустом ответе ведёт к первому
+    // незаполненному вопросу пакета и ставит в него курсор — это и есть ответ
+    // на нажатие (handleMasterSessionAction в master-session-ui.js).
+    //
+    // Прежде она несла `aria-disabled`, и он врал дважды. Читалке — про то, что
+    // кнопка недоступна, хотя она работает. Глазу — руками канона Чертога:
+    // 99-hall-canon.css гасит заливку всякой кнопке с этим атрибутом, и
+    // единственное решение пакета выглядело третьей подписью в ряду, рядом с
+    // причиной. Причина осталась подписью, на неё указывает aria-describedby;
+    // сама пустота видна по тому, что ни один вариант не выбран.
+    //
+    // Запертой кнопка бывает только на время хода — ровно как стрелка отправки
+    // рядом (master-compose.js), и там это `disabled` по делу.
     //
     // Класса is-primary у неё нет намеренно: карточка ввода ищет свою стрелку
     // отправки по нему (syncMasterComposeState в main.js), и второй ярко
@@ -220,7 +231,7 @@ export function createMasterQuestionsViews({ esc, countOf, ui }) {
       ${block}
       <div class="hall-questions-foot">
         ${back}${forward}
-        <button type="button" class="hall-btn hall-questions-send" data-action="master-answer-question" aria-describedby="master-answer-note" ${sending ? 'disabled' : ''} ${progress.answered ? '' : 'aria-disabled="true"'}>${sending ? 'Отправляем…' : 'Продолжить'}</button>
+        <button type="button" class="hall-btn hall-questions-send" data-action="master-answer-question" aria-describedby="master-answer-note" ${sending ? 'disabled' : ''}>${sending ? 'Отправляем…' : 'Продолжить'}</button>
         <small class="hall-questions-left" id="master-answer-note">${esc(note)}</small>
       </div>
     </div>`

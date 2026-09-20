@@ -13,14 +13,29 @@ import (
 )
 
 func (a *App) ReserveModelBudget(ctx context.Context, request agent.ModelBudgetRequest) (string, error) {
-	settings, err := a.loadHubBudgetSettings(ctx, request.WorkspaceID)
+	reservation, limits, err := a.prepareModelBudgetReservation(ctx, request)
 	if err != nil {
 		return "", err
+	}
+	created, err := a.store.ReserveBudget(ctx, reservation, limits)
+	if err != nil {
+		return "", err
+	}
+	return created.ID, nil
+}
+
+// prepareModelBudgetReservation is the read-only half of budget reservation.
+// FastAgent uses it before creating a physical sandbox, then inserts the
+// returned reservation inside its all-or-nothing launch transaction.
+func (a *App) prepareModelBudgetReservation(ctx context.Context, request agent.ModelBudgetRequest) (domain.BudgetReservation, domain.BudgetReserveLimits, error) {
+	settings, err := a.loadHubBudgetSettings(ctx, request.WorkspaceID)
+	if err != nil {
+		return domain.BudgetReservation{}, domain.BudgetReserveLimits{}, err
 	}
 	limits := domain.BudgetReserveLimits{DailyCents: settings.DailyCents, MonthlyCents: settings.MonthlyCents, HardStop: settings.HardStop}
 	reservedCents, pricingKnown, err := a.estimateModelCost(ctx, request.WorkspaceID, string(request.Provider), request.Model, request.EstimatedInputTokens, request.MaxOutputTokens)
 	if err != nil {
-		return "", err
+		return domain.BudgetReservation{}, domain.BudgetReserveLimits{}, err
 	}
 	// За бесплатным рантаймом цена известна и равна нулю — спрашивать у
 	// человека прайс-лист не за что, и токеновый потолок квеста такой ход не
@@ -30,7 +45,7 @@ func (a *App) ReserveModelBudget(ctx context.Context, request agent.ModelBudgetR
 		reservedCents, pricingKnown = 0, true
 	}
 	if !pricingKnown && (settings.HardStop && (settings.DailyCents > 0 || settings.MonthlyCents > 0)) {
-		return "", fmt.Errorf("budget blocked: pricing profile is required for %s/%s", request.Provider, request.Model)
+		return domain.BudgetReservation{}, domain.BudgetReserveLimits{}, fmt.Errorf("budget blocked: pricing profile is required for %s/%s", request.Provider, request.Model)
 	}
 	limits.PricingUnknown = !pricingKnown
 	now := time.Now().UTC()
@@ -42,11 +57,7 @@ func (a *App) ReserveModelBudget(ctx context.Context, request agent.ModelBudgetR
 		EstimatedInputTokens: request.EstimatedInputTokens, MaxOutputTokens: request.MaxOutputTokens,
 		ReservedTokens: request.EstimatedInputTokens + request.MaxOutputTokens, ReservedCents: reservedCents, CreatedAt: now,
 	}
-	created, err := a.store.ReserveBudget(ctx, reservation, limits)
-	if err != nil {
-		return "", err
-	}
-	return created.ID, nil
+	return reservation, limits, nil
 }
 
 func (a *App) ReconcileModelBudget(ctx context.Context, settlement agent.ModelBudgetSettlement) error {

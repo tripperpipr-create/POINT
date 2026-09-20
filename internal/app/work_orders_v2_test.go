@@ -18,7 +18,7 @@ import (
 type strongWorkOrderSandbox struct{ *recordingSandboxBackend }
 
 func (*strongWorkOrderSandbox) Capabilities() sandbox.Capabilities {
-	return sandbox.Capabilities{Backend: "test-container", ProcessIsolation: true, NetworkIsolation: true, SecretEnvironmentSanitization: true, SymlinkIsolation: true, StrongOSBoundary: true}
+	return sandbox.Capabilities{Backend: "test-container", APIVersion: "1.41", Image: "point-test", ImageDigest: "sha256:test", ProcessIsolation: true, NetworkIsolation: true, SecretEnvironmentSanitization: true, SymlinkIsolation: true, StrongOSBoundary: true}
 }
 
 func managedWorkOrderV2() domain.WorkOrder {

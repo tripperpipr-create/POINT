@@ -94,7 +94,7 @@
 }
 .model-chip-list > section > header em {
   color: var(--ui-faint);
-  font: var(--fw-regular) var(--t-micro) / 1 var(--font-mono);
+  font: var(--fw-normal) var(--t-micro) / 1 var(--font-mono);
   font-style: normal;
 }
 
@@ -106,7 +106,7 @@
   color: var(--ui-text);
   cursor: pointer;
   display: flex;
-  font: var(--fw-regular) var(--t-small) / 1.3 var(--font-mono);
+  font: var(--fw-normal) var(--t-small) / 1.3 var(--font-mono);
   min-height: 26px;
   padding: var(--s-2) var(--s-3);
   text-align: left;

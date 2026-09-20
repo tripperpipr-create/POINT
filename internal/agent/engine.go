@@ -61,28 +61,37 @@ type ModelBudgetController interface {
 }
 
 type activeRun struct {
-	taskBrief         *domain.TaskBrief
-	mu                sync.RWMutex
-	run               domain.Run
-	workspaceRevision int
-	cancel            context.CancelFunc
-	onFinished        func(domain.Run)
-	controlMu         sync.Mutex
-	pauseRequested    bool
-	pauseReason       string
-	paused            bool
-	resumeCh          chan struct{}
-	amendmentsMu      sync.RWMutex
-	amendments        domain.ExecutionAmendments
-	correlation       runCorrelation
-	finalized         chan struct{}
-	clock             *activeClock
-	checkpointSeq     int
-	sandboxPath       string
-	apiKey            string
-	serverProfiles    workbenchtools.ServerProfileSource
-	dbSource          workbenchtools.DBConnectionSource
-	teamBus           workbenchtools.TeamBus
+	taskBrief                  *domain.TaskBrief
+	mu                         sync.RWMutex
+	run                        domain.Run
+	workspaceRevision          int
+	cancel                     context.CancelFunc
+	onFinished                 func(domain.Run)
+	controlMu                  sync.Mutex
+	pauseRequested             bool
+	pauseReason                string
+	paused                     bool
+	resumeCh                   chan struct{}
+	amendmentsMu               sync.RWMutex
+	amendments                 domain.ExecutionAmendments
+	correlation                runCorrelation
+	finalized                  chan struct{}
+	clock                      *activeClock
+	checkpointSeq              int
+	sandboxPath                string
+	apiKey                     string
+	serverProfiles             workbenchtools.ServerProfileSource
+	dbSource                   workbenchtools.DBConnectionSource
+	teamBus                    workbenchtools.TeamBus
+	initialBudgetReservationID string
+}
+
+func (a *activeRun) takeInitialBudgetReservation() string {
+	a.controlMu.Lock()
+	defer a.controlMu.Unlock()
+	id := a.initialBudgetReservationID
+	a.initialBudgetReservationID = ""
+	return id
 }
 
 const (

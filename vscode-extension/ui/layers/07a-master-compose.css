@@ -1,0 +1,1049 @@
+/* Композер разговора с Мастером: карточка ввода и всё, что в ней живёт.
+   ==========================================================================
+
+   Слой заведён не ради порядка в каталоге. Правила одной карточки ввода были
+   написаны в трёх файлах сразу: `.hall-compose` объявляли 05-hall.css,
+   06-hall-chat.css и 07-master-quiet.css, а её поле — шесть раз в тех же
+   трёх. Побеждал не замысел, а номер файла, и каждая правка начиналась с
+   поиска по всем трём слоям.
+
+   Номер «07a» — это место в каскаде, а не версия. Сборка складывает слои по
+   алфавиту (ui/build.mjs), и «07a-» встаёт после «07-master-quiet.css» и до
+   «08-master-work-order.css»: композер выигрывает у прежних трёх слоёв
+   порядком, и наращивать специфичность селекторов больше не нужно.
+
+   Имена остаются с префиксом hall-: namespaceCheck сторожит их в 05, 07 и 27,
+   и расхождение имён между слоями одной поверхности стоит дороже, чем
+   единообразие.
+
+   Порядок внутри файла повторяет прежний порядок слоёв — 05, затем 06, затем
+   07, — потому что поздние правила здесь по-прежнему перекрывают ранние:
+     05-hall.css          608–633    основа: карточка, поле, ряд действий
+     05-hall.css          1589–1599  карточка в разговоре
+     05-hall.css          1832–1866  меню режима и подробности ответа
+     06-hall-chat.css     73–84      плотность карточки
+     06-hall-chat.css     567–602    ряд под полем, счётчик, отказ
+     07-master-quiet.css  866–1306   тихий регистр: карточка, поле, слоты
+     07-master-quiet.css  1518–1701  ряд управления и меню режимов
+     07-master-quiet.css  1758–1876  отказ под полем, ряд слотов
+   Комментарии переехали вместе с правилами: в них записаны замеры эталона и
+   причины, по которым числа именно такие. Без них следующий снимет «лишнее».
+
+   Уточнения в ленте, подробность ответа в панели «•••» и состав задания
+   остались в 07-master-quiet.css: они живут в разговоре, а не в карточке. */
+
+.hall-compose {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding: var(--s-5) var(--s-7) var(--s-6);
+  border-top: 1px solid var(--hub-border);
+  background: var(--hub-panel);
+}
+.hall-compose textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 52px;
+  padding: var(--s-4) var(--s-5);
+  border: 1px solid var(--hub-border-strong);
+  background: var(--hub-raised);
+  color: var(--hub-text);
+  font: var(--fw-normal) var(--t-small) / var(--lh-base) var(--font-mono);
+}
+.hall-compose textarea:focus-visible { outline: none; border-color: var(--ember); }
+.hall-compose-actions { display: flex; align-items: center; gap: var(--s-4); }
+.hall-compose-actions small {
+  font: var(--fw-normal) var(--t-micro) / 1 var(--font-mono);
+  color: var(--hub-faint-2);
+}
+.hall-compose-actions button { margin-left: auto; }
+
+.hall-dialogue .hall-compose { box-sizing: border-box; width: calc(100% - 32px); max-width: var(--hall-read-col); margin: var(--s-3) auto var(--s-5); padding: var(--s-4) var(--s-5); gap: var(--s-3); border: 1px solid color-mix(in srgb, var(--hub-border-loud) 70%, transparent); border-radius: 4px; background: color-mix(in srgb, var(--hub-raised) 55%, var(--hub-void)); box-shadow: none; }
+.hall-dialogue .hall-compose:focus-within { border-color: color-mix(in srgb, var(--vscode-focusBorder, var(--ember)) 55%, var(--hub-border)); box-shadow: none; }
+.hall-compose-label { font: var(--fw-medium) var(--t-body) / 1.4 var(--font-ui); color: var(--hub-muted); }
+.hall-dialogue #master-discussion-context:empty { display: none; }
+.hall-dialogue .hall-compose textarea { box-sizing: border-box; min-height: 44px; max-height: min(200px, 28vh); resize: vertical; padding: var(--s-2) 0; border: 0; background: transparent; font: var(--fw-normal) var(--t-base) / 1.5 var(--font-ui); }
+.hall-dialogue .hall-compose textarea::placeholder { color: var(--hub-muted-2); }
+.hall-dialogue .hall-compose-actions { display: flex; flex-wrap: wrap; gap: var(--s-3); padding-top: var(--s-3); border-top: 1px solid color-mix(in srgb, var(--hub-border) 65%, transparent); }
+.hall-dialogue .hall-compose-actions .hall-compose-model { flex: 1 1 100%; min-width: 0; font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui); color: var(--hub-faint-2); overflow-wrap: anywhere; }
+.hall-dialogue .hall-compose-hint { margin-left: 0; margin-right: auto; font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui); color: var(--hub-faint-2); white-space: normal; }
+.hall-dialogue .hall-compose-actions .hall-btn { min-height: 28px; border-radius: 2px; font-family: var(--font-ui); letter-spacing: normal; }
+.hall-dialogue .hall-compose-actions .hall-btn.is-primary { margin-left: auto; }
+
+.hall-composer-controls, .hall-work-modes { display: flex; align-items: center; flex-wrap: wrap; gap: var(--s-3); }
+.hall-composer-controls { color: var(--hub-muted); font: var(--fw-normal) var(--t-small) / 1.5 var(--font-ui); gap: var(--s-2); }
+.hall-composer-controls .hall-chip,
+.hall-composer-controls summary {
+  font: inherit;
+  letter-spacing: normal;
+  text-transform: none;
+  min-height: 26px;
+  padding: var(--s-2) var(--s-3);
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: var(--hub-muted);
+  cursor: pointer;
+  list-style: none;
+}
+.hall-composer-controls summary::-webkit-details-marker { display: none; }
+.hall-composer-controls .hall-chip:hover,
+.hall-composer-controls summary:hover,
+.hall-composer-controls details[open] > summary {
+  color: var(--hub-text);
+  background: var(--hub-selected);
+}
+.hall-composer-controls .hall-chip[aria-pressed="true"] { background: var(--hub-selected); color: var(--hub-text); }
+.hall-work-menu > div,
+.hall-answer-style > :not(summary) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin-top: var(--s-2);
+}
+.hall-work-modes [aria-pressed="true"] { background: var(--hub-selected); color: var(--hub-text); }
+.hall-answer-style { position: relative; }
+.hall-answer-style summary { cursor: pointer; padding: var(--s-3); }
+.hall-model-choice { margin-left: auto; max-width: 100%; overflow-wrap: anywhere; }
+
+/* Композер: карточка ради одного поля занимала 213 пикселей. Поле начинается с
+   одной строки и растёт по набранному — сжимать его до нуля незачем, но и
+   держать пустым в две строки не за что. */
+.hall-dialogue .hall-compose {
+  margin-block: var(--s-3) var(--s-5);
+  padding: var(--s-4) var(--s-5);
+  gap: var(--s-3);
+}
+.hall-dialogue .hall-compose textarea {
+  min-height: 0;
+  padding: var(--s-2) 0;
+}
+
+/* Строка под полем: слева — чем отвечают, справа — как отправить и чем.
+   Прежнее правило `.hall-compose-actions button { margin-left: auto }` знало
+   только одну кнопку и развело бы «Остановить» с «Отправить» по разным краям.
+   Разрыв переезжает на подсказку: без него подпись модели и подсказка о
+   клавишах читались одной фразой — «исполнение узлов — движок Point Enter —
+   отправить». Замерено на стенде, а не предположено. */
+.hall-compose-actions { flex-wrap: wrap; }
+.hall-compose-actions button { margin-left: 0; }
+.hall-compose-hint { margin-left: auto; }
+
+/* Подсказка о клавишах не переносится: разорванное «Shift+Enter — перенос»
+   читается как две разные подписи. */
+.hall-compose-hint { white-space: nowrap; }
+
+/* Счёт байтов. Молчит, пока запас велик, и краснеет, когда кончился: постоянная
+   цифра у поля перестаёт читаться ровно к тому моменту, когда понадобится. */
+.hall-compose-count {
+  font: var(--fw-normal) var(--t-micro) / 1 var(--font-mono);
+  color: var(--hub-faint-2);
+}
+.hall-compose-count.is-over { color: var(--ember-light); }
+
+/* Отказ по длине. Набранное остаётся в поле, поэтому объяснение стоит между
+   полем и кнопками — там, где человек его и ищет, нажав «Отправить». Полоса
+   слева та же, что у отката ответа: и там, и здесь случилось не то, что просили. */
+.hall-compose-note {
+  padding-left: var(--s-3);
+  border-left: 2px solid var(--ember-line);
+  font: var(--fw-normal) var(--t-micro) / var(--lh-base) var(--font-mono);
+  color: var(--ember-prose);
+}
+
+/* Пустое место под скрытой подписью — тоже сдвиг: убираем её из потока, а не
+   гасим прозрачностью. Кнопок это не касается — их обход с клавиатуры важнее. */
+.hall-compose-note.is-hidden,
+.hall-compose-count.is-hidden { display: none; }
+
+/* —— 6. Композер ——
+   Регистр этого слоя назван в его шапке: тихий Cursor Agent. Композер сверен с
+   эталоном не по памяти, а по замеру: блок «Add a follow up» на cursor.com —
+   живая разметка, и с неё сняты числа.
+
+     карточка  фон на 7 ступеней светлее панели, кромка белым 10%, радиус 8,
+               ТЕНИ НЕТ, собственных отступов нет — их несут ряды
+     поле      отступы 8/8/6, кегль 13 при интерлиньяже 1.33, плейсхолдер 60%
+     низ       отступы 4/8/8; «Agent» 78×20 с заливкой белым ~5%, кегль 11 вес 400;
+               «Opus 5» 49×20 БЕЗ заливки; отправка — круг 20×20 с заливкой ~7%
+               и стрелкой 60%
+     всюду     ни одной тени и ни одного цветного пятна
+
+   Отступление от эталона одно и вынужденное: 20 пикселей — цель указателя ниже
+   порога 24×24, который держит аудит (и токен --hit заведён ровно из-за этого).
+   Все управляющие элементы подняты до --control-sm.
+
+   Прежние заходы ломались на противоположном: карточка получала тень, оранжевый
+   круг отправки, залитые пилюли у обоих меню и кольцо фокуса. Каждая деталь по
+   отдельности объяснима, вместе они дают ровно то, чего у эталона нет, — шум.
+
+   Кроме реплики в композере живут задание, вложения и уточнения модели. Они
+   остаются на виду и подчиняются тому же уставу: 11 пикселей, приглушённый тон,
+   заливка белым, никаких рамок и никакого акцента.
+
+   Скругление — осознанное отступление от прямых углов Чертога (tokens.css
+   обнуляет --r-1..3 в регистре Хаба). Оно живёт только внутри `.hall-dialogue`,
+   то есть на поверхности, которая и объявлена курсорной. */
+
+/* Композер лежит ПОВЕРХ разговора, а не под ним.
+   Пока он занимал строку в колонке раздела, лента кончалась там, где он
+   начинался: карточка съедала высоту у того самого разговора, ради которого
+   открыта. Теперь она вынута из потока и прижата к низу, а лента идёт во всю
+   высоту и уходит под карточку. */
+.hall-dialogue {
+  /* Запас ленты под карточку: из потока она ушла, и без запаса последняя
+     реплика навсегда осталась бы под ней. */
+  /* Значение по умолчанию — запасное: настоящее ставит замер карточки
+     (applyMasterComposeReserve в ui/client/master-feed.js). Оно должно быть не
+     меньше карточки в покое, иначе до замера хвост разговора спрячется. */
+  --hall-compose-reserve: calc(var(--s-8) * 3);
+  /* Растворение над карточкой. Оно живёт ВЫШЕ запаса, то есть над текстом,
+     который лента уже показала, — поэтому входит в отступ ленты наравне с
+     карточкой. Пока запас равнялся только карточке, последние строки разговора
+     всегда попадали в градиент и читались как выцветшие. */
+  --hall-compose-fade: var(--s-7);
+  /* Заливки по замеру эталона: пилюля ~5%, кнопка отправки ~7%, наведение ~12%.
+     Держатся в одном месте — «почти одинаковые» серые расходятся при первой же
+     правке. */
+  --hall-slot-fill: color-mix(in srgb, var(--hub-text) 5%, transparent);
+  --hall-slot-fill-loud: color-mix(in srgb, var(--hub-text) 8%, transparent);
+  --hall-slot-fill-hover: color-mix(in srgb, var(--hub-text) 12%, transparent);
+}
+/* Верхний край ленты. Снизу реплика растворяется под карточкой ввода, сверху
+   же она резалась о полосу сессии ровной линией — находка первого цикла от
+   25 августа, дожившая до сих пор. Маска дешевле накладки: она не заводит ещё
+   один слой над лентой и не спорит с липкими днями и якорем. */
+.hall-dialogue .hall-thread {
+  mask-image: linear-gradient(to bottom, transparent 0, #000 var(--s-6), #000 100%);
+}
+.hall-dialogue .hall-thread {
+  padding-bottom: calc(var(--hall-compose-reserve) + var(--hall-compose-fade));
+  /* Линейка снизу отделяла ленту от композера, стоявшего следом. Стоять ей
+     больше не между чем: карточка лежит поверх. */
+  border-bottom: 0;
+}
+/* Полоса под карточкой. Реплика не обрывается о её верхний край, а растворяется
+   под ней: строка, наполовину заехавшая за карточку, читается как дефект
+   отрисовки, а не как «там дальше есть текст».
+   Полоса живёт на разделе, а не на карточке: изнутри карточки она не накрыла бы
+   поля по бокам от неё, и реплика высовывалась бы слева узкой полоской —
+   колонка ленты центрируется внутри полосы прокрутки, карточка снаружи неё.
+   Порядок слоёв: лента (без z-index) → полоса (2) → карточка (3). */
+.hall-dialogue::after {
+  content: "";
+  position: absolute;
+  left: var(--hall-rail-offset);
+  /* Панель задания вычитается явно по той же причине, что и рейка: у
+     абсолютного потомка right считается от padding-box раздела целиком, и
+     один только padding-right раздела полосу под панель не уводит. */
+  right: var(--hall-quest-offset);
+  bottom: 0;
+  height: calc(var(--hall-compose-reserve) + var(--hall-compose-fade));
+  z-index: 2;
+  pointer-events: none;
+  /* Остановки заданы длиной, а не долей: запас считается замером карточки и
+     меняется на ходу, а доля при этом перестаёт совпадать с ним. При 68% и
+     запасе 96 непрозрачная часть уходила на 109 — тринадцать пикселей текста
+     оставались под краской, и доскроллить до них было нельзя. */
+  background: linear-gradient(to top,
+    color-mix(in srgb, var(--hub-void) 35%, var(--hub-panel)) 0,
+    color-mix(in srgb, var(--hub-void) 35%, var(--hub-panel)) var(--hall-compose-reserve),
+    transparent calc(var(--hall-compose-reserve) + var(--hall-compose-fade)));
+}
+/* Якорь «к свежему» вынесен из ленты (ui/client/master-thread-views.js) и
+   стоит над карточкой ввода. Внутри ленты он был элементом потока: на короткой
+   переписке садился под последней репликой и висел посреди пустого экрана, а
+   `width: 100%` из 05-hall растягивал его на всю колонку — замер показывал
+   880px вместо жетона и 480px пустоты до карточки. */
+.hall-dialogue .hall-thread-cue {
+  position: absolute;
+  left: var(--hall-rail-offset);
+  right: var(--hall-quest-offset);
+  bottom: calc(var(--hall-compose-reserve) + var(--hall-compose-fade));
+  z-index: 3;
+  width: max-content;
+  max-width: 100%;
+  margin: 0 auto;
+}
+.hall-dialogue .hall-compose {
+  position: absolute;
+  left: var(--hall-rail-offset);
+  right: var(--hall-quest-offset);
+  bottom: 0;
+  z-index: 3;
+  /* Одна колонка с лентой: мера и центрирование те же, что у `.hall-thread > *`.
+     Мера приходит переменной --hall-read-col (05-hall.css): раньше её объявляли
+     четырьмя числами в трёх слоях — 760, 880 и 78ch, — и реплика с полем ввода
+     стояли на разных левых краях, расходясь на 63 пикселя.
+     Рельса вычитается явно: у абсолютного потомка 100% — это padding-box раздела
+     целиком, вместе с полосой под рельсу, и без вычитания карточка вылезала за
+     правый край на её ширину. Поймано аудитом на 1024 и 860. */
+  width: calc(100% - var(--hall-rail-offset) - var(--hall-quest-offset) - var(--s-7) * 2);
+  max-width: var(--hall-read-col);
+  margin: 0 auto var(--s-6);
+  padding: var(--s-5);
+  gap: var(--s-4);
+  /* Контура нет: карточку называет заливка. Кромка в 10% белого давала 1.28
+     к фону под ней — линия, которую видно, только если знать, что она есть,
+     — а вместе с радиусом и тенью соседей добавляла экрану ещё один контур.
+     Заливка читается как поверхность, а не как рамка, и держит форму на всю
+     ширину карточки, а не одной линией по краю. Ступень выбрана замером на
+     отрисованной странице: 7% дают 1.13 к фону под карточкой, 10% — 1.21,
+     14% — 1.34, 18% — 1.5. Взяты 10%, и предел здесь ставит не вкус, а
+     аудит: на 14% семнадцать подписей внутри карточки — «Задание», каретки
+     меню, счётчик байтов, подсказка хода — просели до 4.37 при пороге 4.5.
+     Фон карточки светлее фона ленты, и то, что читалось на ленте, на ней
+     читаться перестаёт: поднимать заливку можно только вместе с ними. */
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--hub-text) 10%, var(--hub-panel));
+  box-shadow: none;
+  transition: border-color var(--motion-base) var(--ease);
+}
+/* Ни тени, ни кольца: состояние карточки меняет только кромка — и появляется
+   она лишь тогда, когда в поле работают. В покое рамки нет вовсе. */
+.hall-dialogue .hall-compose:hover:not(:focus-within) {
+  border-color: color-mix(in srgb, var(--hub-text) 10%, transparent);
+}
+.hall-dialogue .hall-compose:focus-within {
+  border-color: color-mix(in srgb, var(--hub-text) 26%, transparent);
+  box-shadow: none;
+}
+/* Волосок отделяет «что уже в разговоре» от «что вы сейчас пишете» — и только
+   тогда, когда сверху действительно что-то есть. Постоянная линейка в пустом
+   композере делила надвое одну-единственную строку. */
+.hall-dialogue .hall-compose:has(.hall-context, #master-discussion-context:not(:empty), #master-questions-ask:not(:empty), > .hall-strip) textarea {
+  padding-top: var(--s-4);
+  border-top: 1px solid color-mix(in srgb, var(--hub-text) 8%, transparent);
+}
+.hall-dialogue .hall-compose textarea {
+  /* Одна строка — это одна строка. Прежний пол в высоту кнопки добавлял пустого
+     воздуха в каждый разговор: у эталона пустой композер — две строки общей
+     высотой 65, а не четыре. */
+  min-height: 0;
+  /* Потолок высоты. Карточка плавает над лентой и растёт вверх, поэтому потолок
+     здесь не про удобство набора, а про то, сколько разговора она вправе
+     закрыть. Двенадцать строк masterComposeRows (ui/client/master-compose.js)
+     в этот предел укладываются. */
+  max-height: min(260px, 30vh);
+  padding: 0;
+  font: var(--fw-normal) var(--t-base) / 1.35 var(--font-ui);
+  caret-color: var(--hub-text);
+  scrollbar-width: thin;
+}
+.hall-dialogue .hall-compose textarea::placeholder {
+  color: var(--hub-muted);
+}
+/* Высота по набранному. Атрибут `rows` считает только явные переносы — так
+   объяснено в masterComposeRows, и это правда: абзац без переносов, перенесённый
+   по ширине, оставлял поле в одну строку. Ручку изменения размера ставили
+   именно поэтому — чтобы человек растянул поле сам, за браузер. `field-sizing`
+   считает настоящие строки, и ручка становится не нужна: диагональные насечки в
+   углу поля — единственная деталь композера, нарисованная не нами.
+   Где свойства нет, остаётся прежнее поведение: `rows` плюс ручка. */
+@supports (field-sizing: content) {
+  .hall-dialogue .hall-compose textarea {
+    field-sizing: content;
+    resize: none;
+  }
+}
+
+/* ——— Устав мелких элементов ———
+   Один размер, один кегль, один тон на все жетоны карточки: задание, вложения,
+   варианты ответа, меню режимов. Разные элементы одного веса не должны быть
+   разными на вид — из этого и складывается «собрано». */
+.hall-dialogue .hall-compose .hall-context-add,
+.hall-dialogue .hall-compose .hall-context-file,
+.hall-dialogue .hall-compose > .hall-strip .hall-chip,
+.hall-dialogue .hall-compose > .hall-strip > div:last-of-type > .hall-btn,
+.hall-dialogue #master-discussion-context > .hall-chip,
+.hall-dialogue .hall-questions-send,
+.hall-dialogue .hall-questions-step,
+.hall-dialogue .hall-composer-controls .hall-work-menu > summary,
+.hall-dialogue .hall-composer-controls .hall-answer-style > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: var(--control-sm);
+  padding: var(--s-1) var(--s-4);
+  border: 0;
+  border-radius: var(--r-full);
+  background: var(--hall-slot-fill);
+  color: var(--hub-muted);
+  font: var(--fw-normal) var(--t-small) / 1.3 var(--font-ui);
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--motion-fast) var(--ease), color var(--motion-fast) var(--ease);
+}
+.hall-dialogue .hall-compose .hall-context-add:hover,
+.hall-dialogue .hall-compose .hall-context-add:focus-visible,
+.hall-dialogue .hall-compose .hall-context-file:hover,
+.hall-dialogue .hall-compose > .hall-strip .hall-chip:hover,
+.hall-dialogue .hall-compose > .hall-strip > div:last-of-type > .hall-btn:hover,
+.hall-dialogue #master-discussion-context > .hall-chip:hover,
+.hall-dialogue .hall-questions-send:hover,
+.hall-dialogue .hall-questions-step:hover,
+.hall-dialogue .hall-questions-step:focus-visible,
+.hall-dialogue .hall-composer-controls .hall-work-menu > summary:hover,
+.hall-dialogue .hall-composer-controls .hall-answer-style > summary:hover,
+.hall-dialogue .hall-composer-controls details[open] > summary {
+  background: var(--hall-slot-fill-hover);
+  color: var(--hub-text);
+  outline: none;
+}
+
+/* Исключение из устава — здесь же, где устав: оно переопределяет его отступ
+   и опирается на его заливку, а значит обязано стоять ниже него. Пока оба
+   жили в 07-master-quiet.css, это держал порядок строк в одном файле. */
+/* Кнопка принадлежит списку, а не карточке: её левый край — тот же, что у текста
+   вариантов, иначе она висит отдельной вещью под ними. Заливка остаётся от
+   устава жетонов: в композере кнопка стояла внутри карточки и читалась как
+   действие без всякой подложки, а посреди ленты голое слово среди других слов
+   действием не выглядит — а это единственный способ отправить ответы. */
+.hall-dialogue .hall-questions-send {
+  justify-self: start;
+  margin: var(--s-1) 0 0 var(--s-8);
+  min-width: 0;
+  padding: var(--s-1) var(--s-5);
+}
+
+/* Меню контекста — та же механика, что у меню режима: жетон раскрывается
+   списком вверх, потому что под композером ничего нет. Точку отсчёта для
+   списка задаёт сам жетон, а не ряд: иначе список встал бы по левому краю
+   всей строки управления. */
+.hall-dialogue .hall-compose .hall-context-menu { position: relative; }
+.hall-dialogue .hall-compose .hall-context-menu > summary { list-style: none; }
+.hall-dialogue .hall-compose .hall-context-menu > summary::-webkit-details-marker { display: none; }
+
+/* ——— Слот: над чем работаем ———
+   Строка без рамки и без кромки акцента: у эталона в композере нет ни одного
+   цветного пятна, и задание — не исключение. Отличает её только тон подписи. */
+.hall-dialogue #master-discussion-context:not(:empty) {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+}
+.hall-dialogue .hall-compose-task {
+  flex: 1 1 12rem;
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+  min-width: 0;
+}
+/* Точка — единственная краска композера. Она не украшение: ею отмечено то, над
+   чем идёт работа, и по ней слот находят взглядом, не читая. */
+.hall-dialogue .hall-compose-task > span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  flex: none;
+  /* Ступень --hub-faint-2 в тихом регистре не переопределяется и на карточке даёт
+     4.13 при пороге 4.5 — поймано аудитом. --ui-faint та же роль, но из палитры
+     оболочки, и читается. */
+  color: var(--ui-faint);
+  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui);
+  letter-spacing: normal;
+}
+.hall-dialogue .hall-compose-task > span::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: var(--r-full);
+  background: var(--ember);
+}
+.hall-dialogue .hall-compose-task > b {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--hub-text-2);
+  font: var(--fw-normal) var(--t-body) / 1.4 var(--font-ui);
+}
+.hall-dialogue #master-discussion-context > .hall-chip {
+  margin-left: auto;
+}
+
+/* ——— Слот: правки агента, ждущие решения ———
+   Появляется только в режиме «Выполнить». Части полосы адресуются по строению, а
+   не по своим именам классов: имена `session-*` принадлежат другому слою, и
+   сборка не даёт их переиспользовать (проверка пространств имён в ui/build.mjs). */
+.hall-dialogue .hall-compose > .hall-strip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  border-radius: 0;
+}
+.hall-dialogue .hall-compose > .hall-strip > i {
+  display: none;
+}
+.hall-dialogue .hall-compose > .hall-strip > div:first-of-type {
+  flex: 1 1 14rem;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+}
+.hall-dialogue .hall-compose > .hall-strip > div:first-of-type > span {
+  color: var(--hub-muted);
+  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui);
+}
+.hall-dialogue .hall-compose > .hall-strip ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.hall-dialogue .hall-compose > .hall-strip ul > li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+}
+.hall-dialogue .hall-compose > .hall-strip > div:last-of-type {
+  display: flex;
+  gap: var(--s-2);
+}
+
+/* ——— Слот: контекст и вложенные файлы ———
+   «@ Контекст» — управление, файл — предмет. Различает их не размер и не форма,
+   а заливка: у предмета она есть, у управления появляется под курсором. */
+.hall-dialogue .hall-context:empty {
+  display: none;
+}
+.hall-dialogue .hall-context {
+  padding: 0;
+  gap: var(--s-5);
+  color: var(--hub-muted);
+  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui);
+}
+.hall-dialogue .hall-compose .hall-context-add {
+  background: transparent;
+}
+/* Вложение читается как вложение, а не как проза.
+   Чип носил радиус 999px при прозрачной заливке и нулевой кромке: на экране это
+   был просто текст, и отличить приложенный файл от слов в поле было нечем.
+   Заливка берётся из общего устава жетонов — та же, что у «@ Контекст». */
+.hall-dialogue .hall-compose .hall-context-file {
+  background: var(--hall-slot-fill);
+  max-width: 17rem;
+  /* Отступы чипа несут кнопки внутри него, а не он сам: нажимают именно кнопки,
+     и пока отступ был на чипе, цель указателя выходила 146×17 и 16×11 при пороге
+     24×24 — поймано аудитом на всех четырёх ширинах. */
+  padding: 0;
+  gap: 0;
+  color: var(--hub-text-2);
+}
+.hall-dialogue .hall-compose .hall-context-file:hover {
+  background: var(--hall-slot-fill-hover);
+}
+.hall-dialogue .hall-context-file > button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: var(--control-sm);
+  max-width: 15rem;
+  padding: 0 var(--s-2) 0 var(--s-4);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hall-dialogue .hall-context-file > button > em {
+  flex: none;
+  max-width: 7rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* Путь тусклее имени, но всё ещё читается: на заливке чипа --hub-faint-2 дал
+     3.64, --ui-faint 4.32 при пороге 4.5 — оба поймал аудит. Разницу ярусов
+     держит имя файла, которое ярче, а не путь, который темнее. */
+  color: var(--hub-muted);
+  font-style: normal;
+}
+/* Вес вложения. Имя файла не говорит, сколько в нём: правка на три строки и
+   файл на сорок килобайт выглядели одинаково, а предел у хода общий. */
+.hall-dialogue .hall-context-file > button > small {
+  flex: none;
+  color: var(--hub-muted);
+  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-mono);
+  letter-spacing: normal;
+}
+/* Миниатюра картинки. Имя снимка о содержимом не говорит ничего, а отдельной
+   панелью предпросмотра ради этого пользоваться незачем. */
+.hall-dialogue .hall-context-thumb {
+  flex: none;
+  width: var(--s-6);
+  height: var(--s-6);
+  border-radius: 2px;
+  object-fit: cover;
+}
+.hall-dialogue .hall-context-file > button:last-child {
+  justify-content: center;
+  min-width: var(--control-sm);
+  max-width: none;
+  padding: 0 var(--s-3) 0 0;
+  color: var(--hub-muted);
+  opacity: 0;
+  transition: opacity var(--motion-fast) var(--ease);
+}
+/* Знак снятия проявляется на весь ряд, а не только на своём чипе: клавиатура
+   ведёт по ряду, и невидимая цель на пути обхода — это цель, которую не найти. */
+.hall-dialogue .hall-context:hover > .hall-context-file > button:last-child,
+.hall-dialogue .hall-context:focus-within > .hall-context-file > button:last-child,
+.hall-dialogue .hall-context-file:hover > button:last-child,
+.hall-dialogue .hall-context-file:focus-within > button:last-child {
+  opacity: 1;
+}
+.hall-dialogue .hall-context-file > button:last-child:hover {
+  color: var(--hub-text);
+}
+@media (hover: none) {
+  .hall-dialogue .hall-context-file > button:last-child { opacity: 1; }
+}
+/* Счётчик занятого контекста. Появляется, когда запас кончается, и краснеет,
+   когда кончился: отказ «доступно столько-то» приходил из отправки, то есть уже
+   после нажатия, когда выбирать заново поздно.
+   Прежнее правило гасило любой small в ряду прозрачностью — оно описывало
+   подпись «Файлы, код, ошибки или изображения», которой в разметке давно нет, и
+   вместе с ней погасило бы и этот счётчик. */
+.hall-dialogue .hall-context > small {
+  margin-left: auto;
+  color: var(--hub-muted);
+  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-mono);
+  letter-spacing: normal;
+}
+.hall-dialogue .hall-context > small.is-over {
+  color: var(--ember-prose);
+}
+/* Куда тащить. Прежде перетаскивание отвечало одним preventDefault: курсор
+   показывал «сюда нельзя», а цель ничем себя не выдавала. */
+.hall-dialogue .hall-compose.is-dropping {
+  border-color: var(--ember-line);
+  background: var(--hub-raised);
+}
+
+/* ——— Ряд управления ——— */
+
+/* Две группы, а не шесть соседей: слева — чем готовят запрос (источник
+   контекста, режим, модель), справа — чем его отправляют. Прежде всё
+   лежало одной кучей с прижимом вправо, а разрыв держала подсказка о
+   клавишах: невидимая подпись занимала 230 пикселей из 702 и работала
+   распоркой. Края справляются с этим сами. */
+.hall-dialogue .hall-compose-lead,
+.hall-dialogue .hall-compose-trail {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-width: 0;
+}
+.hall-dialogue .hall-compose-lead { flex: 0 1 auto; }
+.hall-dialogue .hall-compose-trail { flex: 0 0 auto; }
+.hall-dialogue .hall-compose-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+  padding-top: 0;
+  border-top: 0;
+  min-height: var(--control-sm);
+}
+.hall-dialogue .hall-compose-actions .hall-btn {
+  flex: 0 0 auto;
+}
+/* Сжимается подсказка, а не управление.
+
+   Ряду не хватало двенадцати пикселей — и flex отбирал их у меню режима с
+   чипом модели, потому что сжиматься умели только они. Группа садилась со 204
+   до 186, чип модели переносился под меню, и ряд из одной строки в 24 пикселя
+   становился двумя в 52: на 1100 карточка вырастала на четверть без единого
+   нового слова в ней.
+
+   Место в ряду отдаёт подсказка о клавишах — она для того здесь и стоит, и
+   сжимается без потерь: в покое она невидима, а на 1440 читается целиком.
+   Жетонам сжиматься нечем: у каждого внутри одно слово, и сжатие означает
+   перенос. Ряд остаётся одной строкой: перенос целиком уводил подсказку под
+   жетоны и поднимал ряд с 24 пикселей до 83 — дороже, чем сжатая подпись. */
+.hall-dialogue .hall-compose-actions .hall-composer-controls {
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+}
+/* Сжатая подсказка остаётся одной строкой. На 1024 ей доставалось 116
+   пикселей, она переносилась надвое и поднимала ряд с 24 до 46 — тот же
+   рост высоты, только с другой стороны. Обрезанный конец ничего не стоит:
+   в покое подпись невидима, а целиком она есть в title этой же строки. */
+.hall-dialogue .hall-compose-actions .hall-compose-hint {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Кнопки хода стоят вместе. Разрыв в ряду один — после подсказки (06-hall-chat.css),
+   и второй, `margin-left: auto` у «Отправить», делил свободное место поровну:
+   во время хода «Остановить» уезжала на середину ряда, к которой не относится. */
+.hall-dialogue .hall-compose-actions .hall-btn.is-primary {
+  margin-left: 0;
+}
+/* Отправка — круг со стрелкой того же тона, что и остальные жетоны. У эталона
+   она серая: цветное пятно в композере не появляется вообще, и оранжевый круг
+   был самым громким в разговоре — громче любой реплики. */
+.hall-dialogue .hall-compose-actions .hall-compose-send,
+.hall-dialogue .hall-compose-actions .hall-compose-stop {
+  display: inline-grid;
+  place-items: center;
+  width: var(--control-sm);
+  min-width: var(--control-sm);
+  min-height: var(--control-sm);
+  height: var(--control-sm);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-full);
+  background: var(--hall-slot-fill-hover);
+  color: var(--hub-text);
+  font: var(--fw-normal) var(--t-body) / 1 var(--font-ui);
+  letter-spacing: normal;
+  transition: background-color var(--motion-fast) var(--ease), color var(--motion-fast) var(--ease);
+}
+.hall-dialogue .hall-compose-actions .hall-compose-send:hover,
+.hall-dialogue .hall-compose-actions .hall-compose-stop:hover {
+  background: color-mix(in srgb, var(--hub-text) 20%, transparent);
+  color: var(--hub-text);
+}
+/* Пустому полю отправлять нечего: стрелка тускнеет, но не перекрашивается —
+   перекрасить её было бы единственным цветом в карточке. Класс ставит
+   masterComposeFormClass — один источник и для отрисовки, и для набора. */
+.hall-dialogue .hall-compose.is-empty .hall-compose-actions .hall-compose-send {
+  background: var(--hall-slot-fill);
+  /* Гаснет стрелка заливкой, а не буквой: знак обязан читаться в любом виде.
+     Прежние ступени --hub-faint-2 и --ui-faint давали на этой заливке 3.64 и
+     4.32 при пороге 4.5 — обе поймал аудит на трёх страницах стенда. */
+  color: var(--hub-muted);
+}
+.hall-dialogue .hall-compose-actions .hall-compose-send:disabled {
+  opacity: var(--disabled-opacity);
+}
+/* Режим — жетон с заливкой, подробность ответа — просто текст: у эталона
+   залито только левое меню, второе стоит голым. Два одинаковых жетона подряд
+   читаются как переключатель из двух положений, а это два разных выбора. */
+.hall-dialogue .hall-composer-controls {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: var(--s-2);
+}
+.hall-dialogue .hall-composer-controls .hall-answer-style > summary {
+  background: transparent;
+  padding-inline: var(--s-2);
+}
+.hall-dialogue .hall-composer-controls .hall-work-menu > summary,
+.hall-dialogue .hall-composer-controls .hall-answer-style > summary {
+  list-style: none;
+}
+.hall-dialogue .hall-composer-controls .hall-work-menu > summary::-webkit-details-marker,
+.hall-dialogue .hall-composer-controls .hall-answer-style > summary::-webkit-details-marker {
+  display: none;
+}
+/* Что это меню, было видно только курсору: «Обсудить» и «Ответ: Авто» набраны
+   обычным текстом и молчали о том, что их можно раскрыть. */
+.hall-dialogue .hall-composer-controls .hall-work-menu > summary::after,
+.hall-dialogue .hall-composer-controls .hall-answer-style > summary::after {
+  content: "\25BE";
+  color: var(--hub-faint-2);
+  font-size: var(--t-micro);
+  line-height: 1;
+}
+.hall-dialogue .hall-composer-controls details[open] > summary::after {
+  content: "\25B4";
+}
+.hall-dialogue .hall-composer-controls .hall-work-menu,
+.hall-dialogue .hall-composer-controls .hall-answer-style {
+  position: relative;
+}
+/* Раскрытое меню — единственный слой композера, который висит над разговором.
+   Ему и достаётся тень поповера: без неё край всплывающего совпадает с краем
+   карточки, и список читается как продолжение ряда управления. */
+.hall-dialogue .hall-composer-controls .hall-work-menu > div,
+.hall-dialogue .hall-composer-controls .hall-answer-style > div,
+.hall-dialogue .hall-compose .hall-context-menu > div {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + var(--s-3));
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: var(--s-1);
+  margin-top: 0;
+  min-width: 11rem;
+  max-width: min(20rem, 70vw);
+  padding: var(--s-2);
+  border: 1px solid color-mix(in srgb, var(--hub-text) 12%, transparent);
+  border-radius: 8px;
+  background: var(--hub-selected);
+  box-shadow: var(--e-2);
+}
+/* Пункт меню — строка, а не жетон: список из четырёх режимов вперемешку в две
+   с половиной строки читается как облако слов, а не как выбор одного из. */
+.hall-dialogue .hall-work-menu > div .hall-chip,
+.hall-dialogue .hall-answer-style > div .hall-chip,
+.hall-dialogue .hall-context-menu > div .hall-chip {
+  justify-content: flex-start;
+  width: 100%;
+  min-height: var(--control-sm);
+  padding: var(--s-1) var(--s-4);
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--hub-muted);
+  text-align: left;
+  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui);
+  letter-spacing: normal;
+}
+.hall-dialogue .hall-work-menu > div .hall-chip:hover,
+.hall-dialogue .hall-answer-style > div .hall-chip:hover,
+.hall-dialogue .hall-context-menu > div .hall-chip:hover,
+.hall-dialogue .hall-context-menu > div .hall-chip:focus-visible,
+.hall-dialogue .hall-work-menu > div .hall-chip:focus-visible,
+.hall-dialogue .hall-answer-style > div .hall-chip:focus-visible {
+  background: var(--hall-slot-fill-hover);
+  color: var(--hub-text);
+  outline: none;
+}
+/* Выбранное названо в свёрнутом меню — в раскрытом его видно там же, где ищут:
+   в строке, а не в подписи сверху. */
+.hall-dialogue .hall-work-menu > div .hall-chip[aria-pressed="true"],
+.hall-dialogue .hall-answer-style > div .hall-chip[aria-pressed="true"] {
+  color: var(--hub-text);
+  background: var(--hall-slot-fill);
+}
+/* Подсказка о клавишах в покое не показывается совсем.
+
+   Она пряталась прозрачностью, чтобы появление не двигало ряд, — и платила
+   за это местом: невидимая подпись держала 230 пикселей из 702 и
+   первой отбирала ширину у жетонов. Двигать теперь нечего: ряд разведён по
+   краям, и его разрыв держат сами края, а не эта подпись.
+
+   Текст никуда не делся: он в title этой же строки, и во время хода
+   подпись говорит уже другое — что набранное дождётся в поле. Тогда она и
+   показывается: класс is-quiet снимает разметка (ui/client/master-compose.js). */
+.hall-dialogue .hall-compose-hint.is-quiet {
+  display: none;
+}
+/* Служебные подписи ряда. Ступень --hub-faint-3 в тихом регистре не
+   переопределяется (см. `.hall.is-focused` в 05-hall.css), то есть остаётся
+   тёплой на нейтральной карточке и даёт на ней 3.9 при пороге 4.5. --ui-faint —
+   та же роль, но из палитры оболочки: и по тону на месте, и читается. */
+.hall-dialogue .hall-compose-hint,
+.hall-dialogue .hall-compose-count,
+.hall-dialogue .hall-compose-model {
+  min-width: 0;
+  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui);
+  color: var(--ui-faint);
+  letter-spacing: normal;
+}
+
+@media (max-width: 720px) {
+  .hall-dialogue .hall-compose {
+    width: calc(100% - var(--s-5) * 2);
+    margin: 0 auto var(--s-5);
+  }
+  .hall-dialogue .hall-compose-hint.is-quiet { display: none; }
+  .hall-dialogue .hall-compose:hover .hall-compose-hint.is-quiet,
+  .hall-dialogue .hall-compose:focus-within .hall-compose-hint.is-quiet { display: none; }
+  .hall-dialogue .hall-compose-actions { flex-wrap: wrap; }
+}
+
+/* —— Отказ и подсказка под полем ——
+   Отказ был набран десятью пикселями мононабором в розовом — регистр Чертога
+   внутри тихой карточки, и самое важное сообщение композера читалось хуже всего
+   остального в нём. Тон довода остаётся: случилось не то, что просили. */
+.hall-dialogue .hall-compose-note {
+  padding-left: var(--s-4);
+  border-left: var(--edge-accent) solid var(--ember-line);
+  font: var(--fw-normal) var(--t-body) / 1.45 var(--font-ui);
+  letter-spacing: normal;
+  color: var(--ember-prose);
+}
+/* Подсказка о клавишах пряталась прозрачностью — то есть была невидима и с
+   клавиатуры тоже. Она появляется на фокусе в поле, а не только под мышью. */
+.hall-dialogue .hall-compose:focus-within .hall-compose-hint.is-quiet {
+  opacity: 1;
+}
+
+/* —— Ряд слотов ——
+   Обсуждаемое задание и вложения стоят в одной строке с переносом, а не двумя
+   строками во всю ширину. Со всеми слотами карточка вырастала со ста тридцати
+   до ста пятидесяти двух пикселей против шестидесяти пяти в покое — у эталона
+   рядов всего два, и раздуваться ему не от чего.
+
+   Пустой ряд убирается целиком: слот задания всегда стоит в разметке (его
+   содержимое подменяется точечно, по идентификатору), и пустым он всё равно
+   стоил бы промежутка карточки. */
+.hall-dialogue .hall-compose-slots {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3) var(--s-5);
+  min-width: 0;
+}
+.hall-dialogue .hall-compose-slots:not(:has(> #master-discussion-context:not(:empty), > .hall-context)) {
+  display: none;
+}
+/* Внутри ряда слоты больше не растягиваются на всю строку: ширину им задаёт
+   содержимое, а перенос — сам ряд. */
+.hall-dialogue .hall-compose-slots > #master-discussion-context,
+.hall-dialogue .hall-compose-slots > .hall-context {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+/* —— Список файлов под кареткой ——
+   Геометрия та же, что у меню режимов: раскрывается вверх, потому что под
+   композером ничего нет, и стоит выше вуали ленты — иначе список окажется под
+   градиентом. Строки — как варианты ответа: жёлоб слева, путь тусклее имени. */
+.hall-dialogue .hall-mention {
+  position: absolute;
+  left: var(--s-4);
+  right: var(--s-4);
+  bottom: calc(100% + var(--s-3));
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  max-height: min(280px, 40vh);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  padding: var(--s-2);
+  border: 1px solid color-mix(in srgb, var(--hub-text) 12%, transparent);
+  border-radius: 8px;
+  background: var(--hub-selected);
+  box-shadow: var(--e-2);
+}
+.hall-dialogue .hall-mention-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+  width: 100%;
+  min-height: var(--control-sm);
+  padding: var(--s-1) var(--s-4);
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  /* Имя файла — основной тон: на подложке поповера приглушённая ступень даёт
+     3.74 при пороге 4.5, и аудит ловит это на первой же странице со списком.
+     Ярусы здесь держит не затемнение пути, а подъём имени. */
+  color: var(--hub-text);
+  text-align: left;
+  font: var(--fw-normal) var(--t-body) / 1.4 var(--font-ui);
+  letter-spacing: normal;
+  white-space: nowrap;
+  overflow: hidden;
+  cursor: pointer;
+}
+.hall-dialogue .hall-mention-row > em {
+  flex: none;
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--hub-text-3);
+  font-style: normal;
+}
+/* «открыт» — довод в пользу строки, а не ярлык: чаще всего прикладывают то,
+   что и так перед глазами, и такие строки стоят первыми. */
+.hall-dialogue .hall-mention-row > small {
+  margin-left: auto;
+  padding-left: var(--s-4);
+  color: var(--hub-text-3);
+  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui);
+  letter-spacing: normal;
+}
+.hall-dialogue .hall-mention-row:hover,
+.hall-dialogue .hall-mention-row.is-active {
+  background: var(--hall-slot-fill-hover);
+  color: var(--hub-text);
+  outline: none;
+}
+.hall-dialogue .hall-mention-empty {
+  margin: 0;
+  padding: var(--s-1) var(--s-4);
+  color: var(--hub-text-3);
+  font: var(--fw-normal) var(--t-body) / 1.4 var(--font-ui);
+}
+/* Карточка становится точкой отсчёта для списка: он стоит над ней, а не над
+   разделом. Позиционирование у карточки уже есть (absolute у нижнего края
+   ленты), поэтому отдельного правила не нужно — но связь стоит назвать. */
+
+/* ——— Уточнения в карточке ввода: облик пакета ———
+   Правила стоят здесь, а не в 07-master-quiet.css, по той же причине, по которой
+   заведён весь слой: они про карточку ввода, и спорить им приходится с её же
+   уставом жетонов выше. Уточнения в ленте остаются в 07.
+
+   Порядок чтения у пакета обратный прежнему: главное здесь не формулировка
+   вопроса, а выбор под ней — вопрос человек уже прочитал в ленте. Поэтому вопрос
+   на ступень тише, варианты в основном тоне, а номер в жёлобе поднят с
+   --ui-faint до --hub-muted: на тринадцати пикселях он был почти невидим. */
+/* А. Голос Мастера: пакет держит жёлоб слева — тот же, которым в ленте отмечена
+   речь Мастера. Уточнение приходит от него, а не заводится карточкой ввода. */
+.hall-dialogue .hall-compose .hall-questions.is-inline {
+  padding-left: var(--s-4);
+  border-left: 1px solid color-mix(in srgb, var(--hub-text) 14%, transparent);
+}
+.hall-dialogue .hall-compose .hall-questions.is-inline .hall-question-prompt {
+  color: var(--hub-text-2);
+}
+.hall-dialogue .hall-compose .hall-questions.is-inline .hall-option {
+  color: var(--hub-text-2);
+}
+.hall-dialogue .hall-compose .hall-questions.is-inline .hall-option::before {
+  color: var(--hub-muted);
+}
+.hall-dialogue .hall-compose .hall-questions.is-inline .hall-option.is-on {
+  color: var(--hub-text);
+}
+/* Своё поле — не оборванный пункт списка, а другой способ ответить: между ним и
+   вариантами волосок. Цепочка :not() повторена по той же причине, что и у
+   правила в 07: без неё канон полей (99-hall-canon.css, вес (0,4,2)) вернул бы
+   полю рамку со всех сторон, а `border: 0` из 07 весом (0,8,0) снял бы и сам
+   волосок. Здесь (0,9,0). */
+.hall-dialogue .hall-compose .hall-questions.is-inline .hall-question .hall-question-options + .hall-question-extra:not([type="checkbox"]):not([type="radio"]):not([type="range"]) {
+  margin-top: var(--s-2);
+  padding-top: var(--s-3);
+  border: 0;
+  border-top: 1px solid color-mix(in srgb, var(--hub-text) 8%, transparent);
+  border-radius: 0;
+}
+/* Отправка ответов — единственное решение в пакете, и выглядеть она обязана
+   решением. Пока заливка у неё была общая с «Назад» и «Далее», а тон — с
+   причиной рядом, кнопка читалась третьей подписью в ряду.
+   Пустой пакет здесь не переопределяется: канон Чертога гасит заливку у всякой
+   кнопки с aria-disabled (99-hall-canon.css, вес (0,4,2)), и спорить с ним
+   ради одной кнопки нельзя — либо канон, либо разметка. */
+.hall-dialogue .hall-compose .hall-questions-send {
+  background: var(--hall-slot-fill-loud);
+  color: var(--hub-text);
+}
+/* Причина занимает остаток строки, а не свою. Своя строка была первой попыткой:
+   пока кнопка стояла без заливки, они читались двумя подписями подряд. Но
+   стоила эта строка 23 пикселя высоты карточки в каждом разговоре с
+   уточнением — 283 против 260, — а заливку кнопке вернуло правило выше, и
+   разделять их больше нечем. Ряд от длинной причины не ломается: «Отвечено 2 из
+   3 · остальные останутся в задании нерешёнными и задержат запуск» на 1024 и
+   860 переносится внутри своей ячейки, поднимая ряд на пять пикселей и не
+   трогая кнопку. Свой отступ слева причина не добавляет — его несёт сам ряд,
+   иначе кнопка и причина стоят лесенкой. */
+.hall-dialogue .hall-compose .hall-questions-left {
+  flex: 1 1 0;
+  margin-left: 0;
+}

@@ -271,8 +271,8 @@ func ValidateTaskBriefIssues(b TaskBrief) []TaskBriefValidationIssue {
 		add("precise_parallelism", "/budget", "precise tasks require one executor")
 	}
 	if b.FastAgent {
-		if b.Mode != TaskModePrecise {
-			add("fast_agent_mode", "/mode", "fast agent requires precise mode")
+		if b.Mode != TaskModePrecise && (b.Mode != TaskModeProject || b.WorkOrder == nil) {
+			add("fast_agent_mode", "/mode", "fast agent requires precise mode or a WorkOrder execution contract")
 		}
 		if b.ResultKind != "workspace_change" || !b.Permissions.WriteFiles {
 			add("fast_agent_permissions", "/permissions", "fast agent requires workspace_change with writeFiles")

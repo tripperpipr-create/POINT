@@ -99,7 +99,7 @@ func (e *Engine) taskAutoApproved(active *activeRun, profile domain.AgentProfile
 	}
 	// Fast Agent (Cursor daily): auto-approve file writes on precise tasks.
 	// Commands stay manual unless project+Docker path below also applies.
-	if b.FastAgent && b.Mode == domain.TaskModePrecise {
+	if b.FastAgent && (b.Mode == domain.TaskModePrecise || b.Mode == domain.TaskModeProject && b.WorkOrder != nil) {
 		if tool == "propose_patch" {
 			return b.Permissions.WriteFiles
 		}

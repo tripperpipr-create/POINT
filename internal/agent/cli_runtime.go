@@ -106,6 +106,9 @@ func (e *Engine) executeHeadlessCLI(ctx context.Context, active *activeRun, prof
 	estimatedInput := int64(EstimateModelInputTokens(history.stable, definitions))
 	reservationID := ""
 	if e.budgets != nil {
+		reservationID = active.takeInitialBudgetReservation()
+	}
+	if e.budgets != nil && reservationID == "" {
 		reservationID, err = e.budgets.ReserveModelBudget(ctx, ModelBudgetRequest{
 			WorkspaceID: active.run.WorkspaceID, QuestID: active.correlation.QuestID,
 			ExecutionID: active.correlation.ExecutionID, RunID: active.run.ID,

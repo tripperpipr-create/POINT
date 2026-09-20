@@ -104,6 +104,53 @@ type scriptedModel struct {
 
 type blockingModel struct{}
 
+type recordingBudgetController struct {
+	mu            sync.Mutex
+	reserveCalls  int
+	settlementIDs []string
+}
+
+func (b *recordingBudgetController) ReserveModelBudget(context.Context, ModelBudgetRequest) (string, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.reserveCalls++
+	return "unexpected-reservation", nil
+}
+
+func (b *recordingBudgetController) ReconcileModelBudget(_ context.Context, settlement ModelBudgetSettlement) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.settlementIDs = append(b.settlementIDs, settlement.ReservationID)
+	return nil
+}
+
+func TestEngineConsumesPrecommittedInitialBudgetReservation(t *testing.T) {
+	repo := newMemoryRepo()
+	engine := NewEngine(repo, nil)
+	engine.SetModelFactory(func(providers.Config) (providers.Model, error) { return finalAnswerModel{}, nil })
+	budgets := &recordingBudgetController{}
+	engine.SetBudgetController(budgets)
+	profile := domain.DefaultProfile()
+	profile.AllowedTools = []string{}
+	run, err := engine.Start(StartInput{
+		RunID: "run-precommitted", AgentID: "agent-precommitted", InitialBudgetReservationID: "budget-precommitted",
+		Workspace: domain.Workspace{ID: "ws", Path: t.TempDir()}, Task: "Return a short answer",
+		Configuration: domain.NewRunConfigurationSnapshot("test", profile, nil, time.Now().UTC()),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	finished := waitForTerminalRun(t, repo, run.ID)
+	if finished.ID != "run-precommitted" || finished.AgentID != "agent-precommitted" {
+		t.Fatalf("engine replaced durable launch identities: %#v", finished)
+	}
+	budgets.mu.Lock()
+	defer budgets.mu.Unlock()
+	if budgets.reserveCalls != 0 || len(budgets.settlementIDs) != 1 || budgets.settlementIDs[0] != "budget-precommitted" {
+		t.Fatalf("precommitted reservation was not consumed exactly once: reserves=%d settlements=%#v", budgets.reserveCalls, budgets.settlementIDs)
+	}
+}
+
 func (blockingModel) Stream(ctx context.Context, _ providers.ModelRequest, _ func(providers.ModelEvent) error) error {
 	<-ctx.Done()
 	return ctx.Err()

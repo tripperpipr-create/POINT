@@ -31,41 +31,7 @@ func (s *SQLite) ReserveBudget(ctx context.Context, reservation domain.BudgetRes
 		}
 	}()
 
-	var dailySpent, monthlySpent, dailyReserved, monthlyReserved int64
-	if err = conn.QueryRowContext(ctx, `SELECT COALESCE(SUM(cost_cents),0) FROM usage_records WHERE workspace_id=? AND created_at>=? AND id NOT LIKE 'usage_budget_%'`, reservation.WorkspaceID, formatTime(limits.DayStart)).Scan(&dailySpent); err != nil {
-		return domain.BudgetReservation{}, err
-	}
-	if err = conn.QueryRowContext(ctx, `SELECT COALESCE(SUM(cost_cents),0) FROM usage_records WHERE workspace_id=? AND created_at>=? AND id NOT LIKE 'usage_budget_%'`, reservation.WorkspaceID, formatTime(limits.MonthStart)).Scan(&monthlySpent); err != nil {
-		return domain.BudgetReservation{}, err
-	}
-	var dailyReservationSpent, monthlyReservationSpent int64
-	if err = conn.QueryRowContext(ctx, `SELECT COALESCE(SUM(CASE WHEN status=? THEN actual_cents WHEN status=? THEN reserved_cents ELSE 0 END),0) FROM budget_reservations WHERE workspace_id=? AND created_at>=?`, domain.BudgetReconciled, domain.BudgetConservative, reservation.WorkspaceID, formatTime(limits.DayStart)).Scan(&dailyReservationSpent); err != nil {
-		return domain.BudgetReservation{}, err
-	}
-	if err = conn.QueryRowContext(ctx, `SELECT COALESCE(SUM(CASE WHEN status=? THEN actual_cents WHEN status=? THEN reserved_cents ELSE 0 END),0) FROM budget_reservations WHERE workspace_id=? AND created_at>=?`, domain.BudgetReconciled, domain.BudgetConservative, reservation.WorkspaceID, formatTime(limits.MonthStart)).Scan(&monthlyReservationSpent); err != nil {
-		return domain.BudgetReservation{}, err
-	}
-	dailySpent += dailyReservationSpent
-	monthlySpent += monthlyReservationSpent
-	if err = conn.QueryRowContext(ctx, `SELECT COALESCE(SUM(reserved_cents),0) FROM budget_reservations WHERE workspace_id=? AND status=? AND created_at>=?`, reservation.WorkspaceID, domain.BudgetReserved, formatTime(limits.DayStart)).Scan(&dailyReserved); err != nil {
-		return domain.BudgetReservation{}, err
-	}
-	if err = conn.QueryRowContext(ctx, `SELECT COALESCE(SUM(reserved_cents),0) FROM budget_reservations WHERE workspace_id=? AND status=? AND created_at>=?`, reservation.WorkspaceID, domain.BudgetReserved, formatTime(limits.MonthStart)).Scan(&monthlyReserved); err != nil {
-		return domain.BudgetReservation{}, err
-	}
-	if limits.HardStop && limits.DailyCents > 0 && dailySpent+dailyReserved+reservation.ReservedCents > limits.DailyCents {
-		return domain.BudgetReservation{}, fmt.Errorf("%w: daily spent=%d reserved=%d request=%d limit=%d cents", ErrBudgetLimitExceeded, dailySpent, dailyReserved, reservation.ReservedCents, limits.DailyCents)
-	}
-	if limits.HardStop && limits.MonthlyCents > 0 && monthlySpent+monthlyReserved+reservation.ReservedCents > limits.MonthlyCents {
-		return domain.BudgetReservation{}, fmt.Errorf("%w: monthly spent=%d reserved=%d request=%d limit=%d cents", ErrBudgetLimitExceeded, monthlySpent, monthlyReserved, reservation.ReservedCents, limits.MonthlyCents)
-	}
-	if err = checkQuestBudget(ctx, conn, &reservation, limits); err != nil {
-		return domain.BudgetReservation{}, err
-	}
-	_, err = conn.ExecContext(ctx, `INSERT INTO budget_reservations(id,workspace_id,quest_id,budget_scope_quest_id,execution_id,run_id,provider,model,estimated_input_tokens,max_output_tokens,reserved_tokens,reserved_cents,actual_input_tokens,actual_output_tokens,actual_cents,usage_reported,status,created_at,reconciled_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NULL)`,
-		reservation.ID, reservation.WorkspaceID, reservation.QuestID, reservation.BudgetScopeQuestID, reservation.ExecutionID, reservation.RunID, reservation.Provider, reservation.Model,
-		reservation.EstimatedInputTokens, reservation.MaxOutputTokens, reservation.ReservedTokens, reservation.ReservedCents, 0, 0, 0, 0, domain.BudgetReserved, formatTime(reservation.CreatedAt))
-	if err != nil {
+	if err = reserveBudgetWith(ctx, conn, &reservation, limits); err != nil {
 		return domain.BudgetReservation{}, err
 	}
 	if _, err = conn.ExecContext(ctx, `COMMIT`); err != nil {
@@ -74,6 +40,58 @@ func (s *SQLite) ReserveBudget(ctx context.Context, reservation domain.BudgetRes
 	committed = true
 	reservation.Status = domain.BudgetReserved
 	return reservation, nil
+}
+
+type budgetSQL interface {
+	sqlExecer
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}
+
+// reserveBudgetWith performs the complete budget check and insertion on the
+// caller's transaction. Launch paths use it so the first provider request is
+// reserved in the same commit as the Run that will consume it.
+func reserveBudgetWith(ctx context.Context, db budgetSQL, reservation *domain.BudgetReservation, limits domain.BudgetReserveLimits) error {
+	if reservation == nil {
+		return errors.New("budget reservation is required")
+	}
+	if reservation.EstimatedInputTokens < 0 || reservation.MaxOutputTokens < 0 || reservation.ReservedTokens < 0 || reservation.ReservedCents < 0 {
+		return errors.New("budget reservation values cannot be negative")
+	}
+	var dailySpent, monthlySpent, dailyReserved, monthlyReserved int64
+	if err := db.QueryRowContext(ctx, `SELECT COALESCE(SUM(cost_cents),0) FROM usage_records WHERE workspace_id=? AND created_at>=? AND id NOT LIKE 'usage_budget_%'`, reservation.WorkspaceID, formatTime(limits.DayStart)).Scan(&dailySpent); err != nil {
+		return err
+	}
+	if err := db.QueryRowContext(ctx, `SELECT COALESCE(SUM(cost_cents),0) FROM usage_records WHERE workspace_id=? AND created_at>=? AND id NOT LIKE 'usage_budget_%'`, reservation.WorkspaceID, formatTime(limits.MonthStart)).Scan(&monthlySpent); err != nil {
+		return err
+	}
+	var dailyReservationSpent, monthlyReservationSpent int64
+	if err := db.QueryRowContext(ctx, `SELECT COALESCE(SUM(CASE WHEN status=? THEN actual_cents WHEN status=? THEN reserved_cents ELSE 0 END),0) FROM budget_reservations WHERE workspace_id=? AND created_at>=?`, domain.BudgetReconciled, domain.BudgetConservative, reservation.WorkspaceID, formatTime(limits.DayStart)).Scan(&dailyReservationSpent); err != nil {
+		return err
+	}
+	if err := db.QueryRowContext(ctx, `SELECT COALESCE(SUM(CASE WHEN status=? THEN actual_cents WHEN status=? THEN reserved_cents ELSE 0 END),0) FROM budget_reservations WHERE workspace_id=? AND created_at>=?`, domain.BudgetReconciled, domain.BudgetConservative, reservation.WorkspaceID, formatTime(limits.MonthStart)).Scan(&monthlyReservationSpent); err != nil {
+		return err
+	}
+	dailySpent += dailyReservationSpent
+	monthlySpent += monthlyReservationSpent
+	if err := db.QueryRowContext(ctx, `SELECT COALESCE(SUM(reserved_cents),0) FROM budget_reservations WHERE workspace_id=? AND status=? AND created_at>=?`, reservation.WorkspaceID, domain.BudgetReserved, formatTime(limits.DayStart)).Scan(&dailyReserved); err != nil {
+		return err
+	}
+	if err := db.QueryRowContext(ctx, `SELECT COALESCE(SUM(reserved_cents),0) FROM budget_reservations WHERE workspace_id=? AND status=? AND created_at>=?`, reservation.WorkspaceID, domain.BudgetReserved, formatTime(limits.MonthStart)).Scan(&monthlyReserved); err != nil {
+		return err
+	}
+	if limits.HardStop && limits.DailyCents > 0 && dailySpent+dailyReserved+reservation.ReservedCents > limits.DailyCents {
+		return fmt.Errorf("%w: daily spent=%d reserved=%d request=%d limit=%d cents", ErrBudgetLimitExceeded, dailySpent, dailyReserved, reservation.ReservedCents, limits.DailyCents)
+	}
+	if limits.HardStop && limits.MonthlyCents > 0 && monthlySpent+monthlyReserved+reservation.ReservedCents > limits.MonthlyCents {
+		return fmt.Errorf("%w: monthly spent=%d reserved=%d request=%d limit=%d cents", ErrBudgetLimitExceeded, monthlySpent, monthlyReserved, reservation.ReservedCents, limits.MonthlyCents)
+	}
+	if err := checkQuestBudget(ctx, db, reservation, limits); err != nil {
+		return err
+	}
+	_, err := db.ExecContext(ctx, `INSERT INTO budget_reservations(id,workspace_id,quest_id,budget_scope_quest_id,execution_id,run_id,provider,model,estimated_input_tokens,max_output_tokens,reserved_tokens,reserved_cents,actual_input_tokens,actual_output_tokens,actual_cents,usage_reported,status,created_at,reconciled_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NULL)`,
+		reservation.ID, reservation.WorkspaceID, reservation.QuestID, reservation.BudgetScopeQuestID, reservation.ExecutionID, reservation.RunID, reservation.Provider, reservation.Model,
+		reservation.EstimatedInputTokens, reservation.MaxOutputTokens, reservation.ReservedTokens, reservation.ReservedCents, 0, 0, 0, 0, domain.BudgetReserved, formatTime(reservation.CreatedAt))
+	return err
 }
 
 func (s *SQLite) ReconcileBudget(ctx context.Context, id string, inputTokens, outputTokens, actualCents int64, usageReported bool, now time.Time) error {
@@ -208,7 +226,7 @@ type questBudgetCap struct {
 	Tokens, Cents int64
 }
 
-func checkQuestBudget(ctx context.Context, conn *sql.Conn, reservation *domain.BudgetReservation, limits domain.BudgetReserveLimits) error {
+func checkQuestBudget(ctx context.Context, conn budgetSQL, reservation *domain.BudgetReservation, limits domain.BudgetReserveLimits) error {
 	questID := reservation.QuestID
 	if questID == "" {
 		questID = reservation.BudgetScopeQuestID
@@ -280,7 +298,7 @@ func budgetWouldExceed(limit, spent, reserved, request int64) bool {
 	return limit > 0 && (spent > limit || reserved > limit-spent || request > limit-spent-reserved)
 }
 
-func questBudgetUsage(ctx context.Context, conn *sql.Conn, workspaceID, questID string) (spentTokens, spentCents, reservedTokens, reservedCents int64, err error) {
+func questBudgetUsage(ctx context.Context, conn budgetSQL, workspaceID, questID string) (spentTokens, spentCents, reservedTokens, reservedCents int64, err error) {
 	const scope = `WITH RECURSIVE scope(id) AS (
 		SELECT id FROM quests WHERE workspace_id=? AND id=?
 		UNION

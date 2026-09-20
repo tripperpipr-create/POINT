@@ -605,32 +605,6 @@
 .hall-cap-line.is-blocking { color: var(--ember-light); }
 .hall-cap-line.is-warning { color: var(--caution); }
 
-.hall-compose {
-  display: flex;
-  flex: none;
-  flex-direction: column;
-  gap: var(--s-4);
-  padding: var(--s-5) var(--s-7) var(--s-6);
-  border-top: 1px solid var(--hub-border);
-  background: var(--hub-panel);
-}
-.hall-compose textarea {
-  width: 100%;
-  resize: vertical;
-  min-height: 52px;
-  padding: var(--s-4) var(--s-5);
-  border: 1px solid var(--hub-border-strong);
-  background: var(--hub-raised);
-  color: var(--hub-text);
-  font: var(--fw-normal) var(--t-small) / var(--lh-base) var(--font-mono);
-}
-.hall-compose textarea:focus-visible { outline: none; border-color: var(--ember); }
-.hall-compose-actions { display: flex; align-items: center; gap: var(--s-4); }
-.hall-compose-actions small {
-  font: var(--fw-normal) var(--t-micro) / 1 var(--font-mono);
-  color: var(--hub-faint-2);
-}
-.hall-compose-actions button { margin-left: auto; }
 
 /* ── Кнопки ───────────────────────────────────────────────────────────────── */
 .hall-btn {
@@ -1586,17 +1560,6 @@ button.hall-panel-row:focus-visible { outline: 1px solid var(--ember); outline-o
 .hall-dialogue .hall-answer-badge b { font-weight: var(--fw-medium); letter-spacing: normal; text-transform: none; }
 .hall-dialogue .hall-answer-badge:not(.is-fallback) > span { padding: var(--s-1) var(--s-3); border: 1px solid color-mix(in srgb, var(--hub-border) 70%, transparent); border-radius: 2px; background: transparent; font-family: var(--font-mono); }
 .hall-dialogue .hall-answer-badge.is-fallback { padding: var(--s-4) var(--s-5); background: var(--ember-wash); border-radius: 4px; }
-.hall-dialogue .hall-compose { box-sizing: border-box; width: calc(100% - 32px); max-width: var(--hall-read-col); margin: var(--s-3) auto var(--s-5); padding: var(--s-4) var(--s-5); gap: var(--s-3); border: 1px solid color-mix(in srgb, var(--hub-border-loud) 70%, transparent); border-radius: 4px; background: color-mix(in srgb, var(--hub-raised) 55%, var(--hub-void)); box-shadow: none; }
-.hall-dialogue .hall-compose:focus-within { border-color: color-mix(in srgb, var(--vscode-focusBorder, var(--ember)) 55%, var(--hub-border)); box-shadow: none; }
-.hall-compose-label { font: var(--fw-medium) var(--t-body) / 1.4 var(--font-ui); color: var(--hub-muted); }
-.hall-dialogue #master-discussion-context:empty { display: none; }
-.hall-dialogue .hall-compose textarea { box-sizing: border-box; min-height: 44px; max-height: min(200px, 28vh); resize: vertical; padding: var(--s-2) 0; border: 0; background: transparent; font: var(--fw-normal) var(--t-base) / 1.5 var(--font-ui); }
-.hall-dialogue .hall-compose textarea::placeholder { color: var(--hub-muted-2); }
-.hall-dialogue .hall-compose-actions { display: flex; flex-wrap: wrap; gap: var(--s-3); padding-top: var(--s-3); border-top: 1px solid color-mix(in srgb, var(--hub-border) 65%, transparent); }
-.hall-dialogue .hall-compose-actions .hall-compose-model { flex: 1 1 100%; min-width: 0; font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui); color: var(--hub-faint-2); overflow-wrap: anywhere; }
-.hall-dialogue .hall-compose-hint { margin-left: 0; margin-right: auto; font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui); color: var(--hub-faint-2); white-space: normal; }
-.hall-dialogue .hall-compose-actions .hall-btn { min-height: 28px; border-radius: 2px; font-family: var(--font-ui); letter-spacing: normal; }
-.hall-dialogue .hall-compose-actions .hall-btn.is-primary { margin-left: auto; }
 .hall-dialogue .hall-panel.is-alarm { border: 1px solid var(--hub-border-loud); border-top: 2px solid var(--ember-line); border-radius: 8px; background: var(--hub-raised); overflow: hidden; }
 .hall-dialogue .hall-panel .hall-lead { font: var(--fw-semibold) var(--t-lead) / var(--lh-base) var(--font-ui); }
 .hall-dialogue .hall-objectives,
@@ -1829,41 +1792,6 @@ button.hall-panel-row:focus-visible { outline: 1px solid var(--ember); outline-o
 .hall-dialogue .hall-speaker-avatar { background: var(--hub-selected); color: var(--hub-muted); border-color: var(--hub-border); }
 .hall-dialogue .hall-msg-tools { opacity: 0; transition: opacity .12s; }
 .hall-dialogue .hall-turn:hover .hall-msg-tools, .hall-dialogue .hall-turn:focus-within .hall-msg-tools { opacity: 1; }
-.hall-composer-controls, .hall-work-modes { display: flex; align-items: center; flex-wrap: wrap; gap: var(--s-3); }
-.hall-composer-controls { color: var(--hub-muted); font: var(--fw-normal) var(--t-small) / 1.5 var(--font-ui); gap: var(--s-2); }
-.hall-composer-controls .hall-chip,
-.hall-composer-controls summary {
-  font: inherit;
-  letter-spacing: normal;
-  text-transform: none;
-  min-height: 26px;
-  padding: var(--s-2) var(--s-3);
-  border: 0;
-  border-radius: 2px;
-  background: transparent;
-  color: var(--hub-muted);
-  cursor: pointer;
-  list-style: none;
-}
-.hall-composer-controls summary::-webkit-details-marker { display: none; }
-.hall-composer-controls .hall-chip:hover,
-.hall-composer-controls summary:hover,
-.hall-composer-controls details[open] > summary {
-  color: var(--hub-text);
-  background: var(--hub-selected);
-}
-.hall-composer-controls .hall-chip[aria-pressed="true"] { background: var(--hub-selected); color: var(--hub-text); }
-.hall-work-menu > div,
-.hall-answer-style > :not(summary) {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-2);
-  margin-top: var(--s-2);
-}
-.hall-work-modes [aria-pressed="true"] { background: var(--hub-selected); color: var(--hub-text); }
-.hall-answer-style { position: relative; }
-.hall-answer-style summary { cursor: pointer; padding: var(--s-3); }
-.hall-model-choice { margin-left: auto; max-width: 100%; overflow-wrap: anywhere; }
 .hall-stream { font: var(--fw-normal) var(--t-base) / 1.5 var(--font-ui); padding: var(--s-5) 0; }
 .hall-stream small { color: var(--hub-muted); font-size: var(--t-small); }
 .hall-stream-text { white-space: pre-wrap; overflow-wrap: anywhere; margin-top: var(--s-4); }

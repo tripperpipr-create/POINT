@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 
 	"local-agent-workbench/internal/domain"
@@ -208,14 +209,15 @@ func (a *App) guardTaskQuestUpdate(ctx context.Context, next *domain.Quest) erro
 	return nil
 }
 
-func validateTaskExecutionLaunch(previous *domain.ExecutionInstance, brief *domain.TaskBrief, agentID, task string) error {
+func validateTaskExecutionLaunch(previous *domain.ExecutionInstance, brief *domain.TaskBrief, agentID, task, preparedRunID string) error {
 	if brief == nil {
 		return nil
 	}
 	if previous == nil {
 		return errors.New("структурированное задание запускается через утверждённый план")
 	}
-	if previous.Status != domain.RunPending || previous.RunID != "" {
+	precommitted := strings.TrimSpace(preparedRunID) != "" && previous.RunID == strings.TrimSpace(preparedRunID)
+	if previous.Status != domain.RunPending || (previous.RunID != "" && !precommitted) {
 		return errors.New("unknown_outcome: исполнение уже запускалось; сохранённая песочница требует восстановления из проверенной точки, повтор задания с начала запрещён")
 	}
 	if previous.ProjectAgentID != agentID || previous.Task != task {

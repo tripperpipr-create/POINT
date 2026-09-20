@@ -22,11 +22,9 @@ export function patchMasterAnswerNote(root, drafts) {
   const progress = masterAnswerProgress(pack, group.dataset.owner || 'live', drafts)
   const note = group.querySelector('#master-answer-note')
   if (note) note.textContent = masterAnswerNote(progress)
-  const send = group.querySelector('[data-action="master-answer-question"]')
-  if (send) {
-    if (progress.answered) send.removeAttribute('aria-disabled')
-    else send.setAttribute('aria-disabled', 'true')
-  }
+  // Кнопку здесь трогать нечего: `aria-disabled` с неё снят — заперта она не
+  // бывает ни в одном состоянии пакета, и на каждом знаке переписывается только
+  // причина под рядом.
 }
 
 export function handleMasterSessionAction({action, target, root, vscode, sending, send, render, persist, drafts, cursor}) {

@@ -228,6 +228,207 @@ func storageTestModelCalls() []domain.ModelCallLedgerEntry {
 	return []domain.ModelCallLedgerEntry{{ID: domain.NewID("model-call"), Provider: "test", Model: "model", Role: "writer", CostKnown: true, UsageReported: true, CreatedAt: time.Now().UTC()}}
 }
 
+func TestCreateApprovedWorkOrderV2CommitsSourcesAndRuntimeAtomically(t *testing.T) {
+	store, err := Open(filepath.Join(t.TempDir(), "fast-work-order.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	ctx := context.Background()
+	first := storageWorkOrder()
+	first.Workspace.Path = t.TempDir()
+	snapshot := domain.SourceSnapshot{
+		ID: "source-fast-first", WorkspaceID: first.WorkspaceID, Kind: "text",
+		Digest: "sha256:first", ExtractedText: "first", CreatedAt: time.Now().UTC(),
+	}
+	first.Sources = []domain.SourceSnapshotRef{{ID: snapshot.ID, Kind: snapshot.Kind, Digest: snapshot.Digest}}
+	first = domain.NormalizeWorkOrder(first)
+	approval, err := store.CreateApprovedWorkOrderV2(ctx, first, []domain.SourceSnapshot{snapshot}, "fast-first")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if approval.QuestID == "" || approval.WorkOrder.State != "approved" {
+		t.Fatalf("approved launch is incomplete: %#v", approval)
+	}
+	if _, err = store.GetSourceSnapshotV2(ctx, snapshot.ID); err != nil {
+		t.Fatalf("source snapshot was not committed with launch: %v", err)
+	}
+	if replay, replayErr := store.CreateApprovedWorkOrderV2(ctx, first, nil, "fast-first"); replayErr != nil || !replay.Replayed || replay.QuestID != approval.QuestID {
+		t.Fatalf("atomic launch replay=%#v err=%v", replay, replayErr)
+	}
+
+	second := storageWorkOrder()
+	second.ID = "workorder-fast-second"
+	second.Workspace.Path = first.Workspace.Path
+	secondSnapshot := domain.SourceSnapshot{
+		ID: "source-fast-second", WorkspaceID: second.WorkspaceID, Kind: "text",
+		Digest: "sha256:second", ExtractedText: "second", CreatedAt: time.Now().UTC(),
+	}
+	second.Sources = []domain.SourceSnapshotRef{{ID: secondSnapshot.ID, Kind: secondSnapshot.Kind, Digest: secondSnapshot.Digest}}
+	second = domain.NormalizeWorkOrder(second)
+	if _, err = store.CreateApprovedWorkOrderV2(ctx, second, []domain.SourceSnapshot{secondSnapshot}, "fast-second"); err == nil {
+		t.Fatal("second active writer unexpectedly committed")
+	}
+	if _, err = store.GetWorkOrderV2(ctx, second.ID); err == nil {
+		t.Fatal("failed launch left a WorkOrder behind")
+	}
+	if _, err = store.GetSourceSnapshotV2(ctx, secondSnapshot.ID); err == nil {
+		t.Fatal("failed launch left a source snapshot behind")
+	}
+	quests, err := store.ListQuests(ctx, first.WorkspaceID)
+	if err != nil || len(quests) != 1 || quests[0].ID != approval.QuestID {
+		t.Fatalf("failed launch changed active quests: %#v err=%v", quests, err)
+	}
+}
+
+func storageFastAgentLaunch(t *testing.T, order domain.WorkOrder, suffix string) FastAgentLaunchV2 {
+	t.Helper()
+	order = domain.NormalizeWorkOrder(order)
+	contract := &domain.WorkOrderExecutionContract{
+		ID: order.ID, Version: order.Version, Digest: domain.WorkOrderDigest(order), SourceDigest: domain.WorkOrderSourceDigest(order),
+		Sources: order.Sources, Milestones: order.Milestones, Workspace: order.Workspace, Stack: order.Stack,
+		Routing: order.Routing, Network: order.Network, Secrets: order.Secrets, Completion: order.Completion, Delivery: order.Delivery,
+	}
+	brief, err := domain.ApproveTaskBrief(domain.NormalizeTaskBrief(domain.TaskBrief{
+		State: "ready", Mode: domain.TaskModeProject, Goal: order.Goal, ResultKind: "workspace_change",
+		Scope: order.Scope, Criteria: order.Criteria, Permissions: domain.TaskPermissions{WriteFiles: true, ExecuteCommands: true},
+		Budget:    domain.TaskBudget{Tokens: order.Budget.Tokens, ActiveSeconds: order.Budget.ActiveSeconds, MaxParallel: 1, MaxAttempts: 1},
+		WorkOrder: contract, FastAgent: true,
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	questID, executionID, runID := "quest-"+suffix, "execution-"+suffix, "run-"+suffix
+	profile := domain.AgentProfile{ID: "agent-" + suffix, Provider: domain.ProviderOllama, ProviderPreset: "ollama", Model: "model", MaxOutputTokens: 64}
+	snapshot := domain.NewRunConfigurationSnapshot("test", profile, nil, now)
+	return FastAgentLaunchV2{
+		Order: order, Brief: &brief, QuestID: questID, IdempotencyKey: "launch-" + suffix,
+		Sandbox:      domain.SandboxRecord{ID: "sandbox-" + suffix, WorkspaceID: order.WorkspaceID, ExecutionID: executionID, Kind: "copy", Backend: "test", Path: order.Workspace.Path, CreatedAt: now},
+		Execution:    domain.ExecutionInstance{ID: executionID, WorkspaceID: order.WorkspaceID, ProjectAgentID: profile.ID, QuestID: questID, RunID: runID, SandboxID: "sandbox-" + suffix, Task: order.Goal, Status: domain.RunPending, Snapshot: snapshot, StartedAt: now},
+		Run:          domain.Run{ID: runID, AgentID: "runtime-agent-" + suffix, ProfileID: profile.ID, WorkspaceID: order.WorkspaceID, Task: order.Goal, ConfigurationSnapshot: snapshot, Provider: string(profile.Provider), Model: profile.Model, Status: domain.RunPending, ToolsUsed: []string{}, ChangedFiles: []string{}, StartedAt: now},
+		Reservation:  domain.BudgetReservation{ID: "budget-" + suffix, WorkspaceID: order.WorkspaceID, QuestID: questID, BudgetScopeQuestID: questID, ExecutionID: executionID, RunID: runID, Provider: string(profile.Provider), Model: profile.Model, EstimatedInputTokens: 10, MaxOutputTokens: 64, ReservedTokens: 74, CreatedAt: now},
+		BudgetLimits: domain.BudgetReserveLimits{FreeRuntime: true, DayStart: now.Add(-time.Hour), MonthStart: now.Add(-time.Hour)},
+	}
+}
+
+func TestCommitFastAgentLaunchV2PersistsEveryLaunchRecordTogether(t *testing.T) {
+	store, err := Open(filepath.Join(t.TempDir(), "fast-launch.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	order := storageWorkOrder()
+	order.Workspace.Path = t.TempDir()
+	launch := storageFastAgentLaunch(t, order, "all")
+	approval, err := store.CommitFastAgentLaunchV2(context.Background(), launch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if approval.QuestID != launch.QuestID || approval.Status != string(domain.QuestRunning) {
+		t.Fatalf("unexpected launch approval: %#v", approval)
+	}
+	quests, err := store.ListQuests(context.Background(), launch.Order.WorkspaceID)
+	if err != nil || len(quests) != 1 || quests[0].ID != launch.QuestID || quests[0].Status != domain.QuestRunning || quests[0].Brief == nil || !quests[0].Brief.FastAgent {
+		t.Fatalf("quest was not committed as a running FastAgent contract: %#v err=%v", quests, err)
+	}
+	if _, err = store.GetSandbox(context.Background(), launch.Sandbox.ID); err != nil {
+		t.Fatalf("sandbox metadata missing: %v", err)
+	}
+	execution, err := store.GetExecution(context.Background(), launch.Execution.ID)
+	if err != nil || execution.RunID != launch.Run.ID || execution.Status != domain.RunPending {
+		t.Fatalf("execution missing or unlinked: %#v err=%v", execution, err)
+	}
+	run, err := store.GetRun(context.Background(), launch.Run.ID)
+	if err != nil || run.Status != domain.RunPending {
+		t.Fatalf("run missing: %#v err=%v", run, err)
+	}
+	reservation, err := store.BudgetReservation(context.Background(), launch.Reservation.ID)
+	if err != nil || reservation.Status != domain.BudgetReserved || reservation.RunID != launch.Run.ID {
+		t.Fatalf("budget reservation missing: %#v err=%v", reservation, err)
+	}
+	runtimes, err := store.ListMilestoneRuntimesV2(context.Background(), launch.QuestID, approval.WorkOrder.Version)
+	if err != nil || len(runtimes) != 1 || runtimes[0].Status != domain.QuestRunning {
+		t.Fatalf("milestone was not committed as running: %#v err=%v", runtimes, err)
+	}
+}
+
+func TestCommitFastAgentLaunchV2RollsBackEveryLaunchRecordOnLateFailure(t *testing.T) {
+	store, err := Open(filepath.Join(t.TempDir(), "fast-launch-rollback.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	order := storageWorkOrder()
+	order.Workspace.Path = t.TempDir()
+	launch := storageFastAgentLaunch(t, order, "rollback")
+	if _, err = store.db.Exec(`INSERT INTO budget_reservations(id,workspace_id,quest_id,budget_scope_quest_id,execution_id,run_id,provider,model,estimated_input_tokens,max_output_tokens,reserved_tokens,reserved_cents,actual_input_tokens,actual_output_tokens,actual_cents,usage_reported,status,created_at,reconciled_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NULL)`,
+		launch.Reservation.ID, launch.Order.WorkspaceID, "", "", "", "existing-run", "ollama", "model", 0, 0, 0, 0, 0, 0, 0, 0, domain.BudgetReleased, formatTime(time.Now().UTC())); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.CommitFastAgentLaunchV2(context.Background(), launch); err == nil {
+		t.Fatal("late reservation conflict unexpectedly committed launch")
+	}
+	if _, err = store.GetWorkOrderV2(context.Background(), launch.Order.ID); err == nil {
+		t.Fatal("failed commit left a work order")
+	}
+	if quests, listErr := store.ListQuests(context.Background(), launch.Order.WorkspaceID); listErr != nil || len(quests) != 0 {
+		t.Fatalf("failed commit left a quest: %#v err=%v", quests, listErr)
+	}
+	if _, err = store.GetSandbox(context.Background(), launch.Sandbox.ID); err == nil {
+		t.Fatal("failed commit left sandbox metadata")
+	}
+	if _, err = store.GetExecution(context.Background(), launch.Execution.ID); err == nil {
+		t.Fatal("failed commit left an execution")
+	}
+	if _, err = store.GetRun(context.Background(), launch.Run.ID); err == nil {
+		t.Fatal("failed commit left a run")
+	}
+	if _, found, leaseErr := store.WriterLeaseV2(context.Background(), launch.Order.WorkspaceID); leaseErr != nil || found {
+		t.Fatalf("failed commit left a writer lease: found=%v err=%v", found, leaseErr)
+	}
+}
+
+func TestCommitFastAgentLaunchV2RollsBackSaveExecutionAndSaveRunFailures(t *testing.T) {
+	for _, table := range []string{"executions", "runs"} {
+		t.Run(table, func(t *testing.T) {
+			store, err := Open(filepath.Join(t.TempDir(), "fast-launch-"+table+".db"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer store.Close()
+			order := storageWorkOrder()
+			order.Workspace.Path = t.TempDir()
+			launch := storageFastAgentLaunch(t, order, table)
+			trigger := "fail_fast_launch_" + table
+			if _, err = store.db.Exec(`CREATE TRIGGER ` + trigger + ` BEFORE INSERT ON ` + table + ` BEGIN SELECT RAISE(FAIL, 'controlled launch persistence failure'); END`); err != nil {
+				t.Fatal(err)
+			}
+			if _, err = store.CommitFastAgentLaunchV2(context.Background(), launch); err == nil {
+				t.Fatalf("controlled %s failure unexpectedly committed", table)
+			}
+			if _, err = store.GetWorkOrderV2(context.Background(), launch.Order.ID); err == nil {
+				t.Fatalf("%s failure left a work order", table)
+			}
+			if quests, listErr := store.ListQuests(context.Background(), launch.Order.WorkspaceID); listErr != nil || len(quests) != 0 {
+				t.Fatalf("%s failure left quests: %#v err=%v", table, quests, listErr)
+			}
+			if _, err = store.GetSandbox(context.Background(), launch.Sandbox.ID); err == nil {
+				t.Fatalf("%s failure left sandbox metadata", table)
+			}
+			if _, err = store.GetExecution(context.Background(), launch.Execution.ID); err == nil {
+				t.Fatalf("%s failure left an execution", table)
+			}
+			if _, err = store.GetRun(context.Background(), launch.Run.ID); err == nil {
+				t.Fatalf("%s failure left a run", table)
+			}
+			if reservations, listErr := store.ListBudgetReservations(context.Background(), launch.Order.WorkspaceID, 10); listErr != nil || len(reservations) != 0 {
+				t.Fatalf("%s failure left reservations: %#v err=%v", table, reservations, listErr)
+			}
+		})
+	}
+}
+
 func TestApprovalInitializesImmutableMilestoneRuntimeForExactVersion(t *testing.T) {
 	store, err := Open(filepath.Join(t.TempDir(), "hub-v2.db"))
 	if err != nil {

@@ -18,7 +18,7 @@ func TestNarrowStateSnapshotsKeepStableArrayContracts(t *testing.T) {
 	}
 	assertJSONArrays(t, runtimeState, []string{
 		"runs", "runDiagnostics", "workflowRuns", "changes", "quests", "flows",
-		"flowRuns", "executions", "changeSets", "questProposals", "companionActionProposals",
+		"flowRuns", "executions", "workOrders", "changeSets", "questProposals", "companionActionProposals",
 		"learningSignals", "skillOutcomes",
 	})
 

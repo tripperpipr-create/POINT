@@ -832,7 +832,11 @@ export function createMasterThreadViews(dependencies) {
     const configured = Boolean(String(ui.masterData?.config?.model || '').trim())
     const model = configured ? '' : `<small class="hall-compose-model">${esc(masterModelLabel())}</small>`
     const hintHidden = ui.masterSending ? '' : ' is-quiet'
-    return `${masterContextAddHtml(ui.masterConversationId, esc, ui.masterSending)}${masterComposerHtml(ui.masterData?.sessions, ui.state.boot?.orchestrator?.model, esc, ui.masterSending, modelChipHtml({ target: 'master', connectionId: ui.state.boot?.orchestrator?.connectionId || '', model: ui.state.boot?.orchestrator?.model || '' }))}${model}<small class="hall-compose-hint${hintHidden}" title="Ctrl+L — курсор в поле · Ctrl+F — поиск по разговору · Ctrl+Shift+N — новый чат">${esc(masterComposeMetaHtml(ui.masterSending))}</small>${masterComposeCountHtml(ui.masterDraft)}${masterComposeActionsHtml(ui.masterSending, ui.masterDraft)}`
+    // Ряд разведён по краям: слева — чем готовят запрос, справа — чем его
+    // отправляют. Пока всё лежало одной кучей с прижимом вправо, разрыв в ряду
+    // держала подсказка о клавишах: невидимая подпись занимала 230 пикселей из
+    // 702 и работала распоркой. Распорку заменили края, подсказка ушла.
+    return `<div class="hall-compose-lead">${masterContextAddHtml(ui.masterConversationId, esc, ui.masterSending)}${masterComposerHtml(ui.masterData?.sessions, ui.state.boot?.orchestrator?.model, esc, ui.masterSending, modelChipHtml({ target: 'master', connectionId: ui.state.boot?.orchestrator?.connectionId || '', model: ui.state.boot?.orchestrator?.model || '' }))}${model}</div><div class="hall-compose-trail"><small class="hall-compose-hint${hintHidden}" title="Ctrl+L — курсор в поле · Ctrl+F — поиск по разговору · Ctrl+Shift+N — новый чат">${esc(masterComposeMetaHtml(ui.masterSending))}</small>${masterComposeCountHtml(ui.masterDraft)}${masterComposeActionsHtml(ui.masterSending, ui.masterDraft)}</div>`
   }
 
   // Поиск по разговору.

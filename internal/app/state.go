@@ -20,6 +20,7 @@ type RuntimeState struct {
 	Flows                    []domain.FlowGraph               `json:"flows"`
 	FlowRuns                 []domain.FlowRun                 `json:"flowRuns"`
 	Executions               []domain.ExecutionInstance       `json:"executions"`
+	WorkOrders               []domain.WorkOrder               `json:"workOrders"`
 	ChangeSets               []domain.ChangeSet               `json:"changeSets"`
 	QuestProposals           []domain.QuestProposal           `json:"questProposals"`
 	CompanionActionProposals []domain.CompanionActionProposal `json:"companionActionProposals"`
@@ -96,6 +97,10 @@ func (a *App) RuntimeState() (RuntimeState, error) {
 	if err != nil {
 		return RuntimeState{}, err
 	}
+	state.WorkOrders, err = a.store.ListWorkOrdersForWorkspaceV2(ctx, workspaceID)
+	if err != nil {
+		return RuntimeState{}, err
+	}
 	state.ChangeSets, err = a.store.ListChangeSets(ctx, workspaceID)
 	if err != nil {
 		return RuntimeState{}, err
@@ -122,6 +127,7 @@ func (a *App) RuntimeState() (RuntimeState, error) {
 	state.Flows = nonNilSlice(state.Flows)
 	state.FlowRuns = nonNilSlice(state.FlowRuns)
 	state.Executions = nonNilSlice(state.Executions)
+	state.WorkOrders = nonNilSlice(state.WorkOrders)
 	state.ChangeSets = nonNilSlice(state.ChangeSets)
 	state.QuestProposals = nonNilSlice(state.QuestProposals)
 	state.CompanionActionProposals = nonNilSlice(state.CompanionActionProposals)

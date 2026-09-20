@@ -15,6 +15,11 @@ import (
 	"local-agent-workbench/internal/orchestrator"
 )
 
+func unavailableMasterBaseURL(t *testing.T) string {
+	t.Helper()
+	return unavailableLearningProvider(t)
+}
+
 func TestMasterBriefingExposesBoundedProjectEvidence(t *testing.T) {
 	application := newTestApp(t)
 	var err error
@@ -59,7 +64,7 @@ func TestMasterChatProposesQuestButNeverStartsIt(t *testing.T) {
 
 	if err = application.store.SaveOrchestratorConfig(ctx, domain.OrchestratorConfig{
 		ID: "master", WorkspaceID: world.ID, Preset: "balanced", Provider: domain.ProviderOllama,
-		Model: "qwen", PlanningDepth: 50, Parallelism: 2, ApprovalStrictness: 50, TeamPreference: 50,
+		BaseURL: unavailableMasterBaseURL(t), Model: "qwen", PlanningDepth: 50, Parallelism: 2, ApprovalStrictness: 50, TeamPreference: 50,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +140,7 @@ func TestMasterChatAnswersQuestionsWithoutCreatingWork(t *testing.T) {
 	ctx := context.Background()
 	if err = application.store.SaveOrchestratorConfig(ctx, domain.OrchestratorConfig{
 		ID: "master", WorkspaceID: world.ID, Preset: "balanced", Provider: domain.ProviderOllama,
-		Model: "qwen", PlanningDepth: 50, Parallelism: 2, ApprovalStrictness: 50, TeamPreference: 50,
+		BaseURL: unavailableMasterBaseURL(t), Model: "qwen", PlanningDepth: 50, Parallelism: 2, ApprovalStrictness: 50, TeamPreference: 50,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -175,7 +180,7 @@ func TestMasterCreatesReviewableAgentAndTeamDraftsInsteadOfFakeCodingQuests(t *t
 	ctx := context.Background()
 	if err = application.store.SaveOrchestratorConfig(ctx, domain.OrchestratorConfig{
 		ID: "master", WorkspaceID: world.ID, Preset: "balanced", Provider: domain.ProviderOllama,
-		Model: "qwen", PlanningDepth: 50, Parallelism: 2, ApprovalStrictness: 50, TeamPreference: 50,
+		BaseURL: unavailableMasterBaseURL(t), Model: "qwen", PlanningDepth: 50, Parallelism: 2, ApprovalStrictness: 50, TeamPreference: 50,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -265,7 +270,7 @@ func TestMasterContinuesExactTeamRequestAfterCreatingTheFirstAgent(t *testing.T)
 	ctx := context.Background()
 	if err = application.store.SaveOrchestratorConfig(ctx, domain.OrchestratorConfig{
 		ID: "master", WorkspaceID: world.ID, Preset: "balanced", Provider: domain.ProviderOllama,
-		Model: "qwen", PlanningDepth: 50, Parallelism: 2, ApprovalStrictness: 50, TeamPreference: 50,
+		BaseURL: unavailableMasterBaseURL(t), Model: "qwen", PlanningDepth: 50, Parallelism: 2, ApprovalStrictness: 50, TeamPreference: 50,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -310,7 +315,7 @@ func TestMasterHistoryKeepsFactsQuestionsAndProposal(t *testing.T) {
 	ctx := context.Background()
 	if err = application.store.SaveOrchestratorConfig(ctx, domain.OrchestratorConfig{
 		ID: "master", WorkspaceID: world.ID, Preset: "balanced", Provider: domain.ProviderOllama,
-		Model: "qwen", PlanningDepth: 50, Parallelism: 2, ApprovalStrictness: 50, TeamPreference: 50,
+		BaseURL: unavailableMasterBaseURL(t), Model: "qwen", PlanningDepth: 50, Parallelism: 2, ApprovalStrictness: 50, TeamPreference: 50,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -388,7 +393,7 @@ func TestMasterAndCompanionHistoriesDoNotMix(t *testing.T) {
 
 	if err = application.store.SaveOrchestratorConfig(ctx, domain.OrchestratorConfig{
 		ID: "master", WorkspaceID: world.ID, Preset: "balanced", Provider: domain.ProviderOllama,
-		Model: "qwen", PlanningDepth: 50, Parallelism: 2, ApprovalStrictness: 50, TeamPreference: 50,
+		BaseURL: unavailableMasterBaseURL(t), Model: "qwen", PlanningDepth: 50, Parallelism: 2, ApprovalStrictness: 50, TeamPreference: 50,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -477,7 +482,7 @@ func TestMasterRefusesToProposeWithAnIncapableParty(t *testing.T) {
 	ctx := context.Background()
 	if err = application.store.SaveOrchestratorConfig(ctx, domain.OrchestratorConfig{
 		ID: "master", WorkspaceID: world.ID, Preset: "balanced", Provider: domain.ProviderOllama,
-		Model: "qwen", PlanningDepth: 50, Parallelism: 2, ApprovalStrictness: 50, TeamPreference: 50,
+		BaseURL: unavailableMasterBaseURL(t), Model: "qwen", PlanningDepth: 50, Parallelism: 2, ApprovalStrictness: 50, TeamPreference: 50,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -532,7 +537,7 @@ func TestMasterWorksWithAnEmptyRoster(t *testing.T) {
 	ctx := context.Background()
 	if err = application.store.SaveOrchestratorConfig(ctx, domain.OrchestratorConfig{
 		ID: "master", WorkspaceID: world.ID, Preset: "balanced", Provider: domain.ProviderOllama,
-		Model: "qwen", PlanningDepth: 50, Parallelism: 2, ApprovalStrictness: 50, TeamPreference: 50,
+		BaseURL: unavailableMasterBaseURL(t), Model: "qwen", PlanningDepth: 50, Parallelism: 2, ApprovalStrictness: 50, TeamPreference: 50,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -630,7 +635,7 @@ func TestMasterWorksWithAnEmptyRoster(t *testing.T) {
 	freshWorld := openTestWorld(t, greeting)
 	if err = greeting.store.SaveOrchestratorConfig(ctx, domain.OrchestratorConfig{
 		ID: "master", WorkspaceID: freshWorld.ID, Preset: "balanced", Provider: domain.ProviderOllama,
-		Model: "qwen", PlanningDepth: 50, Parallelism: 2, ApprovalStrictness: 50, TeamPreference: 50,
+		BaseURL: unavailableMasterBaseURL(t), Model: "qwen", PlanningDepth: 50, Parallelism: 2, ApprovalStrictness: 50, TeamPreference: 50,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -668,7 +673,7 @@ func TestMasterAnswersStatusRosterAndHelp(t *testing.T) {
 	ctx := context.Background()
 	if err = application.store.SaveOrchestratorConfig(ctx, domain.OrchestratorConfig{
 		ID: "master", WorkspaceID: world.ID, Preset: "balanced", Provider: domain.ProviderOllama,
-		Model: "qwen", PlanningDepth: 50, Parallelism: 2, ApprovalStrictness: 50, TeamPreference: 50,
+		BaseURL: unavailableMasterBaseURL(t), Model: "qwen", PlanningDepth: 50, Parallelism: 2, ApprovalStrictness: 50, TeamPreference: 50,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -743,7 +748,7 @@ func TestMasterHistorySaysWhenItIsOnlyTheTail(t *testing.T) {
 	ctx := context.Background()
 	if err = application.store.SaveOrchestratorConfig(ctx, domain.OrchestratorConfig{
 		ID: "master", WorkspaceID: world.ID, Preset: "balanced", Provider: domain.ProviderOllama,
-		Model: "qwen", PlanningDepth: 50, Parallelism: 2, ApprovalStrictness: 50, TeamPreference: 50,
+		BaseURL: unavailableMasterBaseURL(t), Model: "qwen", PlanningDepth: 50, Parallelism: 2, ApprovalStrictness: 50, TeamPreference: 50,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -822,7 +827,7 @@ func TestMasterRemembersTheProposalItJustMade(t *testing.T) {
 	ctx := context.Background()
 	if err = application.store.SaveOrchestratorConfig(ctx, domain.OrchestratorConfig{
 		ID: "master", WorkspaceID: world.ID, Preset: "balanced", Provider: domain.ProviderOllama,
-		Model: "qwen", PlanningDepth: 50, Parallelism: 2, ApprovalStrictness: 50, TeamPreference: 50,
+		BaseURL: unavailableMasterBaseURL(t), Model: "qwen", PlanningDepth: 50, Parallelism: 2, ApprovalStrictness: 50, TeamPreference: 50,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -901,7 +906,7 @@ func TestMasterHearsTaskEvenWhenItMentionsStatusOrCommands(t *testing.T) {
 	ctx := context.Background()
 	if err = application.store.SaveOrchestratorConfig(ctx, domain.OrchestratorConfig{
 		ID: "master", WorkspaceID: world.ID, Preset: "balanced", Provider: domain.ProviderOllama,
-		Model: "qwen", PlanningDepth: 50, Parallelism: 2, ApprovalStrictness: 50, TeamPreference: 50,
+		BaseURL: unavailableMasterBaseURL(t), Model: "qwen", PlanningDepth: 50, Parallelism: 2, ApprovalStrictness: 50, TeamPreference: 50,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -951,7 +956,7 @@ func TestMasterDoesNotProposeTheSameTaskTwice(t *testing.T) {
 	ctx := context.Background()
 	if err = application.store.SaveOrchestratorConfig(ctx, domain.OrchestratorConfig{
 		ID: "master", WorkspaceID: world.ID, Preset: "balanced", Provider: domain.ProviderOllama,
-		Model: "qwen", PlanningDepth: 50, Parallelism: 2, ApprovalStrictness: 50, TeamPreference: 50,
+		BaseURL: unavailableMasterBaseURL(t), Model: "qwen", PlanningDepth: 50, Parallelism: 2, ApprovalStrictness: 50, TeamPreference: 50,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -1020,7 +1025,7 @@ func TestMasterReturnsToTheTaskItPromisedToResume(t *testing.T) {
 	ctx := context.Background()
 	if err = application.store.SaveOrchestratorConfig(ctx, domain.OrchestratorConfig{
 		ID: "master", WorkspaceID: world.ID, Preset: "balanced", Provider: domain.ProviderOllama,
-		Model: "qwen", PlanningDepth: 50, Parallelism: 2, ApprovalStrictness: 50, TeamPreference: 50,
+		BaseURL: unavailableMasterBaseURL(t), Model: "qwen", PlanningDepth: 50, Parallelism: 2, ApprovalStrictness: 50, TeamPreference: 50,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -1085,7 +1090,7 @@ func TestMasterRefusalOffersTheGuildInsteadOfTalkingToItself(t *testing.T) {
 	ctx := context.Background()
 	if err = application.store.SaveOrchestratorConfig(ctx, domain.OrchestratorConfig{
 		ID: "master", WorkspaceID: world.ID, Preset: "balanced", Provider: domain.ProviderOllama,
-		Model: "qwen", PlanningDepth: 50, Parallelism: 2, ApprovalStrictness: 50, TeamPreference: 50,
+		BaseURL: unavailableMasterBaseURL(t), Model: "qwen", PlanningDepth: 50, Parallelism: 2, ApprovalStrictness: 50, TeamPreference: 50,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -1147,7 +1152,7 @@ func TestMasterSuggestionsDoNotLoopBackToTheSameAnswer(t *testing.T) {
 	ctx := context.Background()
 	if err = application.store.SaveOrchestratorConfig(ctx, domain.OrchestratorConfig{
 		ID: "master", WorkspaceID: world.ID, Preset: "balanced", Provider: domain.ProviderOllama,
-		Model: "qwen", PlanningDepth: 50, Parallelism: 2, ApprovalStrictness: 50, TeamPreference: 50,
+		BaseURL: unavailableMasterBaseURL(t), Model: "qwen", PlanningDepth: 50, Parallelism: 2, ApprovalStrictness: 50, TeamPreference: 50,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -1199,7 +1204,7 @@ func TestMasterAnswerUsesOneSnapshotOfTheWorld(t *testing.T) {
 	ctx := context.Background()
 	cfg := domain.OrchestratorConfig{
 		ID: "master", WorkspaceID: world.ID, Preset: "balanced", Provider: domain.ProviderOllama,
-		Model: "qwen", PlanningDepth: 50, Parallelism: 2, ApprovalStrictness: 50, TeamPreference: 50,
+		BaseURL: unavailableMasterBaseURL(t), Model: "qwen", PlanningDepth: 50, Parallelism: 2, ApprovalStrictness: 50, TeamPreference: 50,
 	}
 	if err = application.store.SaveOrchestratorConfig(ctx, cfg); err != nil {
 		t.Fatal(err)
@@ -1266,7 +1271,7 @@ func TestMasterDoesNotPromiseCalmItCouldNotCheck(t *testing.T) {
 	ctx := context.Background()
 	cfg := domain.OrchestratorConfig{
 		ID: "master", WorkspaceID: world.ID, Preset: "balanced", Provider: domain.ProviderOllama,
-		Model: "qwen", PlanningDepth: 50, Parallelism: 2, ApprovalStrictness: 50, TeamPreference: 50,
+		BaseURL: unavailableMasterBaseURL(t), Model: "qwen", PlanningDepth: 50, Parallelism: 2, ApprovalStrictness: 50, TeamPreference: 50,
 	}
 	if err = application.store.SaveOrchestratorConfig(ctx, cfg); err != nil {
 		t.Fatal(err)

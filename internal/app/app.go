@@ -187,6 +187,15 @@ type StartRunRequest struct {
 	WorkContract         *domain.WorkContract     `json:"workContract,omitempty"`
 	// CompletionCheckKind stamps EventCompletionChecked (e.g. "merged-result").
 	CompletionCheckKind string `json:"completionCheckKind,omitempty"`
+	// The fields below are populated only by the atomic FastAgent v2 launcher.
+	// They are deliberately unexported so HTTP callers cannot select durable
+	// identities or bypass normal run preparation.
+	preparedRunID              string
+	preparedAgentID            string
+	preparedStartedAt          time.Time
+	preparedConfiguration      *domain.RunConfigurationSnapshot
+	initialBudgetReservationID string
+	preparedAgent              *preparedAgentRun
 }
 type AgentRunPreviewRequest struct {
 	ProfileID          string                   `json:"profileId"`

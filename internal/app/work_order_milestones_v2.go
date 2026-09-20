@@ -83,7 +83,7 @@ func (a *App) markWorkOrderMilestoneV2(ctx context.Context, approval domain.Work
 		runtime.Attempt++
 		runtime.StartedAt = &now
 		runtime.FinishedAt = nil
-	} else if status == domain.QuestCompleted || status == domain.QuestBlocked || status == domain.QuestCancelled {
+	} else if status == domain.QuestCompleted || status == domain.QuestNeedsReview || status == domain.QuestBlocked || status == domain.QuestCancelled {
 		runtime.FinishedAt = &now
 	}
 	return a.store.SaveMilestoneRuntimeV2(ctx, approval.QuestID, approval.WorkOrder.ID, approval.WorkOrder.Version, runtime)
@@ -92,15 +92,18 @@ func (a *App) markWorkOrderMilestoneV2(ctx context.Context, approval domain.Work
 // advanceWorkOrderMilestoneV2 records the finished Flow and starts only the
 // next dependency-ready milestone. Future milestones remain goals until this
 // point, so their detailed Flow can be replanned without changing scope.
-func (a *App) advanceWorkOrderMilestoneV2(approval domain.WorkOrderApproval, success bool) bool {
+func (a *App) advanceWorkOrderMilestoneV2(approval domain.WorkOrderApproval, success bool) (bool, error) {
 	ctx := context.Background()
 	quest, err := a.workOrderQuestV2(ctx, approval.WorkOrder.WorkspaceID, approval.QuestID)
-	if err != nil || quest.FlowRunID == "" {
-		return false
+	if err != nil {
+		return false, err
+	}
+	if quest.FlowRunID == "" {
+		return false, nil
 	}
 	runtimes, err := a.store.ListMilestoneRuntimesV2(ctx, quest.ID, approval.WorkOrder.Version)
 	if err != nil {
-		return false
+		return false, err
 	}
 	currentIndex := -1
 	for index := range runtimes {
@@ -110,18 +113,22 @@ func (a *App) advanceWorkOrderMilestoneV2(approval domain.WorkOrderApproval, suc
 		}
 	}
 	if currentIndex < 0 {
-		return false
+		return false, errors.New("current work order milestone runtime was not found")
 	}
 	current := runtimes[currentIndex]
 	if success {
-		_ = a.markWorkOrderMilestoneV2(ctx, approval, current, domain.QuestCompleted, current.FlowID, current.FlowRunID)
+		if err = a.markWorkOrderMilestoneV2(ctx, approval, current, domain.QuestCompleted, current.FlowID, current.FlowRunID); err != nil {
+			return false, err
+		}
 		runtimes[currentIndex].Status = domain.QuestCompleted
 	} else {
-		_ = a.markWorkOrderMilestoneV2(ctx, approval, current, domain.QuestBlocked, current.FlowID, current.FlowRunID)
-		return false
+		if err = a.markWorkOrderMilestoneV2(ctx, approval, current, domain.QuestBlocked, current.FlowID, current.FlowRunID); err != nil {
+			return false, err
+		}
+		return false, nil
 	}
 	if _, _, exists := nextWorkOrderMilestoneV2(approval.WorkOrder, runtimes); !exists {
-		return false
+		return false, nil
 	}
 	apiKey := a.flowOrchestratorKey(current.FlowRunID)
 	a.clearFlowOrchestratorKey(current.FlowRunID)
@@ -133,13 +140,13 @@ func (a *App) advanceWorkOrderMilestoneV2(approval domain.WorkOrderApproval, suc
 	quest.Controller["statusMessage"] = "Предыдущий milestone проверен; строится Flow следующего milestone"
 	quest.UpdatedAt = time.Now().UTC()
 	if err = a.store.SaveQuest(ctx, quest); err != nil {
-		return true
+		return false, err
 	}
 	result, launchErr := a.launchApprovedWorkOrderV2(ctx, approval, quest, apiKey)
 	if launchErr != nil {
 		message := "Следующий milestone не запущен: " + strings.TrimSpace(launchErr.Error())
 		_, _ = a.setWorkOrderQuestStatusV2(ctx, quest, domain.QuestBlocked, message)
-		return true
+		return true, nil
 	}
 	if result.FlowRun != nil && flowRunNeedsUserV2(*result.FlowRun) {
 		latest, loadErr := a.workOrderQuestV2(ctx, approval.WorkOrder.WorkspaceID, approval.QuestID)
@@ -147,5 +154,5 @@ func (a *App) advanceWorkOrderMilestoneV2(approval domain.WorkOrderApproval, suc
 			_, _ = a.setWorkOrderQuestStatusV2(ctx, latest, domain.QuestAwaitingUser, "Следующему milestone требуется credential или решение пользователя")
 		}
 	}
-	return true
+	return true, nil
 }

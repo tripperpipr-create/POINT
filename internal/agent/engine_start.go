@@ -25,10 +25,17 @@ type StartInput struct {
 	Workspace     domain.Workspace
 	// SandboxPath, when set, is the isolated FS root for tools. Live workspace stays read-only until Change Set apply.
 	SandboxPath string
-	ExecutionID string
-	QuestID     string
-	FlowRunID   string
-	FlowNodeID  string
+	// RunID and InitialBudgetReservationID are set only by an atomic launch
+	// commit. The worker reuses those durable records instead of creating a
+	// visibility gap between persistence and the first model request.
+	RunID                      string
+	AgentID                    string
+	StartedAt                  time.Time
+	InitialBudgetReservationID string
+	ExecutionID                string
+	QuestID                    string
+	FlowRunID                  string
+	FlowNodeID                 string
 	// CompletionCheckKind, when set (e.g. "merged-result"), is stamped on EventCompletionChecked.
 	CompletionCheckKind string
 	// StageRole is recorded on EventRunStarted for QuestOutcome stage preference.
@@ -79,7 +86,19 @@ func (e *Engine) Start(input StartInput) (domain.Run, error) {
 	if input.Configuration.SchemaVersion != 3 || profile.ID == "" {
 		return domain.Run{}, errors.New("new runs require an immutable schema v3 configuration snapshot")
 	}
-	run := domain.Run{ID: domain.NewID("run"), AgentID: domain.NewID("agent"), ProfileID: profile.ID, WorkspaceID: input.Workspace.ID, Task: input.Task, ContextItems: input.ContextItems, ConfigurationSnapshot: input.Configuration, Provider: string(profile.Provider), Model: profile.Model, Status: domain.RunRunning, ToolsUsed: []string{}, ChangedFiles: []string{}, StartedAt: time.Now().UTC()}
+	runID := strings.TrimSpace(input.RunID)
+	if runID == "" {
+		runID = domain.NewID("run")
+	}
+	agentID := strings.TrimSpace(input.AgentID)
+	if agentID == "" {
+		agentID = domain.NewID("agent")
+	}
+	startedAt := input.StartedAt.UTC()
+	if startedAt.IsZero() {
+		startedAt = time.Now().UTC()
+	}
+	run := domain.Run{ID: runID, AgentID: agentID, ProfileID: profile.ID, WorkspaceID: input.Workspace.ID, Task: input.Task, ContextItems: input.ContextItems, ConfigurationSnapshot: input.Configuration, Provider: string(profile.Provider), Model: profile.Model, Status: domain.RunRunning, ToolsUsed: []string{}, ChangedFiles: []string{}, StartedAt: startedAt}
 	activeBudget := 0
 	if input.TaskBrief != nil && input.TaskBrief.Budget.ActiveSeconds > 0 {
 		activeBudget = input.TaskBrief.Budget.ActiveSeconds
@@ -90,7 +109,8 @@ func (e *Engine) Start(input StartInput) (domain.Run, error) {
 	active := &activeRun{
 		run: run, cancel: cancel, onFinished: input.OnFinished, finalized: make(chan struct{}), taskBrief: input.TaskBrief,
 		clock: newActiveClock(activeBudget), sandboxPath: input.SandboxPath, apiKey: input.APIKey,
-		serverProfiles: input.ServerProfiles, dbSource: input.DBSource, teamBus: input.TeamBus,
+		initialBudgetReservationID: strings.TrimSpace(input.InitialBudgetReservationID),
+		serverProfiles:             input.ServerProfiles, dbSource: input.DBSource, teamBus: input.TeamBus,
 		correlation: runCorrelation{
 			WorkspaceID: input.Workspace.ID,
 			ExecutionID: input.ExecutionID, QuestID: input.QuestID,

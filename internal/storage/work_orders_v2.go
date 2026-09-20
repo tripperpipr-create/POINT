@@ -216,6 +216,43 @@ func (s *SQLite) ListWorkOrdersForConversationV2(ctx context.Context, conversati
 	return result, nil
 }
 
+func (s *SQLite) ListWorkOrdersForWorkspaceV2(ctx context.Context, workspaceID string) ([]domain.WorkOrder, error) {
+	workspaceID = strings.TrimSpace(workspaceID)
+	if workspaceID == "" {
+		return []domain.WorkOrder{}, nil
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT payload_json FROM work_order_current_v2 WHERE workspace_id=? ORDER BY updated_at DESC`, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	result := []domain.WorkOrder{}
+	for rows.Next() {
+		var raw string
+		if err = rows.Scan(&raw); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		var order domain.WorkOrder
+		if err = json.Unmarshal([]byte(raw), &order); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		order.Digest = domain.WorkOrderDigest(order)
+		result = append(result, order)
+	}
+	if err = rows.Err(); err != nil {
+		rows.Close()
+		return nil, err
+	}
+	if err = rows.Close(); err != nil {
+		return nil, err
+	}
+	for index := range result {
+		s.attachWorkOrderRuntimeV2(ctx, &result[index])
+	}
+	return result, nil
+}
+
 func (s *SQLite) attachWorkOrderRuntimeV2(ctx context.Context, order *domain.WorkOrder) {
 	if order == nil || strings.TrimSpace(order.ID) == "" {
 		return

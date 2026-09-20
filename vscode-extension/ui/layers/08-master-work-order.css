@@ -211,7 +211,7 @@
    к которому относится, на половину экрана. */
 .work-order-exec .hall-plan-row { grid-template-columns: var(--s-6) auto minmax(0, 1fr); }
 .work-order-exec .hall-plan { margin: 0; }
-.work-order-exec-head small { color: var(--hub-faint); font: var(--fw-normal) var(--t-micro) / var(--lh-base) var(--font-mono); letter-spacing: var(--ls-caps); }
+.work-order-exec-head small { color: var(--hub-faint); font: var(--fw-normal) var(--t-micro) / var(--lh-base) var(--font-mono); letter-spacing: var(--tracking-label); }
 .work-order-exec-head > small { flex: 0 0 auto; }
 .work-order-exec-head strong { display: block; color: var(--hub-text); font-size: var(--t-body); }
 .work-order-exec-status { color: var(--hub-muted); font-size: var(--t-small); white-space: nowrap; }

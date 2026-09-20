@@ -66,7 +66,10 @@ func (s *SQLite) FinalizeWorkOrderQuestV2(ctx context.Context, questID string, b
 	if affected, _ := result.RowsAffected(); affected != 1 {
 		return domain.QuestBlocked, errors.New("quest is not in a finalizable state")
 	}
-	if status == domain.QuestCompleted {
+	if err = finalizeMilestoneRuntimesV2Tx(ctx, tx, questID, workOrderID, version, order, status, time.Now().UTC()); err != nil {
+		return domain.QuestBlocked, err
+	}
+	if domain.IsTerminalQuestStatus(status) {
 		if _, err = tx.ExecContext(ctx, `UPDATE writer_leases_v2 SET state='released',updated_at=?,released_at=? WHERE quest_id=? AND state='active'`, now, now, questID); err != nil {
 			return domain.QuestBlocked, err
 		}
@@ -75,4 +78,75 @@ func (s *SQLite) FinalizeWorkOrderQuestV2(ctx context.Context, questID string, b
 		return domain.QuestBlocked, err
 	}
 	return status, nil
+}
+
+func finalizeMilestoneRuntimesV2Tx(ctx context.Context, tx *sql.Tx, questID, workOrderID string, version int, order domain.WorkOrder, status domain.QuestStatus, now time.Time) error {
+	rows, err := tx.QueryContext(ctx, `SELECT milestone_id,payload_json FROM milestone_runtimes_v2 WHERE quest_id=? AND work_order_id=? AND work_order_version=? ORDER BY rowid`, questID, workOrderID, version)
+	if err != nil {
+		return err
+	}
+	type item struct {
+		id      string
+		runtime domain.MilestoneRuntime
+	}
+	items := make([]item, 0, len(order.Milestones))
+	for rows.Next() {
+		var id, raw string
+		if err = rows.Scan(&id, &raw); err != nil {
+			rows.Close()
+			return err
+		}
+		var runtime domain.MilestoneRuntime
+		if err = json.Unmarshal([]byte(raw), &runtime); err != nil {
+			rows.Close()
+			return err
+		}
+		if strings.TrimSpace(runtime.MilestoneID) == "" || runtime.MilestoneID != id {
+			rows.Close()
+			return errors.New("milestone runtime identity is invalid")
+		}
+		items = append(items, item{id: id, runtime: runtime})
+	}
+	if err = rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	if err = rows.Close(); err != nil {
+		return err
+	}
+	if len(items) != len(order.Milestones) {
+		return errors.New("milestone runtime set is incomplete")
+	}
+	for _, value := range items {
+		runtime := value.runtime
+		switch runtime.Status {
+		case domain.QuestRunning, domain.QuestVerifying, domain.QuestApplying:
+			runtime.Status = status
+			runtime.UpdatedAt = now
+			runtime.FinishedAt = &now
+		case domain.QuestDraft:
+			if (status == domain.QuestCompleted || status == domain.QuestNeedsReview) && len(order.Milestones) != 1 {
+				return errors.New("cannot finalize a work order with pending milestones")
+			}
+			if status != domain.QuestCompleted && status != domain.QuestNeedsReview {
+				continue
+			}
+			runtime.Status = status
+			runtime.UpdatedAt = now
+			runtime.FinishedAt = &now
+		case domain.QuestCompleted, domain.QuestNeedsReview, domain.QuestBlocked, domain.QuestCancelled:
+			continue
+		default:
+			return errors.New("milestone runtime has an invalid status")
+		}
+		result, updateErr := tx.ExecContext(ctx, `UPDATE milestone_runtimes_v2 SET payload_json=?,updated_at=? WHERE quest_id=? AND work_order_id=? AND work_order_version=? AND milestone_id=?`,
+			marshalJSON(runtime), formatTime(runtime.UpdatedAt), questID, workOrderID, version, value.id)
+		if updateErr != nil {
+			return updateErr
+		}
+		if affected, _ := result.RowsAffected(); affected != 1 {
+			return sql.ErrNoRows
+		}
+	}
+	return nil
 }

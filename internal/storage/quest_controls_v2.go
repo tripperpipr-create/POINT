@@ -29,7 +29,8 @@ func (s *SQLite) ControlWorkOrderQuestV2(ctx context.Context, questID, action, m
 	}
 	defer tx.Rollback()
 	var current domain.QuestStatus
-	if err = tx.QueryRowContext(ctx, `SELECT quest.status FROM quests quest JOIN work_order_approvals_v2 approval ON approval.quest_id=quest.id WHERE quest.id=?`, questID).Scan(&current); err != nil {
+	var workspaceID string
+	if err = tx.QueryRowContext(ctx, `SELECT quest.status,quest.workspace_id FROM quests quest JOIN work_order_approvals_v2 approval ON approval.quest_id=quest.id WHERE quest.id=?`, questID).Scan(&current, &workspaceID); err != nil {
 		return "", err
 	}
 	target := current
@@ -68,6 +69,18 @@ func (s *SQLite) ControlWorkOrderQuestV2(ctx context.Context, questID, action, m
 		return "", errors.New("quest state does not allow this action")
 	}
 	now := formatTime(time.Now().UTC())
+	if action == "resume" && (current == domain.QuestBlocked || current == domain.QuestAwaitingUser) {
+		result, leaseErr := tx.ExecContext(ctx, `INSERT INTO writer_leases_v2(workspace_id,quest_id,token,state,acquired_at,updated_at,released_at)
+VALUES(?,?,?,'active',?,?,NULL)
+ON CONFLICT(workspace_id) DO UPDATE SET quest_id=excluded.quest_id,token=excluded.token,state='active',acquired_at=excluded.acquired_at,updated_at=excluded.updated_at,released_at=NULL
+WHERE writer_leases_v2.state='released' OR writer_leases_v2.quest_id=excluded.quest_id`, workspaceID, questID, domain.NewID("writerlease"), now, now)
+		if leaseErr != nil {
+			return "", leaseErr
+		}
+		if affected, _ := result.RowsAffected(); affected != 1 {
+			return "", errors.New("another writer quest holds the workspace lease")
+		}
+	}
 	if action != "message" {
 		var finished any
 		if target == domain.QuestCancelled {

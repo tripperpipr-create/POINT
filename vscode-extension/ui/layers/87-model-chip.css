@@ -151,7 +151,7 @@
 .model-chip-button.is-live > i { background: var(--ember); }
 
 /* В focused-шапке Мастера live-точка — нейтральный статус, без ember. */
-.hall-head-focused .model-chip-button.is-live > i {
+.hall-head-chat .model-chip-button.is-live > i {
   background: var(--hub-muted);
   box-shadow: none;
   animation: none;

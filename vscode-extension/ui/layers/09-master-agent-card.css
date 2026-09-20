@@ -27,10 +27,13 @@
   gap: var(--s-2);
   min-width: 0;
 }
+/* Подпись поля набрана строчными, и разрядка ей только вредит: она рассчитана
+   на прописные, где раздвигает одинаковые по ширине знаки. На строчных буквах
+   разного очка она расклеивает слово — «За что отвечает» читалось по слогам. */
 .master-agent label > span {
   color: var(--hub-faint-2);
-  font: var(--fw-normal) var(--t-micro) / 1 var(--font-mono);
-  letter-spacing: var(--tracking-label);
+  font: var(--fw-normal) var(--t-small) / var(--lh-base) var(--font-ui);
+  letter-spacing: normal;
 }
 .master-agent input[type="text"],
 .master-agent input:not([type]),

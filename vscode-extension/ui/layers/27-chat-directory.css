@@ -58,16 +58,26 @@
 }
 
 /* Главное действие панели ровно одно, и только оно залито. */
+/* Новый чат — контур, а не акцент.
+   Залитым акцентом на экране разговора имеет право быть ровно один шаг — тот,
+   что меняет состояние проекта (запуск наряда). Пока эта кнопка носила рамку и
+   заливку янтаря, акцент означал сразу три разных вещи: «начать здесь»,
+   «требует решения» и «запустить». Кнопка не теряется и контуром: она стоит
+   первой строкой панели и занимает всю её ширину. */
 .hall-chats-new {
   flex: 1 1 auto;
   min-height: var(--hit);
-  border: 1px solid var(--ember);
+  border: 1px solid var(--hub-border-strong);
   border-radius: var(--r-1);
-  background: var(--ember-wash);
-  color: var(--ember);
+  background: transparent;
+  color: var(--hub-text-2);
   font-size: var(--t-small);
-  letter-spacing: .04em;
   cursor: pointer;
+}
+.hall-chats-new:hover {
+  border-color: var(--hub-border-loud);
+  background: color-mix(in srgb, var(--hub-text) 6%, transparent);
+  color: var(--hub-text);
 }
 
 .hall-chats-new:disabled {

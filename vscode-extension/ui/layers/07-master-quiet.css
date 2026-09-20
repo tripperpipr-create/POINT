@@ -3,10 +3,10 @@
 
 /* —— 1. Верхняя панель ——
    Кнопки шапки вне .hall-dialogue, поэтому quiet дублируется здесь.
-   Специфичность равняет `.hall.is-focused .hall-head-focused` из 05 без
+   Специфичность равняет `.hall.is-focused .hall-head-chat` из 05 без
    чужого класса `hall` в этом слое (контракт: только hall-/is-). */
-.hall-main > .hall-head.hall-head-focused,
-.hall-head-focused {
+.hall-main > .hall-head.hall-head-chat,
+.hall-head-chat {
   /* Эталон — 36 при отступах 10/16. Десять по вертикали здесь невозможны: в
      шапке живут контролы ростом 24, и 24+10+10 дало бы 44 — ровно ту высоту,
      от которой уходим. Отступ 4 держит 36 ровно, а по горизонтали отступ
@@ -20,8 +20,8 @@
   background: transparent;
 }
 /* Кнопки шапки — тихие: тот же рост и кегль, что у жетонов композера. */
-.hall-head-focused .hall-btn,
-.hall-head-focused .hall-btn.is-sm {
+.hall-head-chat .hall-btn,
+.hall-head-chat .hall-btn.is-sm {
   font: var(--fw-normal) var(--t-small) / 1.3 var(--font-ui);
   letter-spacing: normal;
   text-transform: none;
@@ -33,10 +33,10 @@
   color: var(--hub-muted);
   transition: background-color var(--motion-fast) var(--ease), color var(--motion-fast) var(--ease);
 }
-.hall-head-focused .hall-btn:hover,
-.hall-head-focused .hall-btn:focus-visible,
-.hall-head-focused .hall-btn.is-sm:hover,
-.hall-head-focused .hall-btn.is-sm:focus-visible {
+.hall-head-chat .hall-btn:hover,
+.hall-head-chat .hall-btn:focus-visible,
+.hall-head-chat .hall-btn.is-sm:hover,
+.hall-head-chat .hall-btn.is-sm:focus-visible {
   background: color-mix(in srgb, var(--hub-text) 12%, transparent);
   color: var(--hub-text);
   outline: none;
@@ -44,10 +44,10 @@
 /* Название раздела — 12 при весе 500, как у эталона. Подзаголовок снят в
    разметке: он повторял своими словами текст пустого состояния и был второй
    строкой, из-за которой шапка не влезала в 36. */
-.hall-head-focused .hall-chat-heading {
+.hall-head-chat .hall-chat-heading {
   gap: var(--s-1);
 }
-.hall-head-focused .hall-chat-heading strong {
+.hall-head-chat .hall-chat-heading strong {
   font: var(--fw-medium) var(--t-body) / 1.3 var(--font-ui);
   letter-spacing: normal;
   color: var(--hub-text);
@@ -58,7 +58,7 @@
    и заливка акцента — это регистр Чертога, и в разговоре он звучит громче любой
    реплики. Прописные живут в 05-hall.css: разметка отдаёт обычный регистр, а
    кричит тот, кому положено. */
-.hall-head-focused .hall-alarm {
+.hall-head-chat .hall-alarm {
   min-height: var(--control-sm);
   padding: var(--s-1) var(--s-4);
   gap: var(--s-3);
@@ -66,23 +66,23 @@
   border-radius: 4px;
   background: transparent;
 }
-.hall-head-focused .hall-alarm:hover,
-.hall-head-focused .hall-alarm:focus-visible {
+.hall-head-chat .hall-alarm:hover,
+.hall-head-chat .hall-alarm:focus-visible {
   background: color-mix(in srgb, var(--hub-text) 12%, transparent);
   outline: none;
 }
-.hall-head-focused .hall-alarm span {
+.hall-head-chat .hall-alarm span {
   font: var(--fw-normal) var(--t-small) / 1.3 var(--font-ui);
   letter-spacing: normal;
   text-transform: none;
   color: var(--hub-muted);
 }
-.hall-head-focused .hall-alarm:hover span {
+.hall-head-chat .hall-alarm:hover span {
   color: var(--hub-text);
 }
 /* Точка остаётся акцентной, но перестаёт мигать: моргающее пятно в шапке
    разговора тянет взгляд от самого разговора, а срочность оно не добавляет. */
-.hall-head-focused .hall-alarm i {
+.hall-head-chat .hall-alarm i {
   width: 5px;
   height: 5px;
   animation: none;
@@ -978,13 +978,15 @@
   right: var(--hall-quest-offset);
   bottom: 0;
   z-index: 3;
-  /* Одна колонка с лентой: мера и центрирование те же, что у `.hall-thread > *`
-     (05-hall.css задаёт `margin-inline: auto`, 06-hall-chat.css — меру 880).
+  /* Одна колонка с лентой: мера и центрирование те же, что у `.hall-thread > *`.
+     Мера приходит переменной --hall-read-col (05-hall.css): раньше её объявляли
+     четырьмя числами в трёх слоях — 760, 880 и 78ch, — и реплика с полем ввода
+     стояли на разных левых краях, расходясь на 63 пикселя.
      Рельса вычитается явно: у абсолютного потомка 100% — это padding-box раздела
      целиком, вместе с полосой под рельсу, и без вычитания карточка вылезала за
      правый край на её ширину. Поймано аудитом на 1024 и 860. */
   width: calc(100% - var(--hall-rail-offset) - var(--hall-quest-offset) - var(--s-7) * 2);
-  max-width: 880px;
+  max-width: var(--hall-read-col);
   margin: 0 auto var(--s-6);
   padding: var(--s-4);
   gap: var(--s-3);
@@ -2078,10 +2080,12 @@
    кода, маркеры списка — не спорит по яркости с самой речью. */
 
 /* Мера чтения. На широком окне строка растягивалась во всю ширину панели: глаз
-   теряет начало следующей строки, и разговор читается логом, а не речью. */
+   теряет начало следующей строки, и разговор читается логом, а не речью.
+   Число здесь не своё: --hall-read-col держит одну меру на ленту, реплики,
+   карточки, поиск и композер — иначе они расходятся молча. */
 .hall-dialogue .hall-turn,
 .hall-dialogue .hall-day {
-  max-width: 78ch;
+  max-width: var(--hall-read-col);
   margin-inline: auto;
 }
 
@@ -2091,10 +2095,21 @@
 .hall-dialogue .hall-thread > .hall-turn:first-of-type { margin-top: 0; }
 
 /* Реплика человека — своя карточка, а не полоса заливки во всю колонку. Грань
-   тише фона: она отделяет сказанное человеком, а не обводит его рамкой. */
+   тише фона: она отделяет сказанное человеком, а не обводит его рамкой.
+
+   Кто говорит, видно по карточке, а не по подписи: кружок с буквой скрыт
+   (06-hall-chat.css прячет и имя — читалке они остаются), и на тёмном фоне
+   прежняя плашка в 72% от `--hub-selected` давала 20 против 13 по светлоте.
+   Своя реплика от чужой почти не отличалась, а в длинном разговоре это
+   единственный способ понять, где чей ход.
+
+   Кромка слева — нейтральная. Акцент на ней стоял бы у каждой реплики
+   человека и спорил бы с единственным залитым шагом экрана. */
 .hall-dialogue .hall-msg.is-mine > div {
   padding: var(--s-4) var(--s-5);
   border: 1px solid color-mix(in srgb, var(--hub-border) 60%, transparent);
+  border-left: var(--edge-accent) solid var(--hub-border-loud);
+  background: color-mix(in srgb, var(--hub-text) 4%, var(--hub-raised));
 }
 
 /* Абзацы и списки. padding-left браузера — 40px: маркеры уезжали от своего

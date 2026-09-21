@@ -80,29 +80,29 @@ const proposal = {
   teamAgentIds: ['agent-1'],
 }
 
-const ui = open()
-ui.listeners['window:message']({
-  data: {
-    type: 'state',
-    service: { state: 'running' },
-    workspaceTrusted: true,
-    workspace: 'w',
-    selectedTab: 'master',
-    boot: {
-      onboarded: true,
-      profiles: [],
-      projectAgents: [{ id: 'agent-1', name: 'Coder', roleDescription: 'dev' }],
-      usageRecords: [],
-      runs: [],
-      quests: [],
-      executions: [],
-      changeSets: [],
-      questProposals: [proposal],
-      companionActionProposals: [],
-      orchestrator: { id: 'o1', preset: 'conductor' },
-    },
+const worldMessage = {
+  type: 'state',
+  service: { state: 'running' },
+  workspaceTrusted: true,
+  workspace: 'w',
+  selectedTab: 'master',
+  boot: {
+    onboarded: true,
+    profiles: [],
+    projectAgents: [{ id: 'agent-1', name: 'Coder', roleDescription: 'dev' }],
+    usageRecords: [],
+    runs: [],
+    quests: [],
+    executions: [],
+    changeSets: [],
+    questProposals: [proposal],
+    companionActionProposals: [],
+    orchestrator: { id: 'o1', preset: 'conductor' },
   },
-})
+}
+
+const ui = open()
+ui.listeners['window:message']({ data: worldMessage })
 
 ui.listeners['window:message']({
   data: {
@@ -119,10 +119,24 @@ ui.listeners['window:message']({
   },
 })
 
+// Ответ хода правит только ленту — раздел целиком не пересобирается, иначе
+// разговор прыгал бы к первой реплике. Вкладку и панель задания досылает
+// syncMasterBriefSurfaces, а она ищет узлы раздела; заглушка ленты знает один
+// узел и этих не отдаёт. Полная отрисовка тем же снимком мира — то же, что
+// делает переход в раздел, и она возвращает обе поверхности на место.
+ui.listeners['window:message']({ data: worldMessage })
+
 const pendingHtml = ui.root.innerHTML + ui.thread.innerHTML
-check('pending proposal visible on Master',
-  pendingHtml.includes('quest-proposal-start') || pendingHtml.includes('ПРЕДЛОЖЕН'),
+// Задание без brief — предложение старого ключевого маршрута. В ленту оно
+// больше не входит: там теперь только то, по чему принимают решение сейчас, а
+// состав живёт во вкладке справа и раскрывается панелью. Кнопка запуска у него
+// своя и лежит в панели — нажать её по-прежнему можно, и ниже это и проверено.
+check('pending proposal reachable from Master',
+  pendingHtml.includes('master-brief-toggle') && pendingHtml.includes('quest-proposal-start'),
   pendingHtml.slice(0, 200))
+check('pending proposal does not take over the thread',
+  !ui.thread.innerHTML.includes('quest-proposal-start'),
+  ui.thread.innerHTML.slice(0, 200))
 
 ui.click({ action: 'quest-proposal-start', id: 'prop-master-work' })
 const start = ui.posted.find(item => item.type === 'decideQuestProposal' && item.action === 'start')

@@ -29,7 +29,7 @@ function shortGoal(goal) {
 export function createMasterBriefPanel({
   esc, countOf, ui, taskProposalById, proposalEditorHtml,
   taskBriefBodyHtml, taskBriefActionsHtml, taskBriefReady, taskBriefStateLabel,
-  rosterHasAgent,
+  rosterHasAgent, legacyProposalHtml,
 }) {
   // Какое задание показывает вкладка — вычисляется, а не хранится.
   //
@@ -38,30 +38,44 @@ export function createMasterBriefPanel({
   // исчезала бы в момент готовности — то есть когда она нужнее всего.
   // Порядок: живой ответ хода, потом последняя реплика с меткой предложения,
   // и только потом сохранённый признак обсуждения.
+  // Предложение без brief панели тоже принадлежит. Прежде вкладка требовала
+  // brief, и квест старого ключевого маршрута оставался вовсе без неё: в ленту
+  // он входил полной карточкой, а открыть его состав было негде. Маршрут снят
+  // (internal/orchestrator/chat.go), но сохранённые предложения переживают
+  // правку, и остаться им без двери нельзя.
   function masterBriefProposal() {
     const live = ui.masterData?.response?.proposal
+    // Три ответа, а не два: «вот оно», «решено — панели не принадлежит» и «в
+    // хранилище его нет». Пока их было два, отклонённое предложение возвращало
+    // null и запасной путь подставлял вместо него снимок хода — а снимок
+    // остаётся прежним и после отказа, и панель показывала карточку с рабочей
+    // кнопкой «Запустить» у квеста, от которого только что отказались.
     const pick = id => {
       const stored = taskProposalById(String(id || ''))
-      if (!stored?.brief || RESOLVED.has(stored.status)) return null
+      if (!stored) return undefined
+      if (RESOLVED.has(stored.status)) return null
       // Живое и сохранённое сливаются так же, как в ленте: состав отряда и
       // причина выбора живут в ответе и до истории не доезжают.
       return live && String(live.id) === String(stored.id) ? { ...live, ...stored } : stored
     }
-    if (live?.brief && !RESOLVED.has(live.status)) return pick(live.id) || live
+    if (live && !RESOLVED.has(live.status)) {
+      const chosen = pick(live.id)
+      return chosen === undefined ? live : chosen
+    }
     const history = ui.masterData?.history || []
     for (let index = history.length - 1; index >= 0; index -= 1) {
       const id = history[index]?.proposalId
       if (!id) continue
-      return pick(id)
+      return pick(id) || null
     }
-    return pick(ui.masterDiscussionProposalId)
+    return pick(ui.masterDiscussionProposalId) || null
   }
 
   function masterBriefTabHtml() {
     const item = masterBriefProposal()
     if (!item) return ''
     const ready = taskBriefReady(item.brief)
-    const goal = String(item.brief.goal || item.title || '')
+    const goal = String(item.brief?.goal || item.title || '')
     const open = Boolean(ui.masterBriefPanelOpen)
     return `<div class="hall-brief-tabs" id="master-brief-tabs" role="tablist" data-keynav="row" aria-label="Панели разговора">
       <button type="button" role="tab" tabindex="0" id="master-brief-tab" class="hall-brief-tab${open ? ' is-on' : ''}${ready ? ' is-ready' : ''}" aria-selected="${open ? 'true' : 'false'}" aria-controls="master-brief-panel" data-action="master-brief-toggle" title="${esc(goal)}"><span>${esc(shortGoal(goal))}</span><small>${taskBriefStateLabel(item.brief, rosterHasAgent())}</small></button>
@@ -78,9 +92,23 @@ export function createMasterBriefPanel({
     // правка идёт здесь, закрыта — в карточке ленты.
     const editing = open && ui.proposalEditId === item.id
     const opts = { esc, countOf, editing, busy, editor: editing ? proposalEditorHtml(item) : '', rosterReady: rosterHasAgent() }
+    // Предложение старого маршрута брифа не знает, и разбирать его нечем:
+    // taskBriefBodyHtml читает goal, версию и критерии. Рисует его прежняя
+    // карточка — та же, что стояла в ленте; кнопка запуска у неё своя, и
+    // панель для неё теперь единственное место, где её можно нажать.
+    //
+    // Состав отряда и причина выбора живут в ответе хода, а не в предложении, и
+    // до истории не доезжают: не передав их сюда, панель показала бы имена без
+    // единой причины — то есть состав, который нельзя ни оспорить, ни поправить.
+    const turn = ui.masterData?.response
+    const fromTurn = turn?.proposal && String(turn.proposal.id) === String(item.id) ? turn : null
+    const body = item.brief
+      ? `<section class="hall-deck hall-proposal">${taskBriefBodyHtml(item, opts)}${taskBriefActionsHtml(item, { ...opts, withStart: false })}</section>`
+      : (legacyProposalHtml?.(item, fromTurn?.partyWhy || item.rationale, fromTurn?.party) || '')
+    const version = item.brief ? `Версия ${Number(item.brief.version)} · ` : ''
     return `<aside class="hall-brief-panel" id="master-brief-panel" role="tabpanel" tabindex="-1" aria-labelledby="master-brief-tab"${open ? '' : ' hidden'}>
-      <header class="hall-brief-panel-head"><b>Задание</b><small>Версия ${Number(item.brief.version)} · ${taskBriefStateLabel(item.brief, rosterHasAgent())}</small><button type="button" class="hall-chip hall-brief-panel-drop" data-action="master-brief-close" aria-label="Закрыть панель задания">×</button></header>
-      <div class="hall-brief-panel-body"><section class="hall-deck hall-proposal">${taskBriefBodyHtml(item, opts)}${taskBriefActionsHtml(item, { ...opts, withStart: false })}</section></div>
+      <header class="hall-brief-panel-head"><b>Задание</b><small>${version}${taskBriefStateLabel(item.brief, rosterHasAgent())}</small><button type="button" class="hall-chip hall-brief-panel-drop" data-action="master-brief-close" aria-label="Закрыть панель задания">×</button></header>
+      <div class="hall-brief-panel-body">${body}</div>
     </aside>`
   }
 

@@ -1196,11 +1196,17 @@ export function createQuestRuntimeViews(dependencies) {
                   него не видно, в каком мире пишешь. Чип модели остался в
                   композере — у эталона модель выбирают там же, где пишут. */''}
             <div class="hall-chat-heading"><strong>${esc(chatTitle)}</strong><small>${esc(ui.state.workspace || 'Проект не выбран')}</small></div>
-            ${masterBriefTabHtml ? masterBriefTabHtml() : ''}
             <button type="button" class="hall-btn is-sm" data-action="master-session-toggle" data-panel="history" aria-label="Действия с разговором" title="Действия с разговором">•••</button>
             ${hallAlarmHtml(waiting)}
             ${hallChangesAlarmHtml(pendingSets)}
             <button type="button" class="hall-btn is-sm hall-chat-settings" data-action="tab" data-tab="overview" title="Обзор, квесты, агенты и связи проекта">Настройки проекта</button>
+            ${/* Вкладка задания — крайняя справа, у самого края, из-под которого
+                  выезжает её панель. Стояла она сразу за названием разговора, и
+                  между ручкой и дверью оказывались четыре чужих жетона. Место то
+                  же, что у запасного якоря: досборка вкладки вставляет её в конец
+                  шапки (syncMasterBriefSurfaces), и полная отрисовка обязана
+                  ставить её туда же — иначе она прыгает при каждом ходе. */''}
+            ${masterBriefTabHtml ? masterBriefTabHtml() : ''}
           </header>
           ${ui.transientError ? `<div class="error-banner"><span>!</span><p>${esc(ui.transientError)}</p><button data-action="dismiss-error">×</button></div>` : ''}
           <div class="hall-body">${content}</div>

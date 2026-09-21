@@ -299,6 +299,7 @@ type chatStoreStub struct {
 	proposals       []domain.QuestProposal
 	actionProposals []domain.CompanionActionProposal
 	messages        []domain.CompanionMessage
+	blueprints      []domain.AgentBlueprint
 }
 
 func newChatStoreStub() *chatStoreStub { return &chatStoreStub{} }
@@ -350,7 +351,7 @@ func (s *chatStoreStub) ListChatMessages(_ context.Context, _, _ string, limit i
 	return s.messages, nil
 }
 func (s *chatStoreStub) ListBlueprints(context.Context) ([]domain.AgentBlueprint, error) {
-	return nil, nil
+	return s.blueprints, nil
 }
 
 // Мастер помнит собственное предложение.

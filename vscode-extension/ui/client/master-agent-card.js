@@ -17,6 +17,8 @@
 
 import { list, shortLabel } from './format-units.js'
 import { masterCardMoreAttrs } from './master-card-open.js'
+import { questMenuHtml } from './master-quest-views.js'
+import { EFFORT_OPTIONS, agentGearHtml, agentPortraitHtml, agentStatsHtml } from './master-agent-sheet.js'
 
 const text = value => String(value ?? '').trim()
 
@@ -27,9 +29,6 @@ const text = value => String(value ?? '').trim()
 const DEFAULT_TOOLS = ['project_map', 'search_code', 'list_files', 'read_file', 'search_text', 'git_diff']
 const POLICY_OPTIONS = [['ALLOW', 'можно'], ['ASK', 'спросить'], ['DENY', 'нельзя']]
 const APPROVAL_OPTIONS = [['safe', 'спрашивать про опасное'], ['always', 'спрашивать про всё']]
-// Усилие рассуждения — часть решения о модели, а не тонкая настройка «на
-// потом»: у рассуждающих моделей оно меняет и цену хода, и время ответа.
-const EFFORT_OPTIONS = [['none', 'обычное'], ['minimal', 'минимальное'], ['low', 'низкое'], ['medium', 'среднее'], ['high', 'высокое']]
 
 // Набранное переживает перерисовку. Лента перерисовывается на каждый ход
 // Мастера, на приход квеста и на фоновое обновление ростера — прежние формы
@@ -58,6 +57,14 @@ function baseFromAgent(agent, fallbackModel) {
     role: text(agent?.roleDescription || agent?.role),
     mission: text(agent?.mission),
     blueprintId: text(agent?.blueprintId),
+    // Класс и послужной список ведёт ядро: roleFamily ставит комплектовщик,
+    // уровень и опыт — завершение прогона (flow_completion.go). Здесь они
+    // только читаются; у черновика наряда их нет, и лист про них молчит.
+    roleFamily: text(agent?.roleFamily),
+    level: Number(agent?.level) || 0,
+    experience: Number(agent?.experience) || 0,
+    tasksCompleted: Number(agent?.tasksCompleted) || 0,
+    successCount: Number(agent?.successCount) || 0,
     allowedTools: tools.length ? tools : [...DEFAULT_TOOLS],
     toolPolicies: { ...(agent?.toolPolicies || {}) },
     connectionId: text(agent?.connectionId),
@@ -87,11 +94,17 @@ export function masterAgentCardFromAction(item) {
 // Черновики нарядов и пробелы ростера. Утверждённый наряд карточки не получает:
 // состав там уже зафиксирован согласием, и звать человека заводить исполнителя
 // после запуска — значит предлагать менять то, что уже работает.
+// Наряд на уточнении — тоже: карточка с ролью, моделью и снаряжением вставала
+// рядом с неотвеченным вопросом, под задание, которого ещё нет. От ответа
+// меняется состав наряда, а с ним и то, кто нужен. `ready` — «всё собрано».
+const orderCollected = order => order?.state === 'ready'
+
 export function masterAgentCardsFor(masterData) {
   const hiring = list(masterData?.hiring)
+  const orders = list(masterData?.workOrders)
   const cards = []
-  for (const order of list(masterData?.workOrders)) {
-    if (!order || order.state === 'approved') continue
+  for (const order of orders) {
+    if (!orderCollected(order)) continue
     const created = new Set(list(order.runtime?.agentIds))
     const card = hiring.find(item => item?.workOrderId === order.id)
     for (const draft of list(order.roster?.permanent)) {
@@ -114,8 +127,11 @@ export function masterAgentCardsFor(masterData) {
   }
   // Пробел ростера, до наряда ещё не доехавший: наблюдатель уже сочинил
   // черновик, и заводить исполнителя можно, не дожидаясь правки наряда.
+  // Собранность всё равно считается по наряду: черновик говорит, кого не
+  // хватает, и молчит о том, решено ли задание.
   for (const item of hiring) {
     if (!item?.draft || cards.some(card => card.workOrderId === item.workOrderId)) continue
+    if (!orderCollected(orders.find(order => text(order?.id) === text(item.workOrderId)))) continue
     cards.push({
       id: 'hiring:' + text(item.workOrderId),
       kind: 'work-order',
@@ -227,12 +243,30 @@ function limitsHtml(value, esc) {
 
 const shortName = name => shortLabel(name, 24)
 
-function blueprintsHtml(card, esc) {
+// Чертёж и есть класс: с него снимают роль, умения и модель разом. Отмечаем
+// выбранный — иначе ряд читается списком предложений, а не выбором из них.
+function blueprintsHtml(card, value, esc) {
   const blueprints = list(card.blueprints).slice(0, 3)
   if (!blueprints.length) return ''
-  return `<div class="master-agent-blueprints"><span>Взять из чертежа</span>${blueprints.map(item => `<button type="button" class="hall-btn is-sm" data-action="agent-card-blueprint" data-card="${esc(card.id)}" data-template="${esc(item.blueprintId)}" title="${esc(item.why || item.name)}">${esc(shortName(item.name))}</button>`).join('')}</div>`
+  const buttons = blueprints.map(item => {
+    const on = Boolean(value.blueprintId) && value.blueprintId === item.blueprintId
+    return `<button type="button" class="hall-btn is-sm" data-action="agent-card-blueprint" data-card="${esc(card.id)}" data-template="${esc(item.blueprintId)}" aria-pressed="${on ? 'true' : 'false'}" title="${esc(item.why || item.name)}">${esc(shortName(item.name))}</button>`
+  }).join('')
+  return `<div class="master-agent-blueprints"><span class="master-agent-rubric">класс — чертёж, с которого его снимают</span><div class="master-agent-slots">${buttons}</div></div>`
 }
 
+// Лист персонажа. Форма взята из макета «Квесты в чате» (вариант 3a): портрет
+// и класс слева, характеристики полосками, снаряжение слотами. Цвета при
+// переносе не брались ни одного — в макете система моно-акцентная и заводит
+// свои статусные оттенки, а у продукта они уже названы.
+//
+// Прежде здесь стояла анкета: восемь подписанных полей подряд одним весом. По
+// ней нельзя было за секунду понять, кого заводят, — а решение ровно об этом.
+// Поля никуда не делись (без них создавать нечего), но перестали быть всем
+// содержанием карточки: сверху виден исполнитель, а не бланк.
+//
+// Ряд решения — одна набранная кнопка и меню, как у карточки квеста: пока все
+// четыре стояли в ряд одним весом, глаз выбирал крайнюю левую.
 export function masterAgentCardHtml(card, esc, deps = {}) {
   if (!card) return ''
   const value = masterAgentValue(card)
@@ -241,24 +275,34 @@ export function masterAgentCardHtml(card, esc, deps = {}) {
   const issue = masterAgentErrors.get(card.id) || ''
   const why = card.why || (card.goal ? `для задания «${card.goal}»` : '')
   const grants = `умений: ${list(value.allowedTools).length} · ${value.approvalMode === 'always' ? 'спрашивает про всё' : 'спрашивает про опасное'}`
+  const menu = questMenuHtml([
+    { action: 'agent-card-workshop', card: card.id, label: 'Открыть мастерскую', busy },
+    card.kind === 'action' ? { action: 'agent-card-dismiss', card: card.id, label: 'Не создавать', busy } : null,
+  ], esc)
   return `<section class="hall-deck master-agent" data-agent-card="${esc(card.id)}">
-    <header><b>Новый исполнитель</b><small>${esc(why || 'заводите вы — Мастер только предлагает')}</small></header>
-    <div class="hall-panel-row is-stack">
-      ${fieldsHtml(card, value, esc)}
-      ${brainHtml(card, value, esc, deps)}
-      ${blueprintsHtml(card, esc)}
-      <details class="master-agent-more"${masterCardMoreAttrs(`agent:${card.id}`, { esc })}>
-        <summary>Права и пределы · ${esc(grants)}</summary>
-        ${toolsHtml(value, esc, deps)}
-        ${limitsHtml(value, esc)}
-      </details>
-      <p class="master-agent-error${issue ? '' : ' is-hidden'}" role="alert">${esc(issue)}</p>
+    <header><span class="hall-quest-kick"><span class="hall-quest-dot" aria-hidden="true"></span>Новый исполнитель</span><small>${esc(why || 'заводите вы — Мастер только предлагает')}</small></header>
+    <div class="hall-panel-row master-agent-sheet">
+      ${agentPortraitHtml(card, value, esc)}
+      <div class="master-agent-main">
+        ${fieldsHtml(card, value, esc)}
+        ${brainHtml(card, value, esc, deps)}
+        ${agentStatsHtml(card, value, esc)}
+        ${agentGearHtml(card, value, esc, deps)}
+        ${blueprintsHtml(card, value, esc)}
+        <details class="master-agent-more"${masterCardMoreAttrs(`agent:${card.id}`, { esc })}>
+          <summary>Права и пределы · ${esc(grants)}</summary>
+          ${toolsHtml(value, esc, deps)}
+          ${limitsHtml(value, esc)}
+        </details>
+        <p class="master-agent-error${issue ? '' : ' is-hidden'}" role="alert">${esc(issue)}</p>
+      </div>
     </div>
     <div class="hall-panel-row hall-actions">
-      <button type="button" class="hall-btn is-primary" data-action="agent-card-create" data-card="${esc(card.id)}"${busy ? ' disabled' : ''}>${busy ? 'Заводим…' : 'Создать исполнителя'}</button>
-      ${card.kind === 'work-order' ? `<button type="button" class="hall-btn" data-action="agent-card-later" data-card="${esc(card.id)}"${busy || consented ? ' disabled' : ''}>${consented ? 'Создастся при запуске' : 'Создать при запуске'}</button>` : ''}
-      <button type="button" class="hall-btn" data-action="agent-card-workshop" data-card="${esc(card.id)}"${busy ? ' disabled' : ''}>Открыть мастерскую</button>
-      ${card.kind === 'action' ? `<button type="button" class="hall-btn" data-action="agent-card-dismiss" data-card="${esc(card.id)}"${busy ? ' disabled' : ''}>Не создавать</button>` : ''}
+      <div class="hall-quest-acts">
+        <button type="button" class="hall-btn is-primary" data-action="agent-card-create" data-card="${esc(card.id)}"${busy ? ' disabled' : ''}>${busy ? 'Заводим…' : 'Создать исполнителя'}</button>
+        ${card.kind === 'work-order' ? `<button type="button" class="hall-btn" data-action="agent-card-later" data-card="${esc(card.id)}"${busy || consented ? ' disabled' : ''}>${consented ? 'Создастся при запуске' : 'Создать при запуске'}</button>` : ''}
+        ${menu}
+      </div>
       <small class="hall-fineprint is-trailing">Исполнитель появится в ростере проекта и встанет в это задание.</small>
     </div>
   </section>`
@@ -270,7 +314,7 @@ export function masterAgentCardsHtml(cards, esc, deps = {}) {
 
 // Ввод снимается на каждом знаке, но полной перерисовки не вызывает: она
 // отобрала бы каретку у поля. Объяснение отказа гасим на месте — тем же
-// приёмом, что и счётчик у кнопки «Продолжить».
+// приёмом, что и счётчик у кнопки отправки ответов.
 export function readMasterAgentCardInput(target) {
   const field = target?.dataset?.agentField
   const host = target?.closest?.('[data-agent-card]')
@@ -327,6 +371,20 @@ export function handleMasterAgentCardAction(action, target, ctx) {
       masterAgentErrors.delete(id)
       ctx.render()
     }
+    return true
+  }
+  // Полоса характеристики и пустой слот снаряжения — не вторые поля, а путь к
+  // настоящим. Открываем «Права и пределы» и ставим курсор в то поле, от
+  // которого полоса и считается: второй редактор тех же значений однажды уже
+  // стоил двойного чтения формы (см. master-brief-panel.js).
+  //
+  // Без render(): полная отрисовка забрала бы и раскрытие, и курсор. Открытие
+  // `details` само доедет до снимка состояния — его пишет обработчик toggle.
+  if (action === 'agent-card-open-more') {
+    const host = target.closest?.('[data-agent-card]')
+    const more = host?.querySelector?.('.master-agent-more')
+    if (more) more.open = true
+    host?.querySelector?.(`[data-agent-field="${String(target.dataset.field || '')}"]`)?.focus?.()
     return true
   }
   if (action === 'agent-card-later') {

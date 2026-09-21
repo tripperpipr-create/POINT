@@ -753,6 +753,14 @@ listeners['window:message']({
     type: 'master', master: {
       configured: true, config: { model: 'qwen:7b' },
       history: [{ id: 'h1', role: 'assistant', content: 'Выполнять пока некому.' }],
+      // Наряд рядом обязателен: карточку исполнителя предлагают только у
+      // собранного задания (`state: 'ready'`), и пробел ростера сверяется с
+      // тем же нарядом. Без него проверка подписи кнопки мерила бы карточку,
+      // которой на экране не бывает.
+      workOrders: [{
+        id: 'workorder-1', state: 'ready', version: 1, digest: 'sha256:studio', goal: 'Собрать API',
+        roster: { permanent: [], temporary: [] },
+      }],
       hiring: [{
         workOrderId: 'workorder-1', state: 'blueprint', maxAgents: 2, allowSubagents: false,
         draft: { name: longBlueprintName, role: 'Владелец реализации', mission: 'Вести работу', requiredTools: ['read_file'], blueprintId: 'bp' },

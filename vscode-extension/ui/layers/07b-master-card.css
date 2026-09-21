@@ -238,8 +238,15 @@
   background: color-mix(in srgb, var(--hub-text) 10%, transparent);
   overflow: hidden;
 }
+/* Ширина приходит переменной из слоя 11: CSP вебвью выбрасывает style="", и
+   пока разметка задавала её там, правило оставалось без width — блочный
+   элемент занимал всю полосу, и чек-лист «0 из 4» читался закрытым набором.
+   min-width держит засечку: до первого закрытого условия полоса показывает,
+   что она есть, а не победу. */
 .hall-dialogue .hall-quest-bar > span {
   display: block;
+  width: var(--fill, 0%);
+  min-width: 2px;
   height: 100%;
   border-radius: var(--r-1);
   background: var(--ember);

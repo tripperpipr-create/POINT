@@ -1517,7 +1517,7 @@ function syncMasterComposeState() {
   // оказаться в разметке, и тогда единственным, что отпирает разговор, остаётся
   // эта строка. Убрать её как лишнюю я уже пробовал — разговор встал.
   // Стрелка отправки ищется по своему классу, а не по is-primary: в карточке
-  // ввода теперь живут уточнения со своей кнопкой «Продолжить», и она стояла бы
+  // ввода теперь живут уточнения со своей кнопкой отправки, и она стояла бы
   // в разметке раньше — то есть забирала бы себе запирание на время хода.
   const send = root.querySelector('.hall-compose .hall-compose-send')
   if (send) send.disabled = masterSending
@@ -2502,7 +2502,7 @@ const {
   toolBuilder, newWorkflowStep, newWorkflow, workflowTemplates, workflowFromTemplate,
   currentWorkflowForm, FLOW_NODE_KINDS, flowNodeKindLabels, newFlowNode, flowNodePosition,
   activeFlowRun, mergeCandidateLabel, flowMergeConflictPanelHtml, flowRuntimeSummaryHtml, captureFlowForm,
-  flowEdgeOptions, flowCanvasHtml, flowInspectorHtml, visualFlowBuilder, flowsView,
+  flowEdgeOptions, flowCanvasHtml, applyFlowNodePlacement, flowInspectorHtml, visualFlowBuilder, flowsView,
   workflowTimeline, workflowBuilder,
 } = createAgentWorkflowEditors({
   TOOL_PRESETS, activeToolPresetId, agentById, agentCapabilityHtml, agentCharacterCard,
@@ -2524,6 +2524,7 @@ const {
   proposalEditorHtml: (...args) => questProposalEditorHtml(...args),
   taskProposalById: (...args) => taskProposalById(...args),
   taskBriefActionsHtml, taskBriefBodyHtml, taskBriefReady, taskBriefStateLabel,
+  legacyProposalHtml: (...args) => masterProposalHtml(...args),
   rosterHasAgent: () => rosterHasAgent(),
 })
 
@@ -2600,6 +2601,11 @@ function restoreUi(snapshot) {
   // бы с запасным числом, а карточка с уточнениями закрыла бы хвост разговора.
   // Стоит до выхода по пустому снимку — снимка нет как раз при первом открытии.
   applyMasterComposeReserve()
+  // Места узлов графа флоу — оттуда же и по той же причине: холст пересобирает
+  // разметку на каждой отрисовке, а координаты в ней лежат атрибутами, потому
+  // что CSP вебвью не пропускает инлайновый стиль. Разделов без холста это
+  // стоит одного querySelector.
+  applyFlowNodePlacement()
   if (!snapshot) return
   const chatScreen=root.querySelector('.is-chat')
   if(chatScreen){chatScreen.classList.toggle('is-chats-hidden',!!masterClient.historyHidden);chatScreen.classList.toggle('is-chats-open',!!masterClient.historyOpen)}
@@ -2878,13 +2884,6 @@ root.addEventListener('click', event => {
   if (handleProjectGalleryAction(action, target)) { render(); return }
   if (handleMasterContextAction({action,target,vscode,sending:masterSending})) {persistDraft();return}
   if (handleMasterBriefAction({ action, root, persist: persistDraft })) return
-  // Путь от пометки в ленте к форме в карточке ввода. Вопрос задан там, где
-  // его задали, отвечают ниже — и просить человека искать поле самому нельзя.
-  if (action === 'master-focus-ask') {
-    const field = root.querySelector('#master-questions-ask .hall-option, #master-questions-ask .hall-question-extra')
-    field?.focus?.({ preventScroll: true })
-    return
-  }
   if (handleMasterSessionAction({
     action, target, root, vscode, sending: masterSending, send: sendMasterMessage,
     render, persist: persistDraft,
@@ -3327,7 +3326,7 @@ root.addEventListener('input', event => {
     // и считать его надо здесь: разметку слота на каждом знаке не пересобрать.
     const free = question.querySelector('textarea.hall-question-extra')
     if (free) free.rows = masterAnswerRows(free.value)
-    // Счётчик у кнопки «Продолжить» — тоже на каждом знаке: отвечать на всё
+    // Счётчик у кнопки отправки ответов — тоже на каждом знаке: отвечать на всё
     // разом человек не обязан, и он должен видеть, что уйдёт в ядро.
     if (question.closest('.hall-compose')) patchMasterAnswerNote(root, answers)
   }
@@ -3604,9 +3603,24 @@ root.addEventListener('keydown', event => {
     event.preventDefault()
     sendMasterMessage()
   }
+  // Enter в ответе листает пакет, а не отправляет его.
+  //
+  // Прежде он всегда нажимал отправку. Человек отвечал на первый вопрос из
+  // двух, жал Enter — и пакет уходил с одним ответом: остальные возвращались
+  // из ядра в «Нужно уточнить» и держали запуск, а спрошены были будто зря.
+  // Отправка — решение по всему пакету, и принимают его на последнем вопросе
+  // или нажатием на саму кнопку; клавиша делает то же, что кнопка под рукой.
+  //
+  // preventDefault нужен и сам по себе: слот уточнений стоит внутри формы
+  // карточки ввода, и у поля с вариантами (`input`) Enter иначе отправил бы
+  // форму неявно — мимо всякого нашего разбора.
   if (event.key === 'Enter' && !event.shiftKey && !event.isComposing && event.target.classList?.contains('hall-question-extra')) {
     event.preventDefault()
-    event.target.closest('.hall-questions')?.querySelector('[data-action="master-answer-question"]')?.click()
+    const pack = event.target.closest('.hall-questions')
+    const at = Number(pack?.dataset?.cursor || 0)
+    const last = Number(pack?.dataset?.total || 1) - 1
+    const step = at < last ? 'master-question-next' : 'master-answer-question'
+    pack?.querySelector(`[data-action="${step}"]`)?.click()
   }
 })
 root.addEventListener('scroll', event => {

@@ -158,6 +158,29 @@ if (masterAgentCardsFor({ workOrders: [{ ...order, state: 'approved' }], hiring:
   fail('утверждённый наряд не должен звать заводить исполнителя')
 }
 
+// 10а. Наряд на уточнении — тоже не получает.
+//
+// Пока Мастер спрашивает, чего от задания хотят, решать о новой сущности
+// проекта нечем: от ответа меняется состав наряда, а вместе с ним и то, кто
+// для него нужен. Карточка стояла рядом с неотвеченным вопросом — с ролью,
+// моделью и снаряжением, выбранными под задание, которого ещё нет.
+const unsettled = { ...order, state: 'discussion' }
+if (masterAgentCardsFor({ workOrders: [unsettled], hiring: [] }).length) {
+  fail('наряд на уточнении не должен звать заводить исполнителя')
+}
+// Пробел ростера считается по тому же наряду: сочинённый наблюдателем черновик
+// говорит, кого не хватает, и молчит о том, решено ли задание.
+if (masterAgentCardsFor({ workOrders: [unsettled], hiring: [hiring] }).length) {
+  fail('черновик наблюдателя провёл карточку мимо неготового наряда')
+}
+if (masterAgentCardsFor({ workOrders: [], hiring: [hiring] }).length) {
+  fail('пробел ростера без наряда не с чем сверить — карточки быть не должно')
+}
+// Собранный наряд карточку по-прежнему даёт — затвор закрыт не для всех.
+if (masterAgentCardsFor({ workOrders: [order], hiring: [hiring] }).length !== 1) {
+  fail('затвор закрылся и перед готовым нарядом — заводить исполнителя стало негде')
+}
+
 // 11. Пустые данные не рисуют ничего и не роняют вид.
 if (masterAgentCardsHtml([], esc, deps) !== '') fail('без карточек лента обязана остаться чистой')
 if (masterAgentCardsFor(undefined).length) fail('отсутствие данных не должно порождать карточки')
@@ -192,5 +215,75 @@ readMasterAgentCardInput(field('tool', 'read_file'))
 if (masterAgentValue(typing).allowedTools.join(',') !== 'read_file') fail('снятая отметка умения не учтена')
 readMasterAgentCardInput(field('policy', 'DENY', { tool: 'read_file' }))
 if (masterAgentValue(typing).toolPolicies.read_file !== 'DENY') fail('политика умения не снята')
+
+// 14. Лист персонажа показывает настройки, а не выдумку.
+//
+// Условие макета «Квесты в чате» (вариант 3a) здесь и проверяется:
+// характеристики персонажа — это реальные поля агента. Полоса, которая
+// нарисована от литерала, врёт вдвойне: она и неверна, и не меняется, когда
+// человек правит то самое поле.
+reset()
+const sheetCard = masterAgentCardFromAction({
+  id: 'hubaction-sheet', kind: 'create_agent', status: 'pending',
+  rationale: 'для задания «Повторная доставка вебхука»',
+  agent: {
+    name: 'Ковач', roleDescription: 'Разработчик проекта', roleFamily: 'developer',
+    mission: 'Чинит бэкенд и закрывает регрессом', allowedTools: ['read_file', 'run_command'],
+    toolPolicies: { read_file: 'ALLOW', run_command: 'ASK' },
+    primaryModel: 'qwen2.5-coder:7b', reasoningEffort: 'high', approvalMode: 'safe',
+    maxSteps: 45, maxDurationSeconds: 1800, level: 4, experience: 340, tasksCompleted: 7, successCount: 6,
+  },
+})
+const sheet = masterAgentCardHtml(sheetCard, esc, deps)
+expectAll(sheet, [
+  'master-agent-portrait', '>КО<', 'разработчик', 'уровень 4 · 340 опыта', '7 квестов · 6 успешно',
+  'master-agent-stats', 'Автономность', 'Тщательность', 'Размах', 'Выдержка',
+  'master-agent-gear', 'Чтение файлов', '+ умение',
+], 'лист персонажа')
+// Тщательность у high — пять из пяти, выдержка у получаса — три: считаны от
+// полей, а не написаны рядом с ними.
+if (!sheet.includes('data-fill="100"') || !sheet.includes('data-fill="60"')) {
+  fail('полосы характеристик не считаются от полей исполнителя')
+}
+// Правка поля меняет полосу. Здесь и ломается всякая «шкала для красоты».
+const sheetHost = {
+  dataset: { agentCard: sheetCard.id },
+  querySelector: () => null,
+  querySelectorAll: () => [],
+}
+readMasterAgentCardInput({ dataset: { agentField: 'reasoningEffort' }, value: 'none', closest: () => sheetHost })
+if (masterAgentCardHtml(sheetCard, esc, deps).includes('data-fill="100"')) {
+  fail('полоса тщательности не заметила, что усилие рассуждения сняли')
+}
+
+// 15. Черновик без послужного списка о нём молчит: уровня и класса ядро не
+// давало, и выдумывать «уровень 1» карточке нечем.
+const blankSheet = masterAgentCardHtml(masterAgentCardsFor({ workOrders: [order], hiring: [] })[0], esc, deps)
+if (blankSheet.includes('уровень') || blankSheet.includes('квестов ·')) {
+  fail('черновик получил уровень и послужной список, которых у него нет')
+}
+if (!blankSheet.includes('master-agent-mark')) {
+  fail('портрет исчез вместе с отсутствующим уровнем')
+}
+
+// 16. Полоса и пустой слот ведут к настоящему полю, а не заводят второе.
+//
+// Второй редактор тех же значений однажды уже стоил двойного чтения формы
+// (master-brief-panel.js), и здесь его нет: нажатие раскрывает «Права и
+// пределы» и ставит курсор в поле, от которого полоса считается.
+let focused = ''
+const more = { open: false }
+const sheetDom = {
+  dataset: { agentCard: sheetCard.id },
+  querySelector: selector => (selector === '.master-agent-more'
+    ? more
+    : { focus() { focused = selector } }),
+}
+handleMasterAgentCardAction('agent-card-open-more', {
+  dataset: { card: sheetCard.id, field: 'reasoningEffort' },
+  closest: () => sheetDom,
+}, { cards: [sheetCard], render() { fail('открытие настройки не должно пересобирать ленту — каретка и раскрытие уедут') } })
+if (!more.open) fail('нажатие на полосу не раскрыло «Права и пределы»')
+if (focused !== '[data-agent-field="reasoningEffort"]') fail(`курсор встал не в то поле: ${focused}`)
 
 console.log('smoke-master-agent-card: ok')

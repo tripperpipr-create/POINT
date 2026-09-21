@@ -57,9 +57,7 @@
   border-color: var(--ember-line);
 }
 
-/* Имя и роль в один ряд: это одна мысль — кто именно появится. Портрета здесь
-   нет намеренно: у исполнителя, которого ещё не завели, лица не бывает, и
-   пустая плашка читалась незагрузившейся картинкой, а не характером. */
+/* Имя и роль в один ряд: это одна мысль — кто именно появится. */
 .master-agent-identity,
 .master-agent-brain,
 .master-agent-limits {
@@ -68,18 +66,16 @@
   gap: var(--s-4);
 }
 
-/* Чертежи — ряд кнопок с подписью: «взять готовое» стоит рядом с полями,
-   которые оно заполнит, а не отдельным разделом. */
+/* Чертежи — ряд кнопок с рубрикой: «взять готовое» стоит рядом с полями,
+   которые оно заполнит, а не отдельным разделом. Чертёж и есть класс
+   персонажа, поэтому рубрика так и названа, а выбранный отмечен. */
 .master-agent-blueprints {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  display: grid;
   gap: var(--s-3);
 }
-.master-agent-blueprints > span {
-  color: var(--hub-faint-2);
-  font: var(--fw-normal) var(--t-micro) / 1 var(--font-mono);
-  letter-spacing: var(--tracking-label);
+.hall-dialogue .master-agent-blueprints .hall-btn[aria-pressed="true"] {
+  border-color: var(--ember-line);
+  color: var(--ember);
 }
 
 /* Права и пределы. Строка «показать» и её знак — общие на все карточки ленты
@@ -139,4 +135,143 @@
   font: var(--fw-normal) var(--t-small) / var(--lh-base) var(--font-ui);
 }
 .master-agent-error.is-hidden { display: none; }
+
+/* ——— Лист персонажа ———
+   Форма из макета «Квесты в чате» (вариант 3a): портрет и класс слева,
+   характеристики полосками, снаряжение слотами. Взяты мера и ритм, не цвета —
+   в макете система моно-акцентная и заводит под статусы свои оттенки, а у
+   продукта они названы: --ember, --caution, --vital.
+
+   Портрета здесь раньше не было намеренно: пустая плашка читалась
+   незагрузившейся картинкой. Возражение снято тем, чем его снимает и сам
+   макет — это не картинка, а монограмма имени, которое человек набирает рядом;
+   пока имени нет, слот пунктирный и зовёт его заполнить, а не притворяется
+   заполненным. */
+.hall-dialogue .master-agent-sheet {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: var(--s-6);
+  align-items: start;
+}
+.master-agent-portrait {
+  display: grid;
+  justify-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+  text-align: center;
+}
+.master-agent-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  border: 1px solid var(--ember-line);
+  border-radius: var(--r-2);
+  background: color-mix(in srgb, var(--ember) 12%, transparent);
+  color: var(--ember);
+  font: var(--fw-medium) var(--t-title) / 1 var(--font-ui);
+}
+.master-agent-mark.is-empty {
+  border-style: dashed;
+  border-color: var(--hub-border);
+  background: none;
+  color: var(--hub-faint-2);
+}
+.master-agent-class {
+  color: var(--ember);
+  font: var(--fw-normal) var(--t-micro) / 1.3 var(--font-mono);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+.master-agent-rank {
+  color: var(--hub-faint-2);
+  font: var(--fw-normal) var(--t-micro) / 1.3 var(--font-ui);
+}
+.master-agent-main {
+  display: grid;
+  gap: var(--s-5);
+  min-width: 0;
+}
+/* Рубрика яруса — прописными и моноширинной: на строчных разрядка расклеивает
+   слово, она рассчитана на знаки одной ширины. */
+.master-agent-rubric {
+  color: var(--hub-faint-2);
+  font: var(--fw-normal) var(--t-micro) / 1 var(--font-mono);
+  letter-spacing: var(--tracking-label);
+}
+.master-agent-stats,
+.master-agent-gear {
+  display: grid;
+  gap: var(--s-3);
+  min-width: 0;
+}
+/* Полоса характеристики — показание, а не поле: нажатие ведёт к тому полю, от
+   которого она считается. Поэтому это кнопка, а не строка — иначе до неё не
+   дойти с клавиатуры, а цель указателя меньше порога. */
+.hall-dialogue .master-agent-stat {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: var(--control-sm);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-1);
+  background: none;
+  text-align: left;
+}
+.hall-dialogue .master-agent-stat:hover .master-agent-stat-name { color: var(--hub-text); }
+.master-agent-stat-name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--hub-text-3);
+  font: var(--fw-normal) var(--t-small) / 1.3 var(--font-ui);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.master-agent-stat-score {
+  color: var(--hub-faint-2);
+  font: var(--fw-normal) var(--t-micro) / 1.3 var(--font-mono);
+}
+.master-agent-slots {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+.hall-dialogue .master-agent-slot {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-sm);
+  padding: var(--s-1) var(--s-3);
+  border: 1px solid var(--ember-line);
+  border-radius: var(--r-1);
+  background: color-mix(in srgb, var(--ember) 10%, transparent);
+  color: var(--hub-text-2);
+  font: var(--fw-normal) var(--t-micro) / 1.3 var(--font-ui);
+}
+/* Пустой слот виден и зовёт его заполнить — это и есть его работа. */
+.hall-dialogue button.master-agent-slot.is-empty {
+  border-style: dashed;
+  border-color: var(--hub-border);
+  background: none;
+  color: var(--hub-faint-2);
+}
+.hall-dialogue button.master-agent-slot.is-empty:hover {
+  border-color: var(--ember-line);
+  color: var(--hub-text);
+}
+/* На узком окне колонка портрета встаёт над листом: 120 пикселей слева от
+   поля ввода имени оставляли строке меньше двухсот. */
+@media (max-width: 720px) {
+  .hall-dialogue .master-agent-sheet { grid-template-columns: minmax(0, 1fr); }
+  .master-agent-portrait {
+    grid-auto-flow: column;
+    justify-items: start;
+    justify-content: start;
+    align-items: center;
+    gap: var(--s-4);
+  }
+}
 

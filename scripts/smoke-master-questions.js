@@ -1,9 +1,12 @@
 // Уточнения Мастера: спрашивают в карточке ввода, запись обмена — в ленте.
 //
 // Неотвеченный пакет уезжал прокруткой вверх с каждым следующим ходом, и
-// человек отвечал не на то, что видел. Он переехал в карточку ввода; ход,
-// который спросил, несёт в ленте пометку с путём к форме, а отвеченный обмен
-// остаётся при нём записью. Здесь проверяются все состояния сразу: живое
+// человек отвечал не на то, что видел. Он переехал в карточку ввода, и второго
+// места у него нет: пакет, который там стоит, лента не отмечает вовсе, а сам
+// квест до готовности живёт вкладкой справа. Отмечается только пакет, до
+// которого карточка ввода не дошла, — иначе он пропал бы молча, а запуск
+// задания держит. Отвеченный обмен остаётся записью при своём ходе.
+// Здесь проверяются все состояния сразу: живое
 // (спрашиваем), отправленное (ход идёт), решённое (ответы в истории) — и то,
 // что отвечать на всё разом человек не обязан.
 const fs = require('fs')
@@ -13,7 +16,7 @@ const vm = require('vm')
 const repo = path.join(__dirname, '..')
 const main = fs.readFileSync(path.join(repo, 'vscode-extension/media/main.js'), 'utf8')
 
-function open(history) {
+function open(history, proposals) {
   const listeners = {}
   const posted = []
   const field = { id: 'master-input', value: '', rows: 2, focus() {}, setSelectionRange() {}, closest: () => null, matches: () => false }
@@ -37,7 +40,7 @@ function open(history) {
     type: 'state', service: { state: 'running' }, workspaceTrusted: true, workspace: 'w', selectedTab: 'master',
     boot: {
       onboarded: true, profiles: [], projectAgents: [], usageRecords: [],
-      runs: [], quests: [], executions: [], changeSets: [], questProposals: [],
+      runs: [], quests: [], executions: [], changeSets: [], questProposals: proposals || [],
       orchestrator: { id: 'o1', preset: 'conductor', model: 'qwen' },
     },
   } })
@@ -50,6 +53,12 @@ const ASKED = [
   { id: 'a1', role: 'assistant', mode: 'model', content: 'Уточню детали.', questions: ['С какой стороны отказ?', 'Что считать готовым?'] },
 ]
 const ANSWERS = 'Вопрос: С какой стороны отказ?\nМой ответ: Со стороны обработчика\n\nВопрос: Что считать готовым?\nМой ответ: Регресс зелёный'
+
+// Лента — то, что между разговором и карточкой ввода. Считать по разметке
+// целиком нельзя: имя задания законно стоит и во вкладке справа, и в самой
+// панели, а проверка «имени в ленте нет» тогда спорила бы с тем местом, куда
+// это имя и переносили.
+const feedOf = html => html.slice(html.indexOf('id="master-thread"'), html.indexOf('hall-compose'))
 
 const failures = []
 const check = (name, ok, detail) => {
@@ -76,15 +85,60 @@ const check = (name, ok, detail) => {
   check('с первого вопроса назад не зовут',
     !html.includes('master-question-prev'),
     '«Назад» с первого вопроса ведёт в никуда')
-  check('лента помнит, что ход спросил',
-    html.includes('hall-questions is-asked') && html.includes('master-focus-ask'),
-    'ход спросил и не оставил следа: разговор читается без вопросов, к которым относятся ответы')
-  // Считается показанное, а не разметка целиком: разбор пакета едет в
-  // data-pack и data-question, и это не второе появление вопроса на экране.
-  const asked = html.slice(html.indexOf('hall-questions is-asked')).split('</div>')[0].replace(/\sdata-[a-z-]+="[^"]*"/g, '')
-  check('пометка не повторяет текст вопросов',
-    !asked.includes('С какой стороны отказ?') && !asked.includes('Что считать готовым?'),
-    'один вопрос стоит и в ленте, и в карточке ввода — их придётся сверять между собой')
+  check('пакет из карточки ввода не продублирован в ленте',
+    !html.includes('hall-quest-ask'),
+    'над карточкой ввода снова стоит пометка о том же пакете: два места об одном вопросе')
+}
+
+// ── Квест на уточнении в ленту не входит вовсе ────────────────────────────
+//
+// До готовности он живёт вкладкой справа. Пока лента отмечала развилку именем
+// задания, на экране было два места об одном и том же: карточка с названием и
+// кнопкой «Ответить» — и форма, к которой она вела, прямо под ней.
+{
+  const quest = {
+    id: 'qp-1', workspaceId: 'w', status: 'pending', title: 'Повторная доставка вебхука',
+    brief: {
+      version: 1, state: 'discussion', mode: 'precise', resultKind: 'workspace_change',
+      goal: 'Сделать повторную доставку вебхука безопасной',
+      scope: [], outOfScope: [], decisions: [], criteria: [],
+      openQuestions: ['С какой стороны отказ?'],
+      permissions: {}, budget: { tokens: 31000 },
+    },
+  }
+  const html = open([ASKED[0], { ...ASKED[1], proposalId: 'qp-1' }], [quest]).root.innerHTML
+  check('имени задания в ленте нет',
+    !feedOf(html).includes('Сделать повторную доставку вебхука безопасной'),
+    'квест снова назван в ленте, хотя до готовности он живёт вкладкой справа')
+  check('пометки о развилке в ленте нет',
+    !html.includes('hall-quest-ask'),
+    'над карточкой ввода снова стоит карточка о том же вопросе')
+  check('необсуждённый квест в ленту не вошёл',
+    !html.includes('quest-proposal-start'),
+    'карточка задания снова заняла ленту вместо вкладки справа')
+  check('вкладка задания на месте',
+    html.includes('master-brief-toggle'),
+    'квеста нет ни в ленте, ни во вкладке — открыть его состав негде')
+}
+
+// ── Пакет, до которого карточка ввода не дошла, из разговора не пропадает ──
+//
+// Карточка ввода держит один пакет — последний. Прежний неотвеченный остаётся
+// только в ленте, и без пометки он исчез бы молча: человек не узнал бы, что
+// запуск задания чем-то держится. Имени квеста у пометки нет (он во вкладке),
+// кнопки тоже: вести к форме, которой на экране нет, некуда.
+{
+  const html = open([
+    ...ASKED,
+    { id: 'u2', role: 'user', content: 'Давай позже' },
+    { id: 'a2', role: 'assistant', mode: 'model', content: 'Тогда уточню другое.', questions: ['Какой срок?'] },
+  ]).root.innerHTML
+  check('прежний неотвеченный пакет отмечен',
+    html.includes('Уточнения остались без ответа'),
+    'прежние уточнения пропали из разговора молча, а запуск задания они держат')
+  check('у прежнего пакета нет кнопки к чужой форме',
+    !html.includes('master-focus-ask'),
+    'кнопка ведёт к форме, которой на экране нет')
 }
 
 // ── Ответы ушли: обмен решён, своей реплики в ленте нет ────────────────────
@@ -241,6 +295,48 @@ const check = (name, ok, detail) => {
   check('пустой пакет никуда не уходит',
     empty.length === 0,
     'в ядро ушла реплика без единого ответа')
+}
+
+// ── Enter листает пакет и отправляет только с последнего вопроса ──────────
+//
+// Кнопки пакета были исправны, а клавиша — нет: Enter всегда нажимал отправку.
+// Человек отвечал на первый вопрос из двух, жал Enter — и пакет уходил с одним
+// ответом, а оставшийся возвращался из ядра в «Нужно уточнить» и держал запуск.
+{
+  const enter = (ui, at, total) => {
+    const clicked = []
+    const group = {
+      dataset: { cursor: String(at), total: String(total) },
+      querySelector: selector => ({ click() { clicked.push(selector) } }),
+    }
+    ui.listeners['root:keydown']({
+      key: 'Enter', shiftKey: false, isComposing: false,
+      target: {
+        id: '', tagName: 'TEXTAREA', dataset: {},
+        classList: { contains: name => name === 'hall-question-extra' },
+        closest: selector => (selector === '.hall-questions' ? group : null),
+      },
+      preventDefault() {},
+    })
+    return clicked.join(' ')
+  }
+  check('Enter на первом вопросе листает пакет',
+    enter(open(ASKED), 0, 2) === '[data-action="master-question-next"]',
+    'Enter отправил пакет с первого вопроса: остальные вернутся нерешёнными и задержат запуск')
+  check('Enter на последнем вопросе отправляет ответы',
+    enter(open(ASKED), 1, 2) === '[data-action="master-answer-question"]',
+    'на последнем вопросе клавиша перестала отправлять — отвечать стало нечем, кроме мыши')
+  check('пакет из одного вопроса отправляется сразу',
+    enter(open(ASKED), 0, 1) === '[data-action="master-answer-question"]',
+    'единственный вопрос листается в никуда')
+  // Клавиша и подпись на ней обязаны обещать одно и то же.
+  const asking = open(ASKED).root.innerHTML
+  check('подпись клавиши ввода называет шаг по пакету',
+    asking.includes('enterkeyhint="next"'),
+    'экранная клавиатура обещает отправку там, где Enter листает')
+  check('кнопка названа тем, что делает',
+    asking.includes('Отправить ответы') && !asking.includes('>Продолжить<'),
+    'кнопка отправки снова читается шагом по пакету — её и нажимают вместо «Далее»')
 }
 
 if (failures.length) {

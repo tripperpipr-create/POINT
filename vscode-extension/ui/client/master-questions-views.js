@@ -163,8 +163,14 @@ export function createMasterQuestionsViews({ esc, countOf, ui }) {
   //
   // Ответы прошлых вопросов живут в черновиках пакета (masterQuestionDrafts),
   // а не в разметке: на экране один блок, и снимать со страницы больше нечего.
-  // Поэтому «Продолжить» доступно с любого вопроса — отвеченное уйдёт, а
+  // Поэтому отправка доступна с любого вопроса — отвеченное уйдёт, а
   // неотвеченное вернётся из ядра в «Нужно уточнить», как и прежде.
+  //
+  // Называется она тем, что делает. Пока на ней стояло «Продолжить», она
+  // читалась соседкой «Далее» — шагом по пакету, а не решением по нему: человек
+  // отвечал на первый вопрос из двух, нажимал «Продолжить» и получал отправку
+  // с одним ответом. Тот же разговор Enter вёл ещё короче — он нажимал её
+  // сам, с любого вопроса.
   function masterQuestionsAskHtml(owner, list) {
     const sending = Boolean(ui.masterSending)
     const drafts = ui.masterQuestionDrafts || {}
@@ -187,9 +193,14 @@ export function createMasterQuestionsViews({ esc, countOf, ui }) {
     // один ряд показывала из развёрнутого ответа последние сорок знаков.
     // Поле растёт по набранному, как поле реплики под ним. Там же, где
     // варианты названы, своё остаётся поправкой к выбору — и строки хватает.
+    // Подпись на клавише ввода называет то, что Enter в этом поле и делает:
+    // до последнего вопроса он листает пакет, на последнем отправляет ответы
+    // (обработчик keydown в main.js). Разъехавшись, эти двое обещали бы с
+    // экранной клавиатуры не то действие, которое случится.
+    const enter = index < last ? 'next' : 'send'
     const free = question.options.length
-      ? `<input type="text" class="hall-question-extra" aria-label="${esc(label)}" placeholder="Или свой вариант…" value="${esc(draft.text || '')}" ${sending ? 'disabled' : ''}>`
-      : `<textarea class="hall-question-extra" aria-label="${esc(label)}" placeholder="Ответьте своими словами…" rows="${masterAnswerRows(draft.text)}" ${sending ? 'disabled' : ''}>${esc(draft.text || '')}</textarea>`
+      ? `<input type="text" class="hall-question-extra" enterkeyhint="${enter}" aria-label="${esc(label)}" placeholder="Или свой вариант…" value="${esc(draft.text || '')}" ${sending ? 'disabled' : ''}>`
+      : `<textarea class="hall-question-extra" enterkeyhint="${enter}" aria-label="${esc(label)}" placeholder="Ответьте своими словами…" rows="${masterAnswerRows(draft.text)}" ${sending ? 'disabled' : ''}>${esc(draft.text || '')}</textarea>`
     const block = `<div class="hall-question" data-question-key="${esc(key)}" data-question="${esc(question.text)}" data-multiple="${multiple ? '1' : '0'}">
         <p class="hall-question-prompt">${esc(question.text)}</p>
         ${options ? `<div class="hall-question-options" role="${multiple ? 'group' : 'radiogroup'}">${options}</div>` : ''}
@@ -231,22 +242,37 @@ export function createMasterQuestionsViews({ esc, countOf, ui }) {
       ${block}
       <div class="hall-questions-foot">
         ${back}${forward}
-        <button type="button" class="hall-btn hall-questions-send" data-action="master-answer-question" aria-describedby="master-answer-note" ${sending ? 'disabled' : ''}>${sending ? 'Отправляем…' : 'Продолжить'}</button>
+        <button type="button" class="hall-btn hall-questions-send" data-action="master-answer-question" aria-describedby="master-answer-note" ${sending ? 'disabled' : ''}>${sending ? 'Отправляем…' : list.length > 1 ? 'Отправить ответы' : 'Отправить ответ'}</button>
         <small class="hall-questions-left" id="master-answer-note">${esc(note)}</small>
       </div>
     </div>`
   }
 
-  // Пометка в ленте: ход спросил, ответа пока нет. Текст вопросов не повторён —
-  // они стоят в карточке ввода, и два одинаковых перечня на одном экране
-  // заставили бы сверять их между собой. Кнопка есть только у того пакета,
-  // который сейчас в карточке: увести к форме, которой на экране нет, нельзя.
+  // Развилка в ленте: ход спросил, ответа пока нет.
+  //
+  // Пакет, который сейчас в карточке ввода, лента не отмечает вовсе. Короткий
+  // цикл на развилке был такой: человек читает вопросы в карточке ввода, где
+  // и отвечает, — а над ней стояла вторая карточка с названием квеста и
+  // кнопкой «Ответить», уводящей к той же форме, что уже на экране. Квест на
+  // уточнении в ленту не входит: до готовности он живёт вкладкой справа
+  // (master-brief-panel.js), и показывать его вторым местом значит спрашивать
+  // у человека, какое из двух главное.
+  //
+  // Пакет, до которого карточка ввода не дошла, отметить всё же надо: иначе
+  // неотвеченные уточнения пропадают из разговора молча, а запуск задания они
+  // держат. Пометка остаётся без названия квеста и без кнопки: увести к форме,
+  // которой на экране нет, нельзя, а имя задания читают во вкладке.
   function masterQuestionsMarkHtml(list, ownAsk) {
-    if (!list.length) return ''
-    return `<div class="hall-questions is-asked">
-      <small class="hall-questions-progress">Уточнения · ${countOf(list.length, 'вопрос', 'вопроса', 'вопросов')}</small>
-      ${ownAsk ? '<button type="button" class="hall-chip" data-action="master-focus-ask">Ответить в поле ниже</button>' : '<small>Остались без ответа</small>'}
-    </div>`
+    if (!list.length || ownAsk) return ''
+    return `<section class="hall-deck hall-quest-ask">
+      <header>
+        <span class="hall-quest-kick is-ask"><span class="hall-quest-dot" aria-hidden="true"></span>Уточнения остались без ответа</span>
+        <small>${esc(countOf(list.length, 'вопрос', 'вопроса', 'вопросов'))}</small>
+      </header>
+      <div class="hall-panel-row is-stack">
+        <small class="hall-fineprint">Запуск задания они держат, пока не решены.</small>
+      </div>
+    </section>`
   }
 
   // Пакет, на который ещё не ответили, — тот самый, что уходит в карточку ввода.

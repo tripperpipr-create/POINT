@@ -1,5 +1,5 @@
 import { masterPlanHtml, masterPlanState } from './master-plan-views.js'
-import { countOf, list } from './format-units.js'
+import { countOf, fillAttribute, list } from './format-units.js'
 import { masterCardMoreAttrs } from './master-card-open.js'
 
 // Экран выполнения утверждённого наряда.
@@ -213,7 +213,7 @@ export function workOrderRunHtml(order, ui, deps = {}) {
                  стоят через одну строку друг от друга, поэтому счёт называет
                  себя: голое «1/3» рядом с «0 / 3» читается как спор двух
                  счётчиков, а голосом не читается вовсе. */''}
-            ${stages.length ? `<span class="hall-quest-bar is-sm" role="img" aria-label="Этапы: ${done} из ${stages.length}"><span style="width:${share || 2}%"></span></span><span class="hall-quest-count" title="Этапы работы" aria-hidden="true">${done}/${stages.length}</span>` : ''}
+            ${stages.length ? `<span class="hall-quest-bar is-sm" role="img" aria-label="Этапы: ${done} из ${stages.length}"><span ${fillAttribute(share)}></span></span><span class="hall-quest-count" title="Этапы работы" aria-hidden="true">${done}/${stages.length}</span>` : ''}
           </span>
           ${/* Итог закончившегося квеста стоит в самой строке, а не под
                раскрытием: по нему видно, взят квест или нет, и ради этого

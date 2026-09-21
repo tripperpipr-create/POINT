@@ -379,11 +379,17 @@ export function createAgentWorkflowEditors(dependencies) {
     const id = `node-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
     return { id, kind, name: flowNodeKindLabels[kind] || kind, config: {}, agentId: '', toolName: '', positionX: 0, positionY: 0 }
   }
+  // Место узла на холсте. Ось, которую не прочитать числом, берётся из сетки:
+  // координата уезжает в атрибут разметки, и `NaN` там был бы не «неизвестно»,
+  // а испорченный атрибут, который расстановка молча пропустит.
   function flowNodePosition(node, index) {
-    if (node.positionX || node.positionY) return { x: Number(node.positionX), y: Number(node.positionY) }
     const col = index % 3
     const row = Math.floor(index / 3)
-    return { x: 24 + col * 150, y: 24 + row * 96 }
+    const grid = { x: 24 + col * 150, y: 24 + row * 96 }
+    if (!node.positionX && !node.positionY) return grid
+    const x = Number(node.positionX)
+    const y = Number(node.positionY)
+    return { x: Number.isFinite(x) ? x : grid.x, y: Number.isFinite(y) ? y : grid.y }
   }
   function activeFlowRun(flowId) {
     const active = ['running', 'waiting', 'waiting_approval', 'paused', 'pending']
@@ -480,7 +486,7 @@ export function createAgentWorkflowEditors(dependencies) {
       const assignment = binding.model
         ? ` · ${[binding.runtime || binding.provider, binding.model, binding.estimatedCostCents != null && binding.estimatedCostCents !== '' ? `${binding.estimatedCostCents}¢` : ''].filter(Boolean).join(' · ')}`
         : ''
-      return `<button type="button" class="flow-node kind-${esc(node.kind)} ${runtimeClass} ${selectedNodeId === node.id ? 'selected' : ''}" data-action="select-flow-node" data-node-id="${esc(node.id)}" style="left:${pos.x}px;top:${pos.y}px" ${locked ? 'disabled' : ''}><span>${esc(flowNodeKindLabels[node.kind] || node.kind)}${runtimeState?.status ? ` · ${esc(statusLabels[runtimeState.status] || runtimeState.status)}` : ''}${esc(assignment)}</span><strong>${esc(node.name || node.id)}</strong></button>`
+      return `<button type="button" class="flow-node kind-${esc(node.kind)} ${runtimeClass} ${selectedNodeId === node.id ? 'selected' : ''}" data-action="select-flow-node" data-node-id="${esc(node.id)}" data-x="${Math.round(pos.x)}" data-y="${Math.round(pos.y)}" ${locked ? 'disabled' : ''}><span>${esc(flowNodeKindLabels[node.kind] || node.kind)}${runtimeState?.status ? ` · ${esc(statusLabels[runtimeState.status] || runtimeState.status)}` : ''}${esc(assignment)}</span><strong>${esc(node.name || node.id)}</strong></button>`
     }).join('')
     const edgeSvg = edges.map(edge => {
       const fromNode = nodes.find(item => item.id === edge.from)
@@ -492,7 +498,59 @@ export function createAgentWorkflowEditors(dependencies) {
       const toPos = flowNodePosition(toNode, toIndex)
       return `<line x1="${fromPos.x + 60}" y1="${fromPos.y + 28}" x2="${toPos.x + 10}" y2="${toPos.y + 28}" />`
     }).join('')
-    return `<div class="flow-canvas-wrap"><svg class="flow-edges" width="${maxX}" height="${maxY}" aria-hidden="true">${edgeSvg}</svg><div class="flow-canvas" style="width:${maxX}px;height:${maxY}px">${nodeHtml || '<p class="muted flow-canvas-empty">Добавьте узлы</p>'}</div></div>`
+    return `<div class="flow-canvas-wrap"><svg class="flow-edges" width="${maxX}" height="${maxY}" aria-hidden="true">${edgeSvg}</svg><div class="flow-canvas" data-width="${Math.round(maxX)}" data-height="${Math.round(maxY)}">${nodeHtml || '<p class="muted flow-canvas-empty">Добавьте узлы</p>'}</div></div>`
+  }
+  // Место узла на холсте — атрибутом и CSSOM, а не инлайновым стилем.
+  //
+  // CSP вебвью (extension.js, style-src без 'unsafe-inline') выбрасывает
+  // атрибут style="" целиком. Холст задавал им ровно то, ради чего он холст:
+  // style="left:210px;top:140px" у каждого узла. Стиль отбрасывался, у правила
+  // .flow-node оставалось одно position: absolute без смещений, и все узлы
+  // садились в один угол друг на друга. Связи при этом рисовались по местам:
+  // у <line> координаты — презентационные атрибуты x1/y1, а не стиль, и CSP их
+  // не трогает. Получалась схема, где стрелки расходятся по пустому полю, а
+  // узлы лежат стопкой в начале координат.
+  //
+  // Приём соседней полосы прогресса (data-fill + ui/layers/11-progress-fill.css)
+  // сюда не переносится: там двадцать одна ступень по пять процентов, а здесь
+  // произвольный пиксель по двум осям — правил понадобилось бы столько, сколько
+  // точек на холсте. Остаётся второй здешний способ обойти CSP: писать свойство
+  // из скрипта. Программная правка style — не инлайновый стиль в разметке, её
+  // style-src не касается; так же меряет запас ленты applyMasterComposeReserve
+  // в ui/client/master-feed.js.
+  //
+  // Число едет в data-x/data-y, потому что атрибут переживает и CSP, и
+  // повторную сборку разметки: холст пересобирается на каждой отрисовке, и
+  // расстановка обязана уметь начать с нуля, имея на руках только разметку.
+  function flowNodePixels(element, property, raw) {
+    const value = Number(raw)
+    if (!Number.isFinite(value) || typeof element?.style?.setProperty !== 'function') return false
+    element.style.setProperty(property, `${Math.round(value)}px`)
+    return true
+  }
+  function applyFlowNodePlacement(scope) {
+    const host = scope || root
+    if (typeof host?.querySelector !== 'function') return 0
+    const wrap = host.querySelector('.flow-canvas-wrap')
+    const canvas = typeof wrap?.querySelector === 'function' ? wrap.querySelector('.flow-canvas') : null
+    if (!canvas || typeof canvas.querySelectorAll !== 'function') return 0
+    const sized = flowNodePixels(canvas, 'width', canvas.dataset?.width) && flowNodePixels(canvas, 'height', canvas.dataset?.height)
+    let placed = 0
+    let total = 0
+    for (const node of canvas.querySelectorAll('.flow-node')) {
+      total += 1
+      const left = flowNodePixels(node, 'left', node.dataset?.x)
+      const top = flowNodePixels(node, 'top', node.dataset?.y)
+      if (left && top) placed += 1
+    }
+    // Признак ставится, только когда расставлены все до одного. Половина узлов
+    // на местах, половина в углу — картинка хуже запасной: запасная честно
+    // говорит «мест нет», а такая врёт, что места именно эти. Запасную даёт
+    // ui/layers/60-suggestions.css: без признака холст раскладывает узлы рядом,
+    // а связи прячет — рисовать их не по чему.
+    if (sized && placed === total) wrap.classList?.add('is-placed')
+    else wrap.classList?.remove('is-placed')
+    return placed
   }
   function flowInspectorHtml(flow, locked, selectedNodeId) {
     const selected = (flow.nodes || []).find(item => item.id === selectedNodeId) || (flow.nodes || [])[0]
@@ -604,6 +662,7 @@ export function createAgentWorkflowEditors(dependencies) {
     captureFlowForm,
     flowEdgeOptions,
     flowCanvasHtml,
+    applyFlowNodePlacement,
     flowInspectorHtml,
     visualFlowBuilder,
     flowsView,

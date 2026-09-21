@@ -248,8 +248,17 @@ export function createMasterThreadViews(dependencies) {
     // и занимала весь экран разговора ровно тогда, когда разговор и нужен.
     // Вернётся она сюда в тот ход, когда кнопка начнёт работать. Состав задания
     // до тех пор виден в панели — она открывается вкладкой в полосе разговора.
+    // Спросить о развилке лента всё же успевает: неотвеченный пакет несёт свою
+    // карточку при том ходе, который спросил (masterQuestionsMarkHtml).
+    //
+    // Условие написано от «показываем, когда готово», а не от «прячем, когда
+    // не готово». Прежняя запись проверяла brief и молчала, когда его нет:
+    // предложение старого ключевого маршрута приходило вовсе без brief, шло
+    // мимо затвора полной карточкой и вкладки при этом не получало. Маршрут
+    // снят (internal/orchestrator/chat.go), но сохранённые предложения
+    // переживают правку, и затвор обязан знать про них.
     const briefNow = stored?.brief || (String(ui.masterData?.response?.proposal?.id || '') === id ? ui.masterData.response.proposal.brief : null)
-    if (briefNow && !taskBriefReady(briefNow)) return ''
+    if (!taskBriefReady(briefNow)) return ''
     // Пока предложение открыто, у свежего хода есть то, чего сохранённая карточка
     // не знает: состав отряда и причина выбора. Они живут в ответе и до истории
     // не доезжают.
@@ -714,6 +723,10 @@ export function createMasterThreadViews(dependencies) {
       const editing = ui.proposalEditId === proposal.id && !ui.masterBriefPanelOpen
       return taskBriefCardHtml(proposal, { esc, countOf, editing, busy: ui.proposalStarting.has(proposal.id) || ui.proposalModifying.has(proposal.id), editor: editing ? questProposalEditorHtml(proposal) : '', rosterReady: rosterHasAgent() })
     }
+    // Предложение без brief рисуется теперь в одном месте — в панели задания:
+    // затвор ленты пропускает только готовое, а готовым бывает только то, у
+    // чего brief есть. Оговорка про открытую панель тут и стояла ради второго
+    // места; оставь мы её, редактор в панели не открылся бы никогда.
     const editing = ui.proposalEditId === proposal.id
     const modifying = ui.proposalModifying.has(proposal.id)
     const shownParty = masterProposalParty(proposal, party)

@@ -696,6 +696,10 @@ for (const [file, maximum] of Object.entries({
   'vscode-extension/ui/client/master-work-order-v2.js': 300,
   'vscode-extension/ui/client/master-hiring-card.js': 300,
   'vscode-extension/ui/client/master-agent-card.js': 450,
+  // Лист персонажа вынесен из карточки исполнителя: словарь классов, шкалы
+  // характеристик и три яруса разметки при них — связный кусок, а карточка
+  // стояла у своей границы.
+  'vscode-extension/ui/client/master-agent-sheet.js': 200,
   'vscode-extension/ui/client/decision-views.js': 400,
   'vscode-extension/ui/client/companion-thread-views.js': 300,
   'vscode-extension/ui/client/companion-actions.js': 400,

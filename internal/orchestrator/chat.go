@@ -15,13 +15,23 @@ func (s ChatService) Chat(ctx context.Context, req ChatRequest) (ChatResponse, e
 	if req.WorkMode == "discuss" {
 		return s.DiscussTask(ctx, req)
 	}
+	// Разговор Мастера целиком принадлежит разбору задания.
+	//
+	// Здесь стояла лазейка по ключевым словам: если intentOf считал реплику
+	// просьбой про агента или отряд, ход уходил в старый маршрут ниже, и тот
+	// сразу клал в очередь CompanionActionProposal{create_agent}. Разбор этот
+	// грубый и намеренно грубый — isTeamCreationRequest ловит подстроку
+	// «команд», — так что «добавь команды в CLI» посреди обсуждения задачи
+	// становилось подбором отряда, и человек получал карточку найма вместо
+	// разбора работы. Исполнителя заводят на последнем этапе квеста: когда
+	// задание утверждено, нехватку считает assessAgentGap, а карточку готовит
+	// proposeRoleGapHire (internal/app/agent_provisioning.go) — по нажатию
+	// человека, а не по слову в реплике.
+	//
+	// Старый маршрут остаётся живым для компаньона: он TaskIntake не шлёт, и
+	// создание сущностей Хаба у него на своём месте.
 	if req.TaskIntake {
-		// Hub entity commands retain their existing reviewed creation path.
-		// This routing never selects precise/project work modes.
-		entityIntent := intentOf(req.Message)
-		if req.ProposalID != "" || (entityIntent != "agent" && entityIntent != "team") {
-			return s.DiscussTask(ctx, req)
-		}
+		return s.DiscussTask(ctx, req)
 	}
 	req.Message = strings.TrimSpace(req.Message)
 	if req.Message == "" {

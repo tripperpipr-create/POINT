@@ -491,8 +491,51 @@ func TestTaskIntakePromptDelegatesRosterToSelector(t *testing.T) {
 	if !strings.Contains(taskIntakePrompt, "агент-комплектовщик") {
 		t.Fatal("prompt does not delegate composition to the dedicated selector")
 	}
+	// Прямая просьба создать агента — не задание. Без этой строки «создай
+	// агента» становится квестом с таким названием: маршрут по ключевым словам
+	// снят, и подхватить её больше некому.
+	if !strings.Contains(taskIntakePrompt, "Прямая просьба создать агента") {
+		t.Fatal("prompt turns a hiring request into a task brief")
+	}
 	raw := string(taskIntakeJSONSchema())
 	if strings.Contains(raw, `"hire"`) || strings.Contains(raw, `"agentIds"`) {
 		t.Fatal("schema still grants Master roster authority")
+	}
+}
+
+// Исполнителя заводят на последнем этапе квеста, а не по слову в реплике.
+//
+// В разговоре Мастера стояла лазейка по ключевым словам: intentOf уводил ход в
+// старый маршрут, и тот сразу клал в очередь карточку найма. Разбор намеренно
+// грубый — isTeamCreationRequest ловит подстроку «команд», — поэтому «добавь
+// команды в CLI» посреди обсуждения работы давало человеку не разбор задания, а
+// предложение нанять. Теперь нехватку исполнителя считает assessAgentGap по
+// утверждённому заданию, а карточку готовит proposeRoleGapHire.
+func TestTaskIntakeNeverProposesAgentByKeyword(t *testing.T) {
+	for _, message := range []string{"добавь команды в CLI", "создай агента для бэкенда", "подбери отряд под задачу"} {
+		store := newChatStoreStub()
+		// Чертёж есть: без него старый маршрут промолчал бы и сам, и проверка
+		// доказывала бы пустоту хранилища, а не снятую лазейку.
+		store.blueprints = []domain.AgentBlueprint{{ID: "bp-1", Name: "Разработчик", RoleDescription: "правит бэкенд", Mission: "чинит команды CLI и отряд сборки"}}
+		service := ChatService{
+			Store: store,
+			NewID: func(prefix string) string { return prefix + "-1" },
+			ModelFactory: func(providers.Config) (providers.Model, error) {
+				return &stubbornModel{replies: []string{`{"intent":"chat","reply":"Исполнителя заводят в Гильдии или при утверждении квеста.","brief":null}`}}, nil
+			},
+		}
+		response, err := service.Chat(context.Background(), ChatRequest{
+			WorkspaceID: "ws-1", TaskIntake: true, Message: message,
+			Config: domain.OrchestratorConfig{Provider: domain.ProviderOllama, Model: "model"},
+		})
+		if err != nil {
+			t.Fatalf("%q: %v", message, err)
+		}
+		if response.ActionProposal != nil || len(store.actionProposals) > 0 {
+			t.Fatalf("%q: разговор положил в очередь карточку найма: %#v", message, store.actionProposals)
+		}
+		if response.Hire != nil {
+			t.Fatalf("%q: разговор предложил нанять по ключевому слову", message)
+		}
 	}
 }

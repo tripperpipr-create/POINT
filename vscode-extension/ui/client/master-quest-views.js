@@ -21,6 +21,8 @@
 // уходило запасное значение — английское слово «verification» посреди
 // русской карточки. Стенд этого не показал: его образцы были написаны под
 // словарь, а не под ядро, то есть проверяли сами себя.
+import { fillAttribute } from './format-units.js'
+
 export const CRITERION_KIND = { verification: 'авто', reproduction: 'повтор', manual: 'вы' }
 
 // Вид по умолчанию. Условие без вида — машинное: ручное ядро помечает явно,
@@ -40,7 +42,12 @@ export function questChecklistHtml(title, rows, esc, { empty = '' } = {}) {
   const share = Math.round((done / items.length) * 100)
   return `<div class="hall-quest-check">
     <div class="hall-quest-check-head"><span>${esc(title)}</span><b>${done} / ${items.length}</b></div>
-    <div class="hall-quest-bar"><span style="width:${done ? share : 2}%"></span></div>
+    ${/* Ширина — атрибутом, а не стилем: CSP вебвью (extension.js, style-src без
+         'unsafe-inline') выбрасывает style="" целиком, правило полосы оставалось
+         без width, и блочный элемент занимал всю ширину — «0 из 4» выглядело
+         закрытым набором. Слой 11-progress-fill переводит атрибут в --fill;
+         засечку вместо пустоты держит min-width самой полосы. */''}
+    <div class="hall-quest-bar"><span ${fillAttribute(share)}></span></div>
     <ul>${items.map(row => `<li${row.done ? ' class="is-done"' : ''}><i aria-hidden="true">${row.done ? '✓' : ''}</i><span>${esc(row.text)}</span>${row.kind ? `<em>${esc(CRITERION_KIND[row.kind] || row.kind)}</em>` : ''}</li>`).join('')}</ul>
   </div>`
 }
@@ -58,6 +65,10 @@ export function questMenuHtml(items, esc) {
       `data-action="${esc(item.action)}"`,
       item.id ? `data-id="${esc(item.id)}"` : '',
       item.questId ? `data-quest-id="${esc(item.questId)}"` : '',
+      // Карточка исполнителя зовёт свои действия по её собственному ключу:
+      // диспетчер ищет карточку по data-card (handleMasterAgentCardAction).
+      // Без него редкие действия листа пришлось бы заводить вторым меню.
+      item.card ? `data-card="${esc(item.card)}"` : '',
       item.busy ? 'disabled' : '',
     ].filter(Boolean).join(' ')
     return `<button type="button" class="hall-btn" ${attrs}>${esc(item.label)}</button>`

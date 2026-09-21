@@ -394,3 +394,79 @@ func TestStrictEndpointNeverRetriesWithDisableThinking(t *testing.T) {
 		t.Fatalf("строгий endpoint получил %d запросов с полем сверх спецификации", model.disableRetries)
 	}
 }
+
+// reasoningGrowthModel запоминает предел вывода каждого запроса и первым ходом
+// возвращает отказ, с которого всё началось: размышление съело бюджет целиком.
+type reasoningGrowthModel struct {
+	mu      sync.Mutex
+	budgets []int
+}
+
+func (m *reasoningGrowthModel) Stream(_ context.Context, request providers.ModelRequest, emit func(providers.ModelEvent) error) error {
+	m.mu.Lock()
+	m.budgets = append(m.budgets, request.MaxOutputTokens)
+	first := len(m.budgets) == 1
+	m.mu.Unlock()
+	if first {
+		return errors.New("model returned no answer: the entire output budget of 8192 tokens went to reasoning (finish_reason=length)")
+	}
+	return emit(providers.ModelEvent{Kind: providers.EventTextDelta, Delta: "Completed with room to answer."})
+}
+
+// Ход, потративший вывод на размышление, повторяется с бо́льшим пределом.
+//
+// Рантайм бесплатный, поэтому размышление не гасится, а запасной модели у
+// профиля нет: место для ответа — единственное лекарство. Прежде эпизод
+// восстановления добавлял только подсказку и упирался в тот же потолок.
+// Заодно проверяется пол: профиль рождён с 4096, а размышляющая модель не
+// должна получить меньше MinThinkingOutputTokens даже на первом ходу.
+func TestReasoningBudgetRecoveryGrowsOutputBudget(t *testing.T) {
+	repo := newMemoryRepo()
+	engine := NewEngine(repo, nil)
+	model := &reasoningGrowthModel{}
+	engine.SetModelFactory(func(providers.Config) (providers.Model, error) { return model, nil })
+	engine.SetProcessExecutor(strongBoundaryExecutor{})
+	profile := domain.DefaultProfile()
+	profile.Provider = domain.ProviderOpenAI
+	profile.ProviderPreset = "llmux"
+	profile.BaseURL = "https://llmux.invalid/v1"
+	profile.Model = "qwen3-27b"
+	profile.FallbackModels = nil
+	profile.MaxOutputTokens = 4096
+	profile.ContextWindowTokens = 32768
+	profile.ReasoningEffort = "medium"
+	profile.MaxDurationSeconds = 5
+	profile.MaxSteps = 3
+	brief := domain.NormalizeTaskBrief(domain.TaskBrief{
+		Mode: domain.TaskModeProject, State: "ready", Goal: "Build", ResultKind: "report",
+		Criteria: []domain.AcceptanceCriterion{{ID: "c1", Text: "Report", Kind: "manual"}},
+	})
+	approved, err := domain.ApproveTaskBrief(brief)
+	if err != nil {
+		t.Fatal(err)
+	}
+	run, err := engine.Start(StartInput{
+		Configuration: domain.NewRunConfigurationSnapshot("test", profile, nil, time.Now().UTC()),
+		Workspace:     domain.Workspace{ID: "ws", Path: t.TempDir()},
+		SandboxPath:   t.TempDir(),
+		Task:          "Build the report",
+		TaskBrief:     &approved,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if finished := waitForTerminalRun(t, repo, run.ID); finished.Status != domain.RunCompleted {
+		t.Fatalf("прогон обязан дожить до ответа: %#v", finished)
+	}
+	model.mu.Lock()
+	defer model.mu.Unlock()
+	if len(model.budgets) < 2 {
+		t.Fatalf("повтора не было: %v", model.budgets)
+	}
+	if model.budgets[0] != domain.MinThinkingOutputTokens {
+		t.Fatalf("первый ход пошёл с %d вместо пола %d", model.budgets[0], domain.MinThinkingOutputTokens)
+	}
+	if model.budgets[1] <= model.budgets[0] {
+		t.Fatalf("повтор пошёл под тем же потолком: %v", model.budgets)
+	}
+}

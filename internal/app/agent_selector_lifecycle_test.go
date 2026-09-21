@@ -157,3 +157,61 @@ func TestExactSelectionDigestReusesPersistedDraft(t *testing.T) {
 		t.Fatalf("same digest did not preserve selection: %#v / %#v", first.Roster.AgentIDs, second.Roster.AgentIDs)
 	}
 }
+
+// Черновик роли рождается пригодным к работе.
+//
+// 21 сентября 2026 семейства рождались с MaxOutputTokens: 4096 при
+// ReasoningEffort: "medium". На размышляющей модели такой исполнитель терял ход
+// целиком: размышление тратит бюджет вывода первым, и до ответа места не
+// оставалось. Соседний путь (storage/work_order_roster_v2.go) пол уже держал —
+// этот забыли.
+func TestRoleFamilyDraftIsBornWithRoomForThinking(t *testing.T) {
+	application := newTestApp(t)
+	if _, err := application.OpenWorkspace(t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+	workspace, err := application.requireWorkspace()
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := domain.OrchestratorConfig{
+		Provider: domain.ProviderOpenAI, ProviderPreset: "llmux",
+		BaseURL: "https://llmux.invalid/v1", Model: "Qwen3.8-27B",
+	}
+	draft, err := application.createRoleFamilyDraft(workspace.ID, "workorder-test", "devops", config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if draft.MaxOutputTokens < domain.MinThinkingOutputTokens {
+		t.Fatalf("исполнитель рождён с пределом %d — меньше пола %d", draft.MaxOutputTokens, domain.MinThinkingOutputTokens)
+	}
+	// Окно должно остаться больше вывода: из их разницы считается бюджет входа,
+	// и равные числа оставили бы разговору ноль.
+	if draft.ContextWindowTokens <= draft.MaxOutputTokens {
+		t.Fatalf("окно %d не больше вывода %d", draft.ContextWindowTokens, draft.MaxOutputTokens)
+	}
+}
+
+// DevOps принимает поставку в Docker Compose, и смотреть на контейнеры ему
+// нечем не должно быть. Управление контейнерами при этом не выдаётся: задача
+// его не поручает, а RestrictTaskProfile снимает такой инструмент и сама.
+func TestDevOpsRoleFamilyCanInspectContainers(t *testing.T) {
+	template, ok := roleFamilyTemplates["devops"]
+	if !ok {
+		t.Fatal("семейство devops исчезло из шаблонов")
+	}
+	has := func(name string) bool {
+		for _, tool := range template.Tools {
+			if tool == name {
+				return true
+			}
+		}
+		return false
+	}
+	if !has("docker_inspect") {
+		t.Fatalf("DevOps без docker_inspect принимает Docker-поставку вслепую: %v", template.Tools)
+	}
+	if has("docker_control") {
+		t.Fatalf("DevOps получил управление контейнерами, которого задача не поручала: %v", template.Tools)
+	}
+}

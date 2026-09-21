@@ -40,6 +40,20 @@ func (e *Engine) executeWithCheckpoint(ctx context.Context, active *activeRun, p
 	run := e.snapshot(active)
 	toolDefinitions := registry.Definitions(policy.ProfileGrants(profile).ToolNames())
 	history := newConversationHistory(BuildStableMessages(profile, run.ContextItems, run.Task, customTools))
+	// Предел вывода считает не только ответ: размышление тратит тот же бюджет и
+	// тратит его первым, так что ход, которому не хватило места, заканчивается
+	// ничем — finish_reason=length и ноль content. Пол ставится здесь, а не
+	// только при рождении исполнителя: профили, созданные раньше, живут с
+	// прежним числом, и на живом квесте 21 сентября 2026 теряли ходы именно они.
+	// Половина окна — граница и здесь: бюджет входа считается разницей окна и
+	// вывода, и поднятый пол у узкого окна оставил бы разговору ноль. Профиль
+	// с окном в пару тысяч токенов остаётся со своим числом: размышлять там
+	// всё равно негде, а прогон обязан начаться.
+	if floor := domain.OutputBudgetForThinking(profile.MaxOutputTokens, profile.Model, profile.ReasoningEffort); floor > profile.MaxOutputTokens {
+		if half := effectiveContextWindowTokens(profile) / 2; half <= 0 || floor <= half {
+			profile.MaxOutputTokens = floor
+		}
+	}
 	inputBudgetTokens := ModelInputBudgetTokens(profile)
 	maxSteps := profile.MaxSteps
 	if maxSteps <= 0 {
@@ -307,6 +321,23 @@ func (e *Engine) executeWithCheckpoint(ctx context.Context, active *activeRun, p
 			if !useFallback {
 				if providers.IsTruncatedReasoningError(err) && reasoningBudgetRecoveries < maxReasoningBudgetRecoveries {
 					reasoningBudgetRecoveries++
+					// Сначала место для ответа, потом тишина — порядок тот же,
+					// что у Мастера (streamMasterModel). Прежде здесь росла
+					// только подсказка, а предел оставался прежним: на рантайме,
+					// где размышление не гасят, повтор упирался в тот же потолок
+					// и эпизоды восстановления сгорали впустую.
+					//
+					// Рост режется половиной окна, а не отменяется ею: вывод
+					// больше половины провайдер отвергнет, но и отказ от роста
+					// вернул бы прежний тупик. Остаток окна разговор ужимает сам.
+					grown := domain.GrowThinkingOutputBudget(profile.MaxOutputTokens, currentModel)
+					if half := effectiveContextWindowTokens(profile) / 2; half > 0 && grown > half {
+						grown = half
+					}
+					if grown > profile.MaxOutputTokens {
+						profile.MaxOutputTokens = grown
+						inputBudgetTokens = ModelInputBudgetTokens(profile)
+					}
 					forceDisableThinking = canDisableThinking
 					feedback := providers.Message{Role: "user", Content: reasoningBudgetRecoveryFeedback(reasoningBudgetRecoveries, maxReasoningBudgetRecoveries)}
 					history.AppendRound(conversationRound{

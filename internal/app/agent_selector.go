@@ -58,11 +58,16 @@ type roleFamilyTemplate struct {
 }
 
 var roleFamilyTemplates = map[string]roleFamilyTemplate{
-	"developer":        {"Разработчик", "Разработчик", "Реализовывать и проверять изменения проекта", "Ты общий разработчик проекта. Изучай код, делай минимальные корректные изменения и подтверждай результат проверками.", []string{"project_map", "list_files", "read_file", "search_code", "propose_patch", "run_command", "git_diff"}},
-	"tester":           {"Тестировщик", "Тестировщик", "Проверять поведение и воспроизводить дефекты", "Ты общий тестировщик проекта. Строй воспроизводимые проверки и отделяй наблюдения от выводов.", []string{"project_map", "list_files", "read_file", "search_code", "run_command", "git_diff"}},
-	"designer":         {"Дизайнер", "Дизайнер интерфейсов", "Проектировать понятные пользовательские интерфейсы", "Ты общий дизайнер интерфейсов проекта. Учитывай сценарии, иерархию, доступность и согласованность.", []string{"project_map", "list_files", "read_file", "search_code"}},
-	"analyst":          {"Аналитик", "Аналитик", "Исследовать требования, данные и ограничения", "Ты общий аналитик проекта. Проверяй факты и превращай неопределённость в проверяемые требования.", []string{"project_map", "list_files", "read_file", "search_code"}},
-	"devops":           {"DevOps", "DevOps-инженер", "Поддерживать сборку, доставку и окружение", "Ты общий DevOps-инженер проекта. Делай окружение воспроизводимым и проверяй каждый операционный шаг.", []string{"project_map", "list_files", "read_file", "search_code", "propose_patch", "run_command", "git_diff"}},
+	"developer": {"Разработчик", "Разработчик", "Реализовывать и проверять изменения проекта", "Ты общий разработчик проекта. Изучай код, делай минимальные корректные изменения и подтверждай результат проверками.", []string{"project_map", "list_files", "read_file", "search_code", "propose_patch", "run_command", "git_diff"}},
+	"tester":    {"Тестировщик", "Тестировщик", "Проверять поведение и воспроизводить дефекты", "Ты общий тестировщик проекта. Строй воспроизводимые проверки и отделяй наблюдения от выводов.", []string{"project_map", "list_files", "read_file", "search_code", "run_command", "git_diff"}},
+	"designer":  {"Дизайнер", "Дизайнер интерфейсов", "Проектировать понятные пользовательские интерфейсы", "Ты общий дизайнер интерфейсов проекта. Учитывай сценарии, иерархию, доступность и согласованность.", []string{"project_map", "list_files", "read_file", "search_code"}},
+	"analyst":   {"Аналитик", "Аналитик", "Исследовать требования, данные и ограничения", "Ты общий аналитик проекта. Проверяй факты и превращай неопределённость в проверяемые требования.", []string{"project_map", "list_files", "read_file", "search_code"}},
+	// DevOps смотрит и на контейнеры: ему достаются квесты про Docker Compose,
+	// и без docker_inspect он принимал такую поставку вслепую — «после docker
+	// compose up -d приложение отвечает на /health» проверять было нечем.
+	// docker_control сюда не входит намеренно: запуск и остановку чужих
+	// контейнеров задача не выдаёт, их снимает и RestrictTaskProfile.
+	"devops":           {"DevOps", "DevOps-инженер", "Поддерживать сборку, доставку и окружение", "Ты общий DevOps-инженер проекта. Делай окружение воспроизводимым и проверяй каждый операционный шаг.", []string{"project_map", "list_files", "read_file", "search_code", "propose_patch", "run_command", "git_diff", "docker_inspect"}},
 	"security_auditor": {"Аудитор безопасности", "Аудитор безопасности", "Находить и объяснять риски безопасности", "Ты общий аудитор безопасности проекта. Не расширяй права и подтверждай риски конкретными доказательствами.", []string{"project_map", "list_files", "read_file", "search_code", "git_diff"}},
 }
 
@@ -299,7 +304,14 @@ func (a *App) createRoleFamilyDraft(workspaceID, workOrderID, family string, cfg
 		Goals: []string{template.Mission}, Rules: []string{"Работай только в границах утверждённого задания и подтверждай результат доказательствами."},
 		AllowedTools: a.filterKnownTools(context.Background(), template.Tools), ConnectionID: cfg.ConnectionID,
 		Provider: cfg.Provider, ProviderPreset: cfg.ProviderPreset, BaseURL: cfg.BaseURL, PrimaryModel: cfg.Model,
-		Temperature: 0.2, MaxOutputTokens: 4096, ContextWindowTokens: 32768, ReasoningEffort: "medium",
+		// Предел вывода считает не только ответ: размышление тратит тот же
+		// бюджет и тратит его первым. Рождённый с 4096 исполнитель на
+		// размышляющей модели терял ход целиком — finish_reason=length и ноль
+		// content, — и это видели на живом квесте 21 сентября 2026. Пол берётся
+		// у справочника семейств, поэтому модель без размышления остаётся с
+		// прежним числом и не резервирует лишнего.
+		Temperature: 0.2, MaxOutputTokens: domain.OutputBudgetForThinking(4096, cfg.Model, "medium"),
+		ContextWindowTokens: 32768, ReasoningEffort: "medium",
 		MaxSteps: 24, MaxDurationSeconds: 1800, ApprovalMode: domain.ApprovalSafe,
 	}
 	saved, err := a.SaveProjectAgent(agent)

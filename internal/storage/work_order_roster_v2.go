@@ -57,7 +57,10 @@ func materializeWorkOrderRosterV2(ctx context.Context, tx *sql.Tx, order domain.
 				ID: domain.NewID("blueprint"), Name: draft.Name, RoleDescription: draft.Role, Mission: draft.Mission,
 				SystemPrompt: draft.Mission, Goals: []string{draft.Mission}, Rules: []string{"Respect the approved WorkOrder scope and evidence gates."},
 				AllowedTools: draft.RequiredTools, ConnectionID: connectionID, Provider: domain.ProviderKind(provider), ProviderPreset: preset,
-				BaseURL: baseURL, PrimaryModel: model, Temperature: 0.2, MaxOutputTokens: 4096, ContextWindowTokens: 32768,
+				BaseURL: baseURL, PrimaryModel: model, Temperature: 0.2,
+				// Тот же пол, что у временного субагента ниже: размышление тратит
+				// бюджет вывода первым, и 4096 на размышляющей модели теряет ход.
+				MaxOutputTokens: domain.OutputBudgetForThinking(4096, model, "medium"), ContextWindowTokens: 32768,
 				ReasoningEffort: "medium", MaxSteps: 24, MaxDurationSeconds: order.Budget.ActiveSeconds, ApprovalMode: domain.ApprovalSafe,
 				CreatedAt: now, UpdatedAt: now,
 			}

@@ -21,6 +21,27 @@ import (
 // — это молчание, а не долгий ответ.
 const plannerHeaderTimeoutSeconds = 45
 
+// Предел вывода планировщика. План — не короткая реплика.
+//
+// Здесь стояло min(config, 4096), и это число не сходилось с собственными
+// мерками файла: валидатор ниже принимает восемь стадий с инструкцией до 2000
+// рун каждая плюс обоснование до 1000, пути, контракты и план слияния. Такой
+// план — около 25 600 символов, порядка одиннадцати тысяч токенов на кириллице;
+// сторож maxPlannerResponseSize разрешает и вовсе 64 КиБ. То есть план, который
+// движок готов принять, модель физически не могла выговорить: ответ обрывался
+// на середине JSON. А размышляющая модель тратит тот же бюджет и тратит его
+// первым, так что 21 сентября 2026 до JSON дело не дошло вовсе.
+//
+// Рамки взяты у Мастера (chat_model.go, task_intake.go): тот же пол и тот же
+// потолок у хода, который должен и подумать, и ответить. Обычный план — три-пять
+// стадий, это тысячи полторы-три токена, и пола хватает с запасом на
+// размышление. Редкий план во всю ширину валидатора берёт своё повтором:
+// GrowThinkingOutputBudget поднимает предел до потолка семейства.
+const (
+	plannerMinOutputTokens = domain.MinThinkingOutputTokens
+	plannerMaxOutputTokens = 16384
+)
+
 // plannerBudget — общий срок одного плана. Раньше на весь поток стоял жёсткий
 // http.Client.Timeout в 45 с, и корпоративный шлюз, которому планировщик отдаёт
 // 10 КБ промпта, обрывался клиентом ровно на этой секунде посреди ответа.
@@ -134,26 +155,47 @@ func (p Planner) Plan(ctx context.Context, req PlanRequest) (PlanResult, error) 
 			{Role: "user", Content: string(payload)},
 		},
 		Tools: nil, Temperature: req.Config.Temperature,
-		MaxOutputTokens: min(req.Config.MaxOutputTokens, 4096),
+		MaxOutputTokens: min(max(req.Config.MaxOutputTokens, plannerMinOutputTokens), plannerMaxOutputTokens),
 	}
-	if request.MaxOutputTokens <= 0 {
-		request.MaxOutputTokens = 2000
+	// Потолок семейства не переступается: просить у провайдера больше, чем он
+	// отдаёт, — отказ на ровном месте. У gpt-4 предел вывода 4096, и пол выше
+	// него означал бы не «больше места», а невозможный запрос.
+	if known, ok := domain.LookupModel(req.Config.Model); ok && known.MaxOutput > 0 && request.MaxOutputTokens > known.MaxOutput {
+		request.MaxOutputTokens = known.MaxOutput
 	}
-	err = model.Stream(ctx, request, func(event providers.ModelEvent) error {
-		switch event.Kind {
-		case providers.EventTextDelta:
-			if response.Len()+len(event.Delta) > maxPlannerResponseSize {
-				return errors.New("orchestrator model response exceeds 64 KiB")
+
+	// Счётчики токенов между попытками не обнуляются: потраченное потрачено,
+	// и отчёт о расходе обязан это показывать. Обнуляется только ответ — иначе
+	// вторая попытка допишется к обрывку первой и JSON не разберётся.
+	stream := func() error {
+		response.Reset()
+		return model.Stream(ctx, request, func(event providers.ModelEvent) error {
+			switch event.Kind {
+			case providers.EventTextDelta:
+				if response.Len()+len(event.Delta) > maxPlannerResponseSize {
+					return errors.New("orchestrator model response exceeds 64 KiB")
+				}
+				response.WriteString(event.Delta)
+			case providers.EventToolCall:
+				return errors.New("orchestrator model attempted a tool call")
+			case providers.EventUsage:
+				result.InputTokens += event.InputTokens
+				result.OutputTokens += event.OutputTokens
 			}
-			response.WriteString(event.Delta)
-		case providers.EventToolCall:
-			return errors.New("orchestrator model attempted a tool call")
-		case providers.EventUsage:
-			result.InputTokens += event.InputTokens
-			result.OutputTokens += event.OutputTokens
+			return nil
+		})
+	}
+	err = stream()
+	// Одна попытка с поднятым пределом — та же лестница, что у Мастера
+	// (streamMasterModel). Гасить размышление планировщик не пробует: это
+	// решение владельца про бесплатный рантайм, и знания о том, свой ли за
+	// адресом endpoint, у планировщика нет.
+	if err != nil && providers.IsTruncatedReasoningError(err) {
+		if grown := domain.GrowThinkingOutputBudget(request.MaxOutputTokens, request.Model); grown > request.MaxOutputTokens {
+			request.MaxOutputTokens = grown
+			err = stream()
 		}
-		return nil
-	})
+	}
 	if err != nil {
 		return PlanResult{}, fmt.Errorf("orchestrator model request failed: %w", err)
 	}

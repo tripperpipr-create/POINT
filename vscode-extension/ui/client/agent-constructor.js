@@ -318,12 +318,34 @@ export function createAgentConstructor({
     return `<aside class="companion-inline"><header><span>КОМПАНЬОН</span><small>Контекстные подсказки · не блокируют работу</small></header>${suggestions.map(item => `<div class="companion-chip" data-suggest-id="${esc(item.id)}"><p>${esc(item.text)}</p><footer><button type="button" class="primary" data-action="companion-suggest-add" data-suggest-id="${esc(item.id)}" data-kind="${esc(item.kind)}" data-tool="${esc(item.tool || '')}" data-tab="${esc(item.tab || '')}">Добавить</button><button type="button" class="secondary" data-action="companion-suggest-ignore" data-suggest-id="${esc(item.id)}">Игнорировать</button></footer></div>`).join('')}</aside>`
   }
 
+  // Записывается только то, что человек выбрал сам.
+  //
+  // Раньше сюда попадала политика каждого инструмента — и та, что человек не
+  // трогал: значение по риску (LOW → ALLOW, остальное → ASK) сохранялось как
+  // его решение. Ядро читает эту карту иначе: запись в ней — стоячее указание
+  // человека, и авто-подтверждение внутри утверждённого наряда её не
+  // переступает (taskAutoApproved в internal/agent/task_authority.go). Так
+  // машинное умолчание отменяло авто-режим, которого человек не отключал:
+  // на живом квесте 21 сентября 2026 каждый патч и каждая команда спрашивали
+  // разрешения при `safe` и утверждённом наряде.
+  //
+  // Отсутствие записи тому же ядру говорит ровно то же самое: PolicyForTool
+  // без записи берёт значение по риску. Разница только в том, чьё это решение.
+  // Инструменты, запрещённые по умолчанию (SSH, БД), из правила исключены:
+  // у них отсутствие записи означает DENY, и снятие ASK ужесточило бы доступ
+  // молча.
   function readConstructorToolPolicies(source, base) {
     const toolPolicies = { ...(base || source?.toolPolicies || {}) }
     const policyInputs = root.querySelectorAll('select[name="constructor-tool-policy"]')
     for (const input of policyInputs) {
       const name = input.dataset.tool
-      if (name) toolPolicies[name] = input.value || defaultToolPolicyForRisk('MEDIUM')
+      if (!name) continue
+      const value = input.value || defaultToolPolicyForRisk(input.dataset.risk || 'MEDIUM')
+      if (input.dataset.denyDefault !== 'true' && value === defaultToolPolicyForRisk(input.dataset.risk || 'MEDIUM')) {
+        delete toolPolicies[name]
+        continue
+      }
+      toolPolicies[name] = value
     }
     return toolPolicies
   }

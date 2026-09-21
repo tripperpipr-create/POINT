@@ -28,6 +28,7 @@ const checks = [
   'smoke-point-project-gallery.js',
   'smoke-task-brief.js',
   'smoke-agent-hub-roster-routing.js',
+  'smoke-agent-tool-policy-defaults.mjs',
   'smoke-companion-error-recovery.js',
   'smoke-companion-wait-visibility.js',
   'smoke-companion-oversized-message.js',

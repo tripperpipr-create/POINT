@@ -159,3 +159,96 @@ func TestValidateStageModelRejectsUnknownZeroPriceAndIncompleteBinding(t *testin
 		t.Fatal(err)
 	}
 }
+
+// plannerBudgetModel запоминает предел вывода каждой попытки и первым ходом
+// повторяет отказ, с которого всё началось: размышление съело бюджет целиком.
+type plannerBudgetModel struct {
+	raw       string
+	budgets   *[]int
+	failFirst bool
+}
+
+func (m *plannerBudgetModel) Stream(_ context.Context, request providers.ModelRequest, emit func(providers.ModelEvent) error) error {
+	*m.budgets = append(*m.budgets, request.MaxOutputTokens)
+	if m.failFirst && len(*m.budgets) == 1 {
+		return &plannerTestError{"model returned no answer: the entire output budget of 4096 tokens went to reasoning (finish_reason=length)"}
+	}
+	if err := emit(providers.ModelEvent{Kind: providers.EventTextDelta, Delta: m.raw}); err != nil {
+		return err
+	}
+	return emit(providers.ModelEvent{Kind: providers.EventUsage, InputTokens: 10, OutputTokens: 5})
+}
+
+// Размышляющей модели планировщик даёт место, а упёршейся — добавляет.
+//
+// 21 сентября 2026 план собрал движок, потому что потолок планировщика резал
+// бюджет до 4096: модель Qwen3.8-27B потратила его на размышление и не ответила
+// ничего. Повтора не было вовсе — планировщик не знал лестницы Мастера.
+func TestPlannerGivesThinkingModelRoomAndGrowsAfterTruncation(t *testing.T) {
+	raw := `{"agentIds":["backend","reviewer"],"rationale":"Backend implements and reviewer verifies independently.","stages":[{"name":"Implement callback","agentId":"backend","instruction":"Implement the callback and run focused tests.","phase":1},{"name":"Security review","agentId":"reviewer","instruction":"Review the implementation and verification evidence.","phase":2}],"requiresApproval":false}`
+	budgets := []int{}
+	planner := Planner{NewModel: func(providers.Config) (providers.Model, error) {
+		return &plannerBudgetModel{raw: raw, budgets: &budgets, failFirst: true}, nil
+	}}
+	request := testPlannerRequest()
+	request.Config.Model = "qwen3-27b"
+	result, err := planner.Plan(context.Background(), request)
+	if err != nil {
+		t.Fatalf("план обязан собраться со второй попытки: %v", err)
+	}
+	if len(result.Plan.Stages) != 2 {
+		t.Fatalf("plan=%#v", result.Plan)
+	}
+	if len(budgets) != 2 {
+		t.Fatalf("попыток должно быть две, а было %d: %v", len(budgets), budgets)
+	}
+	if budgets[0] < domain.MinThinkingOutputTokens {
+		t.Fatalf("размышляющей модели дали %d — меньше пола %d", budgets[0], domain.MinThinkingOutputTokens)
+	}
+	if budgets[1] <= budgets[0] {
+		t.Fatalf("повтор пошёл под тем же потолком: %v", budgets)
+	}
+}
+
+// Предел вывода планировщика держится в своих рамках, а не в чужих.
+//
+// Валидатор принимает план на восемь стадий с инструкцией до 2000 рун каждая —
+// около одиннадцати тысяч токенов, — поэтому скупой конфиг поднимается до пола.
+// Щедрый, наоборот, режется потолком: план не должен резервировать бюджет
+// разговора целиком.
+func TestPlannerBudgetStaysWithinItsOwnBounds(t *testing.T) {
+	raw := `{"agentIds":["backend"],"rationale":"Single owner is enough.","stages":[{"name":"Implement callback","agentId":"backend","instruction":"Implement the callback and run focused tests.","phase":1}],"requiresApproval":false}`
+	budgets := []int{}
+	planner := Planner{NewModel: func(providers.Config) (providers.Model, error) {
+		return &plannerBudgetModel{raw: raw, budgets: &budgets}, nil
+	}}
+	request := testPlannerRequest()
+	request.Config.MaxOutputTokens = 1000
+	if _, err := planner.Plan(context.Background(), request); err != nil {
+		t.Fatal(err)
+	}
+	if len(budgets) != 1 || budgets[0] != plannerMinOutputTokens {
+		t.Fatalf("скупой конфиг не поднят до пола: %v", budgets)
+	}
+
+	budgets = nil
+	request.Config.MaxOutputTokens = 40000
+	if _, err := planner.Plan(context.Background(), request); err != nil {
+		t.Fatal(err)
+	}
+	if len(budgets) != 1 || budgets[0] != plannerMaxOutputTokens {
+		t.Fatalf("щедрый конфиг не срезан потолком: %v", budgets)
+	}
+
+	// Семейство со своим низким пределом вывода пол не переступает: у gpt-4 он
+	// 4096, и запрос на 8192 провайдер отверг бы целиком.
+	budgets = nil
+	request.Config.Model = "gpt-4-turbo"
+	request.Config.MaxOutputTokens = 1000
+	if _, err := planner.Plan(context.Background(), request); err != nil {
+		t.Fatal(err)
+	}
+	if len(budgets) != 1 || budgets[0] != 4096 {
+		t.Fatalf("пол переступил потолок семейства: %v", budgets)
+	}
+}

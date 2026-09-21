@@ -236,50 +236,6 @@
 .hall-dialogue .hall-conversation-items {
   gap: 0;
 }
-/* Строка разговора — ряд из выбора и снятия. Знак снятия появляется, когда до
-   строки дотянулись: постоянный крестик у каждого чата превращает рельсу в
-   список крестиков, а не разговоров. */
-.hall-dialogue .hall-conversation-row {
-  display: flex;
-  align-items: center;
-}
-.hall-dialogue .hall-conversation-row[hidden] {
-  display: none;
-}
-.hall-dialogue .hall-conversation-row > button:first-child {
-  flex: 1;
-  min-width: 0;
-}
-.hall-dialogue .hall-conversation-drop {
-  flex: none;
-  display: inline-grid;
-  place-items: center;
-  min-width: var(--control-sm);
-  min-height: var(--control-sm);
-  margin-left: calc(var(--s-2) * -1);
-  padding: 0;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--hub-muted);
-  font: var(--fw-normal) var(--t-small) / 1 var(--font-ui);
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity var(--motion-fast) var(--ease), background-color var(--motion-fast) var(--ease), color var(--motion-fast) var(--ease);
-}
-.hall-dialogue .hall-conversation-row:hover .hall-conversation-drop,
-.hall-dialogue .hall-conversation-row:focus-within .hall-conversation-drop {
-  opacity: 1;
-}
-.hall-dialogue .hall-conversation-drop:hover,
-.hall-dialogue .hall-conversation-drop:focus-visible {
-  background: color-mix(in srgb, var(--hub-text) 12%, transparent);
-  color: var(--hub-text);
-  outline: none;
-}
-@media (hover: none) {
-  .hall-dialogue .hall-conversation-drop { opacity: 1; }
-}
 .hall-dialogue .hall-conversation-items button {
   min-height: var(--control-md);
   gap: var(--s-4);

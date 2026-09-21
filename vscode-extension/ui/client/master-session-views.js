@@ -9,13 +9,6 @@ const modes=[['auto','Авто'],['brief','Кратко'],['detailed','Подр�
 export function masterSessionHtml(sessions,esc){
  if(!sessions)return ''
  const current=sessions.items.find(v=>v.id===sessions.active)
- // Удалить разговор можно было только текущий: кнопки панели «•••» несут id
- // активной сессии. Чтобы убрать старый чат, приходилось сперва в него зайти —
- // то есть загрузить то, что собираешься выбросить. Знак снятия теперь у каждой
- // строки; ядро всё равно переспрашивает модальным окном, так что промах
- // обратим. Кнопка в кнопку не вкладывается, поэтому строка стала рядом.
- const row=v=>`<div class="hall-conversation-row"><button type="button" data-action="master-session-select" data-id="${esc(v.id)}" aria-current="${v.id===sessions.active}"><span>${esc(v.title)}</span></button><button type="button" class="hall-conversation-drop" data-action="master-session-delete" data-id="${esc(v.id)}" aria-label="Удалить разговор «${esc(v.title)}»" title="Удалить разговор">×</button></div>`
- const items=[...sessions.items].sort((a,b)=>Number(!!b.pinned)-Number(!!a.pinned)||String(b.updatedAt || '').localeCompare(a.updatedAt || ''))
  return `<div class="hall-sessions">
   ${/* Список разговоров уехал в master-chat-directory.js: он стал
        кросс-проектным и живёт левой колонкой экрана, а не внутри разговора.

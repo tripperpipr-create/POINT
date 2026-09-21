@@ -1764,15 +1764,6 @@ button.hall-panel-row:focus-visible { outline: 1px solid var(--ember); outline-o
    колонки поднята с 720: панель Мастера уже, чем окно редактора, и на
    восьмистах пикселях ширины треть уходила в поля. */
 .hall-dialogue { position: relative; box-sizing: border-box; --hall-read-col: 880px; --hall-rail-offset: 0px; --hall-quest-offset: 0px; --hall-quest-width: clamp(320px, 24vw, 380px); }
-.hall-conversations { position: absolute; inset: 0 auto 0 0; width: 200px; box-sizing: border-box; display: flex; flex-direction: column; gap: var(--s-5); padding: var(--s-6) var(--s-5); background: var(--hub-void); border-right: 1px solid var(--hub-border); }
-.hall-conversations header { display: flex; align-items: center; justify-content: space-between; font: var(--fw-medium) var(--t-base) / 1.5 var(--font-ui); }
-.hall-conversations input { box-sizing: border-box; width: 100%; padding: var(--s-4); border: 1px solid var(--hub-border); border-radius: 8px; background: var(--hub-raised); color: var(--hub-text); font: var(--fw-normal) var(--t-body) / 1.5 var(--font-ui); }
-.hall-conversation-items { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: var(--s-2); }
-.hall-conversation-items button { display: flex; align-items: center; gap: var(--s-4); text-align: left; min-height: 36px; padding: var(--s-4); color: var(--hub-muted); background: transparent; border: 1px solid transparent; border-radius: 8px; font: var(--fw-normal) var(--t-base) / 1.5 var(--font-ui); }
-.hall-conversation-items button span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.hall-conversation-items button[aria-current="true"], .hall-conversation-items button:hover { color: var(--hub-text); background: var(--hub-selected); }
-.hall-conversation-items button[hidden] { display: none; }
-.hall-conversations footer { font: var(--fw-normal) var(--t-small) / 1.6 var(--font-ui); color: var(--hub-muted); }
 .hall-dialogue .hall-sessions { padding: var(--s-3) var(--s-6); border-bottom-color: color-mix(in srgb, var(--hub-border) 60%, transparent); }
 .hall-dialogue .hall-session-toolbar > span { font: var(--fw-medium) var(--t-base) / 1.5 var(--font-ui); }
 .hall-dialogue .hall-session-modes .hall-chip { min-height: 26px; border-radius: 2px; border-color: transparent; background: transparent; color: var(--hub-muted); }
@@ -1788,10 +1779,8 @@ button.hall-panel-row:focus-visible { outline: 1px solid var(--ember); outline-o
 .hall-context-add, .hall-context-file { display: inline-flex; align-items: center; gap: var(--s-3); padding: var(--s-2) var(--s-4); border: 1px solid var(--hub-border); border-radius: 8px; color: var(--hub-text); background: var(--hub-selected); font: inherit; }
 .hall-context-file { max-width: 100%; overflow-wrap: anywhere; }
 .hall-context-file button { border: 0; background: transparent; color: var(--hub-muted); font: inherit; }
-@media (max-width: 800px) { .hall-dialogue { padding-left: 0; --hall-rail-offset: 0px; padding-right: 0; --hall-quest-offset: 0px; } .hall-conversations { display: none; } .hall-dialogue .hall-sessions { padding-inline: var(--s-5); } }
+@media (max-width: 800px) { .hall-dialogue { padding-left: 0; --hall-rail-offset: 0px; padding-right: 0; --hall-quest-offset: 0px; } .hall-dialogue .hall-sessions { padding-inline: var(--s-5); } }
 
-.hall-dialogue.history-hidden { padding-left: 0; --hall-rail-offset: 0px; }
-.hall-dialogue.history-hidden .hall-conversations { display: none; }
 .hall-dialogue .hall-msg .body, .hall-dialogue .hall-compose textarea { font-size: var(--t-base); line-height: 1.55; }
 .hall-dialogue { --t-base: 13px; --t-small: 11px; }
 .hall-dialogue .hall-compose > label.hall-compose-label { display: none; }
@@ -1808,7 +1797,6 @@ button.hall-panel-row:focus-visible { outline: 1px solid var(--ember); outline-o
 .hall-message-context img { display: block; max-width: 100%; max-height: 320px; object-fit: contain; }
 .hall-dialogue :focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: 2px; }
 @media (max-width: 800px) {
- .hall-dialogue.history-open .hall-conversations { display: flex; z-index: 20; width: min(280px, 85%); box-shadow: 8px 0 24px var(--hub-void); }
  .hall-dialogue .hall-msg-tools { opacity: 1; }
  .hall-dialogue .hall-session-toolbar > small { display: none; }
 }

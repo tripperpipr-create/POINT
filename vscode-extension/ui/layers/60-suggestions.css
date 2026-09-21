@@ -180,13 +180,25 @@
 .flow-split { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(220px, 0.8fr); gap: var(--s-4h); align-items: start; }
 .flow-canvas-wrap { position: relative; min-height: 260px; overflow: auto; border: 1px solid var(--border); background: var(--void); }
 .flow-edges { position: absolute; inset: 0; pointer-events: none; stroke: color-mix(in srgb, var(--mana) 55%, transparent); stroke-width: 1.5; fill: none; }
-.flow-canvas { position: relative; min-height: 240px; }
+/* Холст и его запасная раскладка.
+ *
+ * Координаты узлов расставляет applyFlowNodePlacement (ui/client/agent-workflow-editors.js):
+ * в разметке они лежат атрибутами data-x/data-y, потому что CSP вебвью
+ * выбрасывает style="" целиком. Пока расстановка не прошла, признака
+ * is-placed нет, и абсолютных мест нет тоже — узлы стоят рядом обычным
+ * потоком, а связи спрятаны: рисовать их не по чему, и стрелки по пустому
+ * полю говорили бы о схеме неправду. Разложенный ряд честнее стопки в углу:
+ * по нему видно, что мест нет, а не что все узлы стоят в начале координат. */
+.flow-canvas { position: relative; min-height: 240px; display: flex; flex-wrap: wrap; align-content: flex-start; gap: var(--s-4); padding: var(--s-4); }
+.flow-canvas-wrap.is-placed .flow-canvas { display: block; padding: 0; }
+.flow-canvas-wrap:not(.is-placed) .flow-edges { display: none; }
 .flow-canvas-empty { padding: var(--s-6); }
-.flow-node { position: absolute; display: grid; gap: var(--s-1); min-width: 108px; max-width: 140px; padding: var(--s-3) var(--s-4); text-align: left; color: var(--vscode-foreground); background: var(--raised); border: 1px solid var(--border); border-radius: var(--r-2); }
+.flow-node { position: static; display: grid; gap: var(--s-1); min-width: 108px; max-width: 140px; padding: var(--s-3) var(--s-4); text-align: left; color: var(--vscode-foreground); background: var(--raised); border: 1px solid var(--border); border-radius: var(--r-2); }
 .flow-node.selected { border-color: var(--mana); box-shadow: 0 0 0 1px color-mix(in srgb, var(--mana) 40%, transparent); }
 .flow-node.runtime-completed { border-color: color-mix(in srgb, var(--vscode-testing-iconPassed) 55%, var(--border)); }
 .flow-node.runtime-running, .flow-node.runtime-waiting_agent { border-color: color-mix(in srgb, var(--mana) 65%, var(--border)); }
 .flow-node.merge-conflict { border-color: var(--vscode-inputValidation-warningBorder); box-shadow: 0 0 0 1px color-mix(in srgb, var(--vscode-editorWarning-foreground) 35%, transparent); }
+.flow-canvas-wrap.is-placed .flow-node { position: absolute; }
 /* Узел графа — карточка состояния, а не кнопка, которой сейчас нельзя
    воспользоваться. Пока флоу выполняется, узлы получают `disabled`, чтобы их
    не редактировали, и общее правило гасило их до 0.55 вместе с подписью:

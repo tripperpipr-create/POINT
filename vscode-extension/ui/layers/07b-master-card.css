@@ -238,8 +238,17 @@
   background: color-mix(in srgb, var(--hub-text) 10%, transparent);
   overflow: hidden;
 }
+/* Заполнение — из --fill, которую ставит слой 11 по атрибуту data-fill
+   (fillAttribute в ui/client/format-units.js). Здесь стоял style="width:NN%",
+   и CSP вебвью выбрасывал его целиком: полоса без width занимала всю ширину
+   и показывала «готово» на любом квесте. Запасное значение — ноль: неизвестный
+   прогресс честнее показать пустым, чем полным. Засечка, которой полоса
+   говорила «работа началась», держится min-width, а не двумя процентами:
+   ступени слоя идут через пять, и двух процентов в них нет. */
 .hall-dialogue .hall-quest-bar > span {
   display: block;
+  width: var(--fill, 0%);
+  min-width: 2px;
   height: 100%;
   border-radius: var(--r-1);
   background: var(--ember);

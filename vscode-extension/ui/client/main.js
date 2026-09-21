@@ -2502,7 +2502,7 @@ const {
   toolBuilder, newWorkflowStep, newWorkflow, workflowTemplates, workflowFromTemplate,
   currentWorkflowForm, FLOW_NODE_KINDS, flowNodeKindLabels, newFlowNode, flowNodePosition,
   activeFlowRun, mergeCandidateLabel, flowMergeConflictPanelHtml, flowRuntimeSummaryHtml, captureFlowForm,
-  flowEdgeOptions, flowCanvasHtml, flowInspectorHtml, visualFlowBuilder, flowsView,
+  flowEdgeOptions, flowCanvasHtml, applyFlowNodePlacement, flowInspectorHtml, visualFlowBuilder, flowsView,
   workflowTimeline, workflowBuilder,
 } = createAgentWorkflowEditors({
   TOOL_PRESETS, activeToolPresetId, agentById, agentCapabilityHtml, agentCharacterCard,
@@ -2600,6 +2600,11 @@ function restoreUi(snapshot) {
   // бы с запасным числом, а карточка с уточнениями закрыла бы хвост разговора.
   // Стоит до выхода по пустому снимку — снимка нет как раз при первом открытии.
   applyMasterComposeReserve()
+  // Места узлов графа флоу — оттуда же и по той же причине: холст пересобирает
+  // разметку на каждой отрисовке, а координаты в ней лежат атрибутами, потому
+  // что CSP вебвью не пропускает инлайновый стиль. Разделов без холста это
+  // стоит одного querySelector.
+  applyFlowNodePlacement()
   if (!snapshot) return
   const chatScreen=root.querySelector('.is-chat')
   if(chatScreen){chatScreen.classList.toggle('is-chats-hidden',!!masterClient.historyHidden);chatScreen.classList.toggle('is-chats-open',!!masterClient.historyOpen)}

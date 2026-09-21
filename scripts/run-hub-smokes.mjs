@@ -40,6 +40,7 @@ const checks = [
   'smoke-constructor-loses-nothing.js',
   'smoke-core-failure-wording.js',
   'smoke-extension-backend.js',
+  'smoke-flow-canvas-placement.mjs',
   'smoke-hub-badge-agreement.js',
   'smoke-hub-connection-orb.js',
   'smoke-hub-core-offline.js',

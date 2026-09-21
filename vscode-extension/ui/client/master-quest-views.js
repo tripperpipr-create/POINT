@@ -11,6 +11,8 @@
 // переносе не брались ни одного — в макете система моно-акцентная и заводит свои
 // статусные оттенки, а у продукта они уже названы: --ember, --caution, --vital.
 
+import { fillAttribute } from './format-units.js'
+
 // Вид проверки — одним словом. Имена берутся у ядра как есть: договор
 // `AcceptanceCriterion.Kind` знает ровно три значения — `verification`,
 // `reproduction`, `manual`, — и любое четвёртое его же проверка отвергает
@@ -40,7 +42,7 @@ export function questChecklistHtml(title, rows, esc, { empty = '' } = {}) {
   const share = Math.round((done / items.length) * 100)
   return `<div class="hall-quest-check">
     <div class="hall-quest-check-head"><span>${esc(title)}</span><b>${done} / ${items.length}</b></div>
-    <div class="hall-quest-bar"><span style="width:${done ? share : 2}%"></span></div>
+    <div class="hall-quest-bar"><span ${fillAttribute(share)}></span></div>
     <ul>${items.map(row => `<li${row.done ? ' class="is-done"' : ''}><i aria-hidden="true">${row.done ? '✓' : ''}</i><span>${esc(row.text)}</span>${row.kind ? `<em>${esc(CRITERION_KIND[row.kind] || row.kind)}</em>` : ''}</li>`).join('')}</ul>
   </div>`
 }

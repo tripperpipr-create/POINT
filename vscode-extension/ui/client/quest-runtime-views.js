@@ -1263,7 +1263,7 @@ export function createQuestRuntimeViews(dependencies) {
     { id: 'decisions', icon: '!', label: 'РЕШЕНИЯ', title: 'Всё, что ждёт вашего решения', tabs: ['decisions'] },
     { id: 'changes', icon: '±', label: 'ИЗМЕНЕНИЯ', title: 'Наборы, журнал правок и откат', tabs: ['changesets', 'filehistory', 'journal', 'changes'] },
     { id: 'quests', icon: '⚑', label: 'КВЕСТЫ', title: 'Активные квесты и хроника прогонов', tabs: ['quests', 'quest', 'history'] },
-    { id: 'guild', icon: '⬡', label: 'ГИЛЬДИЯ', title: 'Разовая настройка: агенты, отряды, навыки, связи', tabs: ['agents', 'teams', 'skills', 'memory', 'connections', 'databases', 'tools', 'onboarding'] },
+    { id: 'guild', icon: '⬡', label: 'ГИЛЬДИЯ', title: 'Разовая настройка: агенты, отряды, навыки, связи', tabs: ['agents', 'teams', 'skills', 'memory', 'connections', 'databases', 'tools', 'onboarding', 'flows'] },
   ]
   
   // Незнакомая вкладка не подсвечивает ни одного раздела. Раньше запасным

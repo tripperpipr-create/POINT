@@ -215,3 +215,59 @@ func TestDevOpsRoleFamilyCanInspectContainers(t *testing.T) {
 		t.Fatalf("DevOps получил управление контейнерами, которого задача не поручала: %v", template.Tools)
 	}
 }
+
+// Схема не переживает последний свой квест.
+//
+// Мастер собирает схему под каждый квест, а узел схемы держит исполнителя по
+// идентификатору. Пока схема оставалась после удаления квеста, роспуск
+// персонажа отказывал «замените его в схеме» — и заменять было негде: редактор
+// графа скрыт, а экран уборки до сих пор не имел входа. 21 сентября 2026 у
+// владельца так и вышло: квестов в проекте не осталось, две схемы остались, и
+// обоих исполнителей держали они.
+func TestFlowDoesNotOutliveItsLastQuest(t *testing.T) {
+	application := newTestApp(t)
+	view, err := application.OpenWorkspace(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	flow, err := application.SaveFlow(domain.FlowGraph{
+		WorkspaceID: view.Workspace.ID, Name: "pipeline · тест",
+		Nodes: []domain.FlowNode{{ID: "bootstrap", Kind: "input", Name: "Bootstrap"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	shared := domain.Quest{ID: "quest-shared", WorkspaceID: view.Workspace.ID, Title: "Второй квест той же схемы", Status: domain.QuestCompleted, FlowID: flow.ID, CreatedAt: time.Now().UTC()}
+	owner := domain.Quest{ID: "quest-owner", WorkspaceID: view.Workspace.ID, Title: "Первый квест", Status: domain.QuestCompleted, FlowID: flow.ID, CreatedAt: time.Now().UTC()}
+	for _, quest := range []domain.Quest{shared, owner} {
+		if err = application.store.SaveQuest(ctx, quest); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Пока на схему смотрит второй квест, она остаётся: удаление одного квеста
+	// не вправе уносить чужую работу.
+	if err = application.DeleteQuest(owner.ID); err != nil {
+		t.Fatal(err)
+	}
+	flows, err := application.store.ListFlows(ctx, view.Workspace.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(flows) != 1 {
+		t.Fatalf("схему унесли, пока на неё смотрел второй квест: %d", len(flows))
+	}
+
+	// Последний квест забирает её с собой.
+	if err = application.DeleteQuest(shared.ID); err != nil {
+		t.Fatal(err)
+	}
+	flows, err = application.store.ListFlows(ctx, view.Workspace.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(flows) != 0 {
+		t.Fatalf("схема пережила последний свой квест и продолжит держать исполнителей: %d", len(flows))
+	}
+}

@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -194,5 +195,36 @@ func (a *App) DeleteQuest(questID string) error {
 			return fmt.Errorf("набор правок %q ещё ждёт решения — примените или отклоните его", set.Title)
 		}
 	}
-	return a.store.DeleteQuest(ctx, ws.ID, questID)
+	if err = a.store.DeleteQuest(ctx, ws.ID, questID); err != nil {
+		return err
+	}
+	// Схема, оставшаяся без единого квеста, — не схема, а замок на персонаже.
+	//
+	// Мастер собирает её под каждый квест, и она переживала его: узел держит
+	// исполнителя по идентификатору, поэтому роспуск отказывал «замените его в
+	// схеме». Заменить было негде — редактор графа скрыт, а экран уборки до
+	// сих пор не имел входа. Схема, на которую больше не смотрит ни один квест,
+	// уходит вместе с последним из них.
+	//
+	// Своя схема человека этим не задета: её не создаёт квест, на неё никто не
+	// ссылается полем FlowID, и удаление её не касается. DeleteFlow сам откажет,
+	// если найдётся живой прогон.
+	if strings.TrimSpace(target.FlowID) != "" {
+		orphan := true
+		for _, quest := range quests {
+			if quest.ID != questID && quest.FlowID == target.FlowID {
+				orphan = false
+				break
+			}
+		}
+		if orphan {
+			if flowErr := a.DeleteFlow(target.FlowID); flowErr != nil {
+				// Квест уже удалён, и возвращать ошибку поздно: человек увидел бы
+				// отказ там, где работа сделана. Схема остаётся, и убрать её
+				// можно на экране «Схемы».
+				slog.Warn("flow outlived its last quest", "quest_id", questID, "flow_id", target.FlowID, "error", flowErr)
+			}
+		}
+	}
+	return nil
 }

@@ -128,4 +128,27 @@ if (!hasRoute(root.innerHTML, 'select-roster-profile', 'forge')) fail('закр�
 click('start-roster-quest')
 if (!posted.some(message => message.type === 'selectTab' && message.tab === 'chat')) fail('кнопка задачи не подключена')
 
-process.stdout.write(JSON.stringify({ roster: 'ok', profiles: profiles.length, runs: runs.length, metrics: 'actual' }))
+// 7. Схемы проекта достижимы оттуда, где роспуск персонажа и отказывает.
+//
+// Роспуск отвечает «персонаж стоит в узле %q схемы %q — замените его в схеме»,
+// а экран уборки схем (projectFlowsView) до 21 сентября 2026 не имел ни одного
+// входа: кнопки data-tab="flows" не было нигде, кроме карточек внимания при
+// конфликте веток. Отказ называл дверь, которой не существовало, и персонаж
+// оставался неудаляемым навсегда. Зовут раздел только когда схемы есть.
+listeners['window:message']({ data: {
+  type: 'state', service: { state: 'running' }, workspaceTrusted: true, workspace: 'fixture', selectedTab: 'settings',
+  boot: { profiles, runs, toolCatalog: [], flows: [{ id: 'flow-1', name: 'pipeline · тест', nodes: [{ id: 'n1', kind: 'agent', name: 'Bootstrap', agentId: 'sage' }] }] },
+} })
+if (!root.innerHTML.includes('data-tab="flows"')) {
+  fail('со схемами в проекте ростер не зовёт в раздел схем — распустить персонажа станет негде')
+}
+
+listeners['window:message']({ data: {
+  type: 'state', service: { state: 'running' }, workspaceTrusted: true, workspace: 'fixture', selectedTab: 'settings',
+  boot: { profiles, runs, toolCatalog: [], flows: [] },
+} })
+if (root.innerHTML.includes('data-tab="flows"')) {
+  fail('пустой раздел схем зовут без нужды')
+}
+
+process.stdout.write(JSON.stringify({ roster: 'ok', profiles: profiles.length, runs: runs.length, metrics: 'actual', flowsDoor: 'reachable' }))

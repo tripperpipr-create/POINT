@@ -89,6 +89,8 @@ is checked against every `HandleFunc` registration by `node scripts/check-docs.m
 | `POST` | `/api/project-agents/capability-delta` | Compare capability impact before applying a draft change |
 | `POST` | `/api/project-agents` | Create/update workspace-scoped ProjectAgent |
 | `DELETE` | `/api/project-agents/{id}` | Delete a workspace-scoped ProjectAgent when no active reference blocks it |
+| `POST` | `/api/project-agents/{id}/activate-draft` | Explicitly validate readiness and activate a draft ProjectAgent; ordinary saves preserve draft status |
+| `POST` | `/api/project-agents/{id}/reject-draft` | Reject a selected draft, remove its temporary descendants, audit the decision, and return replacement agent IDs when available |
 | `POST` | `/api/project-agents/{id}/apply-blueprint` | Apply Blueprint overrides into this ProjectAgent only |
 | `POST` | `/api/project-agents/{id}/update-blueprint` | Push ProjectAgent overrides back into its Blueprint |
 | `GET` | `/api/project-agents/{id}/diff` | Full workspace-scoped diff of all inherited ProjectAgent ↔ Blueprint fields; project-only rules are reported but never synchronized |
@@ -184,6 +186,7 @@ is checked against every `HandleFunc` registration by `node scripts/check-docs.m
 | `GET` | `/api/statistics` | Aggregated usage/agent/quest stats for a workspace |
 | `POST` | `/api/agent-improvements/{id}/rollback` | Roll back the newest applied autonomous or manually confirmed Skill/Memory/Rules revision while retaining its audit record |
 | `POST` | `/api/agent-improvements/{id}/promote` | Explicitly promote an exact healthy canary Skill revision into its Blueprint; background evaluation never performs this broad mutation |
+| `POST` | `/api/agent-improvements/{id}/reject` | Reject a positively evaluated temporary specialization, retain its evaluation audit, and delete the quest-scoped subagent without creating a Blueprint |
 | `GET` | `/api/experience/search?q=` | Search bounded persisted Memory, learning signals, exact Skill outcomes and improvement history in the current workspace |
 | `POST` | `/api/learning/manual/preview` | Validate a project/profile Memory or Rule lesson and return a side-effect-free confirmation fingerprint |
 | `POST` | `/api/learning/manual/apply` | Apply only the exact fresh manual-learning preview explicitly confirmed by the user and journal its rollback snapshots |

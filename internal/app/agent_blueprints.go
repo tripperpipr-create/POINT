@@ -188,6 +188,9 @@ func (a *App) SaveProjectAgent(agent domain.ProjectAgent) (domain.ProjectAgent, 
 	}
 	if agent.ID == "" {
 		agent.ID = domain.NewID("projectagent")
+		if agent.Status == "" {
+			agent.Status = domain.ProjectAgentActive
+		}
 		agent.CreatedAt = now
 	} else if existing, getErr := a.store.GetProjectAgent(context.Background(), agent.ID); getErr == nil {
 		if existing.WorkspaceID != ws.ID {
@@ -199,7 +202,17 @@ func (a *App) SaveProjectAgent(agent domain.ProjectAgent) (domain.ProjectAgent, 
 		agent.TasksCompleted = existing.TasksCompleted
 		agent.SuccessCount = existing.SuccessCount
 		agent.CreatedAt = existing.CreatedAt
+		// Lifecycle and ownership are changed only by the dedicated operations.
+		// Saving the constructor form must never activate a draft implicitly.
+		agent.Status = existing.Status
+		agent.RoleFamily = existing.RoleFamily
+		agent.ParentAgentID = existing.ParentAgentID
+		agent.OwnerQuestID = existing.OwnerQuestID
+		agent.Temporary = existing.Temporary
 		existingSkillIDs = append(existingSkillIDs, existing.SkillIDs...)
+	}
+	if agent.Status == "" {
+		agent.Status = domain.ProjectAgentActive
 	}
 	if err = a.rejectNewDeprecatedSkills(context.Background(), agent.SkillIDs, existingSkillIDs); err != nil {
 		return domain.ProjectAgent{}, err
@@ -326,6 +339,98 @@ func (a *App) DeleteProjectAgent(projectAgentID string) error {
 		}
 	}
 	return a.store.DeleteProjectAgent(ctx, agent.ID)
+}
+
+// ActivateProjectAgentDraft is the only transition that makes a selector-made
+// draft runnable. Constructor saves deliberately preserve the draft status.
+func (a *App) ActivateProjectAgentDraft(projectAgentID string) (domain.ProjectAgent, error) {
+	ctx := context.Background()
+	agent, err := a.currentProjectAgent(projectAgentID)
+	if err != nil {
+		return domain.ProjectAgent{}, err
+	}
+	if agent.Status != domain.ProjectAgentDraft {
+		return domain.ProjectAgent{}, errors.New("активировать можно только черновик агента")
+	}
+	// Evaluate the configured profile as active without persisting the state.
+	probe := agent
+	probe.Status = domain.ProjectAgentActive
+	readiness := a.projectAgentReadiness(ctx, probe)
+	if readiness.State == "BLOCKED" {
+		return domain.ProjectAgent{}, readinessFailure(agent, readiness)
+	}
+	if err = a.store.SetProjectAgentStatus(ctx, agent.ID, domain.ProjectAgentDraft, domain.ProjectAgentActive); err != nil {
+		return domain.ProjectAgent{}, err
+	}
+	_ = a.store.SaveAgentLifecycleEvent(ctx, domain.AgentLifecycleEvent{
+		ID: domain.NewID("agentlife"), WorkspaceID: agent.WorkspaceID, AgentID: agent.ID,
+		Kind: "draft_activated", Detail: map[string]any{"roleFamily": agent.RoleFamily}, CreatedAt: time.Now().UTC(),
+	})
+	agent.Status = domain.ProjectAgentActive
+	return agent, nil
+}
+
+type RejectProjectAgentDraftResult struct {
+	AgentID             string   `json:"agentId"`
+	WorkOrderIDs        []string `json:"workOrderIds,omitempty"`
+	ReplacementAgentIDs []string `json:"replacementAgentIds,omitempty"`
+}
+
+func (a *App) RejectProjectAgentDraft(projectAgentID string, apiKeys ...string) (RejectProjectAgentDraftResult, error) {
+	ctx := context.Background()
+	agent, err := a.currentProjectAgent(projectAgentID)
+	if err != nil {
+		return RejectProjectAgentDraftResult{}, err
+	}
+	if agent.Status != domain.ProjectAgentDraft {
+		return RejectProjectAgentDraftResult{}, errors.New("отклонить можно только черновик агента")
+	}
+	orders, err := a.store.ListWorkOrdersForAgentBinding(ctx, agent.ID)
+	if err != nil {
+		return RejectProjectAgentDraftResult{}, err
+	}
+	detail := map[string]any{"roleFamily": agent.RoleFamily}
+	workOrderID := ""
+	if len(orders) > 0 {
+		workOrderID = orders[0]
+	}
+	if err = a.store.RejectProjectAgentDraft(ctx, agent.ID, domain.AgentLifecycleEvent{
+		WorkOrderID: workOrderID, Detail: detail,
+	}); err != nil {
+		return RejectProjectAgentDraftResult{}, err
+	}
+	result := RejectProjectAgentDraftResult{AgentID: agent.ID, WorkOrderIDs: orders}
+	apiKey := ""
+	if len(apiKeys) > 0 {
+		apiKey = apiKeys[0]
+	}
+	for _, orderID := range orders {
+		order, loadErr := a.store.GetWorkOrderV2(ctx, orderID)
+		if loadErr != nil || order.State != "ready" || order.ApprovedDigest != "" {
+			continue
+		}
+		cfg, cfgErr := a.masterConfig(ctx, order.WorkspaceID)
+		if cfgErr != nil {
+			continue
+		}
+		selection, selectErr := a.selectAgentsForWorkOrder(ctx, order, cfg, apiKey)
+		if selectErr != nil {
+			return result, selectErr
+		}
+		order.Version++
+		order.Digest = ""
+		order.Roster = a.rosterFromAgentIDs(ctx, selection.AgentIDs)
+		order.UpdatedAt = time.Now().UTC()
+		saved, saveErr := a.SaveWorkOrderV2(ctx, order)
+		if saveErr != nil {
+			return result, saveErr
+		}
+		if bindErr := a.store.ReplaceAgentSelectionBindings(ctx, saved.ID, saved.ConversationID, saved.WorkspaceID, selection.Digest, saved.Version, selection.AgentIDs); bindErr != nil {
+			return result, bindErr
+		}
+		result.ReplacementAgentIDs = append(result.ReplacementAgentIDs, selection.AgentIDs...)
+	}
+	return result, nil
 }
 
 func (a *App) ApplyBlueprintToProjectAgent(projectAgentID string) (domain.ProjectAgent, error) {

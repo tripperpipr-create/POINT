@@ -58,7 +58,7 @@ func (a *App) StartMasterTurnV2(ctx context.Context, req MasterTurnV2Request) (d
 		ProposalID: req.ProposalID, APIKey: req.APIKey,
 		PreviousAnswerRejected: req.PreviousAnswerRejected,
 	}, func(finishCtx context.Context, result MasterChatView) (string, error) {
-		return a.saveMasterWorkOrderV2(finishCtx, result.Response.Proposal, sources, result.Sessions.Active, result.Response.AgentDraft)
+		return a.saveMasterWorkOrderV2(finishCtx, result.Response.Proposal, sources, result.Sessions.Active, result.Response.AgentDraft, req.APIKey)
 	})
 }
 

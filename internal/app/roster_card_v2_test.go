@@ -9,20 +9,13 @@ import (
 
 // Карточка найма считается на чтении и приезжает вместе с разговором: прежнее
 // предложение найма жило в ответе последнего хода и исчезало при перезагрузке.
-func TestHiringCardOffersDraftForOpenOrder(t *testing.T) {
+func TestLegacyHiringCardDoesNotReplaceSelectorDraft(t *testing.T) {
 	application, world := rosterTestApp(t, "dispatcher")
 	order := rosterTestOrder(t, application, rosterTestProposal(world.ID, "qp-card", "Собрать backend API с /health", false), "conversation-card")
 
 	cards := application.hiringCardsForConversation(context.Background(), []domain.WorkOrder{order})
-	if len(cards) != 1 {
-		t.Fatalf("открытый наряд без исполнителя обязан дать карточку найма: %#v", cards)
-	}
-	card := cards[0]
-	if card.WorkOrderID != order.ID || card.State != "create" || card.Draft == nil {
-		t.Fatalf("карточка не предлагает завести исполнителя: %#v", card)
-	}
-	if card.Draft.ID != order.Roster.Permanent[0].ID {
-		t.Fatalf("карточка показывает не тот черновик, что уйдёт на утверждение: %q против %q", card.Draft.ID, order.Roster.Permanent[0].ID)
+	if len(cards) != 0 {
+		t.Fatalf("legacy hiring card appeared beside selector-bound draft: %#v", cards)
 	}
 }
 

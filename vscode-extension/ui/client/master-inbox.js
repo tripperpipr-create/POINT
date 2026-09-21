@@ -8,6 +8,8 @@
 //
 // Состояние приходит общим мешком `ui`, как в `companion-transport.js`.
 
+import { newConstructorDraft } from './agent-constructor.js'
+
 const MASTER_MESSAGES = new Set([
   'master', 'masterTurn', 'masterEvent',
   'masterStreamError', 'masterWorkOrder', 'masterWorkOrderApproved',
@@ -59,6 +61,17 @@ export function createMasterInbox({
         if (ui.hiringReloadFor && ui.hiringReloadFor === message.workOrder?.id) {
           ui.hiringReloadFor = ''
           vscode.postMessage({ type: 'loadMaster', conversationId: masterClient.active })
+        }
+        const ids = Array.isArray(message.workOrder?.roster?.agentIds)
+          ? message.workOrder.roster.agentIds
+          : (message.workOrder?.roster?.permanent || []).map(item => item.id)
+        const draft = ids.map(id => (ui.state.boot?.projectAgents || []).find(item => item.id === id)).find(item => item?.status === 'draft')
+        if (message.workOrder?.state === 'ready' && draft && !ui.agentConstructorOpen) {
+          ui.selectedProfileId = draft.id
+          ui.constructorDraft = newConstructorDraft(draft)
+          ui.constructorStep = 'review'
+          ui.agentConstructorOpen = true
+          vscode.postMessage({ type: 'selectTab', tab: 'agents' })
         }
         render()
       }

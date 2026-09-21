@@ -32,11 +32,7 @@ func taskIntakeJSONSchema() json.RawMessage {
 			"maxProjectAgents": map[string]any{"type": "integer", "minimum": 0, "maximum": 8},
 		}, "tokens", "costCents", "activeSeconds", "maxParallel", "maxReplans", "maxAttempts", "maxProjectAgents"),
 	}, "mode", "state", "goal", "resultKind", "scope", "outOfScope", "openQuestions", "criteria", "permissions")
-	// hire необязателен намеренно. Обязательное поле держало бы карточку на
-	// послушности модели, а ровно на этом уже сломалось обещание возвращать
-	// proposalId: уточнение приезжало второй карточкой вместо новой версии.
-	hire := object(map[string]any{"name": text, "role": text, "mission": text, "requiredTools": list}, "name", "role", "mission")
-	properties := map[string]any{"hire": map[string]any{"anyOf": []any{hire, map[string]any{"type": "null"}}}, "conversationSummary": text, "memorySuggestions": map[string]any{"type": "array", "items": text, "maxItems": 3}, "intent": enum("task", "chat"), "reply": text, "questions": map[string]any{"type": "array", "items": text, "maxItems": 2}, "proposalId": text, "title": text, "agentIds": list, "brief": map[string]any{"anyOf": []any{brief, map[string]any{"type": "null"}}}}
+	properties := map[string]any{"conversationSummary": text, "memorySuggestions": map[string]any{"type": "array", "items": text, "maxItems": 3}, "intent": enum("task", "chat"), "reply": text, "questions": map[string]any{"type": "array", "items": text, "maxItems": 2}, "proposalId": text, "title": text, "brief": map[string]any{"anyOf": []any{brief, map[string]any{"type": "null"}}}}
 	// Вопрос с выбором обязан принести сам выбор: "options": [] проходило
 	// required насквозь, и человек получал одиночный выбор без единого чипа.
 	// Свободный ответ остаётся отдельной ветвью — у него вариантов нет по сути.
@@ -64,11 +60,7 @@ func taskIntakeJSONSchema() json.RawMessage {
 // contract; alphabetical map encoding otherwise makes the model choose null
 // before it has emitted the semantic classification.
 func orderedIntakeEnvelope(properties map[string]any) json.RawMessage {
-	keys := []string{"intent", "reply", "questions", "proposalId", "title", "agentIds", "brief", "clarifications", "memorySuggestions", "conversationSummary", "hire"}
-	// hire идёт последним и в required не входит: уточнение исполнителя не
-	// должно превращаться в обязательный шаг. Схема, требующая поле, заставляет
-	// слабую модель придумывать его каждый ход — а подбор и так делает сервер.
-	optional := map[string]bool{"hire": true}
+	keys := []string{"intent", "reply", "questions", "proposalId", "title", "brief", "clarifications", "memorySuggestions", "conversationSummary"}
 	var out strings.Builder
 	out.WriteString(`{"type":"object","additionalProperties":false,"properties":{`)
 	requiredKeys := make([]string, 0, len(keys))
@@ -81,9 +73,7 @@ func orderedIntakeEnvelope(properties map[string]any) json.RawMessage {
 		out.Write(name)
 		out.WriteByte(':')
 		out.Write(value)
-		if !optional[key] {
-			requiredKeys = append(requiredKeys, key)
-		}
+		requiredKeys = append(requiredKeys, key)
 	}
 	required, _ := json.Marshal(requiredKeys)
 	out.WriteString(`},"required":`)

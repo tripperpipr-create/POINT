@@ -81,7 +81,7 @@ func (a *App) loadHubBootstrap(ctx context.Context, workspaceID string) (HubBoot
 	if agents == nil {
 		agents = []domain.ProjectAgent{}
 	}
-	hub.ProjectAgents = permanentProjectAgents(agents)
+	hub.ProjectAgents = visibleProjectAgents(agents)
 	hub.ProjectSkills, err = a.store.ListProjectSkills(ctx, workspaceID)
 	if err != nil {
 		return hub, err
@@ -245,6 +245,16 @@ func (a *App) loadHubBootstrap(ctx context.Context, workspaceID string) (HubBoot
 }
 
 func permanentProjectAgents(agents []domain.ProjectAgent) []domain.ProjectAgent {
+	result := make([]domain.ProjectAgent, 0, len(agents))
+	for _, agent := range agents {
+		if !agent.Temporary && (agent.Status == "" || agent.Status == domain.ProjectAgentActive) {
+			result = append(result, agent)
+		}
+	}
+	return result
+}
+
+func visibleProjectAgents(agents []domain.ProjectAgent) []domain.ProjectAgent {
 	result := make([]domain.ProjectAgent, 0, len(agents))
 	for _, agent := range agents {
 		if !agent.Temporary {

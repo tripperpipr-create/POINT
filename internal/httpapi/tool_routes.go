@@ -42,6 +42,22 @@ func (s *Server) deleteProjectAgent(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (s *Server) activateProjectAgentDraft(w http.ResponseWriter, r *http.Request) {
+	value, err := s.app.ActivateProjectAgentDraft(r.PathValue("id"))
+	s.result(w, value, err)
+}
+
+func (s *Server) rejectProjectAgentDraft(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		APIKey string `json:"apiKey,omitempty"`
+	}
+	if r.ContentLength > 0 && !s.decode(w, r, &input) {
+		return
+	}
+	value, err := s.app.RejectProjectAgentDraft(r.PathValue("id"), input.APIKey)
+	s.result(w, value, err)
+}
+
 func (s *Server) saveCustomTool(w http.ResponseWriter, r *http.Request) {
 	var input domain.CustomTool
 	if !s.decode(w, r, &input) {

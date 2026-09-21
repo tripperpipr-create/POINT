@@ -303,9 +303,17 @@ func (a *App) materializeAgentCandidate(ctx context.Context, chain domain.AgentP
 		_ = a.store.SaveAgentPrepChain(ctx, chain)
 		return chain, err
 	}
+	if parentAgent.Temporary || (parentAgent.Status != "" && parentAgent.Status != domain.ProjectAgentActive) {
+		err = errors.New("temporary subagent requires an active general parent agent")
+		chain.State, chain.Error, chain.UpdatedAt = "failed", err.Error(), time.Now().UTC()
+		_ = a.store.SaveAgentPrepChain(ctx, chain)
+		return chain, err
+	}
 	agent := parentAgent
 	agent.ID = ""
 	agent.ParentAgentID = parentAgent.ID
+	agent.OwnerQuestID = chain.ParentQuestID
+	agent.Status = domain.ProjectAgentActive
 	agent.Temporary = true
 	agent.Name = parentAgent.Name + " · " + strings.ToUpper(chain.Requirement.Role[:1]) + chain.Requirement.Role[1:]
 	agent.RoleDescription = chain.Requirement.Responsibility
@@ -342,6 +350,92 @@ func (a *App) materializeAgentCandidate(ctx context.Context, chain domain.AgentP
 	return chain, nil
 }
 
+// RequestTemporarySubagent is the typed runtime boundary used by the parent
+// agent's request_subagent tool. It cannot broaden task authority.
+func (a *App) RequestTemporarySubagent(ctx context.Context, request domain.SubagentRequest) (domain.ProjectAgent, error) {
+	request.Role, request.Mission = strings.TrimSpace(request.Role), strings.TrimSpace(request.Mission)
+	if request.WorkspaceID == "" || request.QuestID == "" || request.ParentAgentID == "" || request.Role == "" || request.Mission == "" {
+		return domain.ProjectAgent{}, errors.New("subagent request requires workspace, quest, parent, role and mission")
+	}
+	parent, err := a.store.GetProjectAgent(ctx, request.ParentAgentID)
+	if err != nil {
+		return domain.ProjectAgent{}, err
+	}
+	if parent.WorkspaceID != request.WorkspaceID || parent.Temporary || (parent.Status != "" && parent.Status != domain.ProjectAgentActive) {
+		return domain.ProjectAgent{}, errors.New("subagent parent must be an active general agent in this project")
+	}
+	quests, err := a.store.ListQuests(ctx, request.WorkspaceID)
+	if err != nil {
+		return domain.ProjectAgent{}, err
+	}
+	var quest *domain.Quest
+	for i := range quests {
+		if quests[i].ID == request.QuestID {
+			quest = &quests[i]
+			break
+		}
+	}
+	if quest == nil || quest.Brief == nil || !domain.IsTaskBriefApproved(*quest.Brief) || !quest.Brief.Permissions.ProvisionProjectAgents || quest.Brief.Budget.MaxProjectAgents <= 0 {
+		return domain.ProjectAgent{}, errors.New("approved quest does not authorize temporary subagents")
+	}
+	executions, err := a.store.ListExecutions(ctx, request.WorkspaceID, 0)
+	if err != nil {
+		return domain.ProjectAgent{}, err
+	}
+	parentParticipates := false
+	for _, execution := range executions {
+		if execution.QuestID == request.QuestID && execution.ProjectAgentID == parent.ID {
+			parentParticipates = true
+			break
+		}
+	}
+	if !parentParticipates {
+		return domain.ProjectAgent{}, errors.New("only an agent participating in this quest may request a subagent")
+	}
+	agents, err := a.store.ListProjectAgents(ctx, request.WorkspaceID)
+	if err != nil {
+		return domain.ProjectAgent{}, err
+	}
+	count := 0
+	for _, existing := range agents {
+		if existing.Temporary && existing.OwnerQuestID == request.QuestID {
+			count++
+			if existing.ParentAgentID == parent.ID && strings.EqualFold(existing.RoleDescription, request.Role) {
+				return existing, nil
+			}
+		}
+	}
+	if count >= quest.Brief.Budget.MaxProjectAgents {
+		return domain.ProjectAgent{}, errors.New("temporary subagent budget exhausted")
+	}
+	child := parent
+	child.ID = ""
+	child.BlueprintID = ""
+	child.Status = domain.ProjectAgentActive
+	child.RoleFamily = ""
+	child.ParentAgentID = parent.ID
+	child.OwnerQuestID = request.QuestID
+	child.Temporary = true
+	child.Name = parent.Name + " · " + request.Role
+	child.RoleDescription = request.Role
+	child.Mission = request.Mission
+	child.SystemPrompt = request.Mission
+	child.Goals = []string{request.Mission}
+	child.Rules = append(append([]string(nil), parent.Rules...), "Временный субагент: работай только над делегированной специализацией и отчитывайся родителю.")
+	requestedTools := a.filterKnownTools(ctx, request.RequiredTools)
+	if len(request.RequiredTools) == 0 {
+		requestedTools = append([]string(nil), parent.AllowedTools...)
+	}
+	child.AllowedTools = intersectTools(parent.AllowedTools, requestedTools)
+	if len(child.AllowedTools) == 0 {
+		return domain.ProjectAgent{}, errors.New("requested subagent tools are not allowed for the parent")
+	}
+	child.ToolPolicies = intersectToolPolicies(parent.ToolPolicies, child.AllowedTools)
+	child.Experience, child.TasksCompleted, child.SuccessCount = 0, 0, 0
+	child.Level = 1
+	return a.SaveProjectAgent(child)
+}
+
 func intersectTools(available, required []string) []string {
 	have := make(map[string]bool, len(available))
 	for _, tool := range available {
@@ -351,6 +445,16 @@ func intersectTools(available, required []string) []string {
 	for _, tool := range required {
 		if have[tool] {
 			result = append(result, tool)
+		}
+	}
+	return result
+}
+
+func intersectToolPolicies(policies map[string]string, allowed []string) map[string]string {
+	result := make(map[string]string, len(allowed))
+	for _, tool := range allowed {
+		if policy, ok := policies[tool]; ok {
+			result[tool] = policy
 		}
 	}
 	return result

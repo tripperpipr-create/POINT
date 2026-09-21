@@ -81,7 +81,7 @@ async function handleLearningMessage(message) {
       const id = String(message.id || '').trim()
       if (!id) throw new Error('Не выбрана canary-версия для продвижения.')
       const answer = await vscode.window.showWarningMessage(
-        'Продвинуть проверенную canary-версию Skill во все совместимые проекты этого Blueprint? Точная предыдущая версия останется доступна для отката.',
+        'Принять проверенное предложение? Для специализации субагента будет создан новый Blueprint; обычная canary-версия Skill будет продвинута в существующий Blueprint.',
         { modal: true },
         'Продвинуть Skill',
       )
@@ -91,7 +91,24 @@ async function handleLearningMessage(message) {
       const statistics = await this.service.request('/api/statistics')
       this.post({ type: 'statistics', statistics })
       this.postState()
-      void vscode.window.showInformationMessage('Canary-версия Skill продвинута в Blueprint после явного подтверждения.')
+      void vscode.window.showInformationMessage('Проверенное предложение принято после явного подтверждения.')
+      break
+    }
+    case 'rejectAgentImprovement': {
+      const id = String(message.id || '').trim()
+      if (!id) throw new Error('Не выбрано предложение Blueprint для отклонения.')
+      const answer = await vscode.window.showWarningMessage(
+        'Не создавать Blueprint из временного субагента? Временная запись будет удалена, оценка и аудит останутся.',
+        { modal: true },
+        'Не создавать Blueprint',
+      )
+      if (answer !== 'Не создавать Blueprint') break
+      await this.service.request(`/api/agent-improvements/${encodeURIComponent(id)}/reject`, { method: 'POST', body: '{}' })
+      await this.refreshGuildState()
+      const statistics = await this.service.request('/api/statistics')
+      this.post({ type: 'statistics', statistics })
+      this.postState()
+      void vscode.window.showInformationMessage('Blueprint не создан; временный субагент удалён, аудит сохранён.')
       break
     }
     case 'saveBudget': {

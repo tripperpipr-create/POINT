@@ -41,8 +41,8 @@ func TestTaskIntakeWithoutAgentsAndWithLockedTeam(t *testing.T) {
 			foundPreparation = true
 		}
 	}
-	if !foundPreparation {
-		t.Fatal("empty roster was hidden from the main brief")
+	if foundPreparation {
+		t.Fatal("Master invented an agent-preparation decision")
 	}
 	prior := response.Proposal
 	prior.TeamAgentIDsLocked = true
@@ -57,8 +57,8 @@ func TestTaskIntakeWithoutAgentsAndWithLockedTeam(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if response.Proposal.Brief.Version != 2 || len(response.Proposal.TeamAgentIDs) != 1 || response.Proposal.TeamAgentIDs[0] != "chosen" {
-		t.Fatalf("lost version/team: %#v", response.Proposal)
+	if response.Proposal.Brief.Version != 2 || len(response.Proposal.TeamAgentIDs) != 0 {
+		t.Fatalf("Master retained forbidden agent selection: %#v", response.Proposal)
 	}
 	envelope.Questions = []string{"Which output?"}
 	b.Mode = domain.TaskModeProject
@@ -438,10 +438,9 @@ func TestTaskIntakeAcceptsTurnWithoutHire(t *testing.T) {
 	}
 }
 
-// Названный моделью специалист доезжает до ядра, но только именем, ролью,
-// миссией и инструментами: идентификатор, чертёж и согласие остаются за
-// сервером.
-func TestTaskIntakeCarriesHireDraft(t *testing.T) {
+// Поле hire от старой модели игнорируется: новый путь комплектует отдельный
+// stateless-агент только после ready brief.
+func TestTaskIntakeIgnoresLegacyHireDraft(t *testing.T) {
 	store := newChatStoreStub()
 	brief := domain.TaskBrief{
 		Mode: domain.TaskModePrecise, Goal: "Собрать платёжный шлюз", ResultKind: "code",
@@ -468,11 +467,8 @@ func TestTaskIntakeCarriesHireDraft(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if response.AgentDraft == nil {
-		t.Fatal("уточнение исполнителя потерялось по дороге")
-	}
-	if response.AgentDraft.Name != "Архитектор платежей" || len(response.AgentDraft.RequiredTools) != 3 {
-		t.Fatalf("черновик доехал искажённым: %#v", response.AgentDraft)
+	if response.AgentDraft != nil {
+		t.Fatalf("Master created a forbidden agent draft: %#v", response.AgentDraft)
 	}
 }
 
@@ -487,19 +483,16 @@ func TestTaskIntakeDropsIncompleteHire(t *testing.T) {
 	}
 }
 
-// Промпт обязан звать наблюдателя и объяснять, что ростер собирает сервер.
-func TestTaskIntakePromptAsksForRoster(t *testing.T) {
-	if !strings.Contains(taskIntakePrompt, "read_roster") {
-		t.Fatal("промпт не зовёт наблюдателя ростера")
+// Промпт и schema не дают Мастеру выбирать или создавать исполнителя.
+func TestTaskIntakePromptDelegatesRosterToSelector(t *testing.T) {
+	if strings.Contains(taskIntakePrompt, "read_roster") {
+		t.Fatal("Master still calls the legacy roster observer")
 	}
-	if !strings.Contains(taskIntakePrompt, "Ростер карточки собирает сервер") {
-		t.Fatal("промпт обязан снимать с модели ответственность за состав наряда")
+	if !strings.Contains(taskIntakePrompt, "агент-комплектовщик") {
+		t.Fatal("prompt does not delegate composition to the dedicated selector")
 	}
 	raw := string(taskIntakeJSONSchema())
-	if !strings.Contains(raw, `"hire"`) {
-		t.Fatal("схема не знает про уточнение исполнителя")
-	}
-	if strings.Contains(raw, `"hire","conversationSummary"`) {
-		t.Fatal("hire попал в обязательные поля — ход не должен зависеть от него")
+	if strings.Contains(raw, `"hire"`) || strings.Contains(raw, `"agentIds"`) {
+		t.Fatal("schema still grants Master roster authority")
 	}
 }

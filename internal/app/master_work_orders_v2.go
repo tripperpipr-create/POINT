@@ -16,7 +16,7 @@ import (
 // saveMasterWorkOrderV2 turns the Master's structured task proposal into the
 // single launch card. The model never supplies approval fields, workspace
 // isolation or routing authority: those are derived from trusted local state.
-func (a *App) saveMasterWorkOrderV2(ctx context.Context, proposal *domain.QuestProposal, sources []domain.SourceSnapshotRef, conversationID string, hire *orchestrator.AgentDraftProposal) (string, error) {
+func (a *App) saveMasterWorkOrderV2(ctx context.Context, proposal *domain.QuestProposal, sources []domain.SourceSnapshotRef, conversationID string, _ *orchestrator.AgentDraftProposal, apiKeys ...string) (string, error) {
 	if proposal == nil || proposal.Brief == nil {
 		return "", nil
 	}
@@ -33,10 +33,8 @@ func (a *App) saveMasterWorkOrderV2(ctx context.Context, proposal *domain.QuestP
 	// открытый наряд беседы; новый идентификатор появляется только тогда, когда
 	// продолжать нечего.
 	orderID := "workorder-" + proposal.ID
-	previousRoster := domain.AgentRosterPlan{}
 	if existing, ok := a.openWorkOrderForConversationV2(ctx, conversationID); ok {
 		orderID = existing.ID
-		previousRoster = existing.Roster
 	}
 
 	order := domain.WorkOrder{
@@ -107,8 +105,6 @@ func (a *App) saveMasterWorkOrderV2(ctx context.Context, proposal *domain.QuestP
 	}
 	order.Network = masterNetworkGrantsV2(brief, sources)
 	order.Completion = masterCompletionProfileV2(order)
-	order.Roster = a.masterRosterV2(ctx, order, proposal, previousRoster, hire)
-
 	current, getErr := a.store.GetWorkOrderV2(ctx, order.ID)
 	if getErr == nil {
 		order.Version = current.Version + 1
@@ -120,12 +116,55 @@ func (a *App) saveMasterWorkOrderV2(ctx context.Context, proposal *domain.QuestP
 	} else if !storage.IsNotFound(getErr) {
 		return "", getErr
 	}
+	selection := agentSelectionResult{}
+	if order.State == "ready" {
+		apiKey := ""
+		if len(apiKeys) > 0 {
+			apiKey = apiKeys[0]
+		}
+		selection, err = a.selectAgentsForWorkOrder(ctx, order, cfg, apiKey)
+		if err != nil {
+			return "", err
+		}
+		order.Roster = a.rosterFromAgentIDs(ctx, selection.AgentIDs)
+	} else {
+		// Selection is intentionally delayed until the brief is decision-complete.
+		order.Roster = domain.AgentRosterPlan{}
+	}
 	saved, err := a.SaveWorkOrderV2(ctx, order)
 	if err != nil {
 		return "", err
 	}
+	if order.State == "ready" {
+		if err = a.store.ReplaceAgentSelectionBindings(ctx, saved.ID, saved.ConversationID, saved.WorkspaceID, selection.Digest, saved.Version, selection.AgentIDs); err != nil {
+			return "", err
+		}
+		_ = a.store.SaveAgentLifecycleEvent(ctx, domain.AgentLifecycleEvent{
+			ID: domain.NewID("agentlife"), WorkspaceID: saved.WorkspaceID, WorkOrderID: saved.ID,
+			Kind: "agent_selection_completed", Detail: map[string]any{
+				"selectionDigest": selection.Digest, "revision": saved.Version, "agentIds": selection.AgentIDs,
+				"model": cfg.Model, "fallbackReason": selection.Fallback, "validation": "accepted",
+			}, CreatedAt: saved.UpdatedAt,
+		})
+	}
 	a.dropStaleWorkOrdersForConversationV2(ctx, conversationID, saved.ID)
 	return saved.ID, nil
+}
+
+func (a *App) rosterFromAgentIDs(ctx context.Context, ids []string) domain.AgentRosterPlan {
+	plan := domain.AgentRosterPlan{AgentIDs: append([]string(nil), ids...)}
+	for _, id := range ids {
+		agent, err := a.store.GetProjectAgent(ctx, id)
+		if err != nil {
+			continue
+		}
+		plan.Permanent = append(plan.Permanent, domain.AgentDraft{
+			ID: agent.ID, BlueprintID: agent.BlueprintID, Existing: true,
+			Name: agent.Name, Role: agent.RoleDescription, Mission: agent.Mission,
+			RequiredTools: append([]string(nil), agent.AllowedTools...),
+		})
+	}
+	return plan
 }
 
 // openWorkOrderForConversationV2 отдаёт наряд беседы, который ещё обсуждают.

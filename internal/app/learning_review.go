@@ -38,6 +38,15 @@ func (a *App) reviewAgentRun(ctx context.Context, run domain.Run, projectAgentID
 	if err != nil {
 		return domain.AgentImprovement{}, err
 	}
+	// Direct review callers (manual retry and compatibility paths) may not have
+	// passed through queueAgentImprovement. The evaluation lifecycle still has
+	// to make a temporary specialist non-runnable before a proposal is exposed.
+	if agent.Temporary && strings.TrimSpace(agent.ParentAgentID) != "" && agent.Status == domain.ProjectAgentActive {
+		if err = a.store.SetProjectAgentStatus(ctx, agent.ID, domain.ProjectAgentActive, domain.ProjectAgentEvaluationPending); err != nil {
+			return domain.AgentImprovement{}, err
+		}
+		agent.Status = domain.ProjectAgentEvaluationPending
+	}
 	if agent.WorkspaceID != run.WorkspaceID {
 		return domain.AgentImprovement{}, errors.New("run and project agent belong to different workspaces")
 	}
@@ -112,6 +121,13 @@ func (a *App) reviewAgentRun(ctx context.Context, run domain.Run, projectAgentID
 	skillLocked := previous != nil && trigger != learningTriggerFeedback && trigger != learningTriggerFailure && runLoadedExactSkillRevision(run, *previous)
 
 	review, mode, modelFailure := a.generateLearningReview(ctx, run, agent, trajectory, previous, trigger, apiKey)
+	if agent.Temporary && strings.TrimSpace(agent.ParentAgentID) != "" && strings.TrimSpace(modelFailure) != "" {
+		// A deterministic learning fallback is useful for permanent agents, but
+		// it must never authorize a reusable Blueprint. Keep the temporary agent
+		// pending so the exact evidence can be reviewed again when the model is
+		// available.
+		return domain.AgentImprovement{}, fmt.Errorf("%w: %s", errSubagentEvaluatorUnavailable, security.Redact(modelFailure))
+	}
 	if skillLocked {
 		// Exact loaded skill revision: do not mint a new Skill ID, but still
 		// allow Memory / Instruction learning from the reviewer.

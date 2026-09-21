@@ -1163,12 +1163,15 @@ class AgentViewProvider {
         case 'applyManualLearning':
         case 'rollbackAgentImprovement':
         case 'promoteAgentImprovement':
+        case 'rejectAgentImprovement':
         case 'saveBudget':
           await handleLearningMessage.call(this, message)
           break
         case 'saveProfile':
         case 'deleteProfile':
         case 'deleteProjectAgent':
+        case 'activateProjectAgentDraft':
+        case 'rejectProjectAgentDraft':
         case 'deleteQuest':
         case 'deleteTeam':
         case 'deleteFlow':

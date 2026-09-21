@@ -103,13 +103,14 @@ func (s *SQLite) SaveProjectAgent(ctx context.Context, a domain.ProjectAgent) er
 	}
 	_, err = s.db.ExecContext(ctx, `
 INSERT INTO project_agents(
-  id, workspace_id, blueprint_id, parent_agent_id, temporary, name, role_description, personality, mission, system_prompt, goals, rules,
+  id, workspace_id, blueprint_id, status, role_family, parent_agent_id, owner_quest_id, temporary, name, role_description, personality, mission, system_prompt, goals, rules,
   constraints_json, project_rules, skill_ids, allowed_tools, tool_policies, connection_id, provider, provider_preset, base_url,
   primary_model, fallback_models, temperature, max_output_tokens, context_window_tokens, reasoning_effort,
   max_steps, max_duration_seconds, approval_mode, experience, level, tasks_completed, success_count, created_at, updated_at
-) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 ON CONFLICT(id) DO UPDATE SET
-  parent_agent_id=excluded.parent_agent_id, temporary=excluded.temporary,
+  status=excluded.status, role_family=excluded.role_family, parent_agent_id=excluded.parent_agent_id,
+  owner_quest_id=excluded.owner_quest_id, temporary=excluded.temporary,
   name=excluded.name, role_description=excluded.role_description, personality=excluded.personality,
   mission=excluded.mission, system_prompt=excluded.system_prompt, goals=excluded.goals, rules=excluded.rules,
   constraints_json=excluded.constraints_json, project_rules=excluded.project_rules, skill_ids=excluded.skill_ids,
@@ -121,7 +122,7 @@ ON CONFLICT(id) DO UPDATE SET
   max_steps=excluded.max_steps, max_duration_seconds=excluded.max_duration_seconds, approval_mode=excluded.approval_mode,
   experience=excluded.experience, level=excluded.level, tasks_completed=excluded.tasks_completed,
   success_count=excluded.success_count, updated_at=excluded.updated_at`,
-		a.ID, a.WorkspaceID, a.BlueprintID, a.ParentAgentID, a.Temporary, a.Name, a.RoleDescription, a.Personality, a.Mission, a.SystemPrompt,
+		a.ID, a.WorkspaceID, a.BlueprintID, a.Status, a.RoleFamily, a.ParentAgentID, a.OwnerQuestID, a.Temporary, a.Name, a.RoleDescription, a.Personality, a.Mission, a.SystemPrompt,
 		marshalJSON(a.Goals), marshalJSON(a.Rules), marshalJSON(a.Constraints), marshalJSON(a.ProjectRules),
 		marshalJSON(a.SkillIDs), marshalJSON(a.AllowedTools), marshalJSON(a.ToolPolicies), a.ConnectionID, a.Provider, a.ProviderPreset,
 		a.BaseURL, a.PrimaryModel, marshalJSON(a.FallbackModels), a.Temperature, a.MaxOutputTokens, a.ContextWindowTokens,
@@ -132,7 +133,7 @@ ON CONFLICT(id) DO UPDATE SET
 
 func (s *SQLite) ListProjectAgents(ctx context.Context, workspaceID string) ([]domain.ProjectAgent, error) {
 	rows, err := s.db.QueryContext(ctx, `
-SELECT id, workspace_id, blueprint_id, parent_agent_id, temporary, name, role_description, personality, mission, system_prompt, goals, rules,
+SELECT id, workspace_id, blueprint_id, status, role_family, parent_agent_id, owner_quest_id, temporary, name, role_description, personality, mission, system_prompt, goals, rules,
        constraints_json, project_rules, skill_ids, allowed_tools, tool_policies, connection_id, provider, provider_preset, base_url,
        primary_model, fallback_models, temperature, max_output_tokens, context_window_tokens, reasoning_effort,
        max_steps, max_duration_seconds, approval_mode, experience, level, tasks_completed, success_count, created_at, updated_at
@@ -145,7 +146,7 @@ FROM project_agents WHERE workspace_id=? ORDER BY updated_at DESC`, workspaceID)
 	for rows.Next() {
 		var a domain.ProjectAgent
 		var goals, rules, constraints, projectRules, skills, tools, policies, fallbacks, created, updated string
-		if err = rows.Scan(&a.ID, &a.WorkspaceID, &a.BlueprintID, &a.ParentAgentID, &a.Temporary, &a.Name, &a.RoleDescription, &a.Personality, &a.Mission,
+		if err = rows.Scan(&a.ID, &a.WorkspaceID, &a.BlueprintID, &a.Status, &a.RoleFamily, &a.ParentAgentID, &a.OwnerQuestID, &a.Temporary, &a.Name, &a.RoleDescription, &a.Personality, &a.Mission,
 			&a.SystemPrompt, &goals, &rules, &constraints, &projectRules, &skills, &tools, &policies, &a.ConnectionID, &a.Provider,
 			&a.ProviderPreset, &a.BaseURL, &a.PrimaryModel, &fallbacks, &a.Temperature, &a.MaxOutputTokens,
 			&a.ContextWindowTokens, &a.ReasoningEffort, &a.MaxSteps, &a.MaxDurationSeconds, &a.ApprovalMode,
@@ -168,7 +169,7 @@ FROM project_agents WHERE workspace_id=? ORDER BY updated_at DESC`, workspaceID)
 
 func (s *SQLite) ListAllProjectAgents(ctx context.Context) ([]domain.ProjectAgent, error) {
 	rows, err := s.db.QueryContext(ctx, `
-SELECT id, workspace_id, blueprint_id, parent_agent_id, temporary, name, role_description, personality, mission, system_prompt, goals, rules,
+SELECT id, workspace_id, blueprint_id, status, role_family, parent_agent_id, owner_quest_id, temporary, name, role_description, personality, mission, system_prompt, goals, rules,
        constraints_json, project_rules, skill_ids, allowed_tools, tool_policies, connection_id, provider, provider_preset, base_url,
        primary_model, fallback_models, temperature, max_output_tokens, context_window_tokens, reasoning_effort,
        max_steps, max_duration_seconds, approval_mode, experience, level, tasks_completed, success_count, created_at, updated_at
@@ -181,7 +182,7 @@ FROM project_agents ORDER BY updated_at DESC`)
 	for rows.Next() {
 		var a domain.ProjectAgent
 		var goals, rules, constraints, projectRules, skills, tools, policies, fallbacks, created, updated string
-		if err = rows.Scan(&a.ID, &a.WorkspaceID, &a.BlueprintID, &a.ParentAgentID, &a.Temporary, &a.Name, &a.RoleDescription, &a.Personality, &a.Mission,
+		if err = rows.Scan(&a.ID, &a.WorkspaceID, &a.BlueprintID, &a.Status, &a.RoleFamily, &a.ParentAgentID, &a.OwnerQuestID, &a.Temporary, &a.Name, &a.RoleDescription, &a.Personality, &a.Mission,
 			&a.SystemPrompt, &goals, &rules, &constraints, &projectRules, &skills, &tools, &policies, &a.ConnectionID, &a.Provider,
 			&a.ProviderPreset, &a.BaseURL, &a.PrimaryModel, &fallbacks, &a.Temperature, &a.MaxOutputTokens,
 			&a.ContextWindowTokens, &a.ReasoningEffort, &a.MaxSteps, &a.MaxDurationSeconds, &a.ApprovalMode,
@@ -204,14 +205,14 @@ FROM project_agents ORDER BY updated_at DESC`)
 
 func (s *SQLite) GetProjectAgent(ctx context.Context, id string) (domain.ProjectAgent, error) {
 	row := s.db.QueryRowContext(ctx, `
-SELECT id, workspace_id, blueprint_id, parent_agent_id, temporary, name, role_description, personality, mission, system_prompt, goals, rules,
+SELECT id, workspace_id, blueprint_id, status, role_family, parent_agent_id, owner_quest_id, temporary, name, role_description, personality, mission, system_prompt, goals, rules,
        constraints_json, project_rules, skill_ids, allowed_tools, tool_policies, connection_id, provider, provider_preset, base_url,
        primary_model, fallback_models, temperature, max_output_tokens, context_window_tokens, reasoning_effort,
        max_steps, max_duration_seconds, approval_mode, experience, level, tasks_completed, success_count, created_at, updated_at
 FROM project_agents WHERE id=?`, id)
 	var a domain.ProjectAgent
 	var goals, rules, constraints, projectRules, skills, tools, policies, fallbacks, created, updated string
-	if err := row.Scan(&a.ID, &a.WorkspaceID, &a.BlueprintID, &a.ParentAgentID, &a.Temporary, &a.Name, &a.RoleDescription, &a.Personality, &a.Mission,
+	if err := row.Scan(&a.ID, &a.WorkspaceID, &a.BlueprintID, &a.Status, &a.RoleFamily, &a.ParentAgentID, &a.OwnerQuestID, &a.Temporary, &a.Name, &a.RoleDescription, &a.Personality, &a.Mission,
 		&a.SystemPrompt, &goals, &rules, &constraints, &projectRules, &skills, &tools, &policies, &a.ConnectionID, &a.Provider,
 		&a.ProviderPreset, &a.BaseURL, &a.PrimaryModel, &fallbacks, &a.Temperature, &a.MaxOutputTokens,
 		&a.ContextWindowTokens, &a.ReasoningEffort, &a.MaxSteps, &a.MaxDurationSeconds, &a.ApprovalMode,

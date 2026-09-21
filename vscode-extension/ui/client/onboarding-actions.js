@@ -13,7 +13,7 @@ const ONBOARDING_ACTIONS = new Set([
   'onboarding-pick-provider', 'onboarding-agent-cycle', 'open-agent-constructor', 'open-agent-constructor-edit',
   'close-agent-constructor', 'reload-compiled-prompt', 'constructor-step', 'constructor-advance',
   'constructor-scratch', 'constructor-template', 'constructor-tool-preset', 'save-constructor', 'apply-blueprint',
-  'update-blueprint', 'cancel-blueprint-sync', 'confirm-blueprint-sync',
+  'activate-agent-draft', 'reject-agent-draft', 'update-blueprint', 'cancel-blueprint-sync', 'confirm-blueprint-sync',
 ])
 
 export function handleOnboardingClickAction({
@@ -352,6 +352,18 @@ export function handleOnboardingClickAction({
     } else {
       vscode.postMessage({ type: 'saveProfile', profile: constructorToProfile(draft) })
     }
+  }
+  if (action === 'activate-agent-draft') {
+    const draft = currentConstructorForm()
+    if (!draft) return true
+    if (!(draft.name || '').trim()) { ui.createStepError = 'Укажите имя агента'; ui.constructorDraft = draft; render(); return true }
+    ui.constructorDraft = draft
+    ui.createStepError = ''
+    vscode.postMessage({ type: 'activateProjectAgentDraft', id: draft.id, agent: constructorToProjectAgent(draft) })
+  }
+  if (action === 'reject-agent-draft') {
+    const draft = currentConstructorForm() || ui.constructorDraft
+    if (draft?.id) vscode.postMessage({ type: 'rejectProjectAgentDraft', id: draft.id })
   }
   if (action === 'apply-blueprint') {
     const draft = currentConstructorForm()

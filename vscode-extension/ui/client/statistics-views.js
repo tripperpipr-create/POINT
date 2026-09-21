@@ -113,8 +113,9 @@ function autonomousLearningHtml(stats) {
     const subagentReview = item.kind === 'subagent_specialization'
     const promoteAction = appliedLike && promotion === 'candidate' && (canary?.status === 'healthy' || subagentReview)
       ? `<button type="button" class="primary" data-action="promote-agent-improvement" data-id="${esc(item.id)}">${subagentReview ? 'Оставить в Blueprint родителя' : 'Продвинуть в Blueprint'}</button>` : ''
-    const rollbackAction = (item.rollbackAvailable || (subagentReview && appliedLike))
-      ? `<button type="button" class="secondary" data-action="rollback-agent-improvement" data-id="${esc(item.id)}">${subagentReview ? 'Отбросить субагента' : 'Откатить версию'}</button>` : ''
+    const rollbackAction = subagentReview && appliedLike && promotion === 'candidate'
+      ? `<button type="button" class="secondary" data-action="reject-agent-improvement" data-id="${esc(item.id)}">Не создавать Blueprint</button>`
+      : (item.rollbackAvailable ? `<button type="button" class="secondary" data-action="rollback-agent-improvement" data-id="${esc(item.id)}">Откатить версию</button>` : '')
     const action = promoteAction || rollbackAction ? `<div>${promoteAction}${rollbackAction}</div>` : ''
     const visibleStatus = appliedLike && !item.rollbackAvailable ? 'ПРЕДЫДУЩАЯ ВЕРСИЯ' : (statusLabel[item.status] || item.status || '—')
     const title = subagentReview

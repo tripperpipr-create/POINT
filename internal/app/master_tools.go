@@ -54,6 +54,8 @@ func (t *masterReadTools) Definitions() []domain.ToolDefinition {
 		masterEntityDefinition("read_execution", "Прочитать состояние execution или связанного run по идентификатору, включая ошибку и последние события."),
 		masterEntityDefinition("read_changeset", "Прочитать workspace-scoped Change Set, его файлы, состояние execution и последние события."),
 		masterEntityDefinition("read_quest", "Прочитать workspace-scoped квест и краткие сведения о его execution и последних событиях."),
+		// Legacy read-only compatibility. The task-intake prompt and schema do
+		// not expose roster selection; the dedicated selector owns that path.
 		masterRosterDefinition(),
 	)
 	sort.Slice(definitions, func(i, j int) bool { return definitions[i].Name < definitions[j].Name })

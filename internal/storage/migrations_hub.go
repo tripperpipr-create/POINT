@@ -505,3 +505,40 @@ CREATE INDEX agent_prep_parent ON agent_prep_chains(parent_quest_id, updated_at 
 `)
 	return err
 }
+
+// migrationProjectAgentLifecycleV1 separates a reviewable agent draft from a
+// runnable project agent and persists the selector's chat/work-order binding.
+func migrationProjectAgentLifecycleV1(ctx context.Context, tx *sql.Tx) error {
+	for _, statement := range []string{
+		`ALTER TABLE project_agents ADD COLUMN status TEXT NOT NULL DEFAULT 'active'`,
+		`ALTER TABLE project_agents ADD COLUMN role_family TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE project_agents ADD COLUMN owner_quest_id TEXT NOT NULL DEFAULT ''`,
+		`CREATE INDEX project_agents_lifecycle ON project_agents(workspace_id,status,temporary,updated_at DESC)`,
+		`CREATE TABLE agent_selection_bindings (
+  conversation_id TEXT NOT NULL,
+  work_order_id TEXT NOT NULL,
+  workspace_id TEXT NOT NULL,
+  agent_id TEXT NOT NULL,
+  selection_digest TEXT NOT NULL,
+  revision INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY(work_order_id,agent_id)
+)`,
+		`CREATE INDEX agent_selection_conversation ON agent_selection_bindings(workspace_id,conversation_id,revision)`,
+		`CREATE TABLE agent_lifecycle_events (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  agent_id TEXT NOT NULL,
+  work_order_id TEXT NOT NULL DEFAULT '',
+  kind TEXT NOT NULL,
+  detail_json TEXT NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL
+)`,
+		`CREATE INDEX agent_lifecycle_events_agent ON agent_lifecycle_events(workspace_id,agent_id,created_at DESC)`,
+	} {
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return err
+		}
+	}
+	return migrateOpenLegacyWorkOrderAgents(ctx, tx)
+}

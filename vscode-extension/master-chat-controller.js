@@ -167,7 +167,11 @@ async function handleMasterMessage(message) {
           break
         }
         case 'stopMasterChat': {
-          if (message.turnId) await this.service.request('/api/v2/master/turns/'+encodeURIComponent(message.turnId)+'/cancel',{method:'POST'})
+          // Пустое тело обязательно: ядро отклоняет любой не-GET запрос без
+          // Content-Type: application/json (middleware.go), а служба ставит этот
+          // заголовок только там, где тело есть. Без него остановка хода падала
+          // ошибкой «Content-Type must be application/json» вместо отмены.
+          if (message.turnId) await this.service.request('/api/v2/master/turns/'+encodeURIComponent(message.turnId)+'/cancel',{method:'POST',body:'{}'})
           break
         }
         case 'approveMasterWorkOrderV2': {

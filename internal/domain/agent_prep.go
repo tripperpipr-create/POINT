@@ -27,3 +27,12 @@ type AgentPrepChain struct {
 	CreatedAt        time.Time       `json:"createdAt"`
 	UpdatedAt        time.Time       `json:"updatedAt"`
 }
+
+type SubagentRequest struct {
+	WorkspaceID   string   `json:"workspaceId"`
+	QuestID       string   `json:"questId"`
+	ParentAgentID string   `json:"parentAgentId"`
+	Role          string   `json:"role"`
+	Mission       string   `json:"mission"`
+	RequiredTools []string `json:"requiredTools,omitempty"`
+}

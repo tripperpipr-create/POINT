@@ -66,10 +66,8 @@ type taskIntakeEnvelope struct {
 	Title               string                  `json:"title"`
 	Brief               *domain.TaskBrief       `json:"brief"`
 	AgentIDs            []string                `json:"agentIds"`
-	// Hire — необязательное уточнение черновика исполнителя. Ростер карточки
-	// собирает сервер, и пропущенное поле ничего не стоит: модель лишь называет
-	// специалиста лучше, чем это сделал словарь ролей. Серверные поля —
-	// идентификатор, чертёж, согласие — она задать не может.
+	// Legacy fields remain decodable for old providers, but the current prompt
+	// never asks Master to select or create agents. A dedicated selector owns it.
 	Hire *intakeAgentDraft `json:"hire,omitempty"`
 	// degradedMarker — см. ниже; поле идёт последним, чтобы порядок свойств в
 	// схеме совпадал с порядком объявления.
@@ -105,13 +103,12 @@ undecided — существенная неоднозначность, спро�
 Неполное задание имеет state=discussion и openQuestions. Полное имеет state=ready, openQuestions=[]. Нельзя ставить approved/executing, версии и полномочия утверждает сервер и пользователь.
 Права не следуют из режима: report/code/hub_tool не получают writeFiles. executeCommands — когда нужны воспроизведения/проверки или команды создания окружения, которые человек уже выбрал (composer, npm/pnpm/yarn, docker compose и т.п.). provisionProjectAgents включай только после явного согласия на автономное создание проектных специалистов. Сеть: [] по умолчанию. Если человек явно выбрал создание/установку проекта или окружение, без сети невозможное (composer create-project, npm/pnpm/yarn install, docker compose pull/build и аналоги), включай в networkHosts только необходимые реестры стека (например packagist.org, repo.packagist.org, registry.npmjs.org, docker.io, registry-1.docker.io) как следствие этого выбора — зафиксируй в decisions с source=delegated; отдельный вопрос «нужна ли сеть» не задавай. Иные хосты — только при явном согласии.
 Для project начальные пределы tokens=200000, costCents=0 (неизвестный/не заданный денежный лимит), activeSeconds=3600, maxParallel=2, maxReplans=6, maxAttempts=3, maxProjectAgents=0 без права provisioning и 2 с ним; для precise maxParallel=1, maxProjectAgents=0 без временных субагентов и 1 с явно разрешённым временным субагентом. Не повышай существующие согласованные лимиты.
-Прежде чем обещать исполнителя, вызови read_roster со сводкой требований: он покажет готовых кандидатов, их блокировки и пробелы по ролям. Ростер карточки собирает сервер — твоё дело учесть ответ в вопросах человеку. Если подходящего исполнителя нет и ты знаешь специалиста точнее предложенного, верни необязательное поле hire; пропустить его можно, сервер подставит свой черновик.
-Всегда оцени весь ростер и причины Blocking. Если готового основного исполнителя нет, сохрани основное задание, явно укажи в decisions предварительный пользовательский квест создания/донастройки агента и не притворяйся, что задание можно выполнить немедленно. Полноценного агента нельзя создавать автоматически: его создание сопровождает пользователь. Если подходящий готовый агент есть, но ему не хватает узкой специализации, можно предложить временного субагента под ним; это требует provisionProjectAgents в brief. Временный субагент не является постоянным peer и не попадает в Blueprint без оценки полезности Мастером и отдельного решения пользователя.
+Не выбирай, не называй и не создавай исполнителей. Когда brief станет ready, отдельный системный агент-комплектовщик получит короткую сводку, проверит ростер и вернёт серверу идентификаторы. Твоё дело — только сформулировать требования, права и бюджет.
 Не повторяй один контракт в goal, scope, criteria и decisions целиком: goal — одна короткая фраза, детали — в соответствующих полях. Оригинальный запрос сервер сохраняет отдельно.
 Внутреннее рассуждение держи коротким: один проход к решению, без повторных кругов сомнений и без переписывания одного и того же. Не выноси черновики brief и теологию прав в reply.
 reply — краткая реплика из 1–3 предложений. Вопросы перечисляй только в questions, не дублируй их нумерованным списком в reply. Полное задание показывается отдельной карточкой.
 Верни один JSON без markdown:
-{"intent":"task|chat","reply":"ответ","questions":["до двух вопросов"],"proposalId":"идентификатор текущего задания или пусто","title":"краткий заголовок","agentIds":["только ID из ростера"],"hire":null|{"name":"имя специалиста","role":"роль","mission":"за что отвечает","requiredTools":["имена инструментов из каталога"]},"brief":null|{"mode":"precise|project|undecided","state":"discussion|ready","goal":"результат","resultKind":"code|report|workspace_change|hub_tool","audience":"для кого","scope":["входит"],"outOfScope":["не входит"],"decisions":[{"topic":"тема","decision":"решение","source":"user|project|delegated"}],"openQuestions":["все существенные неизвестные"],"criteria":[{"id":"c1","text":"проверяемое человеком условие","kind":"manual"}],"permissions":{"writeFiles":false,"executeCommands":false,"provisionProjectAgents":false,"networkHosts":[]},"budget":{"tokens":200000,"costCents":0,"activeSeconds":3600,"maxParallel":2,"maxReplans":6,"maxAttempts":3,"maxProjectAgents":0}}}
+{"intent":"task|chat","reply":"ответ","questions":["до двух вопросов"],"proposalId":"идентификатор текущего задания или пусто","title":"краткий заголовок","brief":null|{"mode":"precise|project|undecided","state":"discussion|ready","goal":"результат","resultKind":"code|report|workspace_change|hub_tool","audience":"для кого","scope":["входит"],"outOfScope":["не входит"],"decisions":[{"topic":"тема","decision":"решение","source":"user|project|delegated"}],"openQuestions":["все существенные неизвестные"],"criteria":[{"id":"c1","text":"проверяемое человеком условие","kind":"manual"}],"permissions":{"writeFiles":false,"executeCommands":false,"provisionProjectAgents":false,"networkHosts":[]},"budget":{"tokens":200000,"costCents":0,"activeSeconds":3600,"maxParallel":2,"maxReplans":6,"maxAttempts":3,"maxProjectAgents":0}}}
 Если это обычный вопрос/объяснение, brief=null. Не создавай задание ради приветствия.`
 
 // DiscussTask is isolated from the legacy keyword router. The model supplies a
@@ -121,11 +118,6 @@ func (s ChatService) DiscussTask(ctx context.Context, req ChatRequest) (ChatResp
 	if req.Message == "" || len(req.Message) > maxChatMessage {
 		return ChatResponse{}, errors.New("сообщение должно содержать 1–32768 байт")
 	}
-	agents, err := s.Store.ListProjectAgents(ctx, req.WorkspaceID)
-	if err != nil {
-		return ChatResponse{}, err
-	}
-	agents = permanentRosterAgents(agents)
 	proposals, err := s.Store.ListQuestProposals(ctx, req.WorkspaceID)
 	if err != nil {
 		return ChatResponse{}, err
@@ -137,7 +129,7 @@ func (s ChatService) DiscussTask(ctx context.Context, req ChatRequest) (ChatResp
 	if err = s.persist(ctx, req.WorkspaceID, "user", req.Message, "", req.Config); err != nil {
 		return ChatResponse{}, err
 	}
-	world := map[string]any{"agents": s.rosterMembers(agents), "proposals": intakeContextProposals(proposals, req.ProposalID), "requestedProposalId": req.ProposalID}
+	world := map[string]any{"proposals": intakeContextProposals(proposals, req.ProposalID), "requestedProposalId": req.ProposalID}
 	if s.Situation != nil {
 		if situation, e := s.Situation(ctx, req.WorkspaceID); e == nil {
 			world["project"] = situation.Project
@@ -152,7 +144,6 @@ func (s ChatService) DiscussTask(ctx context.Context, req ChatRequest) (ChatResp
 		return response, s.persistReply(ctx, req, response, "")
 	}
 	response := ChatResponse{Mode: "model", Model: req.Config.Model, Reply: strings.TrimSpace(envelope.Reply), Questions: cleanList(envelope.Questions, 2), MemorySuggestions: cleanList(envelope.MemorySuggestions, 3), ConversationSummary: envelope.ConversationSummary, Usage: usage, Reasoning: usage.Reasoning, Steps: usage.Steps}
-	response.AgentDraft = agentDraftFromIntake(envelope.Hire)
 	if envelope.degraded {
 		// Ход состоялся, задания в нём нет. Молчать об этом нельзя: карточка
 		// не появится, и без объяснения это выглядит как потерянный ответ.
@@ -205,13 +196,6 @@ func (s ChatService) DiscussTask(ctx context.Context, req ChatRequest) (ChatResp
 	brief.State = "discussion"
 	if len(brief.OpenQuestions) == 0 && brief.Mode != domain.TaskModeUndecided {
 		brief.State = "ready"
-	}
-	if len(s.runnableAgents(agents)) == 0 {
-		appendBriefDecision(&brief, domain.BriefDecision{
-			Topic:    "Подготовка исполнителя",
-			Decision: "Перед выполнением нужен сопровождаемый пользователем квест создания или донастройки полноценного агента; основное задание сохраняется и ждёт prerequisite",
-			Source:   "project",
-		})
 	}
 	if issues := domain.ValidateTaskBriefIssues(brief); len(issues) > 0 {
 		firstReply := response.Reply
@@ -286,19 +270,7 @@ func (s ChatService) DiscussTask(ctx context.Context, req ChatRequest) (ChatResp
 	}
 	proposal.Unknowns = append([]string(nil), brief.OpenQuestions...)
 	proposal.EstimateTokens = brief.Budget.Tokens
-	if len(agents) > 0 && !proposal.TeamAgentIDsLocked {
-		assignment := s.assignParty(ctx, req, agents, envelope.AgentIDs)
-		proposal.TeamAgentIDs = assignment.AgentIDs
-		if brief.Mode == domain.TaskModePrecise && len(proposal.TeamAgentIDs) > 1 {
-			proposal.TeamAgentIDs = proposal.TeamAgentIDs[:1]
-		}
-		response.Party = s.partyMembers(agents, proposal.TeamAgentIDs, brief.Goal)
-	}
-	if len(response.Party) == 0 && len(agents) > 0 {
-		// The card must explain why known agents were not selected instead of
-		// silently making a blocked roster look empty.
-		response.Party = s.partyMembers(agents, projectAgentIDs(agents), brief.Goal)
-	}
+	proposal.TeamAgentIDs = nil
 	if err = s.Store.SaveQuestProposal(ctx, proposal); err != nil {
 		return ChatResponse{}, err
 	}
@@ -309,7 +281,7 @@ func (s ChatService) DiscussTask(ctx context.Context, req ChatRequest) (ChatResp
 func permanentRosterAgents(agents []domain.ProjectAgent) []domain.ProjectAgent {
 	result := make([]domain.ProjectAgent, 0, len(agents))
 	for _, agent := range agents {
-		if !agent.Temporary {
+		if !agent.Temporary && (agent.Status == "" || agent.Status == domain.ProjectAgentActive) {
 			result = append(result, agent)
 		}
 	}

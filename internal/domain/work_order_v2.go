@@ -140,6 +140,9 @@ type SubagentPlan struct {
 }
 
 type AgentRosterPlan struct {
+	// AgentIDs is the canonical v2 roster. Permanent/Temporary remain readable
+	// for historical WorkOrders written before the dedicated selector existed.
+	AgentIDs  []string       `json:"agentIds,omitempty"`
 	Permanent []AgentDraft   `json:"permanent,omitempty"`
 	Temporary []SubagentPlan `json:"temporary,omitempty"`
 }

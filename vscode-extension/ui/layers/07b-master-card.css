@@ -35,7 +35,12 @@
   display: grid;
   gap: var(--s-5);
   box-sizing: border-box;
-  margin: 0;
+  /* Только по вертикали: горизонтальную меру и ось карточке задаёт лента
+     (`.hall-thread > *` в 05-hall.css, margin-inline: auto). Вес селекторов
+     там и здесь одинаков, слой карточек лежит позже — и полное `margin: 0`
+     молча снимало центровку: карточка вставала на левый край ленты, а
+     реплики оставались по центру. */
+  margin-block: 0;
   padding: var(--s-5);
   overflow: hidden;
   border: 1px solid transparent;

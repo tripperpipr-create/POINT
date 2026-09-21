@@ -147,9 +147,14 @@ type ProjectAgent struct {
 	ID          string `json:"id"`
 	WorkspaceID string `json:"workspaceId"`
 	BlueprintID string `json:"blueprintId"`
+	// Status is server-owned lifecycle state. Draft agents are visible to the
+	// constructor but are never runnable or eligible for party selection.
+	Status     string `json:"status"`
+	RoleFamily string `json:"roleFamily,omitempty"`
 	// ParentAgentID marks an execution-only specialist owned by another agent.
 	// Temporary specialists never appear as permanent peers in the roster.
 	ParentAgentID       string            `json:"parentAgentId,omitempty"`
+	OwnerQuestID        string            `json:"ownerQuestId,omitempty"`
 	Temporary           bool              `json:"temporary,omitempty"`
 	Name                string            `json:"name"`
 	RoleDescription     string            `json:"roleDescription"`
@@ -252,7 +257,7 @@ type AgentImprovement struct {
 	SkillID                     string                    `json:"skillId,omitempty"`
 	Kind                        string                    `json:"kind"`                      // skill_created | skill_updated | skill_recovery | curation_merge_proposed
 	Status                      string                    `json:"status"`                    // applying | applied | applied_unproven | applied_proven | skipped | failed | rolled_back
-	PromotionStatus             string                    `json:"promotionStatus,omitempty"` // candidate | promoted | project_only
+	PromotionStatus             string                    `json:"promotionStatus,omitempty"` // candidate | promoted | rejected | project_only
 	Effect                      string                    `json:"effect,omitempty"`          // improved | neutral | regressed | insufficient_sample
 	Trigger                     string                    `json:"trigger"`
 	Evidence                    []string                  `json:"evidence"`
@@ -1020,25 +1025,6 @@ func compileAgentPrompt(name, personality, role, mission, instructions string, c
 	appendList("PROJECT RULES:", projectRules)
 	appendText("ADDITIONAL INSTRUCTIONS:", instructions)
 	return strings.Join(sections, "\n\n")
-}
-
-// ProjectAgentFromBlueprint creates a workspace-scoped agent from a blueprint.
-func ProjectAgentFromBlueprint(workspaceID string, blueprint AgentBlueprint) ProjectAgent {
-	now := time.Now().UTC()
-	return ProjectAgent{
-		ID: NewID("projectagent"), WorkspaceID: workspaceID, BlueprintID: blueprint.ID,
-		Name: blueprint.Name, RoleDescription: blueprint.RoleDescription, Personality: blueprint.Personality,
-		Mission: blueprint.Mission, SystemPrompt: blueprint.SystemPrompt,
-		Goals: append([]string(nil), blueprint.Goals...), Rules: append([]string(nil), blueprint.Rules...),
-		Constraints: append([]string(nil), blueprint.Constraints...), SkillIDs: append([]string(nil), blueprint.SkillIDs...),
-		AllowedTools: append([]string(nil), blueprint.AllowedTools...), ToolPolicies: cloneStringMap(blueprint.ToolPolicies),
-		Provider: blueprint.Provider, ProviderPreset: blueprint.ProviderPreset, ConnectionID: blueprint.ConnectionID, BaseURL: blueprint.BaseURL,
-		PrimaryModel: blueprint.PrimaryModel, FallbackModels: append([]string(nil), blueprint.FallbackModels...),
-		Temperature: blueprint.Temperature, MaxOutputTokens: blueprint.MaxOutputTokens,
-		ContextWindowTokens: blueprint.ContextWindowTokens, ReasoningEffort: blueprint.ReasoningEffort,
-		MaxSteps: blueprint.MaxSteps, MaxDurationSeconds: blueprint.MaxDurationSeconds, ApprovalMode: blueprint.ApprovalMode,
-		Experience: 0, Level: 1, CreatedAt: now, UpdatedAt: now,
-	}
 }
 
 func cloneStringMap(values map[string]string) map[string]string {

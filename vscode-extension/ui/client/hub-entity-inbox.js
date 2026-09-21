@@ -1,21 +1,18 @@
-// Ядро сохранило или удалило сущность Гильдии — что делать интерфейсу.
-//
-// Тринадцать веток, у которых одна форма: пришёл ответ на правку, значит надо
-// закрыть редактор, снять пометку «сохраняю» и решить, куда вести дальше.
-// Куда именно — здесь и написано, и это не мелочь: сохранение первого агента
-// на шаге первого запуска ведёт не туда же, куда сохранение сотого из ростера,
-// а удаление квеста должно ещё и закрыть его карточку и сбросить кэш планов.
-//
+// Ядро сохранило или удалило сущность Гильдии — здесь интерфейс закрывает
+// редактор и выбирает следующий экран для этого типа ответа.
 // Подключения и серверы стоят в том же списке, потому что приходят тем же
 // ответом на ту же форму — их запрос и схема разделяют экран «Подключения» с
 // сохранением профиля.
 //
 // Состояние приходит общим мешком `ui`, как в `companion-transport.js`.
 
+import { newConstructorDraft } from './agent-constructor.js'
+
 const HUB_ENTITY_MESSAGES = new Set([
   'dbConnectionSaved', 'serverProfileSaved', 'dbQueryResult',
   'dbWriteRequired', 'dbSchemaResult', 'profileSaved',
   'profileDeleted', 'projectAgentSaved', 'projectAgentDeleted',
+  'projectAgentDraftActivated', 'projectAgentDraftRejected',
   'blueprintSaved', 'blueprintSyncPreview', 'questDeleted',
   'memoryDeleted',
 ])
@@ -133,6 +130,48 @@ export function createHubEntityInbox({
           }
         }
         releaseMasterAgentCards()
+      }
+      if (message.type === 'projectAgentDraftActivated') {
+        const activated = message.agent
+        if (activated?.id && Array.isArray(ui.state.boot?.projectAgents)) {
+          ui.state.boot.projectAgents = [activated, ...ui.state.boot.projectAgents.filter(item => item.id !== activated.id)]
+        }
+        const orders = Array.isArray(ui.masterData?.workOrders) ? ui.masterData.workOrders : []
+        const owner = orders.find(order => {
+          const ids = Array.isArray(order.roster?.agentIds) ? order.roster.agentIds : (order.roster?.permanent || []).map(item => item.id)
+          return ids.includes(message.agentId)
+        })
+        const ids = Array.isArray(owner?.roster?.agentIds) ? owner.roster.agentIds : (owner?.roster?.permanent || []).map(item => item.id)
+        const next = ids.map(id => (ui.state.boot?.projectAgents || []).find(item => item.id === id)).find(item => item?.status === 'draft')
+        if (next) {
+          ui.selectedProfileId = next.id
+          ui.constructorDraft = newConstructorDraft(next)
+          ui.constructorStep = 'review'
+          ui.agentConstructorOpen = true
+          vscode.postMessage({ type: 'selectTab', tab: 'agents' })
+        } else {
+          ui.constructorDraft = undefined
+          ui.agentConstructorOpen = false
+          ui.masterComposeNote = owner ? 'Все агенты состава активированы — квест разблокирован.' : ui.masterComposeNote
+        }
+        persistDraft()
+        render()
+      }
+      if (message.type === 'projectAgentDraftRejected') {
+        const replacementIds = Array.isArray(message.result?.replacementAgentIds) ? message.result.replacementAgentIds : []
+        const replacement = replacementIds.map(id => (ui.state.boot?.projectAgents || []).find(item => item.id === id)).find(item => item?.status === 'draft')
+        ui.constructorDraft = replacement ? newConstructorDraft(replacement) : undefined
+        ui.agentConstructorOpen = Boolean(replacement)
+        if (replacement) {
+          ui.selectedProfileId = replacement.id
+          ui.constructorStep = 'review'
+          vscode.postMessage({ type: 'selectTab', tab: 'agents' })
+        } else {
+          ui.masterComposeNote = 'Черновик отклонён. Если безопасной замены нет, выберите исполнителя вручную.'
+          vscode.postMessage({ type: 'loadMaster' })
+        }
+        persistDraft()
+        render()
       }
       if (message.type === 'projectAgentDeleted') {
         // Конструктор закрываем: карточки, которую он правил, больше нет, и

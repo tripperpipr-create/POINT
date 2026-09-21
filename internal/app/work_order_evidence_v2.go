@@ -113,8 +113,10 @@ func (a *App) finalizeWorkOrderQuestAfterFlowV2(approval domain.WorkOrderApprova
 		if isFastAgentQuestV2(quest) {
 			_ = a.markFastAgentMilestoneV2(ctx, approval, domain.QuestBlocked)
 		}
+		a.queueQuestSubagentEvaluations(quest.ID)
 		return
 	}
+	a.queueQuestSubagentEvaluations(quest.ID)
 	launchMode, _ := quest.Controller["launchMode"].(string)
 	slog.Info("work order evidence finalized", "launch_mode", launchMode, "work_order_id", approval.WorkOrder.ID,
 		"quest_id", quest.ID, "run_id", a.workOrderRunIDV2(ctx, quest), "evidence_gate", status,

@@ -1757,7 +1757,13 @@ button.hall-panel-row:focus-visible { outline: 1px solid var(--ember); outline-o
 }
 .hall.is-focused .hall-main { max-width: none; width: 100%; }
 .hall.is-focused .hall-head-chat { padding: var(--s-5) var(--s-7); background: var(--hub-panel); }
-.hall-dialogue { position: relative; box-sizing: border-box; padding-left: 200px; --hall-read-col: 720px; --hall-rail-offset: 200px; --hall-quest-offset: 0px; --hall-quest-width: clamp(320px, 24vw, 380px); }
+/* Слева больше ничего не стоит: рельса разговоров `.hall-conversations`
+   уехала в левую панель Чертога (`.hall-chats` в 27-chat-directory.css), а
+   отступ под неё остался — двести пикселей пустоты, на которые лента с
+   репликами, карточками и полем ввода сдвигалась к правому краю. Мера
+   колонки поднята с 720: панель Мастера уже, чем окно редактора, и на
+   восьмистах пикселях ширины треть уходила в поля. */
+.hall-dialogue { position: relative; box-sizing: border-box; --hall-read-col: 880px; --hall-rail-offset: 0px; --hall-quest-offset: 0px; --hall-quest-width: clamp(320px, 24vw, 380px); }
 .hall-conversations { position: absolute; inset: 0 auto 0 0; width: 200px; box-sizing: border-box; display: flex; flex-direction: column; gap: var(--s-5); padding: var(--s-6) var(--s-5); background: var(--hub-void); border-right: 1px solid var(--hub-border); }
 .hall-conversations header { display: flex; align-items: center; justify-content: space-between; font: var(--fw-medium) var(--t-base) / 1.5 var(--font-ui); }
 .hall-conversations input { box-sizing: border-box; width: 100%; padding: var(--s-4); border: 1px solid var(--hub-border); border-radius: 8px; background: var(--hub-raised); color: var(--hub-text); font: var(--fw-normal) var(--t-body) / 1.5 var(--font-ui); }

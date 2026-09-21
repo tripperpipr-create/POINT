@@ -40,7 +40,11 @@ async function followMasterTurn(host, turn) {
       await new Promise(resolve=>setTimeout(resolve,Math.min(5000,500*(failures+1))))
     }
     if(turn.workOrderId) {
-      const workOrder=await host.service.request(`/api/v2/work-orders/${encodeURIComponent(turn.workOrderId)}`)
+      const [workOrder,guild]=await Promise.all([
+        host.service.request(`/api/v2/work-orders/${encodeURIComponent(turn.workOrderId)}`),
+        host.service.request('/api/state/guild'),
+      ])
+      host.patchBoot(guild);host.postState()
       host.post({type:'masterWorkOrder',turnId:turn.id,conversationId:turn.conversationId,workOrder})
       if(isTransientWorkOrder(workOrder)) void watchMasterWorkOrder(host,turn.workOrderId,turn.conversationId)
     }

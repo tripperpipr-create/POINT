@@ -30,6 +30,24 @@ func unavailableLearningProvider(t *testing.T) string {
 	return server.URL
 }
 
+func successfulLearningProvider(t *testing.T) string {
+	t.Helper()
+	review, err := json.Marshal(map[string]any{
+		"decision": "create", "name": "Evidence-first change", "description": "Reusable verified workflow.",
+		"instructions":        "Inspect the relevant context, make the bounded change, and record an explicit verifier result.",
+		"memoryDecision":      "skip",
+		"instructionDecision": "skip",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		writePlannerSSE(t, w, string(review), 120, 60)
+	}))
+	t.Cleanup(server.Close)
+	return server.URL
+}
+
 func TestVerifiedComplexRunsCreatePatchAndRollbackLearnedSkill(t *testing.T) {
 	application := newTestApp(t)
 	view, err := application.OpenWorkspace(t.TempDir())
@@ -117,7 +135,7 @@ func TestVerifiedComplexRunsCreatePatchAndRollbackLearnedSkill(t *testing.T) {
 	}
 }
 
-func TestUsefulTemporarySubagentWaitsForUserBeforeParentBlueprintPromotion(t *testing.T) {
+func TestUsefulTemporarySubagentWaitsForUserBeforeNewBlueprintPromotion(t *testing.T) {
 	application := newTestApp(t)
 	view, err := application.OpenWorkspace(t.TempDir())
 	if err != nil {
@@ -125,8 +143,8 @@ func TestUsefulTemporarySubagentWaitsForUserBeforeParentBlueprintPromotion(t *te
 	}
 	tools := []string{"project_map", "list_files", "search_code", "read_file", "search_text"}
 	blueprint, err := application.SaveBlueprint(domain.AgentBlueprint{
-		Name: "Backend", RoleDescription: "Backend specialist", Provider: domain.ProviderOllama, BaseURL: unavailableLearningProvider(t),
-		PrimaryModel: "qwen2.5-coder:7b", AllowedTools: tools,
+		Name: "Backend", RoleDescription: "Backend specialist", Provider: domain.ProviderOpenAI, ProviderPreset: "openai", BaseURL: successfulLearningProvider(t),
+		PrimaryModel: "review-model", AllowedTools: tools,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -160,8 +178,54 @@ func TestUsefulTemporarySubagentWaitsForUserBeforeParentBlueprintPromotion(t *te
 	}
 	storedBlueprint, _ = application.store.GetBlueprint(context.Background(), blueprint.ID)
 	parent, _ = application.store.GetProjectAgent(context.Background(), parent.ID)
-	if !slices.Contains(storedBlueprint.SkillIDs, improvement.SkillID) || !slices.Contains(parent.SkillIDs, improvement.SkillID) {
-		t.Fatalf("kept specialization did not fan out to parent: blueprint=%#v parent=%#v", storedBlueprint.SkillIDs, parent.SkillIDs)
+	if slices.Contains(storedBlueprint.SkillIDs, improvement.SkillID) || slices.Contains(parent.SkillIDs, improvement.SkillID) {
+		t.Fatalf("accepted specialization mutated its parent: blueprint=%#v parent=%#v", storedBlueprint.SkillIDs, parent.SkillIDs)
+	}
+	if promoted.BlueprintID == "" || promoted.BlueprintID == blueprint.ID {
+		t.Fatalf("accepted specialization did not create a distinct Blueprint: %#v", promoted)
+	}
+	created, blueprintErr := application.store.GetBlueprint(context.Background(), promoted.BlueprintID)
+	if blueprintErr != nil || !slices.Contains(created.SkillIDs, improvement.SkillID) {
+		t.Fatalf("specialist Blueprint missing candidate: %#v err=%v", created, blueprintErr)
+	}
+	if _, getErr := application.store.GetProjectAgent(context.Background(), subagent.ID); getErr == nil {
+		t.Fatal("temporary subagent survived accepted Blueprint decision")
+	}
+}
+
+func TestTemporarySubagentEvaluatorOutageKeepsPendingWithoutBlueprintProposal(t *testing.T) {
+	application := newTestApp(t)
+	view, err := application.OpenWorkspace(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	tools := []string{"project_map", "list_files", "search_code", "read_file", "search_text"}
+	parent, err := application.SaveProjectAgent(domain.ProjectAgent{
+		Name: "Developer", RoleFamily: "developer", RoleDescription: "General developer",
+		Provider: domain.ProviderOllama, BaseURL: unavailableLearningProvider(t), PrimaryModel: "review-model", AllowedTools: tools,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	subagent := parent
+	subagent.ID, subagent.BlueprintID = "", ""
+	subagent.Name, subagent.RoleDescription = "Developer · Symfony", "Temporary Symfony specialist"
+	subagent.ParentAgentID, subagent.OwnerQuestID, subagent.Temporary = parent.ID, "quest-evaluator-outage", true
+	subagent, err = application.SaveProjectAgent(subagent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	run := saveLearningRun(t, application, view.Workspace.ID, subagent, "run-subagent-evaluator-outage", time.Now().UTC())
+	if _, err = application.reviewAgentRun(context.Background(), run, subagent.ID, ""); !errors.Is(err, errSubagentEvaluatorUnavailable) {
+		t.Fatalf("expected retryable evaluator outage, got %v", err)
+	}
+	stored, getErr := application.store.GetProjectAgent(context.Background(), subagent.ID)
+	if getErr != nil || stored.Status != domain.ProjectAgentEvaluationPending {
+		t.Fatalf("temporary specialist was not kept pending: %#v err=%v", stored, getErr)
+	}
+	items, listErr := application.store.ListAgentImprovements(context.Background(), view.Workspace.ID, 10)
+	if listErr != nil || len(items) != 0 {
+		t.Fatalf("outage produced a Blueprint proposal: %#v err=%v", items, listErr)
 	}
 }
 

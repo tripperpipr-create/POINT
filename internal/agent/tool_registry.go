@@ -76,6 +76,7 @@ func buildToolRegistryWithExecution(fs *workspace.FS, customTools []domain.Custo
 		workbenchtools.DBExec{Config: dbConfig},
 		workbenchtools.TeamPublish{Bus: teamBus, WorkspaceID: correlation.WorkspaceID, QuestID: correlation.QuestID, FlowRunID: correlation.FlowRunID, FlowNodeID: correlation.FlowNodeID, AgentID: firstProfileID(profiles)},
 		workbenchtools.TeamInbox{Bus: teamBus, FlowRunID: correlation.FlowRunID, AgentID: firstProfileID(profiles)},
+		workbenchtools.RequestSubagent{Requester: subagentRequester(teamBus), WorkspaceID: correlation.WorkspaceID, QuestID: correlation.QuestID, ParentAgentID: firstProfileID(profiles)},
 		workbenchtools.PermissionPrompt{},
 	}
 	if len(profiles) > 0 && len(profiles[0].EquippedSkills) > 0 {
@@ -89,6 +90,11 @@ func buildToolRegistryWithExecution(fs *workspace.FS, customTools []domain.Custo
 		}
 	}
 	return workbenchtools.NewRegistry(toolItems...), patches
+}
+
+func subagentRequester(bus workbenchtools.TeamBus) workbenchtools.SubagentRequester {
+	requester, _ := bus.(workbenchtools.SubagentRequester)
+	return requester
 }
 
 func firstProfileID(profiles []domain.AgentProfile) string {

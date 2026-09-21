@@ -31,6 +31,11 @@ export function newConstructorDraft(source) {
   return {
     id: base.id || '',
     blueprintId: base.blueprintId || '',
+    status: base.status || '',
+    roleFamily: base.roleFamily || '',
+    parentAgentId: base.parentAgentId || '',
+    ownerQuestId: base.ownerQuestId || '',
+    temporary: Boolean(base.temporary),
     name: base.name || '',
     personality: base.personality || '',
     roleDescription: base.roleDescription || '',
@@ -139,6 +144,11 @@ export function constructorToProjectAgent(draft, existing) {
     id: draft.id || '',
     blueprintId: draft.blueprintId || '',
     projectRules: [...(draft.projectRules || [])],
+    ...(draft.status ? { status: draft.status } : {}),
+    ...(draft.roleFamily ? { roleFamily: draft.roleFamily } : {}),
+    ...(draft.parentAgentId ? { parentAgentId: draft.parentAgentId } : {}),
+    ...(draft.ownerQuestId ? { ownerQuestId: draft.ownerQuestId } : {}),
+    ...(draft.temporary ? { temporary: true } : {}),
   }
   // Progress is server-owned on update; omit zeros so App.SaveProjectAgent preserves them.
   if (!existing) {

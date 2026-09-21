@@ -52,6 +52,11 @@ func (s *Server) promoteAgentImprovement(w http.ResponseWriter, r *http.Request)
 	s.result(w, value, err)
 }
 
+func (s *Server) rejectAgentImprovement(w http.ResponseWriter, r *http.Request) {
+	value, err := s.app.RejectAgentImprovement(r.PathValue("id"))
+	s.result(w, value, err)
+}
+
 func (s *Server) searchExperience(w http.ResponseWriter, r *http.Request) {
 	limit := 30
 	if raw := r.URL.Query().Get("limit"); raw != "" {

@@ -110,6 +110,10 @@ export function handleRosterClickAction({
     vscode.postMessage({ type: 'promoteAgentImprovement', id: target.dataset.id })
     return true
   }
+  if (action === 'reject-agent-improvement') {
+    vscode.postMessage({ type: 'rejectAgentImprovement', id: target.dataset.id })
+    return true
+  }
   if (action === 'improve-agent') {
     const agentId = target.dataset.id || ''
     const step = CONSTRUCTOR_STEPS.some(item => item.id === target.dataset.step) ? target.dataset.step : 'review'

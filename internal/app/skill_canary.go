@@ -272,11 +272,106 @@ func (a *App) PromoteAgentImprovement(id string) (domain.AgentImprovement, error
 	if !learningRollbackAvailability(lineage)[item.ID] {
 		return domain.AgentImprovement{}, fmt.Errorf("a newer Skill/Memory/Rule improvement must be resolved first")
 	}
-	if err = a.promoteSkillCandidateLocked(ctx, &item); err != nil {
+	if item.Kind == "subagent_specialization" {
+		err = a.promoteSubagentBlueprintLocked(ctx, &item)
+	} else {
+		err = a.promoteSkillCandidateLocked(ctx, &item)
+	}
+	if err != nil {
 		return domain.AgentImprovement{}, err
 	}
 	item.UpdatedAt = time.Now().UTC()
 	if err = a.store.SaveAgentImprovement(ctx, item); err != nil {
+		return domain.AgentImprovement{}, err
+	}
+	if item.Kind == "subagent_specialization" {
+		if err = a.store.DeleteTemporaryProjectAgent(ctx, item.ProjectAgentID, domain.AgentLifecycleEvent{
+			Kind: "subagent_blueprint_accepted", Detail: map[string]any{"improvementId": item.ID, "blueprintId": item.BlueprintID},
+		}); err != nil {
+			return domain.AgentImprovement{}, err
+		}
+	}
+	return item, nil
+}
+
+func (a *App) promoteSubagentBlueprintLocked(ctx context.Context, item *domain.AgentImprovement) error {
+	agent, err := a.store.GetProjectAgent(ctx, item.ProjectAgentID)
+	if err != nil {
+		return err
+	}
+	if !agent.Temporary || strings.TrimSpace(agent.ParentAgentID) == "" || agent.Status != domain.ProjectAgentEvaluationPending {
+		return fmt.Errorf("Blueprint proposal no longer points to an evaluated temporary subagent")
+	}
+	candidate := *item.AfterSkill
+	blueprintID := domain.NewID("blueprint")
+	candidate.Configuration = cloneAnyMap(candidate.Configuration)
+	candidate.Configuration["promotionStatus"] = "promoted"
+	candidate.Configuration["promotionReason"] = "explicit_subagent_blueprint_acceptance"
+	candidate.Configuration["ownerId"] = blueprintID
+	candidate.Configuration["ownerKind"] = "blueprint"
+	candidate.Configuration["blueprintId"] = blueprintID
+	candidate.UpdatedAt = time.Now().UTC()
+	if err = a.store.SaveSkill(ctx, candidate); err != nil {
+		return err
+	}
+	skillIDs := append([]string(nil), agent.SkillIDs...)
+	if !slices.Contains(skillIDs, candidate.ID) {
+		skillIDs = append(skillIDs, candidate.ID)
+	}
+	blueprint := domain.AgentBlueprint{
+		ID: blueprintID, Name: agent.Name, RoleDescription: agent.RoleDescription,
+		Personality: agent.Personality, Mission: agent.Mission, SystemPrompt: agent.SystemPrompt,
+		Goals: append([]string(nil), agent.Goals...), Rules: append([]string(nil), agent.Rules...),
+		Constraints: append([]string(nil), agent.Constraints...), SkillIDs: skillIDs,
+		AllowedTools: append([]string(nil), agent.AllowedTools...), ToolPolicies: cloneStringMap(agent.ToolPolicies),
+		ConnectionID: agent.ConnectionID, Provider: agent.Provider, ProviderPreset: agent.ProviderPreset,
+		BaseURL: agent.BaseURL, PrimaryModel: agent.PrimaryModel, FallbackModels: append([]string(nil), agent.FallbackModels...),
+		Temperature: agent.Temperature, MaxOutputTokens: agent.MaxOutputTokens,
+		ContextWindowTokens: agent.ContextWindowTokens, ReasoningEffort: agent.ReasoningEffort,
+		MaxSteps: agent.MaxSteps, MaxDurationSeconds: agent.MaxDurationSeconds, ApprovalMode: agent.ApprovalMode,
+	}
+	if _, err = a.SaveBlueprint(blueprint); err != nil {
+		return err
+	}
+	item.AfterSkill = skillPointer(candidate)
+	item.SkillID = candidate.ID
+	item.BlueprintID = blueprintID
+	item.PromotionStatus = "promoted"
+	item.AfterBlueprintSkillIDs = append([]string(nil), skillIDs...)
+	item.Evidence = append(item.Evidence, "user explicitly accepted the evaluated temporary specialization as a reusable Blueprint")
+	return nil
+}
+
+// RejectAgentImprovement is the negative user decision for an evaluated
+// temporary specialization. No Blueprint is created and the quest-scoped
+// specialist is removed while the evaluation record remains auditable.
+func (a *App) RejectAgentImprovement(id string) (domain.AgentImprovement, error) {
+	ws, err := a.requireWorkspace()
+	if err != nil {
+		return domain.AgentImprovement{}, err
+	}
+	a.learningReviewMu.Lock()
+	defer a.learningReviewMu.Unlock()
+	ctx := context.Background()
+	item, err := a.store.GetAgentImprovement(ctx, strings.TrimSpace(id))
+	if err != nil {
+		return domain.AgentImprovement{}, err
+	}
+	if err = a.guardAgentImprovementWorld(ctx, item, ws.ID); err != nil {
+		return domain.AgentImprovement{}, err
+	}
+	if item.Kind != "subagent_specialization" || item.PromotionStatus != "candidate" {
+		return domain.AgentImprovement{}, fmt.Errorf("only a pending subagent Blueprint proposal can be rejected")
+	}
+	item.PromotionStatus = "rejected"
+	item.Evidence = append(item.Evidence, "user explicitly rejected the reusable Blueprint proposal")
+	item.UpdatedAt = time.Now().UTC()
+	if err = a.store.SaveAgentImprovement(ctx, item); err != nil {
+		return domain.AgentImprovement{}, err
+	}
+	if err = a.store.DeleteTemporaryProjectAgent(ctx, item.ProjectAgentID, domain.AgentLifecycleEvent{
+		Kind: "subagent_blueprint_rejected", Detail: map[string]any{"improvementId": item.ID},
+	}); err != nil {
 		return domain.AgentImprovement{}, err
 	}
 	return item, nil

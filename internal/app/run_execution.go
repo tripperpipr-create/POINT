@@ -358,6 +358,11 @@ func (a *App) StartRun(request StartRunRequest) (domain.Run, error) {
 	if err != nil {
 		return domain.Run{}, err
 	}
+	if brief != nil && brief.Permissions.ProvisionProjectAgents && projectAgentID != "" {
+		if owner, ownerErr := a.store.GetProjectAgent(context.Background(), projectAgentID); ownerErr == nil && !owner.Temporary && (owner.Status == "" || owner.Status == domain.ProjectAgentActive) {
+			prepared.profile.AllowedTools = appendUniqueStrings(prepared.profile.AllowedTools, "request_subagent")
+		}
+	}
 	prepared.profile = a.applyFlowNodeWritePolicy(prepared.profile, questID, flowNodeID)
 	if questID != "" {
 		if lease, leaseErr := a.store.GetLatestQuestToolLease(context.Background(), questID); leaseErr == nil {

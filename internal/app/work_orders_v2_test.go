@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -77,22 +76,23 @@ func TestMasterProposalBecomesSingleApprovableWorkOrderV2(t *testing.T) {
 	if order.Routing.FixedConnectionID != connection.ID || order.Routing.FixedModel != "gpt-test" {
 		t.Fatalf("master work order did not bind exact routing: %#v", order.Routing)
 	}
-	if len(order.Roster.Permanent) != 1 || !order.Roster.Permanent[0].RequiresConsent || order.Roster.Permanent[0].Existing {
-		t.Fatalf("missing agent must remain an explicit approval-card draft: %#v", order.Roster)
+	if len(order.Roster.Permanent) != 1 || order.Roster.Permanent[0].RequiresConsent || !order.Roster.Permanent[0].Existing {
+		t.Fatalf("missing agent must be a persisted selector draft: %#v", order.Roster)
 	}
 	if len(order.Network) != 1 || order.Network[0].Host != "repo.packagist.org:443" {
 		t.Fatalf("network authority was not normalized to exact TLS host: %#v", order.Network)
 	}
-	// Черновик агента требует согласия: без списка подтверждённых черновиков
-	// утверждение обязано отказать, а не создать исполнителя молча.
+	// A persisted draft blocks approval until the explicit activation endpoint.
 	if _, consentErr := application.ApproveWorkOrderV2(context.Background(), order.ID, ApproveWorkOrderV2Request{
 		Version: order.Version, Digest: domain.WorkOrderDigest(order), IdempotencyKey: "master-v2-approval-no-consent",
-	}); consentErr == nil || !strings.Contains(consentErr.Error(), "consent") {
-		t.Fatalf("approval without roster consent must be refused: %v", consentErr)
+	}); consentErr == nil {
+		t.Fatal("draft was approved before activation")
+	}
+	if _, err = application.ActivateProjectAgentDraft(order.Roster.Permanent[0].ID); err != nil {
+		t.Fatal(err)
 	}
 	approval, err := application.ApproveWorkOrderV2(context.Background(), order.ID, ApproveWorkOrderV2Request{
 		Version: order.Version, Digest: domain.WorkOrderDigest(order), IdempotencyKey: "master-v2-approval",
-		RosterConsent: []string{order.Roster.Permanent[0].ID},
 	})
 	if err != nil {
 		t.Fatal(err)

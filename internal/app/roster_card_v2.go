@@ -42,6 +42,12 @@ func (a *App) hiringCardsForConversation(ctx context.Context, orders []domain.Wo
 		if !isOpenWorkOrderV2(order) {
 			continue
 		}
+		// New WorkOrders already carry persisted selector IDs. The constructor
+		// card for a draft is the only decision surface; the legacy observer must
+		// not invent a second, unbound AgentDraft beside it.
+		if len(order.Roster.AgentIDs) > 0 {
+			return nil
+		}
 		observation, err := a.ObserveRoster(ctx, rosterNeedFromOrder(order, nil))
 		if err != nil {
 			// Ошибка подбора не имеет права уронить загрузку разговора: карточка

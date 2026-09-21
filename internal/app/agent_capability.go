@@ -284,6 +284,12 @@ func (a *App) readyProjectAgents(ctx context.Context, agents []domain.ProjectAge
 }
 
 func (a *App) projectAgentReadiness(ctx context.Context, projectAgent domain.ProjectAgent) AgentCapability {
+	if projectAgent.Status != "" && projectAgent.Status != domain.ProjectAgentActive {
+		result := AgentCapability{State: "BLOCKED"}
+		result.block("agent_not_active", "identity", "status", "агент ещё не активирован")
+		result.Lines = capabilityLines(result)
+		return result
+	}
 	profile := domain.ProfileFromProjectAgent(projectAgent)
 	normalizeRuntimeProfileDefaults(&profile)
 	if err := a.enrichProjectAgentForRun(projectAgent.WorkspaceID, projectAgent, &profile, nil); err != nil {

@@ -218,6 +218,9 @@ func (a *App) finalizeQuestAfterFlow(questID string, success bool) {
 		if err := a.store.SaveQuest(context.Background(), quest); err != nil {
 			slog.Warn("quest completion not persisted", "quest_id", quest.ID, "status", quest.Status, "error", err)
 		}
+		if domain.IsTerminalQuestStatus(quest.Status) {
+			a.queueQuestSubagentEvaluations(quest.ID)
+		}
 		if _, err := a.SaveMemory(domain.MemoryRecord{
 			WorkspaceID: ws.ID, Kind: domain.MemoryQuest, OwnerID: quest.ID,
 			Content: content, Source: "quest-complete", Confidence: 0.8, Pinned: false,

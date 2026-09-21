@@ -79,9 +79,15 @@ function jsonValue(value, esc) {
 
 export function masterWorkOrderCardsHtml(orders, esc, busyIds = new Set(), deps = {}) {
   return list(orders).map(order => {
-    const ready=order.state==='ready' && order.digest
+    let ready=order.state==='ready' && order.digest
     const busy=busyIds.has(order.id)
     const agents=list(order.roster?.permanent)
+	const selectedAgentIds=list(order.roster?.agentIds).length ? list(order.roster?.agentIds) : agents.map(item=>item.id)
+	const projectAgents=list(deps.ui?.state?.boot?.projectAgents)
+	const selectedAgents=selectedAgentIds.map(id=>projectAgents.find(item=>item.id===id)).filter(Boolean)
+	const draftAgents=selectedAgents.filter(item=>item.status==='draft')
+	const unavailableAgents=selectedAgents.filter(item=>item.status && item.status!=='active' && item.status!=='draft')
+	if(draftAgents.length || unavailableAgents.length) ready=false
     const temporary=list(order.roster?.temporary)
     const network=list(order.network)
     const secrets=list(order.secrets)
@@ -202,6 +208,9 @@ export function masterWorkOrderCardsHtml(orders, esc, busyIds = new Set(), deps 
 	// Пока исполнителя нет, запускать нечем, и кнопка об этом говорит прямо, а
 	// не молча блокируется: причина стоит рядом с ней и называет, где решение.
 	const consentNote=consented ? '' : `<small class="master-v2-consent-note">Сначала заведите ${consentDrafts.length > 1 ? 'исполнителей' : 'исполнителя'} — карточка ниже</small>`
+	const lifecycleNote=draftAgents.length
+		? `<aside class="master-v2-warning"><b>Состав ждёт активации</b><p>${countOf(draftAgents.length,'черновик','черновика','черновиков')} блокирует запуск. Сохранение карточки не активирует агента.</p>${draftAgents.map(agent=>`<button type="button" class="hall-btn is-sm" data-action="open-agent-constructor-edit" data-id="${esc(agent.id)}">Открыть ${esc(agent.name || agent.roleFamily || 'черновик')}</button>`).join('')}</aside>`
+		: (unavailableAgents.length ? `<aside class="master-v2-warning"><b>Исполнитель недоступен</b><p>Дождитесь завершения оценки или выберите активного агента.</p></aside>` : '')
 	const approveLabel='Запустить квест'
 	// Созданный исполнитель — событие, а не строка под свёрнутыми подробностями.
 	// Утверждение создаёт агента в своей транзакции, и человек имеет право сразу
@@ -242,6 +251,7 @@ export function masterWorkOrderCardsHtml(orders, esc, busyIds = new Set(), deps 
       </header>
       ${criteriaChecklistHtml(order, esc)}
       ${compositionHtml}
+      ${lifecycleNote}
       ${runtimeControls}
       ${applicationControls}
 	  ${evidenceSummary}

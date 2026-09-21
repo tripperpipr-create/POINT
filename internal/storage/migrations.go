@@ -120,5 +120,6 @@ func hubMigrations() []migration {
 		{65, "agent_hub_work_order_revision_idempotency_v2", migrationAgentHubWorkOrderRevisionIdempotencyV2},
 		{66, "master_conversation_recent_v1", migrationMasterConversationRecentV1},
 		{67, "master_turn_event_detail_v1", migrationMasterTurnEventDetailV1},
+		{68, "project_agent_lifecycle_v1", migrationProjectAgentLifecycleV1},
 	}
 }

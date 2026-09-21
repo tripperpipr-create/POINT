@@ -9,6 +9,8 @@
 // все методы и поля провайдера доступны как прежде. Так же устроены
 // hub-runtime-controller, infra-controller и master-chat-controller.
 
+const vscode = require('vscode')
+
 async function handleRosterMessage(message) {
   switch (message.type) {
     case 'saveProfile':
@@ -24,6 +26,30 @@ async function handleRosterMessage(message) {
       await this.deleteProfile(message.id); break
     case 'deleteProjectAgent':
       await this.deleteProjectAgent(message.id); break
+    case 'activateProjectAgentDraft': {
+      if (message.agent) {
+        const draft = await this.service.request('/api/project-agents', { method: 'POST', body: JSON.stringify(message.agent) })
+        this.upsertBootItem('projectAgents', draft)
+      }
+      const saved = await this.service.request(`/api/project-agents/${encodeURIComponent(message.id)}/activate-draft`, { method: 'POST', body: '{}' })
+      this.upsertBootItem('projectAgents', saved)
+      this.postState()
+      this.post({ type: 'projectAgentDraftActivated', agent: saved, agentId: saved.id })
+      break
+    }
+    case 'rejectProjectAgentDraft': {
+      const answer = await vscode.window.showWarningMessage(
+        'Отклонить черновик агента? Он и его временные субагенты будут удалены, а комплектовщик попробует подобрать замену без повторения этого семейства.',
+        { modal: true },
+        'Отклонить черновик',
+      )
+      if (answer !== 'Отклонить черновик') break
+      const result = await this.service.request(`/api/project-agents/${encodeURIComponent(message.id)}/reject-draft`, { method: 'POST', body: '{}' })
+      await this.refreshGuildState()
+      this.postState()
+      this.post({ type: 'projectAgentDraftRejected', result, agentId: message.id })
+      break
+    }
     case 'deleteQuest':
       await this.deleteQuest(message.id); break
     case 'deleteTeam':
@@ -91,7 +117,9 @@ async function handleRosterMessage(message) {
     }
     case 'saveProjectAgent': {
       let agent = message.agent
-      if (!agent?.blueprintId) {
+      // Selector drafts deliberately have no global Blueprint. Editing and
+      // saving their card must keep it that way until a separate activation.
+      if (!agent?.blueprintId && agent?.status !== 'draft') {
         const blueprint = await this.service.request('/api/blueprints', {
           method: 'POST',
           body: JSON.stringify({

@@ -85,8 +85,12 @@ func TestRosterObserverDraftsHireWhenProjectIsEmpty(t *testing.T) {
 		t.Fatalf("пустой проект обязан дать ровно один черновик: %#v", order.Roster)
 	}
 	draft := order.Roster.Permanent[0]
-	if draft.Existing || !draft.RequiresConsent || draft.BlueprintID != "" {
-		t.Fatalf("черновик нового агента должен требовать согласия и не ссылаться на чертёж: %#v", draft)
+	if !draft.Existing || draft.RequiresConsent || draft.BlueprintID != "" {
+		t.Fatalf("selector draft must be a persisted ID without approval-time materialization: %#v", draft)
+	}
+	stored, err := application.store.GetProjectAgent(context.Background(), draft.ID)
+	if err != nil || stored.Status != domain.ProjectAgentDraft || stored.RoleFamily != "developer" {
+		t.Fatalf("persisted selector draft = %#v err=%v", stored, err)
 	}
 	if draft.Name == "" || draft.Role == "" || draft.Mission == "" {
 		t.Fatalf("черновик без имени, роли или миссии домен не примет: %#v", draft)
@@ -139,10 +143,9 @@ func TestRosterObserverKeepsWithinAgentBudget(t *testing.T) {
 	}
 }
 
-// TestRosterObserverPlansSubagentUnderApprovedParent оживляет ветку временных
-// исполнителей: она была описана в домене и материализовалась в базе, но
-// карточка её никогда не заполняла.
-func TestRosterObserverPlansSubagentUnderApprovedParent(t *testing.T) {
+// Narrow specialists are runtime children requested by the active parent, not
+// top-level WorkOrder roster entries.
+func TestSelectorDefersSubagentToApprovedParentRuntime(t *testing.T) {
 	application, world := rosterTestApp(t, "dispatcher")
 	rosterTestAgent(t, application, "Backend", "Backend-разработчик", "Держит серверную часть проекта")
 
@@ -150,15 +153,8 @@ func TestRosterObserverPlansSubagentUnderApprovedParent(t *testing.T) {
 	proposal.Brief.Scope = append(proposal.Brief.Scope, "тесты на маршрут")
 	order := rosterTestOrder(t, application, proposal, "conversation-subagent")
 
-	if len(order.Roster.Temporary) != 1 {
-		t.Fatalf("при разрешённых субагентах пробел роли обязан стать временным исполнителем: %#v", order.Roster)
-	}
-	parents := map[string]bool{}
-	for _, draft := range order.Roster.Permanent {
-		parents[draft.ID] = true
-	}
-	if !parents[order.Roster.Temporary[0].ParentAgentID] {
-		t.Fatalf("родитель субагента обязан быть среди утверждаемых агентов: %#v", order.Roster)
+	if len(order.Roster.Temporary) != 0 {
+		t.Fatalf("selector created a top-level temporary specialist: %#v", order.Roster)
 	}
 	if err := domain.ValidateWorkOrder(order); err != nil {
 		t.Fatalf("наряд с субагентом обязан проходить домен: %v", err)
@@ -180,10 +176,9 @@ func TestRosterObserverSkipsSubagentWithoutPermission(t *testing.T) {
 	}
 }
 
-// TestRosterObserverKeepsDraftIdentityBetweenTurns: согласие человека ссылается
-// на идентификатор черновика, и переименование между репликами оставило бы его
-// указывать в пустоту.
-func TestRosterObserverKeepsDraftIdentityBetweenTurns(t *testing.T) {
+// A material brief change produces a new digest and retires the unapproved
+// selector-only draft from the prior revision.
+func TestSelectorReplacesSupersededDraftBetweenTurns(t *testing.T) {
 	application, world := rosterTestApp(t, "conductor")
 	first := rosterTestOrder(t, application, rosterTestProposal(world.ID, "qp-turn-one", "Собрать backend API с /health", false), "conversation-identity")
 	second := rosterTestOrder(t, application, rosterTestProposal(world.ID, "qp-turn-two", "Собрать backend API с /health и логами", false), "conversation-identity")
@@ -191,11 +186,11 @@ func TestRosterObserverKeepsDraftIdentityBetweenTurns(t *testing.T) {
 	if len(first.Roster.Permanent) != 1 || len(second.Roster.Permanent) != 1 {
 		t.Fatalf("оба хода обязаны дать один черновик: %#v / %#v", first.Roster, second.Roster)
 	}
-	if first.Roster.Permanent[0].ID != second.Roster.Permanent[0].ID {
-		t.Fatalf("черновик сменил идентификатор между ходами: %q → %q", first.Roster.Permanent[0].ID, second.Roster.Permanent[0].ID)
+	if first.Roster.Permanent[0].ID == second.Roster.Permanent[0].ID {
+		t.Fatalf("materially changed brief reused stale draft: %q", first.Roster.Permanent[0].ID)
 	}
-	if first.Roster.Permanent[0].Name != second.Roster.Permanent[0].Name {
-		t.Fatalf("черновик переименовался между ходами: %q → %q", first.Roster.Permanent[0].Name, second.Roster.Permanent[0].Name)
+	if _, err := application.store.GetProjectAgent(context.Background(), first.Roster.Permanent[0].ID); err == nil {
+		t.Fatal("superseded selector-only draft survived")
 	}
 }
 

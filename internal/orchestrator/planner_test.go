@@ -5,11 +5,33 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"local-agent-workbench/internal/domain"
 	"local-agent-workbench/internal/flowruntime"
 	"local-agent-workbench/internal/providers"
 )
+
+func TestPlannerTimeoutsAllowReasoningAndColdLocalStart(t *testing.T) {
+	remote := domain.OrchestratorConfig{Provider: domain.ProviderOpenAI}
+	if got := PlannerBudget(remote); got != 12*time.Minute {
+		t.Fatalf("remote planner budget=%s", got)
+	}
+	if got := plannerHeaderTimeout(remote); got != 2*time.Minute {
+		t.Fatalf("remote header timeout=%s", got)
+	}
+	local := domain.OrchestratorConfig{Provider: domain.ProviderOllama}
+	if got := PlannerBudget(local); got != 20*time.Minute {
+		t.Fatalf("local planner budget=%s", got)
+	}
+	if got := plannerHeaderTimeout(local); got != 5*time.Minute {
+		t.Fatalf("local header timeout=%s", got)
+	}
+	message := plannerHeartbeatMessage("reasoning", 81*time.Second)
+	if !strings.Contains(message, "обдумывать") || !strings.Contains(message, "1m21s") {
+		t.Fatalf("heartbeat does not explain live planning: %q", message)
+	}
+}
 
 type plannerModel struct {
 	events []providers.ModelEvent
@@ -75,6 +97,27 @@ func TestPlannerProducesValidatedNoToolsPlan(t *testing.T) {
 	}
 	if strings.Join(result.Plan.AgentIDs, ",") != "backend,reviewer" || len(result.Plan.Stages) != 2 {
 		t.Fatalf("plan=%#v", result.Plan)
+	}
+}
+
+func TestPlannerReportsReasoningAndStructuredOutputProgress(t *testing.T) {
+	raw := `{"agentIds":["backend"],"rationale":"Implement directly.","stages":[{"name":"Implement","agentId":"backend","instruction":"Implement and verify.","phase":1}],"requiresApproval":false}`
+	request := testPlannerRequest()
+	request.Config.TeamPreference = 20
+	var phases []string
+	request.Progress = func(progress PlanProgress) { phases = append(phases, progress.Phase) }
+	planner := Planner{NewModel: func(providers.Config) (providers.Model, error) {
+		return plannerModel{events: []providers.ModelEvent{
+			{Kind: providers.EventReasoning, Delta: "considering stages"},
+			{Kind: providers.EventReasoning, Delta: " and ownership"},
+			{Kind: providers.EventTextDelta, Delta: raw},
+		}}, nil
+	}}
+	if _, err := planner.Plan(context.Background(), request); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(phases, ",") != "skill,skill,reasoning,output" {
+		t.Fatalf("progress phases=%v", phases)
 	}
 }
 
@@ -157,6 +200,50 @@ func TestValidateStageModelRejectsUnknownZeroPriceAndIncompleteBinding(t *testin
 	priced[0].PricingKnown = true
 	if err = validateStageModel(PlanStage{ConnectionID: "conn-1", Model: "qwen", Runtime: "point"}, priced); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestCompleteStageModelFromUniqueCatalogCandidate(t *testing.T) {
+	candidates := []domain.ModelCandidate{{ConnectionID: "conn-1", Model: "qwen", Runtime: "point", Healthy: true, PricingKnown: true}}
+	stage := PlanStage{ConnectionID: "conn-1", Model: "qwen"}
+	completeStageModelFromCandidates(&stage, candidates)
+	if stage.Runtime != "point" {
+		t.Fatalf("unique catalog runtime was not completed: %#v", stage)
+	}
+	if err := validateStageModel(stage, candidates); err != nil {
+		t.Fatalf("completed binding was rejected: %v", err)
+	}
+
+	ambiguous := []domain.ModelCandidate{
+		{ConnectionID: "conn-1", Model: "qwen", Runtime: "point", Healthy: true, PricingKnown: true},
+		{ConnectionID: "conn-1", Model: "qwen", Runtime: "claude-code-cli", Healthy: true, PricingKnown: true},
+	}
+	stage = PlanStage{ConnectionID: "conn-1", Model: "qwen"}
+	completeStageModelFromCandidates(&stage, ambiguous)
+	if stage.Runtime != "" {
+		t.Fatalf("ambiguous runtime was invented: %#v", stage)
+	}
+	if err := validateStageModel(stage, ambiguous); err == nil {
+		t.Fatal("ambiguous incomplete binding was accepted")
+	}
+}
+
+func TestPlannerCompletesRuntimeOmittedByModel(t *testing.T) {
+	request := testPlannerRequest()
+	request.ModelCandidates = []domain.ModelCandidate{{
+		ConnectionID: "conn-1", Model: "qwen", Runtime: "point", Healthy: true, PricingKnown: true,
+		Capabilities: []string{"coding"},
+	}}
+	raw := `{"agentIds":["backend"],"rationale":"Use the approved route.","stages":[{"name":"Implement","agentId":"backend","instruction":"Implement and verify the task.","phase":1,"connectionId":"conn-1","model":"qwen","requiredCapabilities":["coding"]}],"requiresApproval":false}`
+	planner := Planner{NewModel: func(providers.Config) (providers.Model, error) {
+		return plannerModel{events: []providers.ModelEvent{{Kind: providers.EventTextDelta, Delta: raw}}}, nil
+	}}
+	result, err := planner.Plan(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := result.Plan.Stages[0].Runtime; got != "point" {
+		t.Fatalf("planner did not retain completed runtime: %q", got)
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"local-agent-workbench/internal/domain"
 	"local-agent-workbench/internal/orchestrator"
@@ -293,10 +294,37 @@ func plannerFallbackText(err error) string {
 	if err == nil {
 		return ""
 	}
+	var timeout *orchestrator.PlanTimeoutError
+	if errors.As(err, &timeout) {
+		where := map[string]string{
+			"waiting":   "до первого фрагмента ответа",
+			"reasoning": "во время рассуждения",
+			"output":    "при передаче JSON-плана",
+			"retry":     "во время повторной попытки провайдера",
+		}[timeout.Phase]
+		if where == "" {
+			where = "во время ответа"
+		}
+		return "модель планировщика не завершила ответ за " + plannerBudgetText(timeout.Budget) + " " + where + "; Point продолжил с резервным Flow"
+	}
+	if errors.Is(err, context.DeadlineExceeded) || strings.Contains(strings.ToLower(err.Error()), "context deadline exceeded") {
+		return "модель планировщика не завершила ответ за отведённое время; Point продолжил с резервным Flow"
+	}
 	message := strings.TrimSpace(security.Redact(err.Error()))
 	runes := []rune(message)
 	if len(runes) > 300 {
 		message = string(runes[:300]) + "…"
 	}
 	return message
+}
+
+func plannerBudgetText(budget time.Duration) string {
+	minutes := int((budget + time.Minute - 1) / time.Minute)
+	word := "минут"
+	if minutes%10 == 1 && minutes%100 != 11 {
+		word = "минуту"
+	} else if minutes%10 >= 2 && minutes%10 <= 4 && (minutes%100 < 12 || minutes%100 > 14) {
+		word = "минуты"
+	}
+	return fmt.Sprintf("%d %s", minutes, word)
 }

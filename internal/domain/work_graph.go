@@ -93,7 +93,7 @@ func SharedProjectPaths() []string {
 		"composer.json", "composer.lock", "vendor", "package.json", "package-lock.json",
 		"pnpm-lock.yaml", "yarn.lock", "go.mod", "go.sum", "pyproject.toml", "poetry.lock",
 		"requirements.txt", "Cargo.lock", "docker-compose.yml", "docker-compose.yaml",
-		".env", "symfony.lock",
+		".env", ".env.local", ".env.test", ".env.prod", "bin", "symfony.lock",
 	}
 }
 

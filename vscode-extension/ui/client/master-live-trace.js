@@ -36,7 +36,9 @@ export function masterTraceAccept (turn, event, now = Date.now()) {
   const trace = Array.isArray(turn.trace) ? turn.trace : (turn.trace = [])
   const detail = detailOf(event)
   const last = trace[trace.length - 1]
-  if (event.type === 'reasoning') {
+  if (event.type === 'skill') {
+	trace.push({kind:'skill',argument:event.text,result:`v${detail.revision || 1} · ${detail.digest || ''}`,running:false,startedAt:now,at:now})
+  } else if (event.type === 'reasoning') {
     // Мысль приходит приростом: ядро шлёт только то, что появилось с прошлой
     // отправки, иначе журнал одного хода вырастал бы на мегабайты одного и
     // того же текста.
@@ -92,6 +94,7 @@ export function masterTraceTitle (item) {
   if (!item) return ''
   if (item.kind === 'mind') return 'Размышление'
   if (item.kind === 'retry') return 'Вторая попытка'
+	if (item.kind === 'skill') return 'Рабочий навык'
   const name = masterToolNameNow(item.tool)
   if (!name) return 'Вызов инструмента'
   return name.charAt(0).toUpperCase() + name.slice(1)

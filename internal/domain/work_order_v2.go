@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -20,6 +21,7 @@ import (
 // may create the immutable contract used by execution.
 type WorkOrder struct {
 	ID              string                `json:"id"`
+	ProposalID      string                `json:"proposalId,omitempty"`
 	Digest          string                `json:"digest,omitempty"`
 	WorkspaceID     string                `json:"workspaceId,omitempty"`
 	ConversationID  string                `json:"conversationId,omitempty"`
@@ -37,6 +39,7 @@ type WorkOrder struct {
 	Milestones      []MilestonePlan       `json:"milestones"`
 	Workspace       WorkspacePlan         `json:"workspace"`
 	Stack           StackPresetRef        `json:"stack"`
+	Setup           SetupPlan             `json:"setupPlan,omitempty"`
 	Roster          AgentRosterPlan       `json:"roster"`
 	Routing         ModelRoutingPolicy    `json:"routing"`
 	Network         []NetworkGrant        `json:"network,omitempty"`
@@ -52,11 +55,18 @@ type WorkOrder struct {
 // WorkOrderRuntime is derived operational state. It is not part of the
 // approved digest and can change while the immutable WorkOrder stays fixed.
 type WorkOrderRuntime struct {
-	QuestID   string      `json:"questId"`
-	Status    QuestStatus `json:"status"`
-	Message   string      `json:"message,omitempty"`
-	FlowID    string      `json:"flowId,omitempty"`
-	FlowRunID string      `json:"flowRunId,omitempty"`
+	QuestID        string      `json:"questId"`
+	Status         QuestStatus `json:"status"`
+	Assurance      string      `json:"assurance,omitempty"`
+	OutcomeSummary string      `json:"outcomeSummary,omitempty"`
+	Message        string      `json:"message,omitempty"`
+	// LaunchPhase is the durable, user-visible step before a FlowRun exists.
+	// Planning can take minutes; a single `preflight` status made that time look
+	// like a frozen button rather than active work.
+	LaunchPhase     string     `json:"launchPhase,omitempty"`
+	LaunchStartedAt *time.Time `json:"launchStartedAt,omitempty"`
+	FlowID          string     `json:"flowId,omitempty"`
+	FlowRunID       string     `json:"flowRunId,omitempty"`
 	// AgentIDs — исполнители, созданные утверждением наряда. Карточка обещала
 	// «будет создан» и после утверждения обязана показать, что он создан.
 	AgentIDs        []string           `json:"agentIds,omitempty"`
@@ -118,6 +128,27 @@ type StackPresetRef struct {
 	Version  string `json:"version"`
 	Category string `json:"category"`
 	Source   string `json:"source"` // explicit | preference | benchmark
+}
+
+// SetupPlan is approved together with the WorkOrder. Bootstrap may execute
+// only these commands and write only these files; ExpectedPaths are its gate.
+type SetupPlan struct {
+	ID            string         `json:"id,omitempty"`
+	Version       string         `json:"version,omitempty"`
+	Commands      []SetupCommand `json:"commands,omitempty"`
+	Files         []SetupFile    `json:"files,omitempty"`
+	ExpectedPaths []string       `json:"expectedPaths,omitempty"`
+	OwnedPaths    []string       `json:"ownedPaths,omitempty"`
+}
+
+type SetupCommand struct {
+	Command        string `json:"command"`
+	TimeoutSeconds int    `json:"timeoutSeconds,omitempty"`
+}
+
+type SetupFile struct {
+	Path    string `json:"path"`
+	Content string `json:"content"`
 }
 
 type AgentDraft struct {
@@ -216,6 +247,7 @@ const CompletionCheckAcceptance = "acceptance"
 type CompletionCheck struct {
 	Kind             string `json:"kind"`
 	Command          string `json:"command,omitempty"`
+	URL              string `json:"url,omitempty"`
 	ExpectedExitCode int    `json:"expectedExitCode,omitempty"`
 }
 
@@ -252,7 +284,7 @@ func NormalizeWorkOrder(in WorkOrder) WorkOrder {
 	if in.Version <= 0 {
 		in.Version = 1
 	}
-	if in.State != "discussion" && in.State != "ready" {
+	if in.State != "discussion" && in.State != "staffing" && in.State != "ready" {
 		in.State = "discussion"
 	}
 	in.Goal = strings.TrimSpace(in.Goal)
@@ -288,6 +320,19 @@ func NormalizeWorkOrder(in WorkOrder) WorkOrder {
 	in.Completion.ID = strings.TrimSpace(in.Completion.ID)
 	in.Completion.Version = strings.TrimSpace(in.Completion.Version)
 	in.Completion.Checks = normalizeCompletionChecks(in.Completion.Checks)
+	in.Setup.ID = strings.TrimSpace(in.Setup.ID)
+	in.Setup.Version = strings.TrimSpace(in.Setup.Version)
+	in.Setup.ExpectedPaths = briefStrings(in.Setup.ExpectedPaths)
+	in.Setup.OwnedPaths = briefStrings(in.Setup.OwnedPaths)
+	for index := range in.Setup.Commands {
+		in.Setup.Commands[index].Command = strings.TrimSpace(in.Setup.Commands[index].Command)
+		if in.Setup.Commands[index].TimeoutSeconds <= 0 {
+			in.Setup.Commands[index].TimeoutSeconds = 600
+		}
+	}
+	for index := range in.Setup.Files {
+		in.Setup.Files[index].Path = filepath.ToSlash(strings.TrimSpace(in.Setup.Files[index].Path))
+	}
 	if in.Delivery.CommitMode == "" {
 		in.Delivery.CommitMode = "squash"
 	}
@@ -312,6 +357,11 @@ func NormalizeWorkOrder(in WorkOrder) WorkOrder {
 	}
 	if in.Budget.MaxSteps <= 0 {
 		in.Budget.MaxSteps = 64
+	}
+	in.Criteria = append([]AcceptanceCriterion(nil), in.Criteria...)
+	for index := range in.Criteria {
+		// Same synonym repair as a task brief draft: "shell" is not a tool.
+		in.Criteria[index].Tool = CanonicalToolName(in.Criteria[index].Tool)
 	}
 	if len(in.Milestones) == 0 && strings.TrimSpace(in.Goal) != "" {
 		criterionIDs := make([]string, 0, len(in.Criteria))
@@ -366,6 +416,10 @@ func IsApprovedWorkOrder(order WorkOrder) bool {
 	return order.State == "approved" && order.ApprovedVersion == order.Version && order.ApprovedDigest != "" && order.ApprovedDigest == WorkOrderDigest(order)
 }
 
+func workOrderDefinitionComplete(state string) bool {
+	return state == "staffing" || state == "ready" || state == "approved"
+}
+
 func ValidateWorkOrder(order WorkOrder) error {
 	var problems []string
 	if strings.TrimSpace(order.ID) == "" || order.Version <= 0 {
@@ -390,7 +444,7 @@ func ValidateWorkOrder(order WorkOrder) error {
 				problems = append(problems, fmt.Sprintf("manual criterion %q cannot claim tool evidence", criterion.ID))
 			}
 		case "verification", "reproduction":
-			if order.State == "ready" || order.State == "approved" {
+			if workOrderDefinitionComplete(order.State) {
 				trimmed := bytes.TrimSpace(criterion.Arguments)
 				if strings.TrimSpace(criterion.Tool) == "" || len(trimmed) == 0 || !json.Valid(trimmed) || trimmed[0] != '{' {
 					problems = append(problems, fmt.Sprintf("criterion %q requires a tool and JSON object arguments", criterion.ID))
@@ -445,8 +499,8 @@ func ValidateWorkOrder(order WorkOrder) error {
 			break
 		}
 	}
-	if len(order.OpenQuestions) > 2 || order.State == "ready" && len(order.OpenQuestions) > 0 {
-		problems = append(problems, "ready work order cannot have open questions")
+	if len(order.OpenQuestions) > 2 || workOrderDefinitionComplete(order.State) && len(order.OpenQuestions) > 0 {
+		problems = append(problems, "staffing or ready work order cannot have open questions")
 	}
 	if order.Workspace.Mode != "existing" && order.Workspace.Mode != "managed" {
 		problems = append(problems, "workspace mode must be existing or managed")
@@ -454,10 +508,32 @@ func ValidateWorkOrder(order WorkOrder) error {
 	if strings.TrimSpace(order.Workspace.Path) == "" {
 		problems = append(problems, "workspace path is required")
 	}
-	if (order.State == "ready" || order.State == "approved") && (strings.TrimSpace(order.Stack.ID) == "" || strings.TrimSpace(order.Stack.Version) == "" || strings.TrimSpace(order.Stack.Category) == "") {
+	if workOrderDefinitionComplete(order.State) && (strings.TrimSpace(order.Stack.ID) == "" || strings.TrimSpace(order.Stack.Version) == "" || strings.TrimSpace(order.Stack.Category) == "") {
 		problems = append(problems, "ready work order requires a versioned stack preset")
 	}
-	if order.State == "ready" || order.State == "approved" {
+	if workOrderDefinitionComplete(order.State) {
+		if order.Setup.ID != "" {
+			if order.Setup.Version == "" || len(order.Setup.ExpectedPaths) == 0 {
+				problems = append(problems, "setup plan requires a version and expected paths")
+			}
+			for _, command := range order.Setup.Commands {
+				if command.Command == "" || len(command.Command) > 4096 || command.TimeoutSeconds <= 0 || command.TimeoutSeconds > 1800 {
+					problems = append(problems, "setup plan contains an invalid command")
+					break
+				}
+			}
+			paths := append(append([]string(nil), order.Setup.ExpectedPaths...), order.Setup.OwnedPaths...)
+			for _, file := range order.Setup.Files {
+				paths = append(paths, file.Path)
+			}
+			for _, path := range paths {
+				clean := filepath.Clean(strings.TrimSpace(path))
+				if clean == "." || filepath.IsAbs(clean) || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
+					problems = append(problems, "setup plan paths must stay inside the workspace")
+					break
+				}
+			}
+		}
 		if order.Completion.ID == "" || order.Completion.Version == "" || len(order.Completion.Checks) == 0 {
 			problems = append(problems, "ready work order requires a versioned completion profile")
 		} else {
@@ -540,7 +616,7 @@ func ValidateWorkOrder(order WorkOrder) error {
 		}
 	}
 	for _, secret := range order.Secrets {
-		if (order.State == "ready" || order.State == "approved") && secret.Required && !secret.Satisfied {
+		if workOrderDefinitionComplete(order.State) && secret.Required && !secret.Satisfied {
 			problems = append(problems, fmt.Sprintf("required secret %q is not satisfied", secret.Name))
 		}
 	}
@@ -578,6 +654,7 @@ func normalizeCompletionChecks(items []CompletionCheck) []CompletionCheck {
 	for _, item := range items {
 		item.Kind = strings.ToLower(strings.TrimSpace(item.Kind))
 		item.Command = strings.TrimSpace(item.Command)
+		item.URL = strings.TrimSpace(item.URL)
 		if item.Kind == "" {
 			continue
 		}

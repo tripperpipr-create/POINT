@@ -52,6 +52,8 @@ async function handleRosterMessage(message) {
     }
     case 'deleteQuest':
       await this.deleteQuest(message.id); break
+    case 'purgeQuest':
+      await this.purgeQuest(message.id); break
     case 'deleteTeam':
       await this.deleteTeam(message.id); break
     case 'deleteFlow':
@@ -71,9 +73,10 @@ async function handleRosterMessage(message) {
           body: JSON.stringify(message.team || {}),
         })
         this.upsertBootItem('teams', saved)
+        this.post({ type: 'teamSaved', teamId: saved?.id || '' })
         this.postState()
       } catch (error) {
-        this.post({ type: 'error', message: error instanceof Error ? error.message : String(error) })
+        this.post({ type: 'error', request: message.type, message: error instanceof Error ? error.message : String(error) })
       }
       break
     }
@@ -92,7 +95,7 @@ async function handleRosterMessage(message) {
         })
         this.postState()
       } catch (error) {
-        this.post({ type: 'error', message: error instanceof Error ? error.message : String(error) })
+        this.post({ type: 'error', request: message.type, message: error instanceof Error ? error.message : String(error) })
       }
       break
     }
@@ -160,14 +163,17 @@ async function handleRosterMessage(message) {
       // Мастера — там переброс вкладки выкидывал человека из разговора,
       // ради которого агент и понадобился.
       if (!message.stayOnTab) this.focusTab('agents')
-      this.post({ type: 'projectAgentSaved', agentId: saved.id })
+      // Подтверждение идёт раньше полного state. Карточке Мастера нужен сам
+      // агент уже здесь, чтобы заменить точный черновик ростера, не пытаясь
+      // найти новую запись в ещё старом снимке webview.
+      this.post({ type: 'projectAgentSaved', agentId: saved.id, agent: saved })
       this.postState()
       break
     }
     case 'applyBlueprintToAgent': {
       const saved = await this.service.request(`/api/project-agents/${encodeURIComponent(message.agentId)}/apply-blueprint`, { method: 'POST', body: '{}' })
       this.upsertBootItem('projectAgents', saved)
-      this.post({ type: 'projectAgentSaved', agentId: saved.id || message.agentId })
+      this.post({ type: 'projectAgentSaved', agentId: saved.id || message.agentId, agent: saved })
       this.postState()
       break
     }

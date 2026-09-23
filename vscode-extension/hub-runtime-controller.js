@@ -158,7 +158,7 @@ async function handleHubRuntimeMessage(message) {
         this.focusTab('overview')
         this.postState()
       } catch (error) {
-        this.post({ type: 'error', message: error instanceof Error ? error.message : String(error) })
+        this.post({ type: 'error', request: message.type, message: error instanceof Error ? error.message : String(error) })
       }
       break
     }
@@ -489,7 +489,7 @@ async function handleHubRuntimeMessage(message) {
         })
         this.post({ type: 'skillEquipPreview', preview, skillId: message.skillId })
       } catch (error) {
-        this.post({ type: 'error', message: error instanceof Error ? error.message : String(error) })
+        this.post({ type: 'error', request: message.type, message: error instanceof Error ? error.message : String(error) })
       }
       break
     }
@@ -503,7 +503,7 @@ async function handleHubRuntimeMessage(message) {
         this.post({ type: 'skillEquipped', skillId: message.skillId })
         this.postState()
       } catch (error) {
-        this.post({ type: 'error', message: error instanceof Error ? error.message : String(error) })
+        this.post({ type: 'error', request: message.type, message: error instanceof Error ? error.message : String(error) })
       }
       break
     }
@@ -513,7 +513,7 @@ async function handleHubRuntimeMessage(message) {
         await this.refreshRuntimeState({ companion: true })
         this.postState()
       } catch (error) {
-        this.post({ type: 'error', message: error instanceof Error ? error.message : String(error) })
+        this.post({ type: 'error', request: message.type, message: error instanceof Error ? error.message : String(error) })
       }
       break
     }
@@ -523,7 +523,7 @@ async function handleHubRuntimeMessage(message) {
         await this.refreshRuntimeState({ companion: true })
         this.postState()
       } catch (error) {
-        this.post({ type: 'error', message: error instanceof Error ? error.message : String(error) })
+        this.post({ type: 'error', request: message.type, message: error instanceof Error ? error.message : String(error) })
       }
       break
     }
@@ -533,7 +533,7 @@ async function handleHubRuntimeMessage(message) {
         await this.refreshRuntimeState({ companion: true })
         this.postState()
       } catch (error) {
-        this.post({ type: 'error', message: error instanceof Error ? error.message : String(error) })
+        this.post({ type: 'error', request: message.type, message: error instanceof Error ? error.message : String(error) })
       }
       break
     }
@@ -544,7 +544,7 @@ async function handleHubRuntimeMessage(message) {
         if (run?.id) await this.loadRun(run.id)
         this.postState()
       } catch (error) {
-        this.post({ type: 'error', message: error instanceof Error ? error.message : String(error) })
+        this.post({ type: 'error', request: message.type, message: error instanceof Error ? error.message : String(error) })
       }
       break
     }
@@ -557,7 +557,7 @@ async function handleHubRuntimeMessage(message) {
         await this.refreshRuntimeState({ companion: true })
         this.postState()
       } catch (error) {
-        this.post({ type: 'error', message: error instanceof Error ? error.message : String(error) })
+        this.post({ type: 'error', request: message.type, message: error instanceof Error ? error.message : String(error) })
       }
       break
     }
@@ -571,7 +571,7 @@ async function handleHubRuntimeMessage(message) {
         this.focusTab('flows')
         this.postState()
       } catch (error) {
-        this.post({ type: 'error', message: error instanceof Error ? error.message : String(error) })
+        this.post({ type: 'error', request: message.type, message: error instanceof Error ? error.message : String(error) })
       }
       break
     }

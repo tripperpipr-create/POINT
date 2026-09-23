@@ -95,6 +95,10 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/egress-asks/{id}/resolve", s.resolveEgressAsk)
 	s.mux.HandleFunc("POST /api/master/sessions", s.masterSessionUpdate)
 	s.mux.HandleFunc("GET /api/master/history", s.masterHistory)
+	s.mux.HandleFunc("GET /api/master/skills", s.masterDevelopment)
+	s.mux.HandleFunc("GET /api/master/learning", s.masterDevelopment)
+	s.mux.HandleFunc("POST /api/master/learning", s.masterLearningUpdate)
+	s.mux.HandleFunc("POST /api/master/skills/{id}/rollback", s.masterSkillRollback)
 	// Каталог чатов Чертога — единственный маршрут мастера, который смотрит за
 	// пределы текущего мира. Только GET и только метаданные; см. комментарий у
 	// App.MasterChatDirectory о границах этого послабления.
@@ -128,6 +132,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/master/conversations/{id}/export", s.masterExport)
 	s.mux.HandleFunc("GET /api/master/conversations/{id}/messages", s.masterPage)
 	s.mux.HandleFunc("POST /api/master/chat", s.masterChat)
+	s.mux.HandleFunc("POST /api/reports", s.generateReport)
 	s.mux.HandleFunc("POST /api/master/messages/{id}/feedback", s.masterMessageFeedback)
 	s.mux.HandleFunc("GET /api/files/history", s.fileHistory)
 	s.mux.HandleFunc("GET /api/runs", s.runs)
@@ -195,6 +200,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("DELETE /api/teams/{id}", s.deleteTeam)
 	s.mux.HandleFunc("POST /api/quests", s.saveQuest)
 	s.mux.HandleFunc("DELETE /api/quests/{id}", s.deleteQuest)
+	s.mux.HandleFunc("POST /api/quests/{id}/purge", s.purgeQuest)
 	s.mux.HandleFunc("POST /api/flows", s.saveFlow)
 	s.mux.HandleFunc("GET /api/flows/{id}", s.getFlow)
 	s.mux.HandleFunc("DELETE /api/flows/{id}", s.deleteFlow)

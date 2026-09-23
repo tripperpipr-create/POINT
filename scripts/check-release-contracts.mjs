@@ -600,6 +600,22 @@ for (const token of [
 ]) {
   requireText(extensionSource, token, 'extension module boundary')
 }
+// Удаление последнего квеста может каскадно убрать его схему. Локальная правка
+// только массива quests оставляет удалённую схему в webview до перезапуска и
+// визуально продолжает держать её агентов. После DELETE нужен цельный runtime
+// slice, где quests, flows и flowRuns сняты в один момент.
+{
+  const body = extensionSource.match(/async deleteQuest\([^)]*\) \{[\s\S]*?\n  \}/)?.[0] || ''
+  const requestAt = body.indexOf("this.service.request(`/api/quests/")
+  const localRemovalAt = body.indexOf("this.removeBootItem('quests'")
+  const refreshAt = body.indexOf('await this.refreshRuntimeState()')
+  if (requestAt < 0 || refreshAt < requestAt) {
+    errors.push('quest deletion: runtime state is not refreshed after the cascading DELETE')
+  }
+  if (localRemovalAt < requestAt || localRemovalAt > refreshAt) {
+    errors.push('quest deletion: successful DELETE is not reflected locally before the fallible runtime refresh')
+  }
+}
 // Выбор подключения — ровно одно место.
 //
 // Он был написан трижды копипастой, для квеста, компаньона и Мастера, и каждая
@@ -620,6 +636,36 @@ for (const token of [
   }
 }
 const webviewSource = read('vscode-extension/ui/client/main.js')
+// Форму отпускает ответ её операции, а не любой polling-state. Проверяем обе
+// стороны протокола: хост обязан послать недостающие domain-ack, webview —
+// распознать их. Иначе тест UI с синтетическим сообщением прошёл бы, а живой
+// хост никогда бы это сообщение не отправил.
+{
+  const acknowledgements = [
+    [read('vscode-extension/learning-controller.js'), "type: 'budgetSaved'", 'budget'],
+    [read('vscode-extension/roster-controller.js'), "type: 'teamSaved'", 'team'],
+    [extensionSource, "type: 'memorySaved'", 'memory'],
+    [extensionSource, "type: 'connectionSaved'", 'connection'],
+  ]
+  const routing = read('vscode-extension/ui/client/request-failure-routing.js')
+  for (const [source, token, label] of acknowledgements) {
+    requireText(source, token, `${label} form acknowledgement host`)
+    requireText(routing, token.match(/'([^']+)'/)?.[1] || '', `${label} form acknowledgement webview`)
+  }
+  const worldInbox = read('vscode-extension/ui/client/world-state-inbox.js')
+  if (/submittingForm\s*=\s*''/.test(worldInbox)) errors.push('form acknowledgement: generic state unlocks an unrelated submitted form')
+  for (const file of ['hub-runtime-controller.js', 'infra-controller.js', 'roster-controller.js']) {
+    const source = read(`vscode-extension/${file}`)
+    if (/this\.post\(\{\s*type:\s*'error',\s*message:/.test(source)) {
+      errors.push(`request failure routing: ${file} emits an unscoped error`)
+    }
+  }
+}
+// Исходники webview — настоящие ESM, а хост расширения остаётся CommonJS.
+// Без локальной границы Node каждый импорт сначала пробует разобрать как CJS,
+// затем повторяет разбор и шумит MODULE_TYPELESS_PACKAGE_JSON на каждом gate.
+const webviewClientPackage = JSON.parse(read('vscode-extension/ui/client/package.json'))
+if (webviewClientPackage.type !== 'module') errors.push('webview modules: ui/client/package.json must declare type=module')
 for (const token of [
   "from './statistics-views.js'", "from './infrastructure-views.js'",
   "from './change-set-views.js'", "from './companion-markdown.js'",
@@ -881,7 +927,7 @@ if (smokeFiles.length && wiredSmokes < smokeFiles.length / 2) {
 //
 // `check-quality-gate` сверяет версию в трёх источниках: ядро, frontend,
 // расширение. Путь к VSIX — четвёртый, и его не сверял никто: `package.json`
-// собирает `point-ide-1.2.2.vsix`, а `ship-hub-extension.ps1`,
+// собирает `point-ide-1.2.3.vsix`, а `ship-hub-extension.ps1`,
 // `install-vscode-extension.ps1`, `package:verify` и README ищут файл с тем же
 // именем. Подъём версии в трёх местах оставил бы сборку писать один файл, а
 // выкладку — искать другой, и разошлось бы это молча: сборка отработает, а

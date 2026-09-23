@@ -1,5 +1,5 @@
 param(
-  [string]$VsixPath = (Join-Path $PSScriptRoot "..\build\vsix\point-ide-1.2.2.vsix")
+  [string]$VsixPath = (Join-Path $PSScriptRoot "..\build\vsix\point-ide-1.2.3.vsix")
 )
 
 $ErrorActionPreference = "Stop"

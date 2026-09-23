@@ -30,6 +30,7 @@ type CustomProcess struct {
 	NetworkPolicy       string
 	AllowedNetworkHosts []string
 	Executor            sandbox.ProcessExecutor
+	SandboxImage        string
 	RunID               string
 }
 
@@ -112,7 +113,7 @@ func (t CustomProcess) Execute(ctx context.Context, raw json.RawMessage) domain.
 	if t.Executor != nil {
 		prepared, prepareErr := t.Executor.PrepareProcess(commandCtx, sandbox.ProcessRequest{
 			WorkspaceRoot: t.FS.Root(), WorkingDirectory: preview.ResolvedCWD,
-			Program: preview.Program, Arguments: append([]string(nil), preview.Arguments...),
+			Program: preview.Program, Arguments: append([]string(nil), preview.Arguments...), Image: t.SandboxImage,
 			Environment: sanitizedProcessEnv(), NetworkPolicy: t.NetworkPolicy,
 			AllowedNetworkHosts: append([]string(nil), t.AllowedNetworkHosts...),
 			RunID:               t.RunID,

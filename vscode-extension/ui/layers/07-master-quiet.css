@@ -1060,6 +1060,25 @@
   border-radius: var(--r-full);
   background: var(--ember);
 }
+/* Идущий квест носит тот же знак, что и идущий этап в перечне (hall-plan-row
+   .is-now), и подпись при нём — счёт этапов. Знак повторяет слово, а не
+   заменяет его: «3 из 7» читается и без цвета. Правило написано и от шапки
+   разговора — вкладка стоит там, а не в ленте. */
+.hall-head-chat .hall-brief-tab.is-live::before,
+.hall-dialogue .hall-brief-tab.is-live::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: var(--r-full);
+  background: var(--ember);
+}
+/* Пока ядро собирает прогон, этапов ещё нет. Строка ожидания набрана тише
+   перечня, который её сменит. */
+.hall-brief-panel .hall-brief-wait {
+  margin: 0;
+  color: var(--ui-faint);
+  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui);
+}
 .hall-brief-panel {
   position: absolute;
   inset: 0 0 0 auto;
@@ -1285,3 +1304,7 @@
 }
 .hall-dialogue .hall-msg > div li { margin-block: var(--s-2); }
 .hall-dialogue .hall-msg > div li::marker { color: var(--hub-faint-2); }
+
+.master-development pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.master-development header { display: flex; align-items: center; justify-content: space-between; gap: var(--s-4); }
+.master-development details { margin-block: var(--s-4); }

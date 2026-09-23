@@ -60,7 +60,12 @@ if (!done.includes('master-v2-approved is-done') || !done.includes('✓ Гото
 }
 
 const completed = masterWorkOrderCardsHtml([{ ...base, runtime: { questId: 'quest-1', status: 'completed' } }], esc)
-if (completed.includes('master-v2-runtime-controls')) throw new Error('completed WorkOrder still offers runtime mutation')
+if (completed.includes('data-control="pause"') || completed.includes('data-control="resume"') || completed.includes('data-control="cancel"')) {
+  throw new Error('completed WorkOrder still offers runtime mutation')
+}
+if (!completed.includes('data-action="generate-work-order-report"') || !completed.includes('Собрать отчёт')) {
+  throw new Error('completed WorkOrder cannot hand its visible result to the report agent')
+}
 
 const delivered = masterWorkOrderCardsHtml([{ ...base, digest: 'sha256:brief', runtime: { questId: 'quest-1', status: 'completed', deliveryReceipt: { id: 'delivery-1', url: 'http://localhost:8080' }, evidence: { id: 'evidence-1', version: 3, verificationChecks: [{ id: 'tests', kind: 'automated_tests', command: 'npm test', exitCode: 0, satisfied: true }], changedFiles: ['src/app.js'], commitIds: ['abc123'], modelCalls: [{ inputTokens: 10, outputTokens: 5, costKnown: true, costCents: 2 }], workspaceRevision: 'sha256:tree' } } }], esc)
 for (const expected of ['data-action="control-master-application-v2"', 'data-control="start"', 'data-control="stop"', 'http://localhost:8080', 'EvidenceBundle', 'npm test', '15 токенов', 'abc123']) {
@@ -95,6 +100,15 @@ for (const [name, source] of [['webview', main], ['transport', transport], ['ext
 }
 if (!transport.includes("if(action==='resume')") || !transport.includes("this.credentialFor({connectionId},'утверждённого маршрута WorkOrder')")) {
   throw new Error('resume does not obtain the approved route credential from SecretStorage')
+}
+if (!host.includes("workOrderId: String(message?.workOrderId || '')") || !host.includes("message, request, ...detail")) {
+  throw new Error('extension host loses the failed WorkOrder id while reporting an error')
+}
+if (!main.includes('masterWorkOrderBusy.delete(failedWorkOrderId)')) {
+  throw new Error('one failed WorkOrder still unlocks every WorkOrder card')
+}
+for (const expected of ['generateReport', '/api/reports', 'contentBase64']) {
+  if (!host.includes(expected) && !transport.includes(expected)) throw new Error(`report agent transport lost: ${expected}`)
 }
 
 // Запуск идёт минутами и переживает свой запрос. Без наблюдения карточка

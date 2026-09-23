@@ -13,6 +13,8 @@
 //
 // Состояние приходит общим мешком `ui`, как в `companion-transport.js`.
 
+import { failedRequestOwnsForm } from './request-failure-routing.js'
+
 const RUN_MESSAGES = new Set([
   'contextAdded', 'contextPreview', 'contextPreviewError',
   'agentRunPreview', 'agentRunPreviewError', 'compiledPromptPreview',
@@ -102,15 +104,32 @@ export function createRunInbox({
       }
       if (message.type === 'workflowRunStarted') { ui.contextItems=[]; ui.contextPreview=undefined; ui.contextPreviewStatus='idle'; ui.contextPreviewError=''; persistDraft() }
       if (message.type === 'error') {
-        ui.providerProbe = undefined
-        ui.companionProviderProbe = undefined
-        // Запуск не состоялся — форму отпираем, иначе повторить будет нельзя.
-        ui.runStarting = false
-        // Какое из предложений не запустилось, отказ не называет — отпускаем все:
-        // застрявшая навсегда кнопка хуже лишнего разблокированного нажатия,
-        // которое ядро всё равно отвергнет.
         const failedRequest = String(message.request || '')
-        if (!failedRequest || failedRequest === 'approveMasterWorkOrderV2' || failedRequest === 'reviseMasterWorkOrderV2' || failedRequest === 'controlMasterWorkOrderQuestV2' || failedRequest === 'controlMasterApplicationV2') masterWorkOrderBusy.clear()
+        // Пробы живут независимо от фоновых операций. Чужая ошибка не должна
+        // стирать их результат или гасить настоящий запрос; собственный отказ
+        // обязан заменить вечный spinner понятной причиной и открыть повтор.
+        if ((!failedRequest || failedRequest === 'probeProvider') && ui.providerProbe?.loading) {
+          ui.providerProbe = { loading: false, connected: false, models: [], error: String(message.message || '') || 'Проверка подключения не выполнена' }
+        }
+        if ((!failedRequest || failedRequest === 'probeModelCapability') && ui.modelCapabilityProbe?.loading) {
+          ui.modelCapabilityProbe = { loading: false, error: String(message.message || '') || 'Проверка пригодности модели не выполнена' }
+        }
+        // runStarting — булевый guard, а не секция со статусом loading/error.
+        // Он снимается своим отказом (или старым безымянным), не участвуя в
+        // таблице экранов и не гася параллельные загрузки.
+        if (!failedRequest || failedRequest === 'startRun') ui.runStarting = false
+        // Современный хост возвращает id отказавшего наряда: соседний может всё
+        // ещё выполнять долгую операцию, и его guard трогать нельзя. Старый или
+        // безымянный отказ идентификатора не имеет — там аварийно отпускаем все.
+        const workOrderRequest = failedRequest === 'approveMasterWorkOrderV2'
+          || failedRequest === 'reviseMasterWorkOrderV2'
+          || failedRequest === 'controlMasterWorkOrderQuestV2'
+          || failedRequest === 'controlMasterApplicationV2'
+        if (!failedRequest || workOrderRequest) {
+          const failedWorkOrderId = String(message.workOrderId || '')
+          if (failedWorkOrderId) masterWorkOrderBusy.delete(failedWorkOrderId)
+          else masterWorkOrderBusy.clear()
+        }
         if (!failedRequest || failedRequest === '/api/quest-proposals/decide') {
           proposalStarting.clear()
           proposalModifying.clear()
@@ -119,25 +138,25 @@ export function createRunInbox({
           companionActionApplying.clear()
           companionActionModifying.clear()
         }
-        // Отказ ядра обязан отпускать и карточку исполнителя: иначе её кнопка
-        // остаётся запертой навсегда, а набранное человеком некуда отправить.
-        releaseMasterAgentCards()
-        ui.submittingForm = ''
-        // Годность персонажа и политика мастера ждут ответа в своих наборах, а
-        // снимались оттуда только ответом. После отказа ключ оставался ждать
-        // вечно: повтор блокировал сам себя, кэш пустовал, и оба экрана держали
-        // заглушку загрузки. Хуже того, готовность при неполученном ответе
-        // намеренно не отрицается — персонаж навсегда объявлялся готовым по
-        // данным, которых никто не присылал.
-        for (const key of agentCapabilityInflight) agentCapabilityFailed.add(key)
-        agentCapabilityInflight.clear()
-        for (const key of orchestratorPolicyInflight) orchestratorPolicyFailed.add(key)
-        orchestratorPolicyInflight.clear()
-        ui.transientError = message.message
-        if (ui.contextInspectorStatus === 'loading') {
-          ui.contextInspectorStatus = 'error'
-          ui.contextInspector = { error: message.message }
+        // Карточки исполнителя создают агента одним из двух маршрутов. Отказ
+        // соседнего запроса не снимает их guard — исходное создание может всё
+        // ещё выполняться и повтор породит дубль.
+        if (!failedRequest || failedRequest === 'saveProjectAgent' || failedRequest === '/api/companion/actions/decide') {
+          releaseMasterAgentCards()
         }
+        if (failedRequestOwnsForm(ui.submittingForm, failedRequest)) ui.submittingForm = ''
+        // Каждая проверка получает свой request. Чужой отказ не помечает её
+        // проваленной: настоящий ответ ещё может прийти и не должен проиграть
+        // несвязанному Docker/форме/соседней проверке.
+        if (!failedRequest || failedRequest === 'agentCapability') {
+          for (const key of agentCapabilityInflight) agentCapabilityFailed.add(key)
+          agentCapabilityInflight.clear()
+        }
+        if (!failedRequest || failedRequest === 'orchestratorPolicy') {
+          for (const key of orchestratorPolicyInflight) orchestratorPolicyFailed.add(key)
+          orchestratorPolicyInflight.clear()
+        }
+        ui.transientError = message.message
         // Раздел уходит в «загрузку» перед запросом, а выходит из неё только
         // приходом ответа. При отказе ответа не будет: полоса ошибки скажет
         // причину, но раздел так и останется в «загрузка…» до переоткрытия панели.
@@ -148,8 +167,13 @@ export function createRunInbox({
         // Если ядро назвало упавший запрос и он знаком — гасим только его раздел,
         // чтобы не винить соседей. Незнакомый или неназванный гасит всё ждущее:
         // лишняя пометка сама сойдёт с приходом ответа, а вечная «загрузка» — нет.
-        const only = FAILED_REQUEST_SECTIONS[String(message.request || '')] || ''
+        const only = FAILED_REQUEST_SECTIONS[failedRequest]
+          || (failedRequest ? '__named_without_section__' : '')
         const hit = name => !only || only === name
+        if (hit('contextInspector') && ui.contextInspectorStatus === 'loading') {
+          ui.contextInspectorStatus = 'error'
+          ui.contextInspector = { error: message.message }
+        }
         if (hit('statistics') && ui.statisticsStatus === 'loading') ui.statisticsStatus = 'error'
         if (hit('docker') && ui.dockerStatus === 'loading') ui.dockerStatus = 'error'
         if (hit('fileHistory') && ui.fileHistoryStatus === 'loading') ui.fileHistoryStatus = 'error'
@@ -170,7 +194,6 @@ export function createRunInbox({
           forgetMasterSent()
         }
         if (hit('master')) { ui.masterSending = false; restoreSent(); stopMasterWaitClock(); ui.runStarting = false }
-        if (hit('agent')) { ui.runStarting = false; ui.masterSending = false; restoreSent() }
         if (hit('dbQuery') && ui.dbQueryStatus === 'loading') ui.dbQueryStatus = 'error'
         if (hit('experienceSearch') && ui.experienceSearchStatus === 'loading') ui.experienceSearchStatus = 'error'
         if (hit('manualLearning') && (ui.manualLearningStatus === 'loading' || ui.manualLearningStatus === 'applying')) ui.manualLearningStatus = 'error'

@@ -138,7 +138,10 @@ func (a *App) closeUnfinishedFlowChildQuests(flowRunID string, success bool) {
 	}
 	now := time.Now().UTC()
 	for _, quest := range quests {
-		if quest.FlowRunID != flowRunID {
+		// Only quests materialized for actual Flow nodes are branch children.
+		// The root quest shares FlowRunID with them, but has neither ParentID nor
+		// FlowNodeID and must be finalized by the evidence gate below.
+		if quest.FlowRunID != flowRunID || quest.ParentID != run.QuestID || strings.TrimSpace(quest.FlowNodeID) == "" {
 			continue
 		}
 		switch quest.Status {

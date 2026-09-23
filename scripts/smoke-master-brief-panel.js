@@ -41,7 +41,7 @@ function node(extra = {}) {
   }
 }
 
-function open(brief, { history } = {}) {
+function open(brief, { history, workOrders = [] } = {}) {
   const listeners = {}
   const posted = []
   const proposal = { id: 'brief-1', title: 'Развернуть Symfony', status: 'pending', brief }
@@ -79,15 +79,16 @@ function open(brief, { history } = {}) {
   const receive = () => listeners['window:message']({ data: { type: 'master', master: {
     configured: true, config: { model: 'qwen' }, sessions,
     history: history || [{ id: 'm1', role: 'assistant', mode: 'model', content: 'Собрал задание.', proposalId: proposal.id }],
-    response: { proposal },
+    response: { proposal }, workOrders,
   } } })
-  listeners['window:message']({ data: { type: 'state', service: { state: 'running' }, workspaceTrusted: true, workspace: 'fixture', selectedTab: 'master', boot } })
+  const sendState = () => listeners['window:message']({ data: { type: 'state', service: { state: 'running' }, workspaceTrusted: true, workspace: 'fixture', selectedTab: 'master', boot } })
+  sendState()
   receive()
   const click = action => listeners['root:click']({
     target: { closest: selector => (selector === '[data-action]' ? { dataset: { action, id: proposal.id }, closest: () => null } : null) },
     preventDefault() {},
   })
-  return { listeners, posted, root, fields, proposal, boot, click, receive }
+  return { listeners, posted, root, fields, proposal, boot, click, receive, sendState }
 }
 
 const DISCUSSION = {
@@ -126,6 +127,28 @@ const feedOf = html => html.split('hall-brief-panel')[0]
   check('панель есть и закрыта',
     html.includes('id="master-brief-panel"') && /id="master-brief-panel"[^>]*hidden/.test(html),
     'панель либо не собрана, либо открыта без спроса')
+}
+
+// ── Задание готово, состав ещё нет: в ленте только карточка агента ─────────
+{
+  const staffing = {
+    id: 'workorder-brief-1', state: 'staffing', version: 1, digest: 'sha256:staffing',
+    goal: READY.goal, routing: { fixedModel: 'qwen' },
+    roster: { permanent: [{
+      id: 'agentdraft-frontend', name: 'Frontend', role: 'Frontend-разработчик',
+      mission: 'Собрать интерфейс', requiredTools: ['read_file', 'propose_patch'],
+      existing: false, requiresConsent: true,
+    }], temporary: [] },
+  }
+  const ui = open({ ...READY }, { workOrders: [staffing] })
+  const html = ui.root.innerHTML
+  const feed = feedOf(html)
+  check('staffing-квест остаётся только справа',
+    !feed.includes('master-v2-order') && html.includes('Собираем состав'),
+    'неготовый к запуску квест вернулся в ленту')
+  check('нехватка роли показана карточкой в ленте',
+    feed.includes('master-agent') && feed.includes('Frontend-разработчик') && feed.includes('agent-card-create'),
+    'создать недостающего агента из разговора невозможно')
 }
 
 // ── Раскрытая панель: весь состав, но без запуска ──────────────────────────
@@ -186,6 +209,43 @@ const feedOf = html => html.split('hall-brief-panel')[0]
     'редактор остался в карточке ленты, хотя правку начали в панели')
 }
 
+// ── Запущенный квест: вкладка осталась, и за ней этапы ────────────────────
+//
+// Запуск уносил задание из панели вместе с отклонённым: дверь к работе
+// закрывалась ровно в тот миг, когда работа началась. Теперь вкладка остаётся и
+// меняет речь — вместо готовности называет счёт этапов, — а перечень этапов
+// переехал сюда из ленты: там он повторялся с панелью и занимал место рассказа
+// о том, чем агент занят сейчас.
+{
+  const ui = open({ ...READY })
+  ui.proposal.status = 'started'
+  ui.proposal.flowId = 'flow-1'
+  ui.boot.quests = [{ id: 'quest-1', title: 'Развернуть Symfony', status: 'active', flowId: 'flow-1' }]
+  ui.boot.flows = [{ id: 'flow-1', nodes: [{ id: 'n1', name: 'Подготовка' }, { id: 'n2', name: 'Реализация' }, { id: 'n3', name: 'Проверка' }] }]
+  ui.boot.flowRuns = [{ id: 'fr-1', questId: 'quest-1', flowId: 'flow-1', nodeStates: { n1: { status: 'completed' }, n2: { status: 'running' }, n3: { status: 'pending' } } }]
+  ui.boot.executions = [{ id: 'ex-1', questId: 'quest-1', runId: 'run-1', status: 'running' }]
+  ui.sendState()
+  ui.receive()
+  const html = ui.root.innerHTML
+  const panel = html.slice(html.indexOf('hall-brief-panel'))
+  check('вкладка запущенного квеста осталась и считает этапы',
+    html.includes('hall-brief-tab') && html.includes('is-live') && html.includes('1 из 3'),
+    'квест запустили — и дверь к нему закрылась: ни вкладки, ни прогресса')
+  check('в панели виден перечень этапов',
+    panel.includes('hall-plan') && panel.includes('Этапы · 1 из 3')
+      && panel.includes('Подготовка') && panel.includes('Реализация') && panel.includes('Проверка'),
+    'панель запущенного квеста не показывает, на каком он этапе и что позади')
+  check('в ленте работа агента, а не второй план',
+    feedOf(html).includes('hall-work') && !feedOf(html).includes('hall-plan'),
+    'перечень этапов остался в ленте и повторяется с панелью')
+  check('согласованное задание осталось под этапами и только для чтения',
+    panel.includes('Условия готовности') && !panel.includes('data-brief-field='),
+    'по чему сверять работу, не видно: задание ушло из панели вместе с кнопками')
+  check('у запущенного квеста не спрашивают решения о запуске',
+    !panel.includes('quest-proposal-start') && !panel.includes('quest-proposal-modify') && !panel.includes('quest-proposal-ignore'),
+    'панель предлагает править или отклонить работу, которая уже идёт')
+}
+
 // ── Решённое предложение вкладке не принадлежит ────────────────────────────
 {
   const ui = open({ ...DISCUSSION })
@@ -200,5 +260,5 @@ if (failures.length) {
   console.error('\nЗАДАНИЕ ПОТЕРЯЛОСЬ:\n  ' + failures.join('\n  '))
   process.exitCode = 1
 } else {
-  console.log('\nЗадание: до готовности вкладка и панель, после — карточка с кнопкой: PASS')
+  console.log('\nЗадание: до готовности вкладка и панель, после — карточка с кнопкой, в работе — этапы: PASS')
 }

@@ -66,8 +66,22 @@ check('до ответа мастер честно ждёт',
   /считается ядром/.test(context.orchestratorPolicyLines(masterDraft).join(' ')),
   `ожидали заглушку ожидания, получили ${JSON.stringify(context.orchestratorPolicyLines(masterDraft))}`)
 
-// Ядро отказало — ответов на оба запроса не будет никогда.
+// Чужой именованный отказ не завершает ни одну проверку. Раньше любой error
+// очищал оба набора ожидания, и сбой Docker объявлял неподтверждённую годность
+// агента и политику Мастера проваленными.
+listeners['window:message']({ data: { type: 'error', message: 'Docker не отвечает', request: 'loadDocker' } })
+check('чужой отказ не отменяет расчёт политики',
+  /считается ядром/.test(context.orchestratorPolicyLines(masterDraft).join(' ')),
+  'несвязанный отказ преждевременно завершил orchestratorPolicy')
+
+// Каждая собственная ошибка завершает только свой запрос.
 listeners['window:message']({ data: { type: 'error', message: 'ядро не отвечает', request: 'agentCapability' } })
+
+check('отказ годности не отменяет политику Мастера',
+  /считается ядром/.test(context.orchestratorPolicyLines(masterDraft).join(' ')),
+  'agentCapability преждевременно завершил orchestratorPolicy')
+
+listeners['window:message']({ data: { type: 'error', message: 'ядро не отвечает', request: 'orchestratorPolicy' } })
 
 const afterRefusal = context.orchestratorPolicyLines(masterDraft).join(' ')
 check('мастер перестаёт обещать расчёт',

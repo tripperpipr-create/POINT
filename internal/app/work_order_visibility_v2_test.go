@@ -1,11 +1,24 @@
 package app
 
 import (
+	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"local-agent-workbench/internal/domain"
+	"local-agent-workbench/internal/orchestrator"
 )
+
+func TestPlannerFallbackTextExplainsDeadline(t *testing.T) {
+	message := plannerFallbackText(&orchestrator.PlanTimeoutError{Phase: "reasoning", Budget: 5 * time.Minute, Cause: context.DeadlineExceeded})
+	if !strings.Contains(message, "5 минут") || strings.Contains(message, "context deadline exceeded") {
+		t.Fatalf("deadline fallback must be actionable and human-readable: %q", message)
+	}
+	if !strings.Contains(message, "во время рассуждения") {
+		t.Fatalf("deadline fallback must preserve the last visible phase: %q", message)
+	}
+}
 
 // TestConnectionAllowsModel закрепляет единственную проверку привязки, которую
 // делят утверждение наряда и рантайм. Пустой каталог не значит «модели нет»:
@@ -144,7 +157,7 @@ func TestWorkOrderLaunchOutcomeV2(t *testing.T) {
 	if status != domain.QuestRunning || note == "" || !strings.Contains(message, note) {
 		t.Fatalf("planner fallback outcome=%s %q note=%q", status, message, note)
 	}
-	if !strings.Contains(note, "движком Point") {
+	if !strings.Contains(note, "резервным Flow") {
 		t.Fatalf("planner note must name the engine: %q", note)
 	}
 }

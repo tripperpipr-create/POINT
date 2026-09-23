@@ -166,19 +166,13 @@ if (!templated.includes('План собран движком Point')) throw new
 // теперь это шаг человека — и на сервере тоже. Сам черновик переехал в свою
 // карточку ленты: внутри карточки запуска он был ярусом чужого документа.
 const hiring = {
-  ...base, id: 'workorder-2', state: 'ready', digest: 'sha256:hiring', runtime: undefined,
+  ...base, id: 'workorder-2', state: 'staffing', digest: 'sha256:hiring', runtime: undefined,
   roster: { permanent: [{ id: 'agentdraft-1', name: 'Разработчик проекта', role: 'Владелец реализации', mission: 'Собрать и проверить API', requiredTools: ['read_file'], requiresConsent: true }] },
 }
 masterAgentConsent.clear()
 const beforeConsent = masterWorkOrderCardsHtml([hiring], esc, new Set(), { ui })
-if (beforeConsent.includes('master-v2-consent"') || beforeConsent.includes('ЧЕРНОВИК АГЕНТА')) {
-  throw new Error('the agent draft is back inside the launch card')
-}
-if (!/data-action="approve-master-work-order-v2"[^>]*disabled/.test(beforeConsent)) {
-  throw new Error('launch button creates a new agent without asking the human first')
-}
-if (!beforeConsent.includes('Сначала заведите исполнителя')) {
-  throw new Error('a locked launch button must say why it is locked')
+if (beforeConsent.includes('approve-master-work-order-v2')) {
+  throw new Error('staffing proposal appeared as an approvable launch card')
 }
 // Черновик показан целиком — но своей карточкой, рядом с нарядом.
 const agentCard = masterAgentCardsHtml(masterAgentCardsFor({ workOrders: [hiring], hiring: [] }), esc, {
@@ -189,20 +183,25 @@ for (const expected of ['Разработчик проекта', 'Владеле
 }
 masterAgentConsent.add(hiring.id)
 const withConsent = masterWorkOrderCardsHtml([hiring], esc, new Set(), { ui })
-if (!withConsent.includes('data-action="approve-master-work-order-v2"') || /data-action="approve-master-work-order-v2"[^>]*disabled/.test(withConsent)) {
-  throw new Error('after the human agreed, the launch button must work')
+if (withConsent.includes('approve-master-work-order-v2')) {
+  throw new Error('old consent flag bypasses agent creation before launch')
+}
+const readyAfterHire = { ...hiring, state: 'ready', roster: { permanent: [{ ...hiring.roster.permanent[0], existing: true, requiresConsent: false }] } }
+const readyCard = masterWorkOrderCardsHtml([readyAfterHire], esc, new Set(), { ui })
+if (!readyCard.includes('data-action="approve-master-work-order-v2"') || /data-action="approve-master-work-order-v2"[^>]*disabled/.test(readyCard)) {
+  throw new Error('settled roster did not unlock the launch card')
 }
 // Защита от двойного нажатия — тот же договор, что у карточки create_agent.
-const busyConsent = masterWorkOrderCardsHtml([hiring], esc, new Set([hiring.id]), { ui })
+const busyConsent = masterWorkOrderCardsHtml([readyAfterHire], esc, new Set([hiring.id]), { ui })
 if (!busyConsent.includes('Запускаем…') || !busyConsent.includes('disabled')) {
   throw new Error('consent card allows a second launch while the first one runs')
 }
 masterAgentConsent.clear()
 
 // 7. Факт создания виден, и из карточки есть дорога в мастерскую агента.
-const hired = masterWorkOrderCardsHtml([{ ...hiring, state: 'approved', runtime: { questId: 'quest-1', status: 'running', agentIds: ['agentdraft-1'], stages: [] } }], esc, new Set(), { ui })
-if (!hired.includes('Агент создан') || !hired.includes('data-action="open-agent-constructor-edit"')) {
-  throw new Error('created agent is invisible in the card that created it')
+const hired = masterWorkOrderCardsHtml([{ ...readyAfterHire, state: 'approved', runtime: { questId: 'quest-1', status: 'running', agentIds: ['agentdraft-1'], stages: [] } }], esc, new Set(), { ui })
+if (!hired.includes('Разработчик проекта')) {
+  throw new Error('selected agent is invisible after approval')
 }
 
 // 8. Данные до экрана доходят: наблюдатель просыпается на переходе этапа и

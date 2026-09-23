@@ -106,3 +106,43 @@ func TestTaskBriefValidationCollectsAllIndependentIssues(t *testing.T) {
 		}
 	}
 }
+
+func TestCriterionToolSynonymResolvesBeforeApproval(t *testing.T) {
+	exit := 0
+	draft := NormalizeTaskBrief(TaskBrief{
+		Mode: TaskModePrecise, State: "ready", Goal: "Fix the parser", ResultKind: "workspace_change",
+		Criteria: []AcceptanceCriterion{
+			{ID: "c1", Text: "Tests pass", Kind: "verification", Tool: "shell", Arguments: json.RawMessage(`{"command":"go test ./..."}`), ExpectedExitCode: &exit},
+			{ID: "c2", Text: "Reproduce the crash", Kind: "reproduction", Tool: "Bash", Arguments: json.RawMessage(`{"command":"go run ./cmd/crash"}`), ExpectedExitCode: &exit},
+			{ID: "c3", Text: "Custom verifier runs", Kind: "verification", Tool: "customtool_0123456789abcdef01234567", Arguments: json.RawMessage(`{}`), ExpectedExitCode: &exit},
+			{ID: "c4", Text: "Reviewer confirms wording", Kind: "manual"},
+		},
+		Permissions: TaskPermissions{WriteFiles: true, ExecuteCommands: true},
+	})
+	if draft.Criteria[0].Tool != "run_command" || draft.Criteria[1].Tool != "run_command" {
+		t.Fatalf("synonym survived normalization: %q %q", draft.Criteria[0].Tool, draft.Criteria[1].Tool)
+	}
+	if draft.Criteria[2].Tool != "customtool_0123456789abcdef01234567" {
+		t.Fatalf("custom tool renamed: %q", draft.Criteria[2].Tool)
+	}
+	if draft.Criteria[3].Tool != "" {
+		t.Fatalf("manual criterion gained a tool: %q", draft.Criteria[3].Tool)
+	}
+	if _, err := ApproveTaskBrief(draft); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCanonicalToolNameKeepsUnknownNames(t *testing.T) {
+	for _, name := range []string{"pytest", "customtool_0123456789abcdef01234567", "go test"} {
+		if got := CanonicalToolName(name); got != name {
+			t.Fatalf("unknown name %q rewritten to %q", name, got)
+		}
+	}
+	if got := CanonicalToolName("  Shell  "); got != "run_command" {
+		t.Fatalf("shell resolved to %q", got)
+	}
+	if got := CanonicalToolName(""); got != "" {
+		t.Fatalf("empty name resolved to %q", got)
+	}
+}

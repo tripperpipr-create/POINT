@@ -110,15 +110,19 @@ export function handleFormSubmit({
       return Math.round(dollars * 100)
     }
     try {
+      // Сначала разбираем оба поля, и лишь затем показываем загрузку. Раньше
+      // первое некорректное число уже переводило форму в `loading`; catch
+      // показывал причину, но кнопка оставалась disabled до перезагрузки.
+      const budget = {
+        dailyCents: toCents('#budget-daily'),
+        monthlyCents: toCents('#budget-monthly'),
+        hardStop: Boolean(root.querySelector('#budget-hard-stop')?.checked),
+      }
       ui.statisticsStatus = 'loading'
       ui.transientError = ''
       vscode.postMessage({
         type: 'saveBudget',
-        budget: {
-          dailyCents: toCents('#budget-daily'),
-          monthlyCents: toCents('#budget-monthly'),
-          hardStop: Boolean(root.querySelector('#budget-hard-stop')?.checked),
-        },
+        budget,
       })
       render()
     } catch (error) {

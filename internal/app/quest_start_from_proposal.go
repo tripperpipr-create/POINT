@@ -193,11 +193,21 @@ func (a *App) startQuestFromProposalUsingQuest(ctx context.Context, ws domain.Wo
 		if candidateErr != nil {
 			return QuestProposalResult{}, candidateErr
 		}
+		a.updateWorkOrderLaunchProgressV2(ctx, &quest, "planning", "Модель "+cfg.Model+" строит план; ждём первый фрагмент ответа (лимит "+plannerBudgetText(orchestrator.PlannerBudget(cfg))+")")
+		skills, skillErr := a.newMasterSkillSession(ctx, ws.ID, "planning", "", proposal.ID, quest.ID)
+		if skillErr != nil {
+			return QuestProposalResult{}, skillErr
+		}
+		defer a.finishMasterOperation(skills, cfg, orchestratorAPIKey)
 		planned, planErr := (orchestrator.Planner{NewModel: a.budgetedModelFactory(modelBudgetScope{
 			WorkspaceID: ws.ID, QuestID: quest.ID, ProjectAgentID: "master", Outcome: "orchestrator_plan",
 		})}).Plan(ctx, orchestrator.PlanRequest{
+			Skills: skills,
 			Config: cfg, Proposal: proposal, Agents: runnableAgents, LockedAgentIDs: locked, APIKey: orchestratorAPIKey,
 			Project: a.masterProjectFacts(ctx), Signals: selectionSignals, ModelCandidates: modelCandidates,
+			Progress: func(progress orchestrator.PlanProgress) {
+				a.updateWorkOrderLaunchProgressV2(ctx, &quest, "planning", progress.Message)
+			},
 		})
 		if planErr == nil {
 			modelPlan = &planned
@@ -251,6 +261,13 @@ func (a *App) startQuestFromProposalUsingQuest(ctx context.Context, ws domain.Wo
 		}
 		orchNote = "оркестратор не настроен · первые доступные агенты"
 		orchMode = "unconfigured"
+	}
+	if modelPlan != nil {
+		a.updateWorkOrderLaunchProgressV2(ctx, draftQuest, "compiling", "План модели проверен; движок Point собирает Flow")
+	} else if plannerFallback != "" {
+		a.updateWorkOrderLaunchProgressV2(ctx, draftQuest, "compiling", "Модель не завершила план; движок Point собирает резервный Flow")
+	} else {
+		a.updateWorkOrderLaunchProgressV2(ctx, draftQuest, "compiling", "Движок Point собирает Flow из утверждённого задания")
 	}
 	if len(agentIDs) == 0 {
 		return QuestProposalResult{}, errors.New("no project agents available for quest party")
@@ -446,6 +463,7 @@ func (a *App) startQuestFromProposalUsingQuest(ctx context.Context, ws domain.Wo
 		OrchestratorModel: orchModel, PlannerFallback: plannerFallback,
 	}
 	if startFlow {
+		a.updateWorkOrderLaunchProgressV2(ctx, &quest, "launching", "Flow готов; запускаем первого исполнителя")
 		runtime := flowruntime.Runtime{Store: a.store}
 		flowRun, runErr := runtime.Start(ctx, flowruntime.StartRequest{
 			FlowID: flow.ID, WorkspaceID: ws.ID, QuestID: quest.ID,

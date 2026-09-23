@@ -53,6 +53,9 @@ func (s *SQLite) DeleteMasterConversation(ctx context.Context, w, id string) err
 	if active > 0 {
 		return errors.New("сначала остановите ответ")
 	}
+	if err = forgetMasterExamplesTx(ctx, tx, `workspace_id=? AND turn_id IN(SELECT id FROM master_turns WHERE workspace_id=? AND conversation_id=?)`, w, w, id); err != nil {
+		return err
+	}
 	for _, table := range []string{"master_turn_events", "master_turns", "companion_messages"} {
 		if _, err = tx.ExecContext(ctx, `DELETE FROM `+table+` WHERE workspace_id=? AND conversation_id=?`, w, id); err != nil {
 			return err

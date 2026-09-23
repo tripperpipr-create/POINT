@@ -12,6 +12,17 @@ import { closeMasterMention, masterMentionState } from './master-mention-ui.js'
 import { masterAgentConsent } from './master-agent-card.js'
 
 export function handleMasterClickAction({ action, target, ui, applyMasterFind, forgetMasterSent, masterAskBefore, masterClient, masterMessageById, persistDraft, pickMasterMention, render, root, sendMasterMessage, stopMasterWaitClock, updateMasterScrollCue, vscode }) {
+	if (['master-development-load','master-development-toggle','master-development-rollback'].includes(action)) {
+	  if (ui.masterDevelopmentBusy) return true
+	  ui.masterDevelopmentBusy = true
+	  ui.masterDevelopmentError = ''
+	  const projectKey = ui.projectKey
+	  if (action === 'master-development-load') vscode.postMessage({type:'loadMasterDevelopment',projectKey})
+	  if (action === 'master-development-toggle') vscode.postMessage({type:'setMasterLearning',enabled:!ui.masterDevelopment?.config?.enabled,projectKey})
+	  if (action === 'master-development-rollback') vscode.postMessage({type:'rollbackMasterSkill',id:String(target.dataset.id || ''),projectKey})
+	  render()
+	  return true
+	}
   if (action === 'master-ask') {
     // Курсор ставится не здесь: отрисовка отложена до кадра, и поле, которому
     // мы бы его задали, к тому времени уже заменено новым. Раньше каретка
@@ -90,6 +101,20 @@ export function handleMasterClickAction({ action, target, ui, applyMasterFind, f
     const idempotencyKey=globalThis.crypto?.randomUUID?.() || `application-${Date.now()}-${Math.random().toString(36).slice(2)}`
     vscode.postMessage({type:'controlMasterApplicationV2',workOrderId:id,questId,action:control,version:Number(target.dataset.version),digest:String(target.dataset.digest || ''),deliveryReceiptId:String(target.dataset.receiptId || ''),idempotencyKey})
     render()
+    return true
+  }
+  if (action === 'generate-work-order-report') {
+    const id=String(target.dataset.id || '')
+    const order=(Array.isArray(ui.masterData?.workOrders)?ui.masterData.workOrders:[]).find(item=>item.id===id)
+    if (!order) return true
+    const evidence=order.runtime?.evidence || {}
+    const safeFacts={
+      goal:order.goal || '', status:order.runtime?.status || '', criteria:order.criteria || [],
+      verificationChecks:evidence.verificationChecks || [], changedFiles:evidence.changedFiles || [],
+      knownLimitations:evidence.knownLimitations || [], deliveryUrl:order.runtime?.deliveryReceipt?.url || '',
+    }
+    const prompt=`Собери итоговый отчёт по завершённому плану для владельца проекта. Начни с результата и решения, затем покажи выполненные критерии, проверки, изменения, ограничения и следующие шаги. Не выдумывай факты или ссылки.\n\nФакты, которые я проверю перед отправкой:\n${JSON.stringify(safeFacts,null,2)}`
+    vscode.postMessage({type:'generateReport',prompt})
     return true
   }
   if (action === 'revise-master-work-order-v2') {

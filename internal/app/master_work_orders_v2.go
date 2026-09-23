@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/url"
 	"strings"
+	"time"
 
 	"local-agent-workbench/internal/domain"
 	"local-agent-workbench/internal/environment"
@@ -21,6 +22,23 @@ func (a *App) saveMasterWorkOrderV2(ctx context.Context, proposal *domain.QuestP
 		return "", nil
 	}
 	brief := *proposal.Brief
+	// A WorkOrder may be produced by the v2 Master path that used to keep its
+	// proposal only in the response payload. Persist the source before linking
+	// it so approval can atomically move that exact proposal to started.
+	if strings.TrimSpace(proposal.Status) == "" {
+		proposal.Status = "pending"
+	}
+	if proposal.CreatedAt.IsZero() {
+		proposal.CreatedAt = time.Now().UTC()
+	}
+	durableProposal := *proposal
+	// The WorkOrder accepts legacy Master briefs and normalizes them through
+	// its own contract. Do not make proposal linkage depend on newer TaskBrief
+	// validation; an existing validated brief is retained by COALESCE.
+	durableProposal.Brief = nil
+	if err := a.store.SaveQuestProposal(ctx, durableProposal); err != nil {
+		return "", err
+	}
 	cfg, err := a.masterConfig(ctx, proposal.WorkspaceID)
 	if err != nil {
 		return "", err
@@ -38,7 +56,7 @@ func (a *App) saveMasterWorkOrderV2(ctx context.Context, proposal *domain.QuestP
 	}
 
 	order := domain.WorkOrder{
-		ID: orderID, WorkspaceID: proposal.WorkspaceID,
+		ID: orderID, ProposalID: proposal.ID, WorkspaceID: proposal.WorkspaceID,
 		ConversationID: strings.TrimSpace(conversationID),
 		Version:        1, State: "discussion", Goal: brief.Goal,
 		Scope: append([]string(nil), brief.Scope...), OutOfScope: append([]string(nil), brief.OutOfScope...),
@@ -58,10 +76,6 @@ func (a *App) saveMasterWorkOrderV2(ctx context.Context, proposal *domain.QuestP
 		},
 		Delivery: domain.DeliveryPolicy{ApplyMode: "automatic", CommitMode: "none", KeepPartialDays: 30},
 	}
-	if order.Stack.Category == "web" || order.Stack.Category == "api" {
-		order.Delivery.KeepServicesRunning = true
-		order.Delivery.ApplicationURL = "http://localhost:8080"
-	}
 	for _, decision := range brief.Decisions {
 		text := strings.TrimSpace(decision.Topic + ": " + decision.Decision)
 		if text != ":" {
@@ -72,7 +86,7 @@ func (a *App) saveMasterWorkOrderV2(ctx context.Context, proposal *domain.QuestP
 		order.OpenQuestions = order.OpenQuestions[:2]
 	}
 	if brief.State == "ready" && len(order.OpenQuestions) == 0 {
-		order.State = "ready"
+		order.State = "staffing"
 	}
 	if order.Budget.Tokens <= 0 {
 		order.Budget.Tokens = 200000
@@ -104,6 +118,7 @@ func (a *App) saveMasterWorkOrderV2(ctx context.Context, proposal *domain.QuestP
 		order.Delivery.CommitMode = "squash"
 	}
 	order.Network = masterNetworkGrantsV2(brief, sources)
+	order.Setup = masterSetupPlanV2(order.Stack.ID)
 	order.Completion = masterCompletionProfileV2(order)
 	current, getErr := a.store.GetWorkOrderV2(ctx, order.ID)
 	if getErr == nil {
@@ -117,7 +132,7 @@ func (a *App) saveMasterWorkOrderV2(ctx context.Context, proposal *domain.QuestP
 		return "", getErr
 	}
 	selection := agentSelectionResult{}
-	if order.State == "ready" {
+	if order.State == "staffing" {
 		apiKey := ""
 		if len(apiKeys) > 0 {
 			apiKey = apiKeys[0]
@@ -126,7 +141,10 @@ func (a *App) saveMasterWorkOrderV2(ctx context.Context, proposal *domain.QuestP
 		if err != nil {
 			return "", err
 		}
-		order.Roster = a.rosterFromAgentIDs(ctx, selection.AgentIDs)
+		order.Roster = a.rosterFromSelection(ctx, selection)
+		if len(selection.Drafts) == 0 && len(selection.AgentIDs) > 0 {
+			order.State = "ready"
+		}
 	} else {
 		// Selection is intentionally delayed until the brief is decision-complete.
 		order.Roster = domain.AgentRosterPlan{}
@@ -135,14 +153,19 @@ func (a *App) saveMasterWorkOrderV2(ctx context.Context, proposal *domain.QuestP
 	if err != nil {
 		return "", err
 	}
-	if order.State == "ready" {
+	if order.State == "ready" || order.State == "staffing" {
 		if err = a.store.ReplaceAgentSelectionBindings(ctx, saved.ID, saved.ConversationID, saved.WorkspaceID, selection.Digest, saved.Version, selection.AgentIDs); err != nil {
 			return "", err
 		}
+		kind := "agent_selection_completed"
+		if order.State == "staffing" {
+			kind = "agent_selection_needs_creation"
+		}
 		_ = a.store.SaveAgentLifecycleEvent(ctx, domain.AgentLifecycleEvent{
 			ID: domain.NewID("agentlife"), WorkspaceID: saved.WorkspaceID, WorkOrderID: saved.ID,
-			Kind: "agent_selection_completed", Detail: map[string]any{
+			Kind: kind, Detail: map[string]any{
 				"selectionDigest": selection.Digest, "revision": saved.Version, "agentIds": selection.AgentIDs,
+				"draftCount": len(selection.Drafts), "state": order.State,
 				"model": cfg.Model, "fallbackReason": selection.Fallback, "validation": "accepted",
 			}, CreatedAt: saved.UpdatedAt,
 		})
@@ -164,6 +187,12 @@ func (a *App) rosterFromAgentIDs(ctx context.Context, ids []string) domain.Agent
 			RequiredTools: append([]string(nil), agent.AllowedTools...),
 		})
 	}
+	return plan
+}
+
+func (a *App) rosterFromSelection(ctx context.Context, selection agentSelectionResult) domain.AgentRosterPlan {
+	plan := a.rosterFromAgentIDs(ctx, selection.AgentIDs)
+	plan.Permanent = append(plan.Permanent, selection.Drafts...)
 	return plan
 }
 
@@ -232,6 +261,12 @@ func masterCompletionProfileV2(order domain.WorkOrder) domain.CompletionProfile 
 		}
 		seen[kind] = true
 		checks = append(checks, domain.CompletionCheck{Kind: kind, Command: command})
+	}
+	if order.Stack.ID == "php-symfony-7" {
+		add("dependency_audit", "composer validate --no-check-publish")
+		add("cli_smoke", "php bin/console about")
+		checks = append(checks, domain.CompletionCheck{Kind: "health", Command: "php -S 127.0.0.1:8000 -t public", URL: "http://127.0.0.1:8000/health"})
+		return domain.CompletionProfile{ID: "php-symfony-7", Version: "1", Checks: checks}
 	}
 	if path := strings.TrimSpace(order.Workspace.Path); path != "" {
 		plan := environment.Analyze(path, order.WorkspaceID)
@@ -372,7 +407,37 @@ func masterStackCategoryV2(brief domain.TaskBrief) string {
 }
 
 func masterStackPresetV2(brief domain.TaskBrief) string {
+	if masterBriefMentionsSymfony7(brief) {
+		return "php-symfony-7"
+	}
 	return "recommended-" + masterStackCategoryV2(brief)
+}
+
+func masterBriefMentionsSymfony7(brief domain.TaskBrief) bool {
+	parts := []string{brief.Goal, brief.ResultKind}
+	parts = append(parts, brief.Scope...)
+	parts = append(parts, brief.OutOfScope...)
+	for _, decision := range brief.Decisions {
+		parts = append(parts, decision.Topic, decision.Decision)
+	}
+	text := strings.ToLower(strings.Join(parts, " "))
+	return strings.Contains(text, "symfony") && (strings.Contains(text, "symfony 7") || strings.Contains(text, "symfony7") || strings.Contains(text, "7.x"))
+}
+
+func masterSetupPlanV2(stackID string) domain.SetupPlan {
+	if stackID != "php-symfony-7" {
+		return domain.SetupPlan{}
+	}
+	return domain.SetupPlan{
+		ID: "php-symfony-7", Version: "1",
+		Commands: []domain.SetupCommand{
+			{Command: `composer create-project symfony/skeleton:"7.*" . --no-interaction --prefer-dist`, TimeoutSeconds: 900},
+			{Command: "composer require symfony/orm-pack --no-interaction --prefer-dist", TimeoutSeconds: 900},
+		},
+		Files:         []domain.SetupFile{{Path: ".env.local", Content: "DATABASE_URL=\"postgresql://app:change-me@127.0.0.1:5432/app?serverVersion=16&charset=utf8\"\n"}},
+		ExpectedPaths: []string{"composer.json", "vendor/autoload.php", "bin/console"},
+		OwnedPaths:    []string{"composer.json", "composer.lock", ".env", ".env.local", "bin", "vendor"},
+	}
 }
 
 func masterNetworkGrantsV2(brief domain.TaskBrief, sources []domain.SourceSnapshotRef) []domain.NetworkGrant {

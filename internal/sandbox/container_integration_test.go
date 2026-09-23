@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"local-agent-workbench/internal/domain"
+	"local-agent-workbench/internal/environment"
 	"local-agent-workbench/internal/sandbox"
 	"local-agent-workbench/internal/tools"
 	"local-agent-workbench/internal/workspace"
@@ -129,6 +131,74 @@ func TestDockerSandboxIntegration(t *testing.T) {
 				t.Fatalf("controlled gateway allowed %s: %#v", name, result)
 			}
 		})
+	}
+}
+
+func TestDockerRuntimePackIntegration(t *testing.T) {
+	if os.Getenv("POINT_SANDBOX_DOCKER_TEST") != "1" {
+		t.Skip("set POINT_SANDBOX_DOCKER_TEST=1 after building the sandbox images")
+	}
+	workspaceRoot := t.TempDir()
+	backend := sandbox.NewContainerBackend(filepath.Join(t.TempDir(), "sandboxes"))
+	if err := backend.Probe(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	runtime := environment.RuntimeRequirementsForWorkOrder(&domain.WorkOrder{
+		Stack: domain.StackPresetRef{ID: "php-symfony-7", Version: "1"},
+		Setup: domain.SetupPlan{Commands: []domain.SetupCommand{{Command: "composer install"}}},
+	})
+	// Exercise installation instead of the compatible prebuilt-image shortcut.
+	runtime.CandidateImages = nil
+	record, err := backend.Create(context.Background(), sandbox.CreateRequest{
+		WorkspaceID: "runtime-ws", WorkspacePath: workspaceRoot, ExecutionID: "runtime-exec",
+		Runtime: runtime,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer backend.Close(context.Background(), record, workspaceRoot)
+	if !strings.HasPrefix(record.BackendImage, "point-runtime:") || !strings.HasPrefix(record.BackendImageDigest, "sha256:") {
+		t.Fatalf("runtime image attribution=%#v", record)
+	}
+	fs, err := workspace.Open(record.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, _ := json.Marshal(map[string]any{"command": "php --version && composer --version", "reason": "verify selected runtime", "timeoutSeconds": 30})
+	result := (tools.RunCommand{FS: fs, Executor: backend, SandboxImage: sandbox.ExecutionImageForRecord(record), NetworkPolicy: "DENY"}).Execute(context.Background(), payload)
+	if !result.OK || !strings.Contains(string(result.Output), `"exitCode":0`) {
+		t.Fatalf("selected runtime did not execute required tools: %#v", result)
+	}
+}
+
+func TestDockerPythonPackageManagerProvisioningIntegration(t *testing.T) {
+	if os.Getenv("POINT_SANDBOX_DOCKER_TEST") != "1" {
+		t.Skip("set POINT_SANDBOX_DOCKER_TEST=1 after building the sandbox images")
+	}
+	workspaceRoot := t.TempDir()
+	backend := sandbox.NewContainerBackend(filepath.Join(t.TempDir(), "sandboxes"))
+	if err := backend.Probe(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	record, err := backend.Create(context.Background(), sandbox.CreateRequest{
+		WorkspaceID: "python-runtime-ws", WorkspacePath: workspaceRoot, ExecutionID: "python-runtime-exec",
+		Runtime: sandbox.RuntimeRequirements{
+			ID: "python-service", Version: "1", RequiredCommands: []string{"python3", "pip"},
+			Packages: []string{"py3.13-pip=26.2.1-r1"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer backend.Close(context.Background(), record, workspaceRoot)
+	fs, err := workspace.Open(record.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, _ := json.Marshal(map[string]any{"command": "python3 --version && pip --version", "reason": "verify provisioned package manager", "timeoutSeconds": 30})
+	result := (tools.RunCommand{FS: fs, Executor: backend, SandboxImage: sandbox.ExecutionImageForRecord(record), NetworkPolicy: "DENY"}).Execute(context.Background(), payload)
+	if !result.OK || !strings.Contains(string(result.Output), `"exitCode":0`) {
+		t.Fatalf("provisioned Python runtime did not execute required tools: %#v", result)
 	}
 }
 

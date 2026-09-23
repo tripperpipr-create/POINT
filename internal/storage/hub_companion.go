@@ -89,6 +89,27 @@ func (s *SQLite) SaveCompanionMessage(ctx context.Context, message domain.Compan
 	return err
 }
 
+// SaveCompanionMessageOnce is used for deterministic lifecycle messages whose
+// ID is derived from the quest. INSERT OR IGNORE makes Flow callback replay a
+// no-op instead of publishing the same completion twice.
+func (s *SQLite) SaveCompanionMessageOnce(ctx context.Context, message domain.CompanionMessage) (bool, error) {
+	if message.Speaker == "master" && message.ConversationID == "" {
+		message.ConversationID = "legacy"
+	}
+	result, err := s.db.ExecContext(ctx, `
+	INSERT OR IGNORE INTO companion_messages(id,workspace_id,speaker,role,content,level,mode,provider,model,facts_used_json,questions_json,usage_record_id,proposal_id,action_proposal_id,fallback_reason,input_tokens,output_tokens,total_tokens,latency_ms,reasoning,steps_json,created_at,conversation_id,turn_id,attachments_json,memory_ids_json,search_text,clarifications_json)
+	VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, message.ID, message.WorkspaceID, speakerOrDefault(message.Speaker), message.Role, message.Content, message.Level, message.Mode,
+		message.Provider, message.Model, marshalJSON(message.FactsUsed), marshalJSON(message.Questions), message.UsageRecordID, message.ProposalID,
+		message.ActionProposalID, message.FallbackReason, message.InputTokens, message.OutputTokens, message.TotalTokens, message.LatencyMs,
+		message.Reasoning, marshalJSON(message.Steps),
+		message.CreatedAt.UTC().Format("2006-01-02T15:04:05.000000000Z07:00"), message.ConversationID, message.TurnID, marshalJSON(message.Attachments), marshalJSON(message.MemoryIDs), strings.ToLower(message.Content), marshalJSON(message.Clarifications))
+	if err != nil {
+		return false, err
+	}
+	affected, err := result.RowsAffected()
+	return affected == 1, err
+}
+
 // speakerOrDefault держит инвариант «пусто значит компаньон» в одном месте:
 // иначе прежние записи и новый код разошлись бы в трактовке пустой строки.
 func speakerOrDefault(value string) string {

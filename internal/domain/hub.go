@@ -695,6 +695,7 @@ type UsageRecord struct {
 // OrchestratorConfig is the project-scoped system agent that assigns parties
 // and starts Flows. It is separate from Companion: Companion only recommends.
 type OrchestratorConfig struct {
+	Learning *MasterLearningConfig `json:"learning,omitempty"`
 	ID                 string       `json:"id"`
 	WorkspaceID        string       `json:"workspaceId,omitempty"`
 	Preset             string       `json:"preset"`

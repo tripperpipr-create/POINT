@@ -3,6 +3,7 @@ package environment
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -28,6 +29,44 @@ func TestAnalyzePHPProjectSelectsManagedPack(t *testing.T) {
 	for _, need := range []string{"repo.packagist.org", "api.github.com", "codeload.github.com"} {
 		if !strings.Contains(joined, need) {
 			t.Fatalf("missing composer egress host %s in %v", need, plan.NetworkHosts)
+		}
+	}
+}
+
+func TestRuntimeRequirementsUseOnlyTrustedToolCatalog(t *testing.T) {
+	order := domain.WorkOrder{
+		Stack: domain.StackPresetRef{ID: "php-symfony-7", Version: "1"},
+		Setup: domain.SetupPlan{Commands: []domain.SetupCommand{{Command: "composer install && evil.example/arbitrary:latest"}}},
+	}
+	got := RuntimeRequirementsForWorkOrder(&order)
+	if !slices.Contains(got.RequiredCommands, "composer") || !slices.Contains(got.RequiredCommands, "php") || !slices.Contains(got.CandidateImages, PHPManagedImage) {
+		t.Fatalf("php runtime requirements=%#v", got)
+	}
+	for _, value := range append(append([]string(nil), got.Packages...), got.CandidateImages...) {
+		if strings.Contains(value, "evil.example") {
+			t.Fatalf("untrusted command text entered runtime policy: %#v", got)
+		}
+	}
+}
+
+func TestRuntimeRequirementsAreInferredFromApprovedCommands(t *testing.T) {
+	order := domain.WorkOrder{
+		Stack: domain.StackPresetRef{ID: "custom-service", Version: "3"},
+		Setup: domain.SetupPlan{Commands: []domain.SetupCommand{
+			{Command: "python3 -m pip install -r requirements.txt"},
+			{Command: "npm install"},
+		}},
+		Completion: domain.CompletionProfile{Checks: []domain.CompletionCheck{{Command: "mvn test"}}},
+	}
+	got := RuntimeRequirementsForWorkOrder(&order)
+	for _, command := range []string{"python3", "pip", "node", "npm", "java", "mvn"} {
+		if !slices.Contains(got.RequiredCommands, command) {
+			t.Fatalf("missing inferred command %q in %#v", command, got)
+		}
+	}
+	for _, pkg := range []string{"py3.13-pip=26.2.1-r1", "openjdk-21-default-jdk=21.0.12.1-r2", "maven-3.9=3.9.16-r2"} {
+		if !slices.Contains(got.Packages, pkg) {
+			t.Fatalf("missing approved package %q in %#v", pkg, got)
 		}
 	}
 }

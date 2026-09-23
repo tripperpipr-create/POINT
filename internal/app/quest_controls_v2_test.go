@@ -75,6 +75,7 @@ func TestWorkOrderQuestControlsDriveFlowRuntime(t *testing.T) {
 	order := managedWorkOrderV2()
 	order.WorkspaceID = world.ID
 	order.Workspace = domain.WorkspacePlan{Mode: "existing", Path: world.Path, Isolation: "snapshot"}
+	assignReadyRosterForTest(t, application, &order)
 	order, err = application.SaveWorkOrderV2(context.Background(), order)
 	if err != nil {
 		t.Fatal(err)
@@ -167,6 +168,7 @@ func TestBlockedWorkOrderQuestRetriesPreflight(t *testing.T) {
 	order := managedWorkOrderV2()
 	order.WorkspaceID = world.ID
 	order.Workspace = domain.WorkspacePlan{Mode: "existing", Path: world.Path, Isolation: "snapshot"}
+	assignReadyRosterForTest(t, application, &order)
 	order, err = application.SaveWorkOrderV2(context.Background(), order)
 	if err != nil {
 		t.Fatal(err)

@@ -42,10 +42,18 @@ func (a *App) hiringCardsForConversation(ctx context.Context, orders []domain.Wo
 		if !isOpenWorkOrderV2(order) {
 			continue
 		}
-		// New WorkOrders already carry persisted selector IDs. The constructor
-		// card for a draft is the only decision surface; the legacy observer must
-		// not invent a second, unbound AgentDraft beside it.
-		if len(order.Roster.AgentIDs) > 0 {
+		// Пока задание обсуждается, его состав ещё не определён: следующий
+		// ответ может поменять цель, критерии и нужные роли. Наблюдатель ростера
+		// раньше запускался уже рядом с уточняющими вопросами и предлагал
+		// исполнителей для квеста, которого человек ещё не согласовал.
+		if order.State == "discussion" {
+			continue
+		}
+		// Новый WorkOrder уже несёт решение комплектовщика: существующие ID или
+		// черновик в Permanent. Карточка конструктора — единственная поверхность
+		// такого решения; старый наблюдатель не должен сочинять рядом второй,
+		// непривязанный AgentDraft.
+		if len(order.Roster.AgentIDs) > 0 || len(order.Roster.Permanent) > 0 {
 			return nil
 		}
 		observation, err := a.ObserveRoster(ctx, rosterNeedFromOrder(order, nil))
@@ -85,11 +93,11 @@ func rosterCardFromObservation(order domain.WorkOrder, observation RosterObserva
 			subagent := *gap.Subagent
 			card.Subagent = &subagent
 		}
-		if gap.Kind == "missing_subagent" && card.Subagent == nil && card.Draft == nil {
-			// Пробел есть, но права заводить помощника человек не давал: карточка
-			// обязана это сказать, а не молчать про нехватку роли.
-			card.Reason = "не хватает роли «" + gap.Requirement.Role + "», но создание исполнителей не разрешено в задании"
-		}
+		// Не показываем неразрешимый пробел как решение для человека. Если
+		// временный помощник не разрешён, карточке нечего предложить: сама
+		// констатация «не хватает роли» рядом с отсутствующей кнопкой вводит в
+		// заблуждение. После изменения прав наблюдатель вернёт Subagent и
+		// карточка станет действием.
 	}
 	// Черновик наряда старше собственного: человек мог его уже поправить, и
 	// карточка обязана показывать то, что уйдёт на утверждение.
@@ -114,7 +122,7 @@ func rosterCardFromObservation(order domain.WorkOrder, observation RosterObserva
 // человека: кого взять вместо выбранного, кого создать, кого добавить в помощь
 // или что чинить. Без этого карточка — пересказ уже видимого состава.
 func rosterCardWorthShowing(card RosterCardView) bool {
-	if card.Draft != nil || card.Subagent != nil || len(card.Blueprints) > 0 || len(card.Considered) > 0 {
+	if card.Draft != nil || card.Subagent != nil || len(card.Considered) > 0 {
 		return true
 	}
 	return card.State == "blocked"

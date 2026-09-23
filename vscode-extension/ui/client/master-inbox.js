@@ -8,9 +8,8 @@
 //
 // Состояние приходит общим мешком `ui`, как в `companion-transport.js`.
 
-import { newConstructorDraft } from './agent-constructor.js'
-
 const MASTER_MESSAGES = new Set([
+	'masterDevelopment', 'masterDevelopmentError',
   'master', 'masterTurn', 'masterEvent',
   'masterStreamError', 'masterWorkOrder', 'masterWorkOrderApproved',
   'masterWorkOrderDeleted', 'masterWorkOrderRevised', 'masterWorkOrderControlled',
@@ -39,6 +38,14 @@ export function createMasterInbox({
 }) {
   return function applyMasterMessage(message) {
     if (!MASTER_MESSAGES.has(message.type)) return false
+	  if (message.type === 'masterDevelopment' || message.type === 'masterDevelopmentError') {
+	    if (message.projectKey !== ui.projectKey) return true
+	    ui.masterDevelopmentBusy = false
+	    ui.masterDevelopmentError = message.error || ''
+	    if (message.development) ui.masterDevelopment = message.development
+	    render()
+	    return true
+	  }
       if (message.type==='master' && message.requestId && message.requestId!==ui.masterRequestId) return true
       if (message.type==='masterTurn') {masterClient.acceptTurn(message.turn);if(message.turn.conversationId===masterClient.active){ui.masterSending=masterClient.running();render()};persistDraft()}
       if (message.type==='masterEvent') {
@@ -61,17 +68,6 @@ export function createMasterInbox({
         if (ui.hiringReloadFor && ui.hiringReloadFor === message.workOrder?.id) {
           ui.hiringReloadFor = ''
           vscode.postMessage({ type: 'loadMaster', conversationId: masterClient.active })
-        }
-        const ids = Array.isArray(message.workOrder?.roster?.agentIds)
-          ? message.workOrder.roster.agentIds
-          : (message.workOrder?.roster?.permanent || []).map(item => item.id)
-        const draft = ids.map(id => (ui.state.boot?.projectAgents || []).find(item => item.id === id)).find(item => item?.status === 'draft')
-        if (message.workOrder?.state === 'ready' && draft && !ui.agentConstructorOpen) {
-          ui.selectedProfileId = draft.id
-          ui.constructorDraft = newConstructorDraft(draft)
-          ui.constructorStep = 'review'
-          ui.agentConstructorOpen = true
-          vscode.postMessage({ type: 'selectTab', tab: 'agents' })
         }
         render()
       }

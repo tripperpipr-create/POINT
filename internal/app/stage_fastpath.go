@@ -13,6 +13,7 @@ import (
 	"local-agent-workbench/internal/domain"
 	projectenv "local-agent-workbench/internal/environment"
 	"local-agent-workbench/internal/flowruntime"
+	"local-agent-workbench/internal/sandbox"
 	"local-agent-workbench/internal/tools"
 	"local-agent-workbench/internal/workspace"
 )
@@ -132,62 +133,81 @@ func (a *App) completeDeterministicBootstrap(flowRun domain.FlowRun, node domain
 	vendorPath := filepath.Join(root, "vendor")
 	summary := "bootstrap: no composer.json; tip left unchanged"
 	ok := true
-	if _, statErr := os.Stat(composerPath); statErr == nil {
-		if _, vendorErr := os.Stat(vendorPath); vendorErr == nil {
-			summary = "bootstrap: vendor already present; skipped composer install"
-		} else {
-			sandboxFS, openErr := workspace.Open(root)
-			if openErr != nil {
-				return domain.FlowRun{}, openErr
-			}
-			hosts := bootstrapNetworkHosts(a, flowRun, projectAgent)
-			policy := "DENY"
-			if len(hosts) > 0 {
-				policy = "ALLOWLIST"
-			}
-			runID := exec.RunID
-			if strings.TrimSpace(runID) == "" {
-				runID = exec.ID
-			}
-			composerCmd := "composer install --no-interaction --prefer-dist"
-			if _, lockErr := os.Stat(filepath.Join(root, "composer.lock")); lockErr != nil {
-				composerCmd = "composer update --no-interaction --prefer-dist"
-			}
-			tool := tools.RunCommand{
-				FS: sandboxFS, NetworkPolicy: policy, AllowedNetworkHosts: hosts,
-				Executor: a.sandboxProcessExecutor(), RunID: runID, QuestID: flowRun.QuestID,
-				DefaultTimeout: 10 * time.Minute, MaxOutput: 256 * 1024,
-			}
-			args, _ := json.Marshal(map[string]any{
-				"command":        composerCmd,
-				"reason":         "deterministic bootstrap dependency install",
-				"timeoutSeconds": 600,
-			})
-			ctx, cancel := context.WithTimeout(context.Background(), 12*time.Minute)
-			result := tool.Execute(ctx, args)
-			cancel()
-			autoload := filepath.Join(root, "vendor", "autoload.php")
-			_, hasAutoload := os.Stat(autoload)
-			if !result.OK {
-				ok = false
-				summary = "bootstrap: composer failed"
-				if result.Error != nil && strings.TrimSpace(result.Error.Message) != "" {
-					summary += ": " + result.Error.Message
-				}
-			} else if code := toolResultExitCode(result); code != 0 {
-				if hasAutoload == nil {
-					// Post-scripts / optional packages often exit non-zero after a usable vendor tree.
-					ok = true
-					summary = fmt.Sprintf("bootstrap: %s exit %d but vendor/autoload.php present; continuing", composerCmd, code)
-				} else {
-					ok = false
-					summary = fmt.Sprintf("bootstrap: %s exit %d (vendor/autoload.php missing)", composerCmd, code)
-				}
-			} else if hasAutoload != nil {
-				ok = false
-				summary = "bootstrap: composer reported success but vendor/autoload.php is missing"
+	setup := domain.SetupPlan{}
+	if approval, approvalErr := a.store.WorkOrderApprovalByQuestV2(context.Background(), flowRun.QuestID); approvalErr == nil {
+		setup = approval.WorkOrder.Setup
+	}
+	if _, statErr := os.Stat(composerPath); os.IsNotExist(statErr) && setup.ID != "" {
+		ok, summary = a.executeApprovedSetupPlan(flowRun, exec, projectAgent, root, sandbox.ExecutionImageForRecord(sandboxRecord), setup)
+	}
+	if ok {
+		if _, statErr := os.Stat(composerPath); statErr == nil {
+			if _, vendorErr := os.Stat(vendorPath); vendorErr == nil {
+				summary = "bootstrap: vendor already present; skipped composer install"
 			} else {
-				summary = "bootstrap: " + composerCmd + " completed"
+				sandboxFS, openErr := workspace.Open(root)
+				if openErr != nil {
+					return domain.FlowRun{}, openErr
+				}
+				hosts := bootstrapNetworkHosts(a, flowRun, projectAgent)
+				policy := "DENY"
+				if len(hosts) > 0 {
+					policy = "ALLOWLIST"
+				}
+				runID := exec.RunID
+				if strings.TrimSpace(runID) == "" {
+					runID = exec.ID
+				}
+				composerCmd := "composer install --no-interaction --prefer-dist"
+				if _, lockErr := os.Stat(filepath.Join(root, "composer.lock")); lockErr != nil {
+					composerCmd = "composer update --no-interaction --prefer-dist"
+				}
+				tool := tools.RunCommand{
+					FS: sandboxFS, NetworkPolicy: policy, AllowedNetworkHosts: hosts,
+					Executor: a.sandboxProcessExecutor(), SandboxImage: sandbox.ExecutionImageForRecord(sandboxRecord),
+					RunID: runID, QuestID: flowRun.QuestID,
+					DefaultTimeout: 10 * time.Minute, MaxOutput: 256 * 1024,
+				}
+				args, _ := json.Marshal(map[string]any{
+					"command":        composerCmd,
+					"reason":         "deterministic bootstrap dependency install",
+					"timeoutSeconds": 600,
+				})
+				ctx, cancel := context.WithTimeout(context.Background(), 12*time.Minute)
+				result := tool.Execute(ctx, args)
+				cancel()
+				autoload := filepath.Join(root, "vendor", "autoload.php")
+				_, hasAutoload := os.Stat(autoload)
+				if !result.OK {
+					ok = false
+					summary = "bootstrap: composer failed"
+					if result.Error != nil && strings.TrimSpace(result.Error.Message) != "" {
+						summary += ": " + result.Error.Message
+					}
+				} else if code := toolResultExitCode(result); code != 0 {
+					if hasAutoload == nil {
+						// Post-scripts / optional packages often exit non-zero after a usable vendor tree.
+						ok = true
+						summary = fmt.Sprintf("bootstrap: %s exit %d but vendor/autoload.php present; continuing", composerCmd, code)
+					} else {
+						ok = false
+						summary = fmt.Sprintf("bootstrap: %s exit %d (vendor/autoload.php missing)", composerCmd, code)
+					}
+				} else if hasAutoload != nil {
+					ok = false
+					summary = "bootstrap: composer reported success but vendor/autoload.php is missing"
+				} else {
+					summary = "bootstrap: " + composerCmd + " completed"
+				}
+			}
+		}
+	}
+	if ok && setup.ID != "" {
+		for _, relative := range setup.ExpectedPaths {
+			if _, statErr := os.Stat(filepath.Join(root, filepath.FromSlash(relative))); statErr != nil {
+				ok = false
+				summary = "bootstrap: required path is missing: " + relative
+				break
 			}
 		}
 	}
@@ -226,6 +246,58 @@ func (a *App) completeDeterministicBootstrap(flowRun domain.FlowRun, node domain
 	}
 	a.recordFlowNodeArtifact(updated, node, ok, exec.ID)
 	return updated, nil
+}
+
+func (a *App) executeApprovedSetupPlan(flowRun domain.FlowRun, exec domain.ExecutionInstance, projectAgent domain.ProjectAgent, root, sandboxImage string, setup domain.SetupPlan) (bool, string) {
+	sandboxFS, err := workspace.Open(root)
+	if err != nil {
+		return false, "bootstrap: " + err.Error()
+	}
+	hosts := bootstrapNetworkHosts(a, flowRun, projectAgent)
+	policy := "DENY"
+	if len(hosts) > 0 {
+		policy = "ALLOWLIST"
+	}
+	runID := exec.RunID
+	if strings.TrimSpace(runID) == "" {
+		runID = exec.ID
+	}
+	tool := tools.RunCommand{
+		FS: sandboxFS, NetworkPolicy: policy, AllowedNetworkHosts: hosts,
+		Executor: a.sandboxProcessExecutor(), SandboxImage: sandboxImage,
+		RunID: runID, QuestID: flowRun.QuestID,
+		DefaultTimeout: 15 * time.Minute, MaxOutput: 256 * 1024,
+	}
+	for _, command := range setup.Commands {
+		args, _ := json.Marshal(map[string]any{
+			"command": command.Command, "reason": "approved setup plan: " + setup.ID,
+			"timeoutSeconds": command.TimeoutSeconds,
+		})
+		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(command.TimeoutSeconds+60)*time.Second)
+		result := tool.Execute(ctx, args)
+		cancel()
+		if !result.OK || toolResultExitCode(result) != 0 {
+			detail := "command failed: " + command.Command
+			if result.Error != nil && strings.TrimSpace(result.Error.Message) != "" {
+				detail += ": " + result.Error.Message
+			}
+			return false, "bootstrap: " + detail
+		}
+	}
+	for _, file := range setup.Files {
+		target := filepath.Join(root, filepath.FromSlash(file.Path))
+		relative, relErr := filepath.Rel(root, target)
+		if relErr != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+			return false, "bootstrap: setup file escapes workspace: " + file.Path
+		}
+		if err = os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+			return false, "bootstrap: " + err.Error()
+		}
+		if err = os.WriteFile(target, []byte(file.Content), 0o600); err != nil {
+			return false, "bootstrap: " + err.Error()
+		}
+	}
+	return true, "bootstrap: approved setup plan " + setup.ID + " completed"
 }
 
 func bootstrapNetworkHosts(a *App, flowRun domain.FlowRun, projectAgent domain.ProjectAgent) []string {

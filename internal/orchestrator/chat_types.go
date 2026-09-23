@@ -37,6 +37,7 @@ type ChatStore interface {
 }
 
 type ChatService struct {
+	Skills *MasterSkillSession
 	// OnProgress — живой след хода: kind называет событие, text остаётся
 	// короткой человеческой строкой, detail несёт подробности в JSON. Три
 	// аргумента, а не два, потому что лента показывает и то, и другое: строку

@@ -17,6 +17,7 @@ type CustomCommand struct {
 	NetworkPolicy       string
 	AllowedNetworkHosts []string
 	Executor            sandbox.ProcessExecutor
+	SandboxImage        string
 	RunID               string
 }
 
@@ -56,7 +57,7 @@ func (t CustomCommand) Execute(ctx context.Context, raw json.RawMessage) domain.
 	if err != nil {
 		return Fail("encode_error", err.Error())
 	}
-	return (RunCommand{FS: t.FS, MaxOutput: 128 * 1024, DefaultTimeout: time.Duration(t.Config.TimeoutSeconds) * time.Second, NetworkPolicy: t.NetworkPolicy, AllowedNetworkHosts: t.AllowedNetworkHosts, Executor: t.Executor, RunID: t.RunID}).Execute(ctx, payload)
+	return (RunCommand{FS: t.FS, MaxOutput: 128 * 1024, DefaultTimeout: time.Duration(t.Config.TimeoutSeconds) * time.Second, NetworkPolicy: t.NetworkPolicy, AllowedNetworkHosts: t.AllowedNetworkHosts, Executor: t.Executor, SandboxImage: t.SandboxImage, RunID: t.RunID}).Execute(ctx, payload)
 }
 
 func (t CustomCommand) ApprovalArguments(raw json.RawMessage) json.RawMessage {

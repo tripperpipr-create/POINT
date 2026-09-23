@@ -148,6 +148,40 @@ FROM quests WHERE workspace_id=? ORDER BY updated_at DESC`, workspaceID)
 	return result, rows.Err()
 }
 
+// GetQuest loads a quest by its durable identity without requiring an active
+// UI workspace. Startup reconciliation runs before the extension opens its
+// workspace, so finalization must not depend on that transient app state.
+func (s *SQLite) GetQuest(ctx context.Context, questID string) (domain.Quest, error) {
+	row := s.db.QueryRowContext(ctx, `
+SELECT id,workspace_id,parent_id,title,description,objectives,constraints_json,definition_of_done,importance,status,team_id,flow_id,flow_run_id,flow_node_id,assigned_agent_id,budget_tokens,budget_cents,created_at,updated_at,finished_at,brief_json,kind,controller_state,controller_json,prerequisite_ids_json
+FROM quests WHERE id=?`, questID)
+	var quest domain.Quest
+	var objectives, constraints, dod, created, updated, controller, prerequisites string
+	var finished, briefJSON sql.NullString
+	if err := row.Scan(&quest.ID, &quest.WorkspaceID, &quest.ParentID, &quest.Title, &quest.Description, &objectives,
+		&constraints, &dod, &quest.Importance, &quest.Status, &quest.TeamID, &quest.FlowID, &quest.FlowRunID,
+		&quest.FlowNodeID, &quest.AssignedAgentID, &quest.BudgetTokens, &quest.BudgetCents, &created, &updated,
+		&finished, &briefJSON, &quest.Kind, &quest.ControllerState, &controller, &prerequisites); err != nil {
+		return domain.Quest{}, err
+	}
+	var err error
+	quest.Brief, err = decodeTaskBrief(briefJSON)
+	if err != nil {
+		return domain.Quest{}, err
+	}
+	unmarshalJSON(objectives, &quest.Objectives)
+	unmarshalJSON(constraints, &quest.Constraints)
+	unmarshalJSON(dod, &quest.DefinitionOfDone)
+	unmarshalJSON(controller, &quest.Controller)
+	unmarshalJSON(prerequisites, &quest.PrerequisiteIDs)
+	quest.CreatedAt, quest.UpdatedAt = parseTime(created), parseTime(updated)
+	if finished.Valid && finished.String != "" {
+		value := parseTime(finished.String)
+		quest.FinishedAt = &value
+	}
+	return quest, nil
+}
+
 func (s *SQLite) SaveFlow(ctx context.Context, flow domain.FlowGraph) error {
 	_, err := s.db.ExecContext(ctx, `
 INSERT INTO flows(id,workspace_id,name,description,nodes,edges,created_at,updated_at)
@@ -226,6 +260,14 @@ func (s *SQLite) DeleteQuest(ctx context.Context, workspaceID, questID string) e
 	if err != nil {
 		return err
 	}
+	var flowID string
+	if err = tx.QueryRowContext(ctx, `SELECT flow_id FROM quests WHERE id=? AND workspace_id=?`, questID, workspaceID).Scan(&flowID); err != nil {
+		_ = tx.Rollback()
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("quest %q not found in the open project", questID)
+		}
+		return err
+	}
 	result, err := tx.ExecContext(ctx, `DELETE FROM quests WHERE id=? AND workspace_id=?`, questID, workspaceID)
 	if err != nil {
 		_ = tx.Rollback()
@@ -241,6 +283,24 @@ func (s *SQLite) DeleteQuest(ctx context.Context, workspaceID, questID string) e
 		`DELETE FROM quest_tool_leases WHERE quest_id=?`,
 	} {
 		if _, err = tx.ExecContext(ctx, statement, questID); err != nil {
+			_ = tx.Rollback()
+			return err
+		}
+	}
+	// Схема, собранная под квест, не должна переживать последнюю ссылку на
+	// себя: её узлы продолжат держать персонажей. Проверка ссылок и удаление
+	// живут в той же write-транзакции, что и квест, поэтому решение не строится
+	// по устаревшему списку из другого запроса. Схему с живым прогоном оставляем
+	// для ручной уборки после остановки — хроника прогонов при этом не стирается.
+	if flowID != "" {
+		if _, err = tx.ExecContext(ctx, `
+DELETE FROM flows
+WHERE id=? AND workspace_id=?
+  AND NOT EXISTS (SELECT 1 FROM quests WHERE workspace_id=? AND flow_id=?)
+  AND NOT EXISTS (
+    SELECT 1 FROM flow_runs
+    WHERE flow_id=? AND status IN ('pending','running','paused','waiting_approval')
+  )`, flowID, workspaceID, workspaceID, flowID, flowID); err != nil {
 			_ = tx.Rollback()
 			return err
 		}

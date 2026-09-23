@@ -110,17 +110,91 @@ func (a *App) finalizeWorkOrderQuestAfterFlowV2(approval domain.WorkOrderApprova
 	status, gateErr := a.store.FinalizeWorkOrderQuestV2(ctx, quest.ID, bundle)
 	if gateErr != nil {
 		a.blockWorkOrderFinalizationV2(ctx, quest, "Evidence gate не принял итог: "+security.Redact(gateErr.Error()), gateErr)
+		bundle.Assurance = domain.WorkOrderAssuranceFailed
+		bundle.OutcomeSummary = "Финализация заблокирована: " + security.Redact(gateErr.Error())
+		a.publishWorkOrderOutcomeV2(ctx, approval, quest, domain.QuestBlocked, bundle)
 		if isFastAgentQuestV2(quest) {
 			_ = a.markFastAgentMilestoneV2(ctx, approval, domain.QuestBlocked)
 		}
 		a.queueQuestSubagentEvaluations(quest.ID)
 		return
 	}
-	a.queueQuestSubagentEvaluations(quest.ID)
+	if stored, evidenceErr := a.store.GetEvidenceBundle(ctx, quest.ID); evidenceErr == nil {
+		bundle = stored
+	}
+	a.publishWorkOrderOutcomeV2(ctx, approval, quest, status, bundle)
+	a.recordMasterEvidence(ctx, approval.WorkOrder, quest.ID, "evidence_gate", string(status))
+	if bundle.Assurance == domain.WorkOrderAssuranceVerified {
+		a.queueQuestSubagentEvaluations(quest.ID)
+	}
 	launchMode, _ := quest.Controller["launchMode"].(string)
 	slog.Info("work order evidence finalized", "launch_mode", launchMode, "work_order_id", approval.WorkOrder.ID,
 		"quest_id", quest.ID, "run_id", a.workOrderRunIDV2(ctx, quest), "evidence_gate", status,
 		"status", status, "flow_succeeded", flowSucceeded, "delivery_verified", bundle.DeliveryVerified)
+}
+
+func (a *App) publishWorkOrderOutcomeV2(ctx context.Context, approval domain.WorkOrderApproval, quest domain.Quest, status domain.QuestStatus, bundle domain.EvidenceBundle) {
+	title := "Заблокировано"
+	level := "error"
+	switch {
+	case status == domain.QuestCompleted && bundle.Assurance == domain.WorkOrderAssuranceVerified:
+		title, level = "Готово", "success"
+	case status == domain.QuestCompleted:
+		title, level = "Готово с ограничениями", "warning"
+	}
+	passed, unavailable, failed := []string{}, []string{}, []string{}
+	for _, check := range bundle.VerificationChecks {
+		name := strings.TrimSpace(check.Kind)
+		if name == "" {
+			name = check.ID
+		}
+		switch {
+		case check.Satisfied:
+			passed = append(passed, name)
+		case check.ExitCode == nil:
+			unavailable = append(unavailable, name)
+		default:
+			failed = append(failed, name)
+		}
+	}
+	for _, criterion := range approval.WorkOrder.Criteria {
+		if criterion.Kind == "manual" {
+			unavailable = append(unavailable, criterion.Text)
+		}
+	}
+	line := func(label string, values []string) string {
+		if len(values) == 0 {
+			return label + ": нет"
+		}
+		return label + ": " + strings.Join(uniqueSortedStringsV2(values), ", ")
+	}
+	files := uniqueSortedStringsV2(bundle.ChangedFiles)
+	content := []string{
+		title,
+		fmt.Sprintf("Изменено файлов: %d", len(files)),
+		line("Файлы", files),
+		line("Выполненные проверки", passed),
+		line("Невыполненные/ручные проверки", unavailable),
+		line("Проваленные проверки", failed),
+		line("Ограничения", bundle.KnownLimitations),
+	}
+	if bundle.DeliveryReceipt != nil && bundle.DeliveryReceipt.ServicesRunning && strings.TrimSpace(bundle.DeliveryReceipt.URL) != "" {
+		content = append(content, "Приложение: "+bundle.DeliveryReceipt.URL)
+	}
+	if status == domain.QuestBlocked {
+		content = append(content, "Нужно действие: устраните указанную ошибку и повторите запуск квеста.")
+	} else if bundle.Assurance == domain.WorkOrderAssurancePartial && len(unavailable) > 0 {
+		content = append(content, "Нужно действие: при необходимости выполните перечисленные ручные проверки.")
+	}
+	_, err := a.store.SaveCompanionMessageOnce(ctx, domain.CompanionMessage{
+		ID: "master-workorder-final-" + quest.ID, WorkspaceID: approval.WorkOrder.WorkspaceID,
+		ConversationID: approval.WorkOrder.ConversationID, Speaker: "master", Role: "assistant",
+		Content: strings.Join(content, "\n"), Level: level, Mode: "quest_completion",
+		ProposalID: approval.WorkOrder.ProposalID, CreatedAt: time.Now().UTC(),
+	})
+	if err != nil {
+		slog.Error("could not publish deterministic work order outcome", "quest_id", quest.ID, "error", security.Redact(err.Error()))
+	}
 }
 
 func isFastAgentQuestV2(quest domain.Quest) bool {
@@ -143,12 +217,16 @@ func (a *App) buildWorkOrderEvidenceV2(ctx context.Context, approval domain.Work
 		ContextDisclosures: []domain.ContextDisclosureEntry{},
 		CreatedAt:          time.Now().UTC(),
 	}
+	if note, _ := quest.Controller["plannerNote"].(string); strings.TrimSpace(note) != "" {
+		bundle.KnownLimitations = append(bundle.KnownLimitations, strings.TrimSpace(note))
+	}
 	if len(order.Network) > 0 {
 		raw, _ := json.Marshal(order.Network)
 		sum := sha256.Sum256(raw)
 		bundle.NetworkPolicyDigest = "sha256:" + hex.EncodeToString(sum[:])
 	}
 	outcome, outcomeErr := a.QuestOutcome(ctx, quest.ID)
+	executionFailures := a.workOrderExecutionFailuresV2(ctx, order.WorkspaceID, quest.FlowRunID)
 	proof := map[string]struct {
 		satisfied bool
 		summary   string
@@ -184,7 +262,7 @@ func (a *App) buildWorkOrderEvidenceV2(ctx context.Context, approval domain.Work
 		if !outcome.Verified && outcome.Honest != "" {
 			bundle.KnownLimitations = append(bundle.KnownLimitations, outcome.Honest)
 		}
-	} else {
+	} else if len(executionFailures) == 0 {
 		bundle.KnownLimitations = append(bundle.KnownLimitations, "Невозможно собрать итог проверки: "+security.Redact(outcomeErr.Error()))
 	}
 	for _, criterion := range order.Criteria {
@@ -222,16 +300,38 @@ func (a *App) buildWorkOrderEvidenceV2(ctx context.Context, approval domain.Work
 	}
 	if !flowSucceeded {
 		bundle.KnownLimitations = append(bundle.KnownLimitations, "Flow завершился с ошибкой")
+		bundle.KnownLimitations = append(bundle.KnownLimitations, executionFailures...)
 	}
 	a.collectWorkOrderEvidenceLedgersV2(ctx, order, quest, &bundle)
 	return bundle
 }
 
-func workOrderMachineEvidenceSatisfiedV2(order domain.WorkOrder, bundle domain.EvidenceBundle) bool {
-	byID := make(map[string]bool, len(bundle.Criteria))
-	for _, item := range bundle.Criteria {
-		byID[item.CriterionID] = item.Satisfied
+func (a *App) workOrderExecutionFailuresV2(ctx context.Context, workspaceID, flowRunID string) []string {
+	if strings.TrimSpace(flowRunID) == "" {
+		return nil
 	}
+	executions, err := a.store.ListExecutions(ctx, workspaceID, 500)
+	if err != nil {
+		return nil
+	}
+	result := []string{}
+	for _, execution := range executions {
+		if execution.FlowRunID != flowRunID || execution.Status != domain.RunFailed {
+			continue
+		}
+		detail := strings.TrimSpace(execution.Error)
+		if detail == "" {
+			detail = strings.TrimSpace(execution.Result)
+		}
+		if detail == "" {
+			detail = "этап завершился с ошибкой без диагностического сообщения"
+		}
+		result = append(result, "Ошибка этапа "+execution.FlowNodeID+": "+security.Redact(detail))
+	}
+	return uniqueSortedStringsV2(result)
+}
+
+func workOrderMachineEvidenceSatisfiedV2(order domain.WorkOrder, bundle domain.EvidenceBundle) bool {
 	checks := make(map[string]domain.VerificationCheck, len(bundle.VerificationChecks))
 	for _, check := range bundle.VerificationChecks {
 		checks[check.ID] = check
@@ -241,8 +341,18 @@ func workOrderMachineEvidenceSatisfiedV2(order domain.WorkOrder, bundle domain.E
 		criteria[item.CriterionID] = item
 	}
 	for _, criterion := range order.Criteria {
-		if criterion.Kind != "manual" && (!byID[criterion.ID] || !verificationCheckSatisfiesCriterionV2(criterion, criteria[criterion.ID], checks[criterion.ID])) {
-			return false
+		if criterion.Kind == "manual" {
+			continue
+		}
+		item, itemOK := criteria[criterion.ID]
+		check, checkOK := checks[criterion.ID]
+		// No exit code means the check was unavailable or requires a human. It
+		// lowers assurance but must not prevent delivery. A check that really
+		// ran and failed remains a hard stop.
+		if itemOK && item.ExitCode != nil || checkOK && check.ExitCode != nil {
+			if !verificationCheckSatisfiesCriterionV2(criterion, item, check) {
+				return false
+			}
 		}
 	}
 	return true

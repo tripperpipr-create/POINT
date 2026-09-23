@@ -6,7 +6,7 @@ import { masterDayKey, masterDayLabel, masterTimeLabel } from './master-feed.js'
 import { masterComposeActionsHtml, masterComposeCountHtml, masterComposeFormClass, masterComposeMetaHtml, masterComposeRows, masterWaitSuffix } from './master-compose.js'
 import { createMasterQuestionsViews, masterParseAnswers } from './master-questions-views.js'
 import { masterMentionActiveId, masterMentionHtml } from './master-mention-ui.js'
-import { masterPlanHtml, masterPlanState } from './master-plan-views.js'
+import { questPlanRows } from './master-plan-views.js'
 import { questChecklistHtml, questMenuHtml } from './master-quest-views.js'
 import { masterToolName, masterToolNameNow } from './master-tool-names.js'
 import { masterHiringCardsHtml } from './master-hiring-card.js'
@@ -126,35 +126,11 @@ export function createMasterThreadViews(dependencies) {
   // сказано одно слово состояния и свёрнутая хроника событий. Событие — не
   // прогресс: по «инструмент завершён» не видно, сколько этапов позади.
   //
-  // Читаем на отрисовку и ничего не храним: правда о прогоне остаётся у ядра,
-  // иначе в приложении заведётся вторая, расходящаяся с первой.
-  const STAGE_NOTE = {
-    waiting: 'нужно решение',
-    waiting_approval: 'нужно решение',
-    failed: 'ошибка',
-    cancelled: 'отменён',
-    skipped: 'пропущен',
-  }
-
-  function masterRunPlanHtml(questId) {
-    if (!questId) return ''
-    const run = (ui.state.boot?.flowRuns || []).find(item => item.questId === questId && item.nodeStates)
-    if (!run?.nodeStates) return ''
-    const flow = (ui.state.boot?.flows || []).find(item => item.id === run.flowId)
-    // Порядок задаёт сам Flow: перебор объекта состояний отдал бы этапы в
-    // порядке вставки ядром, а он не порядок работы.
-    const nodes = Array.isArray(flow?.nodes) && flow.nodes.length
-      ? flow.nodes
-      : Object.keys(run.nodeStates).map(id => ({ id }))
-    const rows = nodes.map(node => {
-      const status = String(run.nodeStates[node.id]?.status || 'pending')
-      return {
-        text: node.name || flowNodeKindLabels?.[node.kind] || node.id,
-        state: masterPlanState(status),
-        note: STAGE_NOTE[status] || '',
-      }
-    })
-    return masterPlanHtml('План', rows, esc)
+  // Ряды считает master-plan-views: после запуска перечень этапов живёт в
+  // правой панели разговора, и два перебора одних и тех же состояний однажды
+  // разошлись бы.
+  function masterRunPlanRows(questId) {
+    return questPlanRows(ui.state.boot, questId, flowNodeKindLabels)
   }
 
   // Ждущее решение — наверх карточки, а не в хронику.
@@ -174,19 +150,36 @@ export function createMasterThreadViews(dependencies) {
     return `<div class="hall-work-decisions">${cards.join('')}</div>`
   }
 
-  function masterStartedWorkHtml(stored) {
-    const pinned = masterPinnedForProposal(stored?.id)
-    const quest = pinned?.questId
-      ? (ui.state.boot?.quests || []).find(item => item.id === pinned.questId)
-      : null
+  // Где запущенная работа сейчас. Считается один раз на два вида: карточка в
+  // ленте показывает, чем агент занят, вкладка и панель справа — по каким
+  // этапам он идёт. Разойдясь, они назвали бы одному квесту два состояния.
+  function masterStartedWorkState(proposalId) {
+    const pinned = masterPinnedForProposal(proposalId)
+    const questId = pinned?.questId || ''
+    const quest = questId ? (ui.state.boot?.quests || []).find(item => item.id === questId) : null
     const details = masterWorkDetailsFor(pinned)
-    const execution = pinned?.questId
-      ? (ui.state.boot?.executions || []).find(item => item.questId === pinned.questId && item.runId)
-        || (ui.state.boot?.executions || []).find(item => item.questId === pinned.questId)
+    const execution = questId
+      ? (ui.state.boot?.executions || []).find(item => item.questId === questId && item.runId)
+        || (ui.state.boot?.executions || []).find(item => item.questId === questId)
       : null
     const run = details?.run || (pinned?.runId ? (ui.state.boot?.runs || []).find(item => item.id === pinned.runId) : null)
     const statusKey = run?.status || execution?.status || quest?.status || 'active'
-    const statusText = statusLabels[statusKey] || questStatusLabels[statusKey] || statusKey
+    return {
+      pinned, questId, quest, details, execution, run,
+      statusText: statusLabels[statusKey] || questStatusLabels[statusKey] || statusKey,
+      step: run?.step,
+      rows: masterRunPlanRows(questId),
+    }
+  }
+
+  // Запущенный квест для правой панели разговора: состояние работы и её этапы.
+  function masterStartedQuestSummary(proposalId) {
+    const state = masterStartedWorkState(proposalId)
+    return { questId: state.questId, statusText: state.statusText, step: state.step, rows: state.rows }
+  }
+
+  function masterStartedWorkHtml(stored) {
+    const { pinned, quest, details, execution, run, statusText } = masterStartedWorkState(stored?.id)
     const controlsTarget = execution
       ? { ...execution, status: run?.status || execution.status, runId: run?.id || execution.runId }
       : run
@@ -206,7 +199,10 @@ export function createMasterThreadViews(dependencies) {
         <span class="hall-work-status">${esc(statusText)}${run?.step != null ? ` · ход ${esc(run.step)}` : ''}</span>
       </header>
       ${controls ? `<div class="hall-work-controls">${controls}</div>` : ''}
-      ${masterRunPlanHtml(pinned?.questId || '')}
+      ${/* Этапы отсюда ушли во вкладку задания: она стоит в шапке разговора и
+           после запуска называет прогресс числом, а перечень открывает панелью.
+           Пока перечень стоял здесь, он повторялся с панелью, а лента вместо
+           работы агента показывала второй раз тот же план. */''}
       ${masterPendingDecisionsHtml(details)}
       <details class="hall-work-log">
         <summary>Хроника</summary>
@@ -1054,6 +1050,7 @@ export function createMasterThreadViews(dependencies) {
     masterDiscussionContextHtml,
     masterModelLabel,
     masterProposalHtml,
+    masterStartedQuestSummary,
     masterThreadContentHtml,
     masterThreadHtml,
     stampMasterAnswer,

@@ -53,6 +53,7 @@ class ChatDocuments {
     if (!item || typeof item !== 'object') return
     const esc = this.escapeHtml
     const facts = Array.isArray(item.factsUsed) ? item.factsUsed.filter(Boolean) : []
+	const skills = Array.isArray(item.skills) ? item.skills : []
     const metrics = [
       ['Чем отвечено', item.mode === 'model' ? 'модель Мастера' : 'движок Point'],
       ['Провайдер', item.provider || 'локальный'],
@@ -65,6 +66,7 @@ class ChatDocuments {
     const details = '<section class="details"><h2>Что было отправлено</h2><pre>' +
       esc(String(request || 'Реплика не найдена в видимой части переписки.')) + '</pre><dl>' + pairs(metrics) + '</dl>' +
       (item.fallbackReason ? '<h2>Почему ответил движок Point</h2><pre>' + esc(item.fallbackReason) + '</pre>' : '') +
+	  '<h2>Применённые навыки</h2><pre>' + esc(skills.length ? skills.map(skill => `${skill.name || skill.skillId} · v${skill.revision} · ${skill.digest}`).join('\n') : 'Атрибуция недоступна для старого хода.') + '</pre>' +
       '<h2>Основания ответа</h2><pre>' +
       esc(facts.length ? facts.join('\n') : 'Мастер не назвал оснований для этого ответа.') + '</pre></section>'
     const panel = vscode.window.createWebviewPanel('point.masterAnswerDetails', 'Сведения об ответе Мастера', vscode.ViewColumn.Active, { enableScripts: false })

@@ -52,6 +52,16 @@ func (a *App) startSandboxedExecutionWithSeed(projectAgentID, task, questID, par
 		WorkspaceID: ws.ID, WorkspacePath: ws.Path, ExecutionID: execID,
 		PreferWorktree: true, LiveWorkspace: sandbox.LiveFileMutationEnabled() && !a.questRequiresIsolatedWorkspace(context.Background(), ws.ID, questID),
 	}
+	if brief, briefErr := a.taskBriefForQuest(context.Background(), ws.ID, questID); briefErr == nil {
+		createRequest.Runtime = managedSandboxRuntimeForBrief(brief)
+		if len(createRequest.Runtime.RequiredCommands) > 0 {
+			createRequest.Runtime.Progress = func(phase, message string) {
+				a.updateRuntimeProvisioningProgressV2(context.Background(), ws.ID, questID, phase, message)
+			}
+			a.updateRuntimeProvisioningProgressV2(context.Background(), ws.ID, questID, "runtime_provisioning",
+				"Проверяем системные инструменты sandbox: "+strings.Join(createRequest.Runtime.RequiredCommands, ", "))
+		}
+	}
 	if strings.TrimSpace(rootSeedPath) != "" {
 		createRequest.SeedPath = rootSeedPath
 		createRequest.PreferWorktree = false
@@ -80,6 +90,10 @@ func (a *App) startSandboxedExecutionWithSeed(projectAgentID, task, questID, par
 	if err != nil {
 		return domain.ExecutionInstance{}, err
 	}
+	if len(createRequest.Runtime.RequiredCommands) > 0 {
+		a.updateRuntimeProvisioningProgressV2(context.Background(), ws.ID, questID, "runtime_ready",
+			"Runtime sandbox готов: "+strings.TrimSpace(sandboxRecord.BackendImage))
+	}
 	exec := domain.ExecutionInstance{
 		ID: execID, WorkspaceID: ws.ID, ProjectAgentID: agent.ID, QuestID: questID,
 		SandboxID: sandboxRecord.ID, Task: task, Status: domain.RunPending,
@@ -106,6 +120,32 @@ func (a *App) startSandboxedExecutionWithSeed(projectAgentID, task, questID, par
 		"task_preview", observability.Snippet(security.Redact(task), 160),
 	)
 	return exec, nil
+}
+
+func (a *App) updateRuntimeProvisioningProgressV2(ctx context.Context, workspaceID, questID, phase, message string) {
+	quests, err := a.store.ListQuests(ctx, workspaceID)
+	if err != nil {
+		return
+	}
+	byID := make(map[string]domain.Quest, len(quests))
+	for _, quest := range quests {
+		byID[quest.ID] = quest
+	}
+	seen := map[string]bool{}
+	for questID != "" && !seen[questID] {
+		seen[questID] = true
+		quest, ok := byID[questID]
+		if !ok {
+			return
+		}
+		if quest.Controller != nil && quest.Controller["source"] == "work_order_v2" {
+			if !domain.IsTerminalQuestStatus(quest.Status) {
+				a.updateWorkOrderLaunchProgressV2(ctx, &quest, phase, message)
+			}
+			return
+		}
+		questID = quest.ParentID
+	}
 }
 
 func (a *App) BuildChangeSet(executionID string) (domain.ChangeSet, error) {

@@ -322,6 +322,9 @@ WHERE orchestrator_config.workspace_id=excluded.workspace_id`,
 	if affected != 1 {
 		return fmt.Errorf("orchestrator config %q belongs to another workspace", cfg.ID)
 	}
+	if cfg.Learning != nil {
+		return s.SetMasterLearningConfig(ctx, cfg.WorkspaceID, *cfg.Learning)
+	}
 	return nil
 }
 
@@ -337,6 +340,11 @@ FROM orchestrator_config WHERE workspace_id=? ORDER BY updated_at DESC LIMIT 1`,
 		return domain.OrchestratorConfig{}, err
 	}
 	cfg.CreatedAt, cfg.UpdatedAt = parseTime(created), parseTime(updated)
+	learning, err := s.MasterLearningConfig(ctx, workspaceID)
+	if err != nil {
+		return cfg, err
+	}
+	cfg.Learning = &learning
 	return cfg, nil
 }
 

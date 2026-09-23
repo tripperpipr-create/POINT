@@ -72,9 +72,16 @@ func (*Manager) Capabilities() Capabilities {
 }
 
 type CreateRequest struct {
-	WorkspaceID    string
-	WorkspacePath  string
-	ExecutionID    string
+	WorkspaceID   string
+	WorkspacePath string
+	ExecutionID   string
+	// Image is a trusted server-selected managed runtime pack. Local filesystem
+	// sandboxes ignore it; container backends resolve and pin its digest.
+	Image string
+	// Runtime describes server-approved tools that must exist in the execution
+	// image. Container backends may reuse a compatible local pack or build a
+	// derived, content-addressed image from the trusted package allowlist.
+	Runtime        RuntimeRequirements
 	PreferWorktree bool
 	// LiveWorkspace makes Path the open project. Tools write live files;
 	// BaselinePath still holds an immutable snapshot for Change Set diffs.
@@ -83,6 +90,19 @@ type CreateRequest struct {
 	ParentSandboxID      string
 	ParentExecutionID    string
 	BaselineChangeSetIDs []string
+}
+
+// RuntimeRequirements is operational policy, not model-authored Docker input.
+// Commands and packages are selected from Point's built-in allowlist. The
+// container backend validates them again before probing or building an image.
+type RuntimeRequirements struct {
+	ID               string
+	Version          string
+	RequiredCommands []string
+	Packages         []string
+	CandidateImages  []string
+	// Progress reports bounded provisioning phases to the existing quest feed.
+	Progress func(phase, message string)
 }
 
 type DiffEntry struct {
@@ -127,6 +147,7 @@ type MergeRequest struct {
 	WorkspaceID          string
 	ExecutionID          string
 	BasePath             string
+	Runtime              RuntimeRequirements
 	Seeds                []MergeSeed
 	Resolutions          []MergeResolution
 	BaselineChangeSetIDs []string

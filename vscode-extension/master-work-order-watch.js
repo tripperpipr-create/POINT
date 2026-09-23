@@ -69,7 +69,20 @@ function watchMasterWorkOrder(host, workOrderId, conversationId) {
           try { await host.loadRun(runId, true, true) } catch { /* прогон мог уже уехать */ }
         }
       }
-      if (!isTransientWorkOrder(order)) return
+      if (!isTransientWorkOrder(order)) {
+        // Finalization persists the deterministic Master reply in the same
+        // lifecycle operation. Reload the active history now so the user does
+        // not need to close and reopen the panel to see it.
+        if (conversationId) {
+          try {
+            const master = await host.service.request('/api/master/history?conversationId=' + encodeURIComponent(conversationId))
+            host.post({ type: 'master', master, loaded: true, completionRefresh: true })
+          } catch (error) {
+            host.service.hostLog('warn', `[chat] итог наряда ${id} сохранён, но история не обновилась: ${String(error?.message || error).slice(0, 200)}`)
+          }
+        }
+        return
+      }
     }
   })().catch(error => {
     host.service.hostLog('warn', `[chat] наблюдение за нарядом ${id} прервано: ${String(error?.message || error).slice(0, 200)}`)

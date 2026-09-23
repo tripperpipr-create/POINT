@@ -26,6 +26,20 @@ async function snapshotMasterContexts(host, contexts) {
 // Master chat transport: credentials and cancellation stay in the extension.
 async function handleMasterMessage(message) {
  switch(message.type) {
+	case 'loadMasterDevelopment':
+	case 'setMasterLearning':
+	case 'rollbackMasterSkill': {
+	  try {
+	    let development
+	    if (message.type === 'setMasterLearning') development = await this.service.request('/api/master/learning',{method:'POST',body:JSON.stringify({enabled:message.enabled === true})})
+	    else if (message.type === 'rollbackMasterSkill') development = await this.service.request('/api/master/skills/'+encodeURIComponent(String(message.id || ''))+'/rollback',{method:'POST',body:'{}'})
+	    else development = await this.service.request('/api/master/skills')
+	    this.post({type:'masterDevelopment',development,projectKey:message.projectKey})
+	  } catch (error) {
+	    this.post({type:'masterDevelopmentError',error:String(error?.message || error),projectKey:message.projectKey})
+	  }
+	  break
+	}
  case 'forkMasterConversation': {
    const master=await this.service.request('/api/master/conversations/'+encodeURIComponent(message.conversationId)+'/fork',{method:'POST',body:JSON.stringify({messageId:message.messageId})})
    this.post({type:'master',master,viewId:message.viewId,sessionChanged:true,draft:message.draft,regenerate:message.regenerate})
@@ -41,6 +55,34 @@ async function handleMasterMessage(message) {
    const result=await this.service.request('/api/master/conversations/'+encodeURIComponent(message.conversationId)+'/export')
    const uri=await vscode.window.showSaveDialog({saveLabel:'Экспортировать разговор',filters:{Markdown:['md']}})
    if(uri)await vscode.workspace.fs.writeFile(uri,Buffer.from(result.markdown,'utf8'));break
+ }
+ case 'generateReport': {
+   const prompt=await vscode.window.showInputBox({title:'Архивариус · новый отчёт',prompt:'Проверьте цель, аудиторию и факты. В модель уйдёт только этот текст.',value:String(message.prompt || '').slice(0,12000),placeHolder:'Например: отчёт для команды о рисках релиза, с итогом и таблицей приоритетов',ignoreFocusOut:true,validateInput:value=>value.trim()?'':'Опишите, какой отчёт нужен'})
+   if(!prompt?.trim())break
+   const format=await vscode.window.showQuickPick([
+     {label:'Markdown (.md)',description:'Удобно читать в репозитории и рецензировать',value:'md'},
+     {label:'HTML (.html)',description:'Готовая адаптивная страница для браузера и печати',value:'html'},
+     {label:'Excel (.xlsx)',description:'Настоящая книга с переносами, заголовками и таблицами',value:'xlsx'},
+   ],{title:'Формат отчёта',placeHolder:'Выберите файл, который соберёт Архивариус',ignoreFocusOut:true})
+   if(!format)break
+   const apiKey=await this.credentialForOrchestrator()
+   await vscode.window.withProgress({location:vscode.ProgressLocation.Notification,title:'Архивариус собирает отчёт…',cancellable:false},async()=>{
+     const result=await this.service.request('/api/reports',{method:'POST',body:JSON.stringify({prompt:prompt.trim(),format:format.value,apiKey})})
+     const bytes=Buffer.from(String(result.contentBase64 || ''),'base64')
+     if(!bytes.length||bytes.length>16*1024*1024)throw new Error('Агент отчётов вернул файл недопустимого размера.')
+     const folder=this.workspaceFolder()
+     const defaultUri=folder?vscode.Uri.joinPath(folder.uri,String(result.suggestedName || `report.${format.value}`)):undefined
+     const filters=format.value==='md'?{Markdown:['md']}:format.value==='html'?{HTML:['html']}:{Excel:['xlsx']}
+     const uri=await vscode.window.showSaveDialog({saveLabel:'Сохранить отчёт',defaultUri,filters})
+     if(!uri)return
+     await vscode.workspace.fs.writeFile(uri,bytes)
+     const choice=await vscode.window.showInformationMessage(`Отчёт готов: ${vscode.workspace.asRelativePath(uri,false)}`,'Открыть','Показать в папке')
+     if(choice==='Открыть'){
+       if(format.value==='md')await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(uri))
+       else await vscode.env.openExternal(uri)
+     }else if(choice==='Показать в папке')await vscode.commands.executeCommand('revealFileInOS',uri)
+   })
+   break
  }
  case 'pickMasterModel': {
    const current=await this.service.request('/api/master/history?conversationId='+encodeURIComponent(message.conversationId))
@@ -150,9 +192,15 @@ async function handleMasterMessage(message) {
           vscode.window.setStatusBarMessage('Скопировано из разговора с Мастером', 1800)
           break
         }
-        case 'openMasterMessageDetails':
-          this.chatDocuments.showMasterMessageDetails(message.item, message.request)
+        case 'openMasterMessageDetails': {
+		  const item = {...message.item}
+		  if (item.turnId) {
+		    const turn = await this.service.request('/api/master/turns/'+encodeURIComponent(item.turnId))
+		    item.skills = turn.skills || []
+		  }
+          this.chatDocuments.showMasterMessageDetails(item, message.request)
           break
+		}
         case 'masterFeedback': {
           // Оценка Мастера живёт в ядре, а не в состоянии рабочей области, как у
           // компаньона: по ней видно, какие постановки задач человек принимает, а

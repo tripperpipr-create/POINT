@@ -58,6 +58,9 @@ func TestLifecycleMigrationMaterializesOnlyOpenLegacyDraftsWithStableIDs(t *test
 	if migrated.Version != open.Version+1 || len(migrated.Roster.AgentIDs) != 1 || migrated.Roster.AgentIDs[0] != "stable-legacy-draft" || !migrated.Roster.Permanent[0].Existing {
 		t.Fatalf("open legacy order was not converted: %#v", migrated.Roster)
 	}
+	if migrated.State != "staffing" {
+		t.Fatalf("legacy selector draft remained launch-ready: %q", migrated.State)
+	}
 	agent, err := store.GetProjectAgent(ctx, "stable-legacy-draft")
 	if err != nil || agent.Status != domain.ProjectAgentDraft || agent.RoleFamily != "developer" || agent.BlueprintID != "" {
 		t.Fatalf("migrated draft=%#v err=%v", agent, err)

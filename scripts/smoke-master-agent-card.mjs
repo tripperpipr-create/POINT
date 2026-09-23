@@ -14,11 +14,12 @@ const root = path.resolve(import.meta.dirname, '..')
 const clientURL = name => pathToFileURL(path.join(root, 'vscode-extension', 'ui', 'client', name)).href
 const {
   handleMasterAgentCardAction, masterAgentCardFromAction, masterAgentCardHtml, masterAgentCardsFor,
-  masterAgentCardsHtml, masterAgentConsent, masterAgentDrafts, masterAgentIssue,
-  masterAgentValue, readMasterAgentCardInput,
+  masterAgentCardsHtml, masterAgentBusy, masterAgentConsent, masterAgentDrafts, masterAgentIssue,
+  masterAgentValue, readMasterAgentCardInput, releaseMasterAgentCards,
 } = await import(clientURL('master-agent-card.js'))
 const { masterWorkOrderCardsHtml } = await import(clientURL('master-work-order-v2.js'))
 const { masterHiringCardsHtml } = await import(clientURL('master-hiring-card.js'))
+const { createHubEntityInbox } = await import(clientURL('hub-entity-inbox.js'))
 const { esc } = await import(clientURL('html-escape.js'))
 
 const fail = message => { throw new Error(message) }
@@ -43,7 +44,7 @@ const draft = {
   requiredTools: ['read_file', 'run_command'], existing: false, requiresConsent: true,
 }
 const order = {
-  id: 'workorder-1', state: 'ready', version: 1, digest: 'sha256:x', goal: 'Собрать API',
+  id: 'workorder-1', state: 'staffing', version: 1, digest: 'sha256:x', goal: 'Собрать API',
   routing: { fixedModel: 'Qwen3.8-27B' },
   roster: { permanent: [draft], temporary: [] },
 }
@@ -53,7 +54,7 @@ const hiring = {
   draft, blueprints: [{ blueprintId: 'bp', name: 'Кузнец', role: 'Правит backend', why: 'совпало с задачей', tools: ['read_file'] }],
 }
 
-const reset = () => { masterAgentDrafts.clear(); masterAgentConsent.clear() }
+const reset = () => { masterAgentDrafts.clear(); masterAgentBusy.clear(); masterAgentConsent.clear() }
 
 // 1. Черновик наряда даёт одну карточку, заполненную тем, что прислало ядро.
 reset()
@@ -64,36 +65,15 @@ expectAll(html, [
   'class="hall-deck master-agent"', 'Новый исполнитель',
   'value="Разработчик проекта"', 'value="Владелец реализации"', 'health-эндпоинт',
   'value="Qwen3.8-27B"', 'Локальный Ollama',
-  'data-action="agent-card-create"', 'data-action="agent-card-later"', 'data-action="agent-card-workshop"',
+  'data-action="agent-card-create"', 'data-action="agent-card-workshop"',
 ], 'карточка черновика')
 if (html.includes('undefined')) fail('карточка не должна пропускать undefined в разметку')
 
-// 2. Карточка самостоятельна: она не вложена в карточку запуска, а та её больше
-//    не рисует. Ярус согласия внутри чужого документа — то, ради чего всё это.
+// 2. Пока состав не закрыт, карточки запуска в ленте ещё нет: там остаётся
+//    только самостоятельная карточка исполнителя.
 const orderHtml = masterWorkOrderCardsHtml([order], esc, new Set(), {})
-if (orderHtml.includes('master-v2-consent"') || orderHtml.includes('ЧЕРНОВИК АГЕНТА')) {
-  fail('карточка запуска снова рисует черновик агента внутри себя')
-}
-if (orderHtml.includes('data-action="request-roster-consent-v2"')) {
-  fail('карточка запуска снова раскрывает согласие своей кнопкой')
-}
-
-// 3. Запуск заперт, пока исполнителя нет, и причина названа словами.
-if (!/data-action="approve-master-work-order-v2"[^>]*disabled/.test(orderHtml)) {
-  fail('наряд с незаведённым исполнителем обязан запирать запуск')
-}
-expectAll(orderHtml, ['Сначала заведите исполнителя'], 'причина запрета')
-
-// 4. «Создать при запуске» отпирает запуск: согласие человека дано, и дальше
-//    исполнителя создаёт транзакция утверждения — как и требует ядро.
-let rendered = 0
-handleMasterAgentCardAction('agent-card-later', { dataset: { card: cards[0].id } }, { cards, render: () => { rendered += 1 } })
-if (!masterAgentConsent.has('workorder-1')) fail('согласие не записано')
-if (!rendered) fail('согласие обязано перерисовать ленту')
-const consentedOrder = masterWorkOrderCardsHtml([order], esc, new Set(), {})
-if (/data-action="approve-master-work-order-v2"[^>]*disabled/.test(consentedOrder)) {
-  fail('после согласия запуск обязан отпираться')
-}
+if (orderHtml !== '') fail('staffing-квест появился в ленте до готовности')
+if (html.includes('data-action="agent-card-later"')) fail('карточка снова предлагает создать агента транзакцией запуска')
 
 // 5. Пустой черновик не уходит в ядро: отказ назван до отправки, по-русски.
 reset()
@@ -137,6 +117,11 @@ if (!sent || sent.type !== 'decideCompanionAction' || sent.action !== 'apply') f
 if (sent.name !== 'Хранитель бэкенда' || sent.primaryModel !== 'qwen3-coder:30b') fail('решение потеряло имя или модель')
 if (sent.allowedTools.join(',') !== 'read_file,run_command' || sent.toolPolicies.run_command !== 'ASK') fail('решение потеряло умения или права')
 if (sent.maxSteps !== 12) fail('решение потеряло предел ходов')
+if (!masterAgentBusy.has(action.id)) fail('создание не заперло карточку от дубля')
+releaseMasterAgentCards([action])
+if (!masterAgentBusy.has(action.id)) fail('чужой снимок мира преждевременно отпустил карточку')
+releaseMasterAgentCards([])
+if (masterAgentBusy.has(action.id)) fail('обработанная исчезнувшая карточка осталась заперта')
 
 // 8. Чертёж подставляется в поля, не уводя из ленты. Прежняя кнопка «Нанять»
 //    переключала вкладку на «Агенты» и открывала конструктор.
@@ -185,6 +170,35 @@ if (masterAgentCardsFor({ workOrders: [order], hiring: [hiring] }).length !== 1)
 if (masterAgentCardsHtml([], esc, deps) !== '') fail('без карточек лента обязана остаться чистой')
 if (masterAgentCardsFor(undefined).length) fail('отсутствие данных не должно порождать карточки')
 if (masterAgentCardHtml(undefined, esc, deps) !== '') fail('пустая карточка не должна рисоваться')
+
+// 11а. Подтверждение создания приходит раньше полного state. Оно обязано нести
+// самого агента: иначе обработчик ищет новую запись в старом boot, очищает
+// намерение найма и так и не заменяет черновик ростера.
+let revisedRoster
+const savedFromCard = {
+  id: 'agent-created', blueprintId: 'bp-created', name: 'Хранитель',
+  roleDescription: 'Ведёт бэкенд', mission: 'Держит сборку зелёной',
+  allowedTools: ['read_file'],
+}
+const applyEntity = createHubEntityInbox({
+  ui: {
+    hireAfterSave: 'work-order:workorder-1|agentdraft-1', createStepError: '',
+    blueprintSyncPreview: undefined, blueprintSyncDirection: '', constructorDraft: undefined,
+    agentConstructorOpen: false, selectedProfileId: '', onboardingStep: '',
+    state: { selectedTab: 'master', boot: { projectAgents: [] } },
+    masterData: { workOrders: [order] },
+  },
+  vscode: { postMessage() {} }, render() {}, persistDraft() {}, closeQuestIfOpen() {},
+  resetQuestReplansCache() {}, releaseMasterAgentCards() {},
+  reviseWorkOrderRosterV2(id, mutate) {
+    if (id !== order.id) fail(`подтверждение правит чужой наряд: ${id}`)
+    revisedRoster = mutate(order.roster)
+  },
+})
+applyEntity({ type: 'projectAgentSaved', agentId: savedFromCard.id, agent: savedFromCard })
+if (revisedRoster?.permanent?.[0]?.id !== savedFromCard.id || !revisedRoster.permanent[0].existing) {
+  fail('созданный из карточки агент не заменил черновик в ростере до прихода state')
+}
 
 // 12. Набранное переживает перерисовку. Прежние формы создания снимали значения
 // только при отправке, и любой ход Мастера стирал написанное молча и целиком.

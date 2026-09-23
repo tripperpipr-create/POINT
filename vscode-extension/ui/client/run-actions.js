@@ -118,6 +118,12 @@ export function handleRunClickAction({
     vscode.postMessage({ type: 'deleteQuest', id: target.dataset.id })
     return true
   }
+  // Подтверждение спрашивает оболочка: снос необратим, а модальное окно
+  // вебвью человек закрывает мимоходом, не прочитав.
+  if (action === 'purge-quest') {
+    vscode.postMessage({ type: 'purgeQuest', id: target.dataset.id })
+    return true
+  }
   if (action === 'delete-team') {
     vscode.postMessage({ type: 'deleteTeam', id: target.dataset.id })
     return true

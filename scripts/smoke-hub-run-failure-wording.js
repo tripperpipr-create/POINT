@@ -60,6 +60,7 @@ const cases = [
   ['дневной лимит', 'daily hub budget exceeded; new runs are blocked', /Дневной лимит расходов исчерпан/, /budget exceeded/],
   ['время вышло', 'context deadline exceeded', /истекло отведённое время/, /deadline exceeded/],
   ['чужой проект', 'resource belongs to another project world', /другому проекту/, /belongs to another/],
+  ['чужой workspace', 'quest belongs to another workspace', /Переключитесь на него/, /belongs to another/],
 ]
 
 for (const [name, english, expected, forbidden] of cases) {

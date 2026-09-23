@@ -395,7 +395,7 @@ async function handleInfraMessage(message) {
         this.postState()
         this.post({ type: 'serverProfileSaved', id: saved?.id || '' })
       } catch (error) {
-        this.post({ type: 'error', message: error instanceof Error ? error.message : String(error) })
+        this.post({ type: 'error', request: message.type, message: error instanceof Error ? error.message : String(error) })
       }
       break
     }
@@ -416,7 +416,7 @@ async function handleInfraMessage(message) {
           void vscode.window.showWarningMessage(`SSH: ${result?.message || 'проверка не удалась'}`)
         }
       } catch (error) {
-        this.post({ type: 'error', message: error instanceof Error ? error.message : String(error) })
+        this.post({ type: 'error', request: message.type, message: error instanceof Error ? error.message : String(error) })
       }
       break
     }
@@ -427,7 +427,7 @@ async function handleInfraMessage(message) {
         if (!profile) throw new Error('SSH-профиль не найден')
         await browseSSHRemotePath(this.service, this.context, profile, String(message.path || profile.defaultRemotePath || '~'))
       } catch (error) {
-        this.post({ type: 'error', message: error instanceof Error ? error.message : String(error) })
+        this.post({ type: 'error', request: message.type, message: error instanceof Error ? error.message : String(error) })
       }
       break
     }
@@ -435,7 +435,7 @@ async function handleInfraMessage(message) {
       try {
         await openSSHTerminalForProfile(this.service, String(message.id || ''))
       } catch (error) {
-        this.post({ type: 'error', message: error instanceof Error ? error.message : String(error) })
+        this.post({ type: 'error', request: message.type, message: error instanceof Error ? error.message : String(error) })
       }
       break
     }
@@ -450,7 +450,7 @@ async function handleInfraMessage(message) {
         this.removeBootItem('serverProfiles', id)
         this.postState()
       } catch (error) {
-        this.post({ type: 'error', message: error instanceof Error ? error.message : String(error) })
+        this.post({ type: 'error', request: message.type, message: error instanceof Error ? error.message : String(error) })
       }
       break
     }
@@ -482,7 +482,7 @@ async function handleInfraMessage(message) {
         this.postState()
         this.post({ type: 'dbConnectionSaved', id: saved?.id || '' })
       } catch (error) {
-        this.post({ type: 'error', message: error instanceof Error ? error.message : String(error) })
+        this.post({ type: 'error', request: message.type, message: error instanceof Error ? error.message : String(error) })
       }
       break
     }
@@ -497,7 +497,7 @@ async function handleInfraMessage(message) {
         this.removeBootItem('dbConnections', id)
         this.postState()
       } catch (error) {
-        this.post({ type: 'error', message: error instanceof Error ? error.message : String(error) })
+        this.post({ type: 'error', request: message.type, message: error instanceof Error ? error.message : String(error) })
       }
       break
     }
@@ -520,7 +520,7 @@ async function handleInfraMessage(message) {
         this.postState()
         void vscode.window.showInformationMessage(`БД: ${result?.status === 'connected' ? 'подключение успешно' : (result?.lastError || 'проверено')}`)
       } catch (error) {
-        this.post({ type: 'error', message: error instanceof Error ? error.message : String(error) })
+        this.post({ type: 'error', request: message.type, message: error instanceof Error ? error.message : String(error) })
       }
       break
     }
@@ -541,7 +541,7 @@ async function handleInfraMessage(message) {
         })
         this.post({ type: 'dbSchemaResult', result })
       } catch (error) {
-        this.post({ type: 'error', message: error instanceof Error ? error.message : String(error) })
+        this.post({ type: 'error', request: message.type, message: error instanceof Error ? error.message : String(error) })
       }
       break
     }

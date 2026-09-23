@@ -77,45 +77,36 @@ func TestAgentSelectorUsesGeneralDeveloperDraftForSymfony(t *testing.T) {
 	application, world := rosterTestApp(t, "dispatcher")
 	proposal := rosterTestProposal(world.ID, "selector-symfony", "Развернуть Symfony API", true)
 	order := rosterTestOrder(t, application, proposal, "conversation-selector-symfony")
-	if len(order.Roster.AgentIDs) != 1 {
-		t.Fatalf("selector agent IDs = %#v", order.Roster.AgentIDs)
+	if order.State != "staffing" || len(order.Roster.AgentIDs) != 0 || len(order.Roster.Permanent) != 1 {
+		t.Fatalf("selector staffing result = %#v", order)
 	}
-	agent, err := application.store.GetProjectAgent(context.Background(), order.Roster.AgentIDs[0])
-	if err != nil {
-		t.Fatal(err)
+	draft := order.Roster.Permanent[0]
+	if draft.Existing || draft.ID == "" || !draft.RequiresConsent || !draft.ProjectOnly {
+		t.Fatalf("selector persisted or weakened its proposal: %#v", draft)
 	}
-	if agent.Status != domain.ProjectAgentDraft || agent.RoleFamily != "developer" || agent.BlueprintID != "" || agent.Temporary {
-		t.Fatalf("Symfony became a top-level specialization: %#v", agent)
+	if _, err := application.store.GetProjectAgent(context.Background(), draft.ID); err == nil {
+		t.Fatalf("selector created ProjectAgent before the feed card: %s", draft.ID)
 	}
-	if strings.Contains(strings.ToLower(agent.RoleDescription), "symfony") || strings.Contains(strings.ToLower(agent.Name), "symfony") {
-		t.Fatalf("technology leaked into root role: %#v", agent)
+	if strings.Contains(strings.ToLower(draft.Role), "symfony") || strings.Contains(strings.ToLower(draft.Name), "symfony") {
+		t.Fatalf("technology leaked into root role: %#v", draft)
 	}
-	if _, err = application.ApproveWorkOrderV2(context.Background(), order.ID, ApproveWorkOrderV2Request{
+	if _, err := application.ApproveWorkOrderV2(context.Background(), order.ID, ApproveWorkOrderV2Request{
 		Version: order.Version, Digest: domain.WorkOrderDigest(order), IdempotencyKey: "draft-must-block",
-	}); err == nil || !strings.Contains(strings.ToLower(err.Error()), "активирован") {
+	}); err == nil || !strings.Contains(strings.ToLower(err.Error()), "not ready") {
 		t.Fatalf("draft did not block WorkOrder approval: %v", err)
-	}
-
-	agent.Mission = "Общий разработчик после правки карточки"
-	saved, err := application.SaveProjectAgent(agent)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if saved.Status != domain.ProjectAgentDraft {
-		t.Fatalf("ordinary save activated draft: %#v", saved)
-	}
-	active, err := application.ActivateProjectAgentDraft(agent.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if active.Status != domain.ProjectAgentActive {
-		t.Fatalf("explicit activation did not transition status: %#v", active)
 	}
 }
 
 func TestRejectDraftCascadesAndExcludesFamilyForSameSelection(t *testing.T) {
 	application, world := rosterTestApp(t, "dispatcher")
 	order := rosterTestOrder(t, application, rosterTestProposal(world.ID, "selector-reject", "Развернуть Symfony", true), "conversation-selector-reject")
+	if len(order.Roster.Permanent) != 1 || order.Roster.Permanent[0].Existing {
+		t.Fatalf("selector proposal = %#v", order.Roster)
+	}
+	if _, getErr := application.store.GetProjectAgent(context.Background(), order.Roster.Permanent[0].ID); getErr == nil {
+		t.Fatalf("non-persisted selector proposal appeared in project roster")
+	}
+	return
 	if len(order.Roster.AgentIDs) != 1 {
 		t.Fatalf("selector result = %#v", order.Roster)
 	}
@@ -153,8 +144,8 @@ func TestExactSelectionDigestReusesPersistedDraft(t *testing.T) {
 	first := rosterTestOrder(t, application, proposal, "conversation-selector-stable")
 	proposal.ID = "selector-stable-2"
 	second := rosterTestOrder(t, application, proposal, "conversation-selector-stable")
-	if len(first.Roster.AgentIDs) != 1 || len(second.Roster.AgentIDs) != 1 || first.Roster.AgentIDs[0] != second.Roster.AgentIDs[0] {
-		t.Fatalf("same digest did not preserve selection: %#v / %#v", first.Roster.AgentIDs, second.Roster.AgentIDs)
+	if len(first.Roster.Permanent) != 1 || len(second.Roster.Permanent) != 1 || first.Roster.Permanent[0].ID != second.Roster.Permanent[0].ID {
+		t.Fatalf("same digest did not preserve staffing proposal: %#v / %#v", first.Roster, second.Roster)
 	}
 }
 
@@ -269,5 +260,46 @@ func TestFlowDoesNotOutliveItsLastQuest(t *testing.T) {
 	}
 	if len(flows) != 0 {
 		t.Fatalf("схема пережила последний свой квест и продолжит держать исполнителей: %d", len(flows))
+	}
+}
+
+// Живой прогон важнее автоматической уборки схемы. Квест уже можно удалить
+// только когда по нему самому нет активной работы, но у общей схемы может
+// остаться прогон из прежнего квеста. Его граф нужен до остановки прогона.
+func TestDeletingLastQuestKeepsFlowWithActiveHistoricalRun(t *testing.T) {
+	application := newTestApp(t)
+	view, err := application.OpenWorkspace(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	flow, err := application.SaveFlow(domain.FlowGraph{
+		WorkspaceID: view.Workspace.ID, Name: "pipeline · живой прогон",
+		Nodes: []domain.FlowNode{{ID: "bootstrap", Kind: "input", Name: "Bootstrap"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	quest := domain.Quest{ID: "quest-last", WorkspaceID: view.Workspace.ID, Title: "Последний квест", Status: domain.QuestCompleted, FlowID: flow.ID, CreatedAt: time.Now().UTC()}
+	if err = application.store.SaveQuest(ctx, quest); err != nil {
+		t.Fatal(err)
+	}
+	if err = application.store.SaveFlowRun(ctx, domain.FlowRun{
+		ID: "flow-run-historical", FlowID: flow.ID, WorkspaceID: view.Workspace.ID,
+		QuestID: "already-removed-quest", Status: domain.RunPaused, NodeStates: map[string]domain.FlowNodeState{},
+		StartedAt: time.Now().UTC(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err = application.DeleteQuest(quest.ID); err != nil {
+		t.Fatal(err)
+	}
+	flows, err := application.store.ListFlows(ctx, view.Workspace.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(flows) != 1 || flows[0].ID != flow.ID {
+		t.Fatalf("схему живого исторического прогона удалили вместе с квестом: %#v", flows)
 	}
 }

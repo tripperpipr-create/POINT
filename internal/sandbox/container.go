@@ -16,6 +16,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"local-agent-workbench/internal/domain"
@@ -32,6 +33,8 @@ const (
 
 var resourceValuePattern = regexp.MustCompile(`^[1-9][0-9]*(?:[bkmgBKMG])?$`)
 var imageDigestPattern = regexp.MustCompile(`^sha256:[a-f0-9]{64}$`)
+var imageReferencePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._/@:-]{0,254}$`)
+var containerUserPattern = regexp.MustCompile(`^[1-9][0-9]{0,9}(?::[1-9][0-9]{0,9})?$`)
 
 // ContainerBackend keeps immutable workspace snapshots on the host while all
 // executable tools run inside a short-lived, locked-down Docker container.
@@ -52,6 +55,7 @@ type ContainerBackend struct {
 	command              func(context.Context, string, ...string) *exec.Cmd
 	infrastructure       func(context.Context, ...string) error
 	infrastructureOutput func(context.Context, ...string) (string, error)
+	runtimeBuildMu       sync.Mutex
 }
 
 func NewContainerBackend(root string) *ContainerBackend {
@@ -91,26 +95,40 @@ func (b *ContainerBackend) Capabilities() Capabilities {
 func (*ContainerBackend) EnforcesControlledEgress() bool { return true }
 
 func (b *ContainerBackend) Create(ctx context.Context, request CreateRequest) (domain.SandboxRecord, error) {
+	if err := b.validate(); err != nil {
+		return domain.SandboxRecord{}, err
+	}
+	image, digest, err := b.resolveRuntimeImage(ctx, request.Image, request.Runtime)
+	if err != nil {
+		return domain.SandboxRecord{}, err
+	}
 	record, err := b.Manager.Create(ctx, request)
 	if err != nil {
 		return domain.SandboxRecord{}, err
 	}
 	record.Backend = "docker"
 	record.BackendVersion = b.DockerVersion
-	record.BackendImage = b.Image
-	record.BackendImageDigest = b.ImageDigest
+	record.BackendImage = image
+	record.BackendImageDigest = digest
 	return record, nil
 }
 
 func (b *ContainerBackend) Merge(ctx context.Context, request MergeRequest) (MergeResult, error) {
+	if err := b.validate(); err != nil {
+		return MergeResult{}, err
+	}
+	image, digest, err := b.resolveRuntimeImage(ctx, "", request.Runtime)
+	if err != nil {
+		return MergeResult{}, err
+	}
 	result, err := b.Manager.Merge(ctx, request)
 	if err != nil || result.Record.ID == "" {
 		return result, err
 	}
 	result.Record.Backend = "docker"
 	result.Record.BackendVersion = b.DockerVersion
-	result.Record.BackendImage = b.Image
-	result.Record.BackendImageDigest = b.ImageDigest
+	result.Record.BackendImage = image
+	result.Record.BackendImageDigest = digest
 	return result, nil
 }
 
@@ -152,6 +170,13 @@ func (b *ContainerBackend) PrepareProcess(ctx context.Context, request ProcessRe
 	}
 	if strings.TrimSpace(request.ShellCommand) == "" && strings.TrimSpace(request.Program) == "" {
 		return PreparedProcess{}, errors.New("sandbox process program or shell command is required")
+	}
+	executionImage, executionDigest, err := b.resolveExecutionImage(ctx, request.Image)
+	if err != nil {
+		return PreparedProcess{}, err
+	}
+	if imageDigestPattern.MatchString(executionDigest) {
+		executionImage = executionDigest
 	}
 	policy, err := egress.Compile(request.NetworkPolicy, request.AllowedNetworkHosts, egress.Quota{})
 	if err != nil {
@@ -207,7 +232,7 @@ func (b *ContainerBackend) PrepareProcess(ctx context.Context, request ProcessRe
 	for _, entry := range proxyEnvironment {
 		args = append(args, "--env", entry)
 	}
-	args = append(args, b.executionImage())
+	args = append(args, executionImage)
 	if strings.TrimSpace(request.ShellCommand) != "" {
 		args = append(args, "/bin/sh", "-lc", request.ShellCommand)
 	} else {
@@ -253,8 +278,8 @@ func (b *ContainerBackend) validate() error {
 		return errors.New("docker sandbox PID limit must be between 16 and 4096")
 	}
 	user := strings.TrimSpace(b.User)
-	if user == "0" || strings.HasPrefix(user, "0:") || strings.EqualFold(user, "root") {
-		return errors.New("docker sandbox refuses root container identity")
+	if !containerUserPattern.MatchString(user) {
+		return errors.New("docker sandbox requires a numeric non-root user identity")
 	}
 	return nil
 }
@@ -369,6 +394,38 @@ func (b *ContainerBackend) executionImage() string {
 		return digest
 	}
 	return b.Image
+}
+
+// ExecutionImageForRecord keeps every process on the image selected when its
+// sandbox was created, even if a local tag is later replaced.
+func ExecutionImageForRecord(record domain.SandboxRecord) string {
+	digest := strings.ToLower(strings.TrimSpace(record.BackendImageDigest))
+	if imageDigestPattern.MatchString(digest) {
+		return digest
+	}
+	return strings.TrimSpace(record.BackendImage)
+}
+
+func (b *ContainerBackend) resolveExecutionImage(ctx context.Context, requested string) (string, string, error) {
+	requested = strings.TrimSpace(requested)
+	if requested == "" || requested == b.Image {
+		digest := strings.ToLower(strings.TrimSpace(b.ImageDigest))
+		return b.Image, digest, nil
+	}
+	if !imageReferencePattern.MatchString(requested) {
+		return "", "", errors.New("managed docker sandbox image reference is invalid")
+	}
+	probeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	digest, err := b.output(probeCtx, "image", "inspect", requested, "--format", "{{.Id}}")
+	if err != nil {
+		return "", "", fmt.Errorf("managed docker sandbox image %q unavailable locally: %w", requested, err)
+	}
+	digest = strings.ToLower(strings.TrimSpace(digest))
+	if !imageDigestPattern.MatchString(digest) {
+		return "", "", errors.New("managed docker sandbox image returned an invalid digest")
+	}
+	return requested, digest, nil
 }
 
 func containerPaths(workspaceRoot, workingDirectory string) (string, string, error) {

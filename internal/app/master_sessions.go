@@ -152,10 +152,10 @@ func (a *App) UpdateMasterSession(ctx context.Context, req MasterSessionUpdate) 
 		current.UpdatedAt = time.Now().UTC().Format(time.RFC3339Nano)
 		err = a.store.SaveMasterConversation(ctx, *current)
 	case "delete":
-		// Разговор уносит свои наряды, поэтому перед удалением спрашиваем, не
-		// ведёт ли какой-то из них живой квест: иначе работа осталась бы без
-		// договора, по которому её утверждали.
-		if err = a.refuseConversationDeleteWithLiveQuest(ctx, w, id); err == nil {
+		// Разговор уносит свои наряды, а вместе с ними — незавершённую работу,
+		// которую по ним начали: остановленную, откаченную и снесённую целиком.
+		// Иначе работа осталась бы без договора, по которому её утверждали.
+		if _, err = a.purgeUnfinishedQuestsOfConversation(ctx, w, id); err == nil {
 			err = a.store.DeleteMasterConversation(ctx, w, id)
 		}
 	case "memory", "memory-propose", "memory-save", "memory-accept", "memory-delete":
@@ -263,36 +263,54 @@ func (a *App) MasterPage(ctx context.Context, id string, before int64, query str
 	return a.store.MasterMessagePage(ctx, a.currentWorldID(), sessions.Active, before, query, 60)
 }
 
-// Живой квест держит разговор, в котором утвердили его наряд.
-func (a *App) refuseConversationDeleteWithLiveQuest(ctx context.Context, workspaceID, conversationID string) error {
+// Разговор уносит незавершённые квесты, которые в нём поставили.
+//
+// Раньше здесь стоял отказ: «разговор ведёт квест — закройте или отмените
+// квест». Отказ был честным, но тупиковым. Человек, закрывающий разговор,
+// уже решил, что этой работы не будет, и отправлять его отменять квест в
+// другом разделе, а потом откатывать правки в третьем — значит требовать
+// три решения там, где он принял одно.
+//
+// Уносятся только незавершённые: список тот же, что раньше держал удаление.
+// Завершённый, отменённый, упавший и ждущий приёмки квест разговор не держал —
+// не держит и теперь, и его правки остаются в проекте. Иначе удаление старой
+// переписки молча откатывало бы работу, которую человек давно принял.
+func (a *App) purgeUnfinishedQuestsOfConversation(ctx context.Context, workspaceID, conversationID string) ([]QuestPurgeResult, error) {
 	orders, err := a.store.ListWorkOrdersForConversationV2(ctx, conversationID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if len(orders) == 0 {
-		return nil
+		return nil, nil
 	}
 	quests, err := a.store.ListQuests(ctx, workspaceID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	byID := make(map[string]domain.Quest, len(quests))
 	for _, quest := range quests {
 		byID[quest.ID] = quest
 	}
+	var purged []QuestPurgeResult
+	seen := map[string]bool{}
 	for _, order := range orders {
 		if order.Runtime == nil || order.Runtime.QuestID == "" {
 			continue
 		}
 		quest, ok := byID[order.Runtime.QuestID]
-		if !ok {
+		if !ok || seen[quest.ID] {
 			continue
 		}
 		switch quest.Status {
 		case domain.QuestCompleted, domain.QuestNeedsReview, domain.QuestBlocked, domain.QuestFailed, domain.QuestCancelled:
 			continue
 		}
-		return fmt.Errorf("разговор ведёт квест %q — закройте или отмените квест", quest.Title)
+		seen[quest.ID] = true
+		result, purgeErr := a.PurgeQuest(quest.ID)
+		if purgeErr != nil {
+			return purged, fmt.Errorf("квест %q не удалось снести: %w", quest.Title, purgeErr)
+		}
+		purged = append(purged, result)
 	}
-	return nil
+	return purged, nil
 }

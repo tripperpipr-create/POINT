@@ -9,6 +9,24 @@ import (
 	"local-agent-workbench/internal/domain"
 )
 
+func TestQuestFinalizationLoadsDurableQuestBeforeWorkspaceOpens(t *testing.T) {
+	t.Setenv("REDIS_ADDR", "")
+	application, err := New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { application.Shutdown(context.Background()) })
+	now := time.Now().UTC()
+	want := domain.Quest{ID: "quest-startup-recovery", WorkspaceID: "workspace-not-open-yet", Title: "Startup recovery", Status: domain.QuestRunning, CreatedAt: now, UpdatedAt: now}
+	if err = application.store.SaveQuest(context.Background(), want); err != nil {
+		t.Fatal(err)
+	}
+	got, err := application.questForFinalization(context.Background(), want.ID)
+	if err != nil || got.ID != want.ID || got.WorkspaceID != want.WorkspaceID {
+		t.Fatalf("durable quest not available during startup: got=%#v err=%v", got, err)
+	}
+}
+
 func TestWorkOrderFinalizationFailsClosedWithoutApproval(t *testing.T) {
 	t.Setenv("REDIS_ADDR", "")
 	application, err := New(t.TempDir())
@@ -45,6 +63,7 @@ func TestWorkOrderFinalizationFailsClosedWithCorruptApproval(t *testing.T) {
 	order.WorkspaceID = world.ID
 	order.Workspace = domain.WorkspacePlan{Mode: "existing", Path: world.Path, Isolation: "snapshot"}
 	order.Routing.FixedConnectionID = "unused-for-empty-roster"
+	assignReadyRosterForTest(t, application, &order)
 	order, err = application.SaveWorkOrderV2(context.Background(), order)
 	if err != nil {
 		t.Fatal(err)
@@ -95,6 +114,7 @@ func TestWorkOrderFinalizationFailsClosedWithCorruptMilestone(t *testing.T) {
 	order.WorkspaceID = world.ID
 	order.Workspace = domain.WorkspacePlan{Mode: "existing", Path: world.Path, Isolation: "snapshot"}
 	order.Routing.FixedConnectionID = "unused-for-empty-roster"
+	assignReadyRosterForTest(t, application, &order)
 	order, err = application.SaveWorkOrderV2(context.Background(), order)
 	if err != nil {
 		t.Fatal(err)

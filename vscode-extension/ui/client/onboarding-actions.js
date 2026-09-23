@@ -9,6 +9,7 @@ const ONBOARDING_ACTIONS = new Set([
   'cursor-login', 'complete-onboarding', 'complete-master-onboarding', 'restart-onboarding', 'onboarding-step',
   'onboarding-orchestrator-preset', 'orchestrator-select-mode', 'probe-orchestrator-connection',
   'open-orchestrator-setup', 'onboarding-companion-preset', 'onboarding-agent-template', 'save-onboarding-companion',
+  'generate-report',
   'onboarding-create-agent', 'onboarding-edit-agent', 'onboarding-apply-connection', 'onboarding-use-cursor',
   'onboarding-pick-provider', 'onboarding-agent-cycle', 'open-agent-constructor', 'open-agent-constructor-edit',
   'close-agent-constructor', 'reload-compiled-prompt', 'constructor-step', 'constructor-advance',
@@ -63,6 +64,7 @@ export function handleOnboardingClickAction({
   writeOnboardingOrchestratorDraft,
 }) {
   if (!ONBOARDING_ACTIONS.has(action)) return false
+  if (action === 'generate-report') { vscode.postMessage({ type: 'generateReport' }); return true }
   if (action === 'cursor-login') vscode.postMessage({type:'cursorLogin'})
   if (action === 'complete-onboarding') vscode.postMessage({type:'completeOnboarding'})
   if (action === 'complete-master-onboarding') {
@@ -172,6 +174,8 @@ export function handleOnboardingClickAction({
     vscode.postMessage({ type: 'probeCompanionConnection', connectionId: target.dataset.id || draft.connectionId })
   }
   if (action === 'open-orchestrator-setup') {
+	ui.masterDevelopmentBusy = true
+	vscode.postMessage({type:'loadMasterDevelopment',projectKey:ui.projectKey})
     ui.state.selectedTab = 'onboarding'
     // Расширение обязано знать о переходе. Без этого его selectedTab оставался
     // прежним, и первое же состояние — от нажатия «перестроить индекс», от

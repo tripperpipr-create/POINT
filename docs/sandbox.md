@@ -1,6 +1,6 @@
 # Execution sandbox
 
-Current for Point `1.2.2` as of 2026-09-10. This document is the operational
+Current for Point `1.2.3` as of 2026-09-23. This document is the operational
 contract for executable agent tools. File mutation mode and operating system
 isolation are separate guarantees and must not be presented as the same thing.
 Product rules for Orchestrator supervision, confirmed-only git remotes and
@@ -10,15 +10,20 @@ escalation of new egress hosts are in
 
 ## File mutation modes
 
-**Live workspace (default).** Agent file tools write the open project on disk
-(Cursor/Claude/Codex local model). An immutable baseline snapshot is still kept
-so Change Sets remain an exact revert journal. Apply is a no-op when live content
-already matches the proposed hash. Set `POINT_LIVE_WORKSPACE=0` (or
-`POINT_FILE_ISOLATION=sandbox`) to restore isolated copies.
+**WorkOrder v2 and v2 Fast Agent.** The v2 Fast Agent requires a separate
+execution workspace and chooses a detached worktree for a clean Git workspace
+or a snapshot otherwise. A live sandbox is rejected before the run starts.
+WorkOrder execution selects the isolation declared in its approved workspace
+plan. The selected mode must be visible before launch.
 
-**Isolated sandbox (opt-in).** `filtered-copy` / worktree create a writable
-execution copy under a temp root. Live files stay untouched until Change Set
-Apply — the pre-9-September contract.
+**Legacy or explicitly selected live workspace.** Where live mutation is
+enabled, file tools write the open project and an immutable baseline supplies
+an exact Change Set/revert journal. Apply is a no-op if the live content
+already matches the proposed hash. `POINT_LIVE_WORKSPACE=0` (or
+`POINT_FILE_ISOLATION=sandbox`) selects isolated copies for those paths.
+
+**Isolated copy.** `filtered-copy` / worktree create a writable execution copy
+under a temp root. The open project stays unchanged until reviewed delivery.
 
 ## Backends
 
@@ -165,10 +170,36 @@ integration test activates only with `POINT_SANDBOX_DOCKER_TEST=1`.
 ## Managed language packs
 
 Attested production base remains `Dockerfile.sandbox` → `point-agent-sandbox:1.2.2`
-(no PHP). PHP 8.3 + Composer live in a separate managed image
-`Dockerfile.sandbox-php` → `point-agent-sandbox-php:1.3.1`, selected by runtime
-pack when the EnvironmentPlan needs PHP. Package-registry hosts required by a
-pack still need an explicit controlled-egress allowlist; missing DNS/egress must
-escalate per
+(no PHP). Before an execution sandbox is created, Point derives required system
+commands from the approved stack, setup plan and completion profile. Only names
+from the built-in toolchain catalog are accepted; model-authored package names,
+images and Dockerfile instructions are never executed.
+
+The resolver probes the base image and compatible local packs first. If commands
+are still missing, it builds a non-root derived image from the base image ID and
+the catalog's version-pinned package set. The tag is content-addressed from the
+base digest, toolchain version, commands and packages (`point-runtime:<digest>`),
+the resulting image is probed, attributed by immutable image ID and reused by
+later runs. Builds are serialized so concurrent quests cannot duplicate the same
+provisioning work. Execution still uses `--pull=never`, a read-only root and the
+normal sandbox limits.
+
+Provisioning uses Docker's configured package repository network during the
+build; it is a host-side maintenance operation with a fixed package allowlist.
+The per-command controlled-egress policy applies to execution containers and
+project package installation, not to the Docker build. Operators who prohibit
+host-side package downloads should prebuild the required packs locally.
+
+PHP 8.3 + Composer also remain available as the compatible prebuilt image
+`Dockerfile.sandbox-php` → `point-agent-sandbox-php:1.3.1`; when absent, the same
+pack can be produced automatically from the catalog. The resolved image is
+persisted on the sandbox record and is used consistently by deterministic
+bootstrap commands, agent tools and checkpoint resume.
+
+System toolchain provisioning and project dependency installation are separate:
+the former creates/reuses the derived image, while approved setup commands such
+as `composer install`, `npm install` or `pip install` write only to the execution
+workspace. Package-registry hosts required by project setup still need an
+explicit controlled-egress allowlist; missing DNS/egress must escalate per
 [AGENT-HUB-ORCHESTRATOR-NETWORK-POLICY.md](AGENT-HUB-ORCHESTRATOR-NETWORK-POLICY.md)
 instead of silent mirror hopping.

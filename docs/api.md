@@ -2,7 +2,7 @@
 
 The headless server binds to `127.0.0.1:8080` by default. Docker overrides it to `0.0.0.0:8080` on an internal network; nginx publishes the web application on host loopback.
 
-Current for Point `1.2.2` as of 2026-09-19. The inventory below is complete and
+Current for Point `1.2.3` as of 2026-09-23. The inventory below is complete and
 is checked against every `HandleFunc` registration by `node scripts/check-docs.mjs`.
 
 | Method | Path | Purpose |
@@ -52,8 +52,13 @@ is checked against every `HandleFunc` registration by `node scripts/check-docs.m
 | `GET` | `/api/decisions` | Everything currently waiting on a human, ordered by waiting time |
 | `POST` | `/api/egress-asks/{id}/resolve` | Resolve Master→user network/git allow (`allow_once`/`allow_quest`/`deny`) or supervision (`continue`/`stop`) |
 | `GET` | `/api/master/history` | Workspace-scoped Master dialogue history |
+| `GET` | `/api/master/skills` | Effective Master skills, versions, learning budget and project-scoped history; excludes replay inputs |
+| `GET` | `/api/master/learning` | Alias for Master development state |
+| `POST` | `/api/master/learning` | Enable/disable background Master learning; fixed 10% token ceiling |
+| `POST` | `/api/master/skills/{id}/rollback` | Withdraw a learned revision and descendants, retaining audit history |
 | `GET` | `/api/master/directory` | Master chats across every known workspace (metadata only; foreign paths withheld) |
 | `POST` | `/api/master/chat` | Send one bounded turn to the Master dispatcher |
+| `POST` | `/api/reports` | Generate a user-reviewed MD, HTML, or XLSX artifact through the separate Reporter system agent using the Master's configured model |
 | `POST` | `/api/master/messages/{id}/feedback` | Mark one Master reply helpful or not (`up`, `down`, empty clears) |
 | `GET` | `/api/files/history?path=` | Immutable history of one file: patches and change sets that touched it |
 | `GET` | `/api/runs` | Recent persistent runs |
@@ -101,6 +106,7 @@ is checked against every `HandleFunc` registration by `node scripts/check-docs.m
 | `DELETE` | `/api/teams/{id}` | Disband a Team of the open workspace when no unfinished Quest holds it |
 | `POST` | `/api/quests` | Save a Quest |
 | `DELETE` | `/api/quests/{id}` | Delete a Quest of the open workspace when no live run, child quest or undecided Change Set holds it; run history is kept |
+| `POST` | `/api/quests/{id}/purge` | Stop the quest, revert its workspace changes and delete it with every trace (flow, runs, executions, change sets, proposal, subquests); usage records and append-only journals are kept |
 | `POST` | `/api/intakes` | Create a URL intake session: snapshot source, EnvironmentPlan, draft TaskBrief |
 | `GET` | `/api/intakes` | List intake sessions for the current workspace |
 | `GET` | `/api/intakes/{id}` | Read one intake session including source, coverage and delivery target |
@@ -315,7 +321,44 @@ A custom tool has a display name/description, workspace-relative `cwd`, a timeou
 
 `POST /api/custom-tools/preview` accepts `{ tool, arguments }`, where `tool` may be an unsaved process definition and `arguments` is a sample model payload including `reason`. It runs normalization, definition validation, strict parameter validation, executable/cwd resolution and workspace-path checks through the same code used at execution time. It returns the generated tool definition, resolved program, exact argv, relative/resolved cwd and typed values. The operation does not call the process runner and does not write the draft to SQLite.
 
-### MCP / external CLI
+### Master skills and learning
+
+`GET /api/master/skills` and `GET /api/master/learning` return the current
+world's `{config, budget, skills, revisions, history, operations}`. No workspace
+parameter is accepted. They also work before a project is opened. `skills` are
+the effective `SkillDefinition` values; immutable revision identities include
+revision and digest. `operations` contain attribution, token usage and links
+to turns/proposals/quests/Flows, but never saved replay inputs. Other projects'
+examples, jobs and provenance are not exposed through the shared library.
+
+`POST /api/master/learning` accepts `{"enabled":true}` (or false). The default
+is enabled. The same optional `learning` object is available in
+`OrchestratorConfig`; omitting it preserves the saved preference. Disabling
+stops further learning calls and experimental source revisions; verified
+revisions remain available. The fixed 10% ceiling cannot be raised through API.
+
+`POST /api/master/skills/{revisionId}/rollback` accepts `{}` and withdraws a
+learned revision and descendants. Builtins cannot be withdrawn. The target
+must be local, under trial in the current world, or shared. Existing in-flight
+operations keep their pinned snapshot; subsequent operations use the previous
+eligible revision. History is retained. Missing/foreign targets fail closed.
+
+`GET /api/master/turns/{id}` (including the v2 alias) adds optional `skills`:
+`[{skillId,name,revision,digest}]`. Historical turns without attribution remain
+readable. Progress event `type="skill"` carries a short load message and the
+attribution JSON in `detail`. Planner load events use the existing WorkOrder
+launch-progress channel. Background comparisons appear only in development
+history, not as executor runs or foreground tool activity.
+
+Learning jobs use `queued`, `running`, `deferred`, `rejected`, `canary`, `local`,
+`shared`, `rolled_back`; evaluations expose paired quality scores and reported
+token totals. `budget` reports `mainTokens`, `limitTokens`, `spentTokens`, and
+`reservedTokens` for the origin world over 30 days. Unknown usage/crash windows
+retain a conservative charge. No credential field is persisted or returned.
+After restart or insufficient authorization/budget, jobs resume on the next
+authorized Master interaction; a deferred job never launches a real quest.
+
+### MCP / external CLI providers
 
 CLI providers (Claude Code, Codex, Cursor CLI) were removed from the Companion
 and run product path. Models use HTTP API providers only (Ollama,

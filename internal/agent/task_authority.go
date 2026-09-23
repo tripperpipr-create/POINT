@@ -3,6 +3,7 @@ package agent
 import (
 	"encoding/json"
 	"errors"
+	"sort"
 	"strings"
 
 	"local-agent-workbench/internal/domain"
@@ -16,6 +17,14 @@ func copyExecutionBrief(b *domain.TaskBrief) *domain.TaskBrief {
 	raw, _ := json.Marshal(b)
 	var copy domain.TaskBrief
 	_ = json.Unmarshal(raw, &copy)
+	// An approved brief keeps the tool name its draft carried, and its digest
+	// covers that text. Resolve the synonym on the execution copy only, so the
+	// gate and the evidence tracker agree on one name without touching the
+	// signature. Renaming a synonym grants nothing: the resolved name is still
+	// checked against the tools this profile enables.
+	for i := range copy.Criteria {
+		copy.Criteria[i].Tool = domain.CanonicalToolName(copy.Criteria[i].Tool)
+	}
 	return &copy
 }
 
@@ -125,12 +134,28 @@ func ValidateTaskVerification(profile domain.AgentProfile, brief *domain.TaskBri
 		if criterion.Kind == "manual" {
 			continue
 		}
-		if _, ok := names[criterion.Tool]; !ok {
-			return errors.New("criterion " + criterion.ID + " requires an enabled verification-capable tool: " + criterion.Tool)
+		tool := domain.CanonicalToolName(criterion.Tool)
+		if _, ok := names[tool]; !ok {
+			message := "criterion " + criterion.ID + " requires an enabled verification-capable tool: " + criterion.Tool
+			if len(names) == 0 {
+				message += "; this agent has none — enable run_command or a custom tool with providesVerification, and allow commands in the task"
+			} else {
+				message += "; enabled here: " + strings.Join(sortedToolNames(names), ", ")
+			}
+			return errors.New(message)
 		}
-		if strings.EqualFold(strings.TrimSpace(profile.ToolPolicies[criterion.Tool]), "DENY") {
-			return errors.New("criterion " + criterion.ID + " uses a denied tool: " + criterion.Tool)
+		if strings.EqualFold(strings.TrimSpace(profile.ToolPolicies[tool]), "DENY") {
+			return errors.New("criterion " + criterion.ID + " uses a denied tool: " + tool)
 		}
 	}
 	return nil
+}
+
+func sortedToolNames(names map[string]struct{}) []string {
+	out := make([]string, 0, len(names))
+	for name := range names {
+		out = append(out, name)
+	}
+	sort.Strings(out)
+	return out
 }

@@ -18,11 +18,11 @@ import (
 // минуты, а не секунды.
 const workOrderLaunchBudget = 30 * time.Minute
 
-const workOrderLaunchStartedMessage = "Готовим план выполнения"
+const workOrderLaunchStartedMessage = "Проверяем рабочую область, состав и разрешения"
 
 // workOrderPlannerFallbackNote предупреждает, что Flow собран движком Point, а
 // не моделью: план шаблонный, и человек читает его с этой поправкой.
-const workOrderPlannerFallbackNote = "План собран движком Point: модель не ответила"
+const workOrderPlannerFallbackNote = "Модель планировщика не завершила план; Point продолжил с резервным Flow"
 
 // resumeApprovedWorkOrderV2 crosses the durable approval boundary into the
 // existing execution engine. Approval remains successful even when preflight
@@ -82,6 +82,12 @@ func (a *App) startWorkOrderLaunchV2(ctx context.Context, approval domain.WorkOr
 
 	// Сообщение пишется до старта: человек должен видеть, что происходит, даже
 	// если первый запрос к модели займёт минуты.
+	if quest.Controller == nil {
+		quest.Controller = map[string]any{}
+	}
+	startedAt := time.Now().UTC()
+	quest.Controller["launchPhase"] = "preflight"
+	quest.Controller["launchStartedAt"] = startedAt.Format(time.RFC3339Nano)
 	if started, err := a.setWorkOrderQuestStatusV2(runCtx, quest, domain.QuestPreflight, workOrderLaunchStartedMessage); err == nil {
 		quest = started
 	}
@@ -133,6 +139,22 @@ func (a *App) runWorkOrderLaunchV2(ctx context.Context, approval domain.WorkOrde
 		}
 	}
 	status, message, note := workOrderLaunchOutcomeV2(run, result.PlannerFallback)
+	// A very short Flow can fail and pass through the evidence gate before the
+	// background launch goroutine resumes here. The gate is authoritative: do
+	// not resurrect its terminal blocked/completed quest with stale "running".
+	if domain.IsTerminalQuestStatus(latest.Status) {
+		if note != "" {
+			if latest.Controller == nil {
+				latest.Controller = map[string]any{}
+			}
+			latest.Controller["plannerNote"] = note
+			latest.UpdatedAt = time.Now().UTC()
+			if saveErr := a.store.SaveQuest(writeCtx, latest); saveErr != nil {
+				slog.Warn("terminal work order planner note not persisted", "quest_id", approval.QuestID, "error", saveErr)
+			}
+		}
+		return
+	}
 	if note != "" {
 		if latest.Controller == nil {
 			latest.Controller = map[string]any{}
@@ -205,7 +227,7 @@ func (a *App) launchApprovedWorkOrderV2(ctx context.Context, approval domain.Wor
 	}
 	quest.Controller["source"] = "work_order_v2"
 	quest.Controller["currentMilestoneId"] = milestone.ID
-	quest.Controller["statusMessage"] = "Создаётся Flow milestone: " + milestone.Goal
+	a.updateWorkOrderLaunchProgressV2(ctx, &quest, "planning", "Собираем контекст milestone и готовим запрос планировщику: "+milestone.Goal)
 	initializeQuestController(&quest)
 	proposal := domain.QuestProposal{
 		ID:                 "work-order-v2-" + order.ID,
@@ -232,10 +254,34 @@ func (a *App) launchApprovedWorkOrderV2(ctx context.Context, approval domain.Wor
 	if result.FlowRun == nil || result.Flow == nil {
 		return result, errors.New("milestone planner did not create a Flow runtime")
 	}
+	// Deterministic nodes may complete synchronously while the Flow is being
+	// created.  Their completion callback has already finalized the milestone;
+	// never overwrite that terminal state with a late "running" write.
+	if result.FlowRun.Status == domain.RunCompleted || result.FlowRun.Status == domain.RunFailed || result.FlowRun.Status == domain.RunCancelled {
+		return result, nil
+	}
 	if err = a.markWorkOrderMilestoneV2(ctx, approval, milestoneRuntime, domain.QuestRunning, result.Flow.ID, result.FlowRun.ID); err != nil {
 		return result, fmt.Errorf("persist milestone runtime: %w", err)
 	}
 	return result, nil
+}
+
+// updateWorkOrderLaunchProgressV2 persists the part of startup that precedes
+// Flow creation. Failures here must not abort the launch, but they are logged:
+// visibility is a product invariant, not authority over execution.
+func (a *App) updateWorkOrderLaunchProgressV2(ctx context.Context, quest *domain.Quest, phase, message string) {
+	if quest == nil || quest.Controller == nil || quest.Controller["source"] != "work_order_v2" {
+		return
+	}
+	quest.Controller["launchPhase"] = strings.TrimSpace(phase)
+	quest.Controller["statusMessage"] = security.Redact(strings.TrimSpace(message))
+	if _, ok := quest.Controller["launchStartedAt"]; !ok {
+		quest.Controller["launchStartedAt"] = time.Now().UTC().Format(time.RFC3339Nano)
+	}
+	quest.UpdatedAt = time.Now().UTC()
+	if err := a.store.SaveQuest(ctx, *quest); err != nil {
+		slog.Warn("work order launch progress not persisted", "quest_id", quest.ID, "phase", phase, "error", err)
+	}
 }
 
 func taskBriefFromWorkOrderV2(order domain.WorkOrder) (domain.TaskBrief, error) {
@@ -284,7 +330,7 @@ func taskBriefFromWorkOrderV2(order domain.WorkOrder) (domain.TaskBrief, error) 
 			SourceDigest: domain.WorkOrderSourceDigest(order),
 			Sources:      append([]domain.SourceSnapshotRef(nil), order.Sources...),
 			Milestones:   append([]domain.MilestonePlan(nil), order.Milestones...),
-			Workspace:    order.Workspace, Stack: order.Stack, Routing: order.Routing,
+			Workspace:    order.Workspace, Stack: order.Stack, Setup: order.Setup, Routing: order.Routing,
 			Network: append([]domain.NetworkGrant(nil), order.Network...),
 			Secrets: append([]domain.SecretRequirement(nil), order.Secrets...), Completion: order.Completion, Delivery: order.Delivery,
 		},

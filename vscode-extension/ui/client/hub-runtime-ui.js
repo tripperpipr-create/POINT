@@ -216,8 +216,14 @@ export function createHubRuntimeUi({
     if (!run?.id) return false
     if (String(getKeptRunId() || '') === String(run.id)) return false
     if (!sessionRunHasKeepUndoPatches(details)) return false
+    // Пока прогон идёт, изменённые файлы показывает лента
+    // (sessionRunChangedFilesHtml): они принадлежат ходу и едут вместе с ним.
+    // Композер — место для реплики человека, и список файлов, растущий в нём на
+    // каждую правку агента, отнимает это место у разговора и повторяет ленту
+    // вторым голосом. Решение «оставить или откатить» появляется здесь, когда
+    // прогон кончился и решать стало что.
+    if (runIsLive(run)) return false
     if (workMode === 'agent') return true
-    if (runIsLive(run)) return true
     return runIsFinished(run) && runPatchGroups(details).some(item => item.applied > 0)
   }
 

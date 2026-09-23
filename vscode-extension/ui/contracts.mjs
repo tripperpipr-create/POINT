@@ -398,7 +398,7 @@ const TYPE_SCALE = new Set(
 
   // Расширение обязано называть упавший запрос: без имени интерфейс не знает,
   // какой раздел винить, и гасит всё ждущее скопом.
-  if (!/this\.post\(\{ type: 'error', message, request \}\)/.test(ext)) {
+  if (!/this\.post\(\{ type: 'error', message, request, \.\.\.detail \}\)/.test(ext)) {
     fail('notify больше не сообщает имя упавшего запроса — раздел не узнает себя')
   }
   // Перехватов `catch (error)` в файле несколько; нужен именно тот, что
@@ -406,7 +406,7 @@ const TYPE_SCALE = new Set(
   const handleAt = ext.indexOf('async handleMessage(')
   const catchBlock = handleAt < 0 ? null : ext.slice(handleAt).match(/\} catch \(error\) \{[\s\S]{0,600}?\n {4}\}/)
   if (!catchBlock) fail('не найден перехват ошибок обработчика сообщений — шов отказа проверить не на чем')
-  else if (!/this\.notify\(error, String\(message\?\.type \|\| ''\)\)/.test(catchBlock[0])) {
+  else if (!/this\.notify\(error, String\(message\?\.type \|\| ''\), \{[\s\S]*?workOrderId: String\(message\?\.workOrderId \|\| ''\)/.test(catchBlock[0])) {
     fail('перехват ошибок не передаёт имя запроса в notify — интерфейс получит отказ без адресата')
   }
 

@@ -21,16 +21,16 @@ func BuildToolRegistry(fs *workspace.FS, customTools []domain.CustomTool, profil
 
 // BuildToolRegistryWithSources registers optional SSH and database tools.
 func BuildToolRegistryWithSources(fs *workspace.FS, customTools []domain.CustomTool, serverProfiles workbenchtools.ServerProfileSource, dbSource workbenchtools.DBConnectionSource, profiles ...domain.AgentProfile) (*workbenchtools.Registry, *workbenchtools.PatchManager) {
-	return buildToolRegistryWithExecution(fs, customTools, serverProfiles, dbSource, nil, "", nil, nil, nil, runCorrelation{}, profiles...)
+	return buildToolRegistryWithExecution(fs, customTools, serverProfiles, dbSource, nil, "", "", nil, nil, nil, runCorrelation{}, profiles...)
 }
 
 func BuildToolRegistryForFlow(fs *workspace.FS, customTools []domain.CustomTool, serverProfiles workbenchtools.ServerProfileSource, dbSource workbenchtools.DBConnectionSource, teamBus workbenchtools.TeamBus, workspaceID, questID, flowRunID, flowNodeID string, profiles ...domain.AgentProfile) (*workbenchtools.Registry, *workbenchtools.PatchManager) {
-	return buildToolRegistryWithExecution(fs, customTools, serverProfiles, dbSource, nil, "", nil, nil, teamBus, runCorrelation{
+	return buildToolRegistryWithExecution(fs, customTools, serverProfiles, dbSource, nil, "", "", nil, nil, teamBus, runCorrelation{
 		WorkspaceID: workspaceID, QuestID: questID, FlowRunID: flowRunID, FlowNodeID: flowNodeID,
 	}, profiles...)
 }
 
-func buildToolRegistryWithExecution(fs *workspace.FS, customTools []domain.CustomTool, serverProfiles workbenchtools.ServerProfileSource, dbSource workbenchtools.DBConnectionSource, executor sandbox.ProcessExecutor, runID string, confirmedRemotes []string, grants *workbenchtools.NetworkGrantBook, teamBus workbenchtools.TeamBus, correlation runCorrelation, profiles ...domain.AgentProfile) (*workbenchtools.Registry, *workbenchtools.PatchManager) {
+func buildToolRegistryWithExecution(fs *workspace.FS, customTools []domain.CustomTool, serverProfiles workbenchtools.ServerProfileSource, dbSource workbenchtools.DBConnectionSource, executor sandbox.ProcessExecutor, runID, sandboxImage string, confirmedRemotes []string, grants *workbenchtools.NetworkGrantBook, teamBus workbenchtools.TeamBus, correlation runCorrelation, profiles ...domain.AgentProfile) (*workbenchtools.Registry, *workbenchtools.PatchManager) {
 	patches := workbenchtools.NewPatchManager(fs)
 	networkPolicy := ""
 	var allowedNetworkHosts []string
@@ -57,7 +57,7 @@ func buildToolRegistryWithExecution(fs *workspace.FS, customTools []domain.Custo
 	runCommand := workbenchtools.RunCommand{
 		FS: fs, NetworkPolicy: networkPolicy, AllowedNetworkHosts: allowedNetworkHosts,
 		ConfirmedGitRemotes: append([]string(nil), confirmedRemotes...), Grants: grants,
-		Executor: executor, RunID: runID, QuestID: correlation.QuestID,
+		Executor: executor, SandboxImage: sandboxImage, RunID: runID, QuestID: correlation.QuestID,
 	}
 	toolItems := []workbenchtools.Tool{
 		workbenchtools.ProjectMap{FS: fs}, workbenchtools.SearchCode{FS: fs}, workbenchtools.ListFiles{FS: fs},
@@ -84,9 +84,9 @@ func buildToolRegistryWithExecution(fs *workspace.FS, customTools []domain.Custo
 	}
 	for _, customTool := range customTools {
 		if customTool.Kind == domain.CustomToolProcess {
-			toolItems = append(toolItems, workbenchtools.CustomProcess{FS: fs, Config: customTool, NetworkPolicy: networkPolicy, AllowedNetworkHosts: allowedNetworkHosts, Executor: executor, RunID: runID})
+			toolItems = append(toolItems, workbenchtools.CustomProcess{FS: fs, Config: customTool, NetworkPolicy: networkPolicy, AllowedNetworkHosts: allowedNetworkHosts, Executor: executor, SandboxImage: sandboxImage, RunID: runID})
 		} else {
-			toolItems = append(toolItems, workbenchtools.CustomCommand{FS: fs, Config: customTool, NetworkPolicy: networkPolicy, AllowedNetworkHosts: allowedNetworkHosts, Executor: executor, RunID: runID})
+			toolItems = append(toolItems, workbenchtools.CustomCommand{FS: fs, Config: customTool, NetworkPolicy: networkPolicy, AllowedNetworkHosts: allowedNetworkHosts, Executor: executor, SandboxImage: sandboxImage, RunID: runID})
 		}
 	}
 	return workbenchtools.NewRegistry(toolItems...), patches

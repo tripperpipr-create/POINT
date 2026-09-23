@@ -345,14 +345,16 @@ if (!root.innerHTML.includes('docker · 27.1.0 · point-agent-sandbox:1.2.2 · s
 if (!root.innerHTML.includes('ЖУРНАЛ ИЗМЕНЕНИЙ')) {
   throw new Error('Overview is missing the Change Journal entry')
 }
-// Две системные роли, и они не сливаются. Компаньон живёт в IDE и советует;
-// Мастер — диспетчер, он раздаёт задачи отряду. Проверяем обе и то, что каждая
-// ведёт в свою настройку: слияние их именований уже однажды сломало продукт.
+// Системные роли не сливаются: Компаньон наблюдает, Мастер распоряжается, а
+// Архивариус выпускает файлы на модели Мастера со своим системным промптом.
 if (!root.innerHTML.includes('СИСТЕМНЫЕ АГЕНТЫ') || !root.innerHTML.includes('КОМПАНЬОН') || !root.innerHTML.includes('open-companion-setup')) {
   throw new Error('Overview is missing the Companion system agent')
 }
 if (!root.innerHTML.includes('МАСТЕР') || !root.innerHTML.includes('open-orchestrator-setup')) {
   throw new Error('Overview is missing the Master system agent')
+}
+if (!root.innerHTML.includes('АРХИВАРИУС') || !root.innerHTML.includes('MD, HTML и XLSX')) {
+  throw new Error('Overview is missing the report system agent or its formats')
 }
 if (!root.innerHTML.includes('Подробная статистика')) {
   throw new Error('Overview is missing the Statistics IDE-view entry')
@@ -754,11 +756,11 @@ listeners['window:message']({
       configured: true, config: { model: 'qwen:7b' },
       history: [{ id: 'h1', role: 'assistant', content: 'Выполнять пока некому.' }],
       // Наряд рядом обязателен: карточку исполнителя предлагают только у
-      // собранного задания (`state: 'ready'`), и пробел ростера сверяется с
+      // задания на этапе состава (`state: 'staffing'`), и пробел ростера сверяется с
       // тем же нарядом. Без него проверка подписи кнопки мерила бы карточку,
       // которой на экране не бывает.
       workOrders: [{
-        id: 'workorder-1', state: 'ready', version: 1, digest: 'sha256:studio', goal: 'Собрать API',
+        id: 'workorder-1', state: 'staffing', version: 1, digest: 'sha256:studio', goal: 'Собрать API',
         roster: { permanent: [], temporary: [] },
       }],
       hiring: [{
@@ -1632,6 +1634,23 @@ if (!capabilityProbeRequest || capabilityProbeRequest.apiKey !== '' || capabilit
   throw new Error('Successful provider probe did not launch a safe role-specific capability probe')
 }
 listeners['window:message']({
+  data: { type: 'error', request: 'loadDocker', message: 'Docker не ответил' }
+})
+if (!root.innerHTML.includes('Проверяем роль…')) {
+  throw new Error('Unrelated failure cancelled the in-flight model capability probe')
+}
+listeners['window:message']({
+  data: { type: 'error', request: 'probeModelCapability', message: 'Модель не ответила на проверку' }
+})
+if (!root.innerHTML.includes('Capability probe не выполнен') || !root.innerHTML.includes('Модель не ответила на проверку')) {
+  throw new Error('Capability probe failure stayed loading or hid its reason')
+}
+const capabilityRequestsBeforeRetry = posted.filter(message => message.type === 'probeModelCapability').length
+click('probe-model-capability')
+if (posted.filter(message => message.type === 'probeModelCapability').length !== capabilityRequestsBeforeRetry + 1) {
+  throw new Error('Capability probe cannot be retried after its own failure')
+}
+listeners['window:message']({
   data: {
     type: 'modelCapabilityProbeResult', result: {
       schemaVersion: 1, role: 'Разработчик', provider: 'ollama', model: 'qwen',
@@ -2065,6 +2084,9 @@ listeners['window:message']({
     details: undefined,
   }
 })
+if (!root.innerHTML.includes('data-action="generate-report"') || !root.innerHTML.includes('модель Мастера · MD · HTML · XLSX')) {
+  throw new Error('Configured Master did not enable the report agent')
+}
 click('open-companion-setup')
 const railWithSetupOpen = root.innerHTML.match(/<button[^>]*data-action="tab"[^>]*>/g) || []
 if (railWithSetupOpen.some(button => /\sdisabled/.test(button))) {

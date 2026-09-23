@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -67,7 +68,7 @@ func TestMasterProposalBecomesSingleApprovableWorkOrderV2(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if order.State != "ready" || order.Workspace.Mode != "existing" || order.Workspace.Path != world.Path {
+	if order.State != "staffing" || order.Workspace.Mode != "existing" || order.Workspace.Path != world.Path {
 		t.Fatalf("master work order lost trusted workspace/state: %#v", order)
 	}
 	if order.ConversationID != "conversation-v2" || order.Digest == "" {
@@ -76,20 +77,31 @@ func TestMasterProposalBecomesSingleApprovableWorkOrderV2(t *testing.T) {
 	if order.Routing.FixedConnectionID != connection.ID || order.Routing.FixedModel != "gpt-test" {
 		t.Fatalf("master work order did not bind exact routing: %#v", order.Routing)
 	}
-	if len(order.Roster.Permanent) != 1 || order.Roster.Permanent[0].RequiresConsent || !order.Roster.Permanent[0].Existing {
-		t.Fatalf("missing agent must be a persisted selector draft: %#v", order.Roster)
+	if len(order.Roster.Permanent) != 1 || !order.Roster.Permanent[0].RequiresConsent || order.Roster.Permanent[0].Existing {
+		t.Fatalf("missing agent must remain an in-feed staffing proposal: %#v", order.Roster)
 	}
 	if len(order.Network) != 1 || order.Network[0].Host != "repo.packagist.org:443" {
 		t.Fatalf("network authority was not normalized to exact TLS host: %#v", order.Network)
 	}
-	// A persisted draft blocks approval until the explicit activation endpoint.
+	// A staffing proposal blocks approval until its card creates a real agent.
 	if _, consentErr := application.ApproveWorkOrderV2(context.Background(), order.ID, ApproveWorkOrderV2Request{
 		Version: order.Version, Digest: domain.WorkOrderDigest(order), IdempotencyKey: "master-v2-approval-no-consent",
 	}); consentErr == nil {
-		t.Fatal("draft was approved before activation")
+		t.Fatal("staffing proposal was approved before creation")
 	}
-	if _, err = application.ActivateProjectAgentDraft(order.Roster.Permanent[0].ID); err != nil {
+	hired := rosterTestAgent(t, application, order.Roster.Permanent[0].Name, order.Roster.Permanent[0].Role, order.Roster.Permanent[0].Mission)
+	order.Version++
+	order.State = "staffing"
+	order.Roster = domain.AgentRosterPlan{Permanent: []domain.AgentDraft{{
+		ID: hired.ID, Existing: true, Name: hired.Name, Role: hired.RoleDescription,
+		Mission: hired.Mission, RequiredTools: append([]string(nil), hired.AllowedTools...),
+	}}}
+	order, err = application.SaveWorkOrderV2(context.Background(), order)
+	if err != nil {
 		t.Fatal(err)
+	}
+	if order.State != "ready" {
+		t.Fatalf("created agent did not settle staffing: %#v", order)
 	}
 	approval, err := application.ApproveWorkOrderV2(context.Background(), order.ID, ApproveWorkOrderV2Request{
 		Version: order.Version, Digest: domain.WorkOrderDigest(order), IdempotencyKey: "master-v2-approval",
@@ -109,8 +121,8 @@ func TestMasterProposalBecomesSingleApprovableWorkOrderV2(t *testing.T) {
 		t.Fatal(err)
 	}
 	approval.Status, approval.FlowID, approval.FlowRunID = string(quest.Status), quest.FlowID, quest.FlowRunID
-	if approval.Status != string(domain.QuestAwaitingUser) || len(approval.AgentIDs) != 1 || approval.FlowID == "" || approval.FlowRunID == "" {
-		t.Fatalf("approval did not reuse the v2 quest and enter executable Flow: %#v", approval)
+	if approval.Status != string(domain.QuestBlocked) || len(approval.AgentIDs) != 1 || approval.FlowID == "" || approval.FlowRunID == "" {
+		t.Fatalf("approval did not reuse the v2 quest and persist its background launch result: %#v", approval)
 	}
 	flow, err := application.store.GetFlow(context.Background(), approval.FlowID)
 	if err != nil {
@@ -129,7 +141,7 @@ func TestMasterProposalBecomesSingleApprovableWorkOrderV2(t *testing.T) {
 		}
 	}
 	reloaded, err := application.WorkOrderV2(context.Background(), order.ID)
-	if err != nil || reloaded.Runtime == nil || reloaded.Runtime.QuestID != approval.QuestID || reloaded.Runtime.Status != domain.QuestAwaitingUser {
+	if err != nil || reloaded.Runtime == nil || reloaded.Runtime.QuestID != approval.QuestID || reloaded.Runtime.Status != domain.QuestBlocked {
 		t.Fatalf("work order lost its live quest state after reload: %#v err=%v", reloaded.Runtime, err)
 	}
 }
@@ -344,6 +356,7 @@ func TestWorkOrderFlowFailureCanOnlyFinishThroughEvidenceGate(t *testing.T) {
 	order.Workspace = domain.WorkspacePlan{Mode: "existing", Path: world.Path, Isolation: "snapshot"}
 	order.Criteria = []domain.AcceptanceCriterion{{ID: "review", Kind: "manual", Text: "Проверить результат"}}
 	order.Routing.FixedConnectionID = "unused-for-storage-approval"
+	assignReadyRosterForTest(t, application, &order)
 	order, err = application.SaveWorkOrderV2(context.Background(), order)
 	if err != nil {
 		t.Fatal(err)
@@ -368,6 +381,70 @@ func TestWorkOrderFlowFailureCanOnlyFinishThroughEvidenceGate(t *testing.T) {
 	bundle, err := application.EvidenceBundle(context.Background(), quest.ID)
 	if err != nil || bundle.BriefDigest != domain.WorkOrderDigest(order) || len(bundle.Criteria) != 1 {
 		t.Fatalf("failed v2 flow did not persist bound evidence: %#v err=%v", bundle, err)
+	}
+}
+
+func TestEarlyDeterministicFailureFindsCurrentMilestoneBeforeRuntimeLink(t *testing.T) {
+	t.Setenv("REDIS_ADDR", "")
+	application, err := New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { application.Shutdown(context.Background()) })
+	world := openTestWorld(t, application)
+	order := managedWorkOrderV2()
+	order.WorkspaceID = world.ID
+	order.Workspace = domain.WorkspacePlan{Mode: "existing", Path: world.Path, Isolation: "snapshot"}
+	connection := saveTestConnection(t, application, "early-bootstrap", "openai", "Early bootstrap")
+	order.Routing.FixedConnectionID = connection.ID
+	agent := rosterTestAgent(t, application, "Bootstrap tester", "backend", "Verify deterministic bootstrap failures")
+	order.Roster = domain.AgentRosterPlan{Permanent: []domain.AgentDraft{{
+		ID: agent.ID, Existing: true, Name: agent.Name, Role: agent.RoleDescription, Mission: agent.Mission,
+	}}}
+	order, err = application.SaveWorkOrderV2(context.Background(), order)
+	if err != nil {
+		t.Fatal(err)
+	}
+	approval, err := application.store.ApproveWorkOrderV2(context.Background(), order.ID, order.Version, domain.WorkOrderDigest(order), "early-bootstrap-failure")
+	if err != nil {
+		t.Fatal(err)
+	}
+	quest, err := application.workOrderQuestV2(context.Background(), world.ID, approval.QuestID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	quest.Status = domain.QuestRunning
+	quest.FlowID = "flow-early"
+	quest.FlowRunID = "flow-run-early"
+	quest.Controller["currentMilestoneId"] = order.Milestones[0].ID
+	if err = application.store.SaveQuest(context.Background(), quest); err != nil {
+		t.Fatal(err)
+	}
+	if err = application.store.SaveExecution(context.Background(), domain.ExecutionInstance{
+		ID: "execution-early-bootstrap", WorkspaceID: world.ID, ProjectAgentID: agent.ID,
+		QuestID: quest.ID, FlowRunID: quest.FlowRunID, FlowNodeID: "bootstrap", Task: "Bootstrap Symfony",
+		Status: domain.RunFailed, Error: "bootstrap: composer: not found (exit 127)", StartedAt: time.Now().UTC(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// The milestone is deliberately still draft and has no FlowRunID: this is
+	// the exact window in which a fast deterministic bootstrap used to finish.
+	application.finalizeQuestAfterFlow(quest.ID, false)
+	stored, err := application.workOrderQuestV2(context.Background(), world.ID, quest.ID)
+	if err != nil || stored.Status != domain.QuestBlocked {
+		t.Fatalf("early bootstrap failure was not finalized: quest=%#v err=%v", stored, err)
+	}
+	runtimes, err := application.store.ListMilestoneRuntimesV2(context.Background(), quest.ID, order.Version)
+	if err != nil || len(runtimes) != 1 || runtimes[0].Status != domain.QuestBlocked || runtimes[0].FlowRunID != quest.FlowRunID {
+		t.Fatalf("early milestone was not linked and blocked: runtimes=%#v err=%v", runtimes, err)
+	}
+	bundle, err := application.EvidenceBundle(context.Background(), quest.ID)
+	if err != nil || bundle.Assurance != domain.WorkOrderAssuranceFailed {
+		t.Fatalf("failed assurance was not persisted: bundle=%#v err=%v", bundle, err)
+	}
+	if !strings.Contains(strings.Join(bundle.KnownLimitations, "\n"), "composer: not found") {
+		t.Fatalf("bootstrap diagnostic was lost from evidence: %#v", bundle.KnownLimitations)
 	}
 }
 
@@ -427,7 +504,7 @@ func TestMasterKeepsOneWorkOrderPerConversationV2(t *testing.T) {
 	if len(orders) != 1 {
 		t.Fatalf("в ленте разговора %d карточек, ожидалась одна: %#v", len(orders), orders)
 	}
-	if orders[0].Version != 2 || orders[0].State != "ready" || orders[0].Goal != "Каркас Symfony 7 с работающим /health" {
+	if orders[0].Version != 2 || orders[0].State != "staffing" || orders[0].Goal != "Каркас Symfony 7 с работающим /health" {
 		t.Fatalf("наряд не принял уточнение новой версией: %#v", orders[0])
 	}
 	// Другой разговор — другая работа: его карточку уборка не трогает.
@@ -449,4 +526,16 @@ func TestMasterKeepsOneWorkOrderPerConversationV2(t *testing.T) {
 	if len(others) != 1 || others[0].ID != otherID {
 		t.Fatalf("лента второго разговора неверна: %#v", others)
 	}
+}
+
+// Tests exercising post-approval behavior need a real roster under the current
+// staffing gate. A missing agent is a proposal, not an approvable work order.
+func assignReadyRosterForTest(t *testing.T, application *App, order *domain.WorkOrder) {
+	t.Helper()
+	connection := saveTestConnection(t, application, "test-roster-model", "openai", "Test roster model")
+	agent := rosterTestAgent(t, application, "Test developer", "developer", "Execute the approved test work order")
+	order.Routing.FixedConnectionID = connection.ID
+	order.Roster = domain.AgentRosterPlan{Permanent: []domain.AgentDraft{{
+		ID: agent.ID, Existing: true, Name: agent.Name, Role: agent.RoleDescription, Mission: agent.Mission,
+	}}}
 }

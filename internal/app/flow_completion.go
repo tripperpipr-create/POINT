@@ -240,20 +240,11 @@ func (a *App) finalizeQuestAfterFlow(questID string, success bool) {
 }
 
 func (a *App) questForFinalization(ctx context.Context, questID string) (domain.Quest, error) {
-	ws, err := a.requireWorkspace()
+	quest, err := a.store.GetQuest(ctx, questID)
 	if err != nil {
-		return domain.Quest{}, err
+		return domain.Quest{}, fmt.Errorf("quest %q was not found: %w", questID, err)
 	}
-	quests, err := a.store.ListQuests(ctx, ws.ID)
-	if err != nil {
-		return domain.Quest{}, err
-	}
-	for _, quest := range quests {
-		if quest.ID == questID {
-			return quest, nil
-		}
-	}
-	return domain.Quest{}, fmt.Errorf("quest %q was not found", questID)
+	return quest, nil
 }
 
 func isWorkOrderQuestV2(quest domain.Quest) bool {

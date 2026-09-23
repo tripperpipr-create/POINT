@@ -17,8 +17,8 @@ type ReadSkill struct {
 func (t ReadSkill) Definition() domain.ToolDefinition {
 	return domain.ToolDefinition{
 		Name:        "read_skill",
-		Description: "Load the full equipped skill: instructions, references, scripts, and project configuration. Use the skill id or name from the equipped_skills list.",
-		InputSchema: schema(`{"type":"object","properties":{"id":{"type":"string","description":"Skill id, for example skill-code-review"},"name":{"type":"string","description":"Skill display name, for example Code Review"}},"additionalProperties":false}`),
+		Description: "Load the full equipped skill: instructions, references, scripts, and project configuration. Copy its exact canonical id from the equipped_skills list into id.",
+		InputSchema: schema(`{"type":"object","properties":{"id":{"type":"string","description":"Exact canonical id from equipped_skills, for example skill-code-review"},"name":{"type":"string","description":"Legacy display-name lookup; prefer the canonical id"}},"additionalProperties":false}`),
 	}
 }
 

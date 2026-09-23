@@ -57,7 +57,7 @@ func TestWorkOrderEvidenceStatusRejectsMissingOrMismatchedMachineProof(t *testin
 
 func intPointer(value int) *int { return &value }
 
-func TestWorkOrderEvidenceStatusLeavesManualCriteriaForReview(t *testing.T) {
+func TestWorkOrderEvidenceStatusCompletesManualCriteriaWithPartialAssurance(t *testing.T) {
 	order := evidenceGateOrder("manual")
 	bundle := EvidenceBundle{
 		Version: CurrentWorkOrderEvidenceVersion, PointVersion: "test", ID: "e1", QuestID: "q1", BriefDigest: WorkOrderDigest(order), SourceDigest: WorkOrderSourceDigest(order),
@@ -67,8 +67,11 @@ func TestWorkOrderEvidenceStatusLeavesManualCriteriaForReview(t *testing.T) {
 		ModelCalls:      evidenceGateModelCalls(),
 	}
 	status, err := WorkOrderEvidenceStatus(order, bundle)
-	if err != nil || status != QuestNeedsReview {
+	if err != nil || status != QuestCompleted {
 		t.Fatalf("status=%s err=%v", status, err)
+	}
+	if verdict := WorkOrderEvidenceVerdict(order, bundle); verdict.Assurance != WorkOrderAssurancePartial {
+		t.Fatalf("assurance=%q", verdict.Assurance)
 	}
 }
 
@@ -104,9 +107,13 @@ func TestWorkOrderEvidenceStatusRequiresEveryProfileCheckToBeExecuted(t *testing
 		VerificationChecks: []VerificationCheck{{ID: "c1", Kind: "acceptance", Command: "go test ./...", ExitCode: intPointer(0), Satisfied: true}},
 		ModelCalls:         evidenceGateModelCalls(),
 	}
-	// A profile check nobody executed is a promise: it must not pass as proof.
-	if status, err := WorkOrderEvidenceStatus(order, bundle); err == nil || status != QuestBlocked {
+	// An unavailable profile check lowers assurance without turning absence of
+	// the tool into a failed execution.
+	if status, err := WorkOrderEvidenceStatus(order, bundle); err != nil || status != QuestCompleted {
 		t.Fatalf("unexecuted profile check status=%s err=%v", status, err)
+	}
+	if verdict := WorkOrderEvidenceVerdict(order, bundle); verdict.Assurance != WorkOrderAssurancePartial {
+		t.Fatalf("unexecuted assurance=%q", verdict.Assurance)
 	}
 	executed := VerificationCheck{ID: CompletionCheckEvidenceID("automated_tests"), Kind: "automated_tests", Command: "npm test", ExitCode: intPointer(0), Satisfied: true}
 	bundle.VerificationChecks = append(bundle.VerificationChecks, executed)
@@ -140,19 +147,27 @@ func TestWorkOrderEvidenceStatusRequiresProofThatServicesAreRunning(t *testing.T
 		VerificationChecks: []VerificationCheck{{ID: "c1", Kind: "acceptance", Command: "go test ./...", ExitCode: intPointer(0), Satisfied: true}},
 		ModelCalls:         evidenceGateModelCalls(),
 	}
-	// A promised URL with nothing running behind it is the false completion
-	// this gate exists to prevent — blocked, but with the bundle retained so
-	// the failed service check stays readable.
-	if status, err := WorkOrderEvidenceStatus(order, bundle); err != nil || status != QuestBlocked {
+	// If the service probe could not run, delivery completes with partial
+	// assurance. This is distinct from a probe that ran and failed.
+	if status, err := WorkOrderEvidenceStatus(order, bundle); err != nil || status != QuestCompleted {
 		t.Fatalf("unproven services status=%s err=%v", status, err)
 	}
+	if verdict := WorkOrderEvidenceVerdict(order, bundle); verdict.Assurance != WorkOrderAssurancePartial {
+		t.Fatalf("unproven services assurance=%q", verdict.Assurance)
+	}
+	bundle.VerificationChecks = append(bundle.VerificationChecks, VerificationCheck{ID: CompletionCheckEvidenceID("service_start"), Kind: "service_start", Command: "docker compose up", ExitCode: intPointer(1)})
+	if status, err := WorkOrderEvidenceStatus(order, bundle); err != nil || status != QuestBlocked {
+		t.Fatalf("failed service start status=%s err=%v", status, err)
+	}
+	bundle.VerificationChecks[len(bundle.VerificationChecks)-1].ExitCode = intPointer(0)
+	bundle.VerificationChecks[len(bundle.VerificationChecks)-1].Satisfied = true
 	receipt.ServicesRunning = true
 	if status, err := WorkOrderEvidenceStatus(order, bundle); err != nil || status != QuestCompleted {
 		t.Fatalf("running services status=%s err=%v", status, err)
 	}
 }
 
-func TestWorkOrderEvidenceStatusHandsExternalConflictToReview(t *testing.T) {
+func TestWorkOrderEvidenceStatusBlocksExternalConflict(t *testing.T) {
 	order := evidenceGateOrder("verification")
 	bundle := EvidenceBundle{
 		Version: CurrentWorkOrderEvidenceVersion, PointVersion: "test", ID: "e1", QuestID: "q1", BriefDigest: WorkOrderDigest(order), SourceDigest: WorkOrderSourceDigest(order),
@@ -162,7 +177,7 @@ func TestWorkOrderEvidenceStatusHandsExternalConflictToReview(t *testing.T) {
 		VerificationChecks: []VerificationCheck{{ID: "c1", Kind: "acceptance", Command: "go test ./...", ExitCode: intPointer(0), Satisfied: true}},
 		ModelCalls:         evidenceGateModelCalls(),
 	}
-	if status, err := WorkOrderEvidenceStatus(order, bundle); err != nil || status != QuestNeedsReview {
+	if status, err := WorkOrderEvidenceStatus(order, bundle); err != nil || status != QuestBlocked {
 		t.Fatalf("conflict status=%s err=%v", status, err)
 	}
 	// A conflict on top of failed criteria is still a failure, not a review.

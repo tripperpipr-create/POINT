@@ -367,12 +367,14 @@
 .companion-setup-footer { display: flex; align-items: center; gap: var(--s-4); padding-top: 14px; margin-top: 16px; border-top: 1px solid var(--border); }
 .companion-setup-footer > span { flex: 1; }
 .system-agents-pair { grid-column: 1 / -1; display: grid; gap: var(--s-4); }
-.system-agents-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-4); }
+.system-agents-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: var(--s-4); }
 .system-agent-card { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: var(--s-4h); align-items: start; padding: var(--s-5); border: 1px solid var(--border); background: var(--panel); }
 .system-agent-card.companion { border-left: var(--edge-accent) solid var(--mana); }
 .system-agent-card.orchestrator { border-left: var(--edge-accent) solid var(--vital); }
+.system-agent-card.reporter { border-left: var(--edge-accent) solid var(--arcane); }
 .system-agent-card > span { display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid color-mix(in srgb, var(--mana) 55%, var(--border)); color: var(--mana); }
 .system-agent-card.orchestrator > span { color: var(--vital); border-color: color-mix(in srgb, var(--vital) 55%, var(--border)); }
+.system-agent-card.reporter > span { color: var(--arcane); border-color: color-mix(in srgb, var(--arcane) 55%, var(--border)); }
 .system-agent-card small { display: block; color: var(--muted); font: 650 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace; letter-spacing: .08em; }
 .system-agent-card strong { display: block; margin: var(--s-2) 0 var(--s-2); font-size: var(--t-base); }
 .system-agent-card p { margin: 0 0 var(--s-3); color: var(--muted); font-size: var(--t-tiny); line-height: 1.45; }

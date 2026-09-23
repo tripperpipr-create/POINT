@@ -85,12 +85,11 @@ func TestRosterObserverDraftsHireWhenProjectIsEmpty(t *testing.T) {
 		t.Fatalf("пустой проект обязан дать ровно один черновик: %#v", order.Roster)
 	}
 	draft := order.Roster.Permanent[0]
-	if !draft.Existing || draft.RequiresConsent || draft.BlueprintID != "" {
-		t.Fatalf("selector draft must be a persisted ID without approval-time materialization: %#v", draft)
+	if draft.Existing || !draft.RequiresConsent || draft.BlueprintID != "" {
+		t.Fatalf("selector draft must await consent and agent creation: %#v", draft)
 	}
-	stored, err := application.store.GetProjectAgent(context.Background(), draft.ID)
-	if err != nil || stored.Status != domain.ProjectAgentDraft || stored.RoleFamily != "developer" {
-		t.Fatalf("persisted selector draft = %#v err=%v", stored, err)
+	if _, err := application.store.GetProjectAgent(context.Background(), draft.ID); err == nil {
+		t.Fatalf("selector materialized an agent before consent: %#v", draft)
 	}
 	if draft.Name == "" || draft.Role == "" || draft.Mission == "" {
 		t.Fatalf("черновик без имени, роли или миссии домен не примет: %#v", draft)

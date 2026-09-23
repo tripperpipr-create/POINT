@@ -99,6 +99,7 @@ type WorkOrderExecutionContract struct {
 	Milestones   []MilestonePlan     `json:"milestones"`
 	Workspace    WorkspacePlan       `json:"workspace"`
 	Stack        StackPresetRef      `json:"stack"`
+	Setup        SetupPlan           `json:"setupPlan,omitempty"`
 	Routing      ModelRoutingPolicy  `json:"routing"`
 	Network      []NetworkGrant      `json:"network,omitempty"`
 	Secrets      []SecretRequirement `json:"secrets,omitempty"`
@@ -142,6 +143,10 @@ func NormalizeTaskBrief(b TaskBrief) TaskBrief {
 	for i := range b.Criteria {
 		c := &b.Criteria[i]
 		c.ID, c.Text, c.Kind, c.Tool = strings.TrimSpace(c.ID), strings.TrimSpace(c.Text), strings.TrimSpace(c.Kind), strings.TrimSpace(c.Tool)
+		// A draft names the tool in the model's own words ("shell", "bash").
+		// Resolve the synonym before approval signs the content, or the
+		// criterion reaches launch naming a tool Point does not have.
+		c.Tool = CanonicalToolName(c.Tool)
 		c.Arguments = append(json.RawMessage(nil), c.Arguments...)
 		if c.ExpectedExitCode != nil {
 			value := *c.ExpectedExitCode

@@ -6,35 +6,9 @@ import (
 	"slices"
 	"strings"
 
+	"local-agent-workbench/internal/domain"
 	"local-agent-workbench/internal/providers"
 )
-
-var toolNameAliases = map[string]string{
-	"read":        "read_file",
-	"readfile":    "read_file",
-	"cat":         "read_file",
-	"skill":       "read_skill",
-	"readskill":   "read_skill",
-	"read_skill":  "read_skill",
-	"write":       "propose_patch",
-	"writefile":   "propose_patch",
-	"strreplace":  "propose_patch",
-	"str_replace": "propose_patch",
-	"apply_patch": "propose_patch",
-	"edit":        "propose_patch",
-	"grep":        "search_code",
-	"search":      "search_code",
-	"ripgrep":     "search_code",
-	"glob":        "list_files",
-	"ls":          "list_files",
-	"listdir":     "list_files",
-	"list_dir":    "list_files",
-	"shell":       "run_command",
-	"bash":        "run_command",
-	"cmd":         "run_command",
-	"terminal":    "run_command",
-	"run":         "run_command",
-}
 
 func prepareToolCall(call providers.ToolCall, allowed []string) providers.ToolCall {
 	mapped, _ := remapToolName(call.Name, allowed)
@@ -55,7 +29,7 @@ func remapToolName(name string, allowed []string) (string, string) {
 	if slices.Contains(allowed, key) {
 		return key, ""
 	}
-	mapped, ok := toolNameAliases[key]
+	mapped, ok := domain.ToolNameAlias(key)
 	if !ok {
 		return trimmed, ""
 	}

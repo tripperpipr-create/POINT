@@ -22,10 +22,9 @@ func TestDeliveredResultIsCheckedByTheApprovedProfile(t *testing.T) {
 		expectRunning   bool
 		expectedStatus  domain.QuestStatus
 	}{
-		// The criterion is manual, so a delivered result waits for a person —
-		// but an application that never started is a failed delivery, and no
-		// manual criterion can turn that into something to review.
-		{name: "services started", serviceExitCode: 0, expectRunning: true, expectedStatus: domain.QuestNeedsReview},
+		// Current policy records a manual criterion as completed with partial
+		// assurance. A service that never started is still a failed delivery.
+		{name: "services started", serviceExitCode: 0, expectRunning: true, expectedStatus: domain.QuestCompleted},
 		{name: "services failed to start", serviceExitCode: 1, expectRunning: false, expectedStatus: domain.QuestBlocked},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -45,6 +44,7 @@ func TestDeliveredResultIsCheckedByTheApprovedProfile(t *testing.T) {
 			order := managedWorkOrderV2()
 			order.WorkspaceID = world.ID
 			order.Workspace = domain.WorkspacePlan{Mode: "existing", Path: world.Path, Isolation: "snapshot"}
+			assignReadyRosterForTest(t, application, &order)
 			order.Criteria = []domain.AcceptanceCriterion{{ID: "review", Kind: "manual", Text: "Проверить результат"}}
 			order.Delivery = domain.DeliveryPolicy{
 				ApplyMode: "automatic", CommitMode: "none", KeepPartialDays: 30,

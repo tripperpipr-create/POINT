@@ -39,6 +39,7 @@ const cases = [
   ['персонаж по умолчанию', 'the default profile cannot be deleted', /удалить нельзя/],
   ['проект не открыт', 'workspace is not open', /Проект не открыт/],
   ['чужой проект', 'resource belongs to another project world', /другому проекту/],
+  ['чужой workspace', 'quest belongs to another workspace', /Переключитесь на него/],
 ]
 
 for (const [name, english, expected] of cases) {

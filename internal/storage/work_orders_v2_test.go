@@ -157,6 +157,32 @@ func TestWorkOrderV2RevisionAndApprovalAreImmutableAndIdempotent(t *testing.T) {
 	if err != nil || quests[0].Status != domain.QuestCompleted || quests[0].FinishedAt == nil {
 		t.Fatalf("completed quest was not persisted: quests=%#v err=%v", quests, err)
 	}
+	// Reproduce the historical launch race: an older launch goroutine wrote its
+	// stale `running` copy after the immutable completion gate committed.
+	if _, err = store.db.ExecContext(ctx, `UPDATE quests SET status='running',controller_state='running',finished_at=NULL WHERE id=?`, approved.QuestID); err != nil {
+		t.Fatal(err)
+	}
+	if status, err = store.FinalizeWorkOrderQuestV2(ctx, approved.QuestID, evidence); err != nil || status != domain.QuestCompleted {
+		t.Fatalf("finalize replay status=%s err=%v", status, err)
+	}
+	quests, err = store.ListQuests(ctx, first.WorkspaceID)
+	if err != nil || quests[0].Status != domain.QuestCompleted || quests[0].FinishedAt == nil {
+		t.Fatalf("gate replay did not repair stale running quest: quests=%#v err=%v", quests, err)
+	}
+	var evidenceCount, gateCount int
+	if err = store.db.QueryRow(`SELECT COUNT(1) FROM evidence_bundles WHERE quest_id=?`, approved.QuestID).Scan(&evidenceCount); err != nil {
+		t.Fatal(err)
+	}
+	if err = store.db.QueryRow(`SELECT COUNT(1) FROM work_order_completion_gates_v2 WHERE quest_id=?`, approved.QuestID).Scan(&gateCount); err != nil {
+		t.Fatal(err)
+	}
+	if evidenceCount != 1 || gateCount != 1 {
+		t.Fatalf("finalize replay duplicated rows: evidence=%d gates=%d", evidenceCount, gateCount)
+	}
+	reloaded, err := store.GetWorkOrderV2(ctx, first.ID)
+	if err != nil || reloaded.Runtime == nil || reloaded.Runtime.Assurance != domain.WorkOrderAssuranceVerified || reloaded.Runtime.OutcomeSummary == "" || reloaded.Runtime.Message != reloaded.Runtime.OutcomeSummary {
+		t.Fatalf("public runtime lost assurance/outcome: runtime=%#v err=%v", reloaded.Runtime, err)
+	}
 	replay, err := store.ApproveWorkOrderV2(ctx, first.ID, first.Version, digest, "start-once")
 	if err != nil || !replay.Replayed || replay.QuestID != approved.QuestID {
 		t.Fatalf("replay=%#v err=%v", replay, err)
@@ -168,6 +194,37 @@ func TestWorkOrderV2RevisionAndApprovalAreImmutableAndIdempotent(t *testing.T) {
 	changed.Goal = "Changed without revision"
 	if _, err = store.SaveWorkOrderV2(ctx, changed); err == nil {
 		t.Fatal("same version accepted different content")
+	}
+}
+
+func TestApproveWorkOrderV2AtomicallyStartsLinkedProposal(t *testing.T) {
+	store, err := Open(filepath.Join(t.TempDir(), "hub-v2-proposal.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	ctx := context.Background()
+	order := storageWorkOrder()
+	order.ProposalID = "proposal-linked"
+	if err = store.SaveQuestProposal(ctx, domain.QuestProposal{ID: order.ProposalID, WorkspaceID: order.WorkspaceID, Title: "Linked", Status: "pending", CreatedAt: time.Now().UTC()}); err != nil {
+		t.Fatal(err)
+	}
+	order, err = store.SaveWorkOrderV2(ctx, order)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.ApproveWorkOrderV2(ctx, order.ID, order.Version, domain.WorkOrderDigest(order), "proposal-link-once"); err != nil {
+		t.Fatal(err)
+	}
+	var status string
+	if err = store.db.QueryRow(`SELECT status FROM quest_proposals WHERE id=?`, order.ProposalID).Scan(&status); err != nil {
+		t.Fatal(err)
+	}
+	if status != "started" {
+		t.Fatalf("proposal status=%q", status)
+	}
+	if replay, replayErr := store.ApproveWorkOrderV2(ctx, order.ID, order.Version, domain.WorkOrderDigest(order), "proposal-link-once"); replayErr != nil || !replay.Replayed {
+		t.Fatalf("replay=%#v err=%v", replay, replayErr)
 	}
 }
 

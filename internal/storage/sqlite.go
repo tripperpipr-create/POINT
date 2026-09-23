@@ -44,6 +44,10 @@ func Open(path string) (*SQLite, error) {
 		_ = db.Close()
 		return nil, err
 	}
+	if err = store.RecoverMasterLearning(context.Background()); err != nil {
+		_ = db.Close()
+		return nil,err
+	}
 	if err = store.InterruptMasterTurns(context.Background()); err != nil {
 		_ = db.Close()
 		return nil, err

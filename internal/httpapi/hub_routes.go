@@ -119,6 +119,21 @@ func (s *Server) deleteQuest(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// Снос квеста со всеми следами — отдельный маршрут, а не флаг у DELETE.
+//
+// Удаление карточки и снос работы вместе с откатом правок в проекте — разные
+// решения человека и разный ответ: снос обязан рассказать, что остановлено,
+// что откачено и чего откатить не вышло. Флаг на DELETE отдал бы это в 204
+// без единого слова.
+func (s *Server) purgeQuest(w http.ResponseWriter, r *http.Request) {
+	value, err := s.app.PurgeQuest(r.PathValue("id"))
+	if err != nil {
+		s.problem(w, 400, "purge_failed", err.Error())
+		return
+	}
+	s.result(w, value, nil)
+}
+
 func (s *Server) deleteTeam(w http.ResponseWriter, r *http.Request) {
 	if err := s.app.DeleteTeam(r.PathValue("id")); err != nil {
 		s.problem(w, 400, "delete_failed", err.Error())

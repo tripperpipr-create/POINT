@@ -74,7 +74,7 @@ async function main() {
   }
 
   const saved = { ...save.agent, id: 'agent-1', level: 1, tasksCompleted: 0, successCount: 0 }
-  listeners['window:message']({ data: { type: 'projectAgentSaved', agentId: saved.id } })
+  listeners['window:message']({ data: { type: 'projectAgentSaved', agentId: saved.id, agent: saved } })
   listeners['window:message']({ data: {
     type: 'state', service: { state: 'running' }, workspaceTrusted: true,
     workspace: 'fixture', selectedTab: 'agents', onboarding: { complete: true },

@@ -98,6 +98,45 @@ func TestDeleteQuestRefusesWhileWorkIsOpen(t *testing.T) {
 	}
 }
 
+// workspaceId приходит из HTTP-тела и не является полномочием писать в другой
+// мир. Все остальные сущности Хаба сверяют его с открытым проектом; квест до
+// этой проверки доверял любому непустому значению и исчезал из текущего UI.
+func TestSaveQuestRefusesForeignWorkspace(t *testing.T) {
+	application := newTestApp(t)
+	firstPath := t.TempDir()
+	first, err := application.OpenWorkspace(firstPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := application.OpenWorkspace(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = application.OpenWorkspace(firstPath); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err = application.SaveQuest(domain.Quest{Title: "Чужой квест", WorkspaceID: second.Workspace.ID}); err == nil {
+		t.Fatal("квест записан в мир, который сейчас не открыт")
+	} else if !strings.Contains(err.Error(), "another workspace") {
+		t.Fatalf("отказ не называет межпроектную границу: %v", err)
+	}
+	quests, err := application.store.ListQuests(context.Background(), second.Workspace.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(quests) != 0 {
+		t.Fatalf("отказ оставил квест в соседнем мире: %#v", quests)
+	}
+	quests, err = application.store.ListQuests(context.Background(), first.Workspace.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(quests) != 0 {
+		t.Fatalf("отказ оставил квест в открытом мире: %#v", quests)
+	}
+}
+
 // Отряд, оставшийся от закрытого квеста, можно распустить — и нельзя распустить
 // тот, что ведёт работу.
 //

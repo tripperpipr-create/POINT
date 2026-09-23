@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"strings"
 	"time"
 
@@ -84,13 +83,14 @@ func (a *App) DeleteTeam(teamID string) error {
 
 func (a *App) SaveQuest(quest domain.Quest) (domain.Quest, error) {
 	now := time.Now().UTC()
-	if quest.WorkspaceID == "" {
-		ws, err := a.requireWorkspace()
-		if err != nil {
-			return domain.Quest{}, err
-		}
-		quest.WorkspaceID = ws.ID
+	ws, err := a.requireWorkspace()
+	if err != nil {
+		return domain.Quest{}, err
 	}
+	if quest.WorkspaceID != "" && quest.WorkspaceID != ws.ID {
+		return domain.Quest{}, errors.New("quest belongs to another workspace")
+	}
+	quest.WorkspaceID = ws.ID
 	if quest.ID == "" {
 		quest.ID = domain.NewID("quest")
 		quest.CreatedAt = now
@@ -195,9 +195,6 @@ func (a *App) DeleteQuest(questID string) error {
 			return fmt.Errorf("набор правок %q ещё ждёт решения — примените или отклоните его", set.Title)
 		}
 	}
-	if err = a.store.DeleteQuest(ctx, ws.ID, questID); err != nil {
-		return err
-	}
 	// Схема, оставшаяся без единого квеста, — не схема, а замок на персонаже.
 	//
 	// Мастер собирает её под каждый квест, и она переживала его: узел держит
@@ -206,25 +203,9 @@ func (a *App) DeleteQuest(questID string) error {
 	// сих пор не имел входа. Схема, на которую больше не смотрит ни один квест,
 	// уходит вместе с последним из них.
 	//
-	// Своя схема человека этим не задета: её не создаёт квест, на неё никто не
-	// ссылается полем FlowID, и удаление её не касается. DeleteFlow сам откажет,
-	// если найдётся живой прогон.
-	if strings.TrimSpace(target.FlowID) != "" {
-		orphan := true
-		for _, quest := range quests {
-			if quest.ID != questID && quest.FlowID == target.FlowID {
-				orphan = false
-				break
-			}
-		}
-		if orphan {
-			if flowErr := a.DeleteFlow(target.FlowID); flowErr != nil {
-				// Квест уже удалён, и возвращать ошибку поздно: человек увидел бы
-				// отказ там, где работа сделана. Схема остаётся, и убрать её
-				// можно на экране «Схемы».
-				slog.Warn("flow outlived its last quest", "quest_id", questID, "flow_id", target.FlowID, "error", flowErr)
-			}
-		}
-	}
-	return nil
+	// Своя схема человека этим не задета: её не создаёт квест и на неё никто не
+	// ссылается полем FlowID. Хранилище проверяет последнюю ссылку и живой прогон
+	// в той же транзакции, что удаляет квест: между двумя снимками больше нет
+	// окна, в котором параллельный запрос меняет ответ.
+	return a.store.DeleteQuest(ctx, ws.ID, questID)
 }

@@ -13,6 +13,7 @@ import (
 	"local-agent-workbench/internal/attachments"
 	"local-agent-workbench/internal/changesets"
 	"local-agent-workbench/internal/domain"
+	"local-agent-workbench/internal/sandbox"
 	"local-agent-workbench/internal/storage"
 )
 
@@ -129,6 +130,7 @@ func (a *App) ResumeRun(runID string, request ...ResumeRunRequest) (domain.Run, 
 	flowRunID := checkpoint.FlowRunID
 	flowNodeID := checkpoint.FlowNodeID
 	sandboxPath := checkpoint.SandboxPath
+	sandboxImage := ""
 	if execution, execErr := a.store.GetExecutionByRunID(context.Background(), runID); execErr == nil {
 		if snapshot.SchemaVersion == 0 {
 			snapshot = execution.Snapshot
@@ -140,8 +142,9 @@ func (a *App) ResumeRun(runID string, request ...ResumeRunRequest) (domain.Run, 
 		questID = execution.QuestID
 		flowRunID = execution.FlowRunID
 		flowNodeID = execution.FlowNodeID
-		if sandbox, sandboxErr := a.store.GetSandboxByExecution(context.Background(), execution.ID); sandboxErr == nil {
-			sandboxPath = sandbox.Path
+		if sandboxRecord, sandboxErr := a.store.GetSandboxByExecution(context.Background(), execution.ID); sandboxErr == nil {
+			sandboxPath = sandboxRecord.Path
+			sandboxImage = sandbox.ExecutionImageForRecord(sandboxRecord)
 		}
 	}
 	if snapshot.SchemaVersion != 3 {
@@ -206,7 +209,8 @@ func (a *App) ResumeRun(runID string, request ...ResumeRunRequest) (domain.Run, 
 	}
 	continued, err := a.engine.ContinueFromCheckpoint(agent.StartInput{
 		TaskBrief: brief, Configuration: snapshot, Workspace: ws, SandboxPath: sandboxPath,
-		ExecutionID: execID, QuestID: questID, FlowRunID: flowRunID, FlowNodeID: flowNodeID,
+		SandboxImage: sandboxImage,
+		ExecutionID:  execID, QuestID: questID, FlowRunID: flowRunID, FlowNodeID: flowNodeID,
 		Task: run.Task, APIKey: req.APIKey, ContextItems: run.ContextItems,
 		ServerProfiles: serverProfileBridge{app: a}, DBSource: a.dbToolAccess(),
 		TeamBus:    a,

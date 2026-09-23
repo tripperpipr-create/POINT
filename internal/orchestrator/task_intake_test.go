@@ -295,16 +295,17 @@ func (readingToolsStub) Execute(context.Context, string, json.RawMessage) domain
 }
 
 func TestTaskIntakePromptKeepsInterviewCheap(t *testing.T) {
-	if !strings.Contains(taskIntakePrompt, "Не более двух уточнений") {
+	prompt := taskIntakePrompt + NewMasterSkillSession("intake",nil).Prompt(nil,false)
+	if !strings.Contains(prompt, "До двух существенных уточнений") {
 		t.Fatal("prompt must cap clarifications at two")
 	}
-	if !strings.Contains(taskIntakePrompt, "Очевидные инженерные дефолты") {
+	if !strings.Contains(prompt, "Очевидные безопасные дефолты") {
 		t.Fatal("prompt must prefer defaults over interview")
 	}
-	if !strings.Contains(taskIntakePrompt, "Внутреннее рассуждение держи коротким") {
+	if !strings.Contains(prompt, "reply — 1–3 предложения") {
 		t.Fatal("prompt must keep reasoning short")
 	}
-	if !strings.Contains(taskIntakePrompt, "как следствие этого выбора") {
+	if !strings.Contains(prompt, "выбранная пользователем установка разрешает лишь нужные реестры") {
 		t.Fatal("prompt must treat network hosts as consequence of stack choice")
 	}
 	if strings.Contains(taskIntakePrompt, "Сеть только явно согласованная, иначе []") {
@@ -485,16 +486,17 @@ func TestTaskIntakeDropsIncompleteHire(t *testing.T) {
 
 // Промпт и schema не дают Мастеру выбирать или создавать исполнителя.
 func TestTaskIntakePromptDelegatesRosterToSelector(t *testing.T) {
+	prompt := taskIntakePrompt + NewMasterSkillSession("intake",nil).Prompt(nil,false)
 	if strings.Contains(taskIntakePrompt, "read_roster") {
 		t.Fatal("Master still calls the legacy roster observer")
 	}
-	if !strings.Contains(taskIntakePrompt, "агент-комплектовщик") {
+	if !strings.Contains(prompt, "отдельный комплектовщик") {
 		t.Fatal("prompt does not delegate composition to the dedicated selector")
 	}
 	// Прямая просьба создать агента — не задание. Без этой строки «создай
 	// агента» становится квестом с таким названием: маршрут по ключевым словам
 	// снят, и подхватить её больше некому.
-	if !strings.Contains(taskIntakePrompt, "Прямая просьба создать агента") {
+	if !strings.Contains(prompt, "Прямую просьбу создать агента") {
 		t.Fatal("prompt turns a hiring request into a task brief")
 	}
 	raw := string(taskIntakeJSONSchema())

@@ -79,6 +79,7 @@ type activeRun struct {
 	clock                      *activeClock
 	checkpointSeq              int
 	sandboxPath                string
+	sandboxImage               string
 	apiKey                     string
 	serverProfiles             workbenchtools.ServerProfileSource
 	dbSource                   workbenchtools.DBConnectionSource

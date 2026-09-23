@@ -25,7 +25,7 @@ func Section(items []domain.SkillRuntime) string {
 	}
 	var builder strings.Builder
 	builder.WriteString("<equipped_skills>\n")
-	builder.WriteString("These are mandatory local practices for this run. Follow an inlined skill immediately. If a skill says to load it with read_skill, call read_skill with that id or name before acting on it. Do not invent skill instructions, scripts, or references.\n")
+	builder.WriteString("These are mandatory local practices for this run. Follow an inlined skill immediately. If a skill says to load it with read_skill, copy the exact canonical id shown in square brackets into the id field. Never call read_skill with a translated, shortened, or invented name. Do not invent skill instructions, scripts, or references.\n")
 	for _, skill := range items {
 		fmt.Fprintf(&builder, "- %s [%s]", skill.Name, skill.ID)
 		if len(skill.RequiredTools) > 0 {

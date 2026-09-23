@@ -1,7 +1,10 @@
 # Agent Hub model and guarantees
 
-Current for Point `1.2.2` as of 2026-09-13. The filename is retained for stable
-links; this document describes the current Hub, not only the original MVP.
+Compatibility and Hub model reference, reviewed for Point `1.2.3` on
+2026-09-23. The filename is retained for stable links. Some numbered guarantees
+below record design intent or earlier routes; [PROJECT-STATUS.md](PROJECT-STATUS.md)
+lists confirmed live behavior and [PRODUCT-VISION.md](PRODUCT-VISION.md) defines
+the target architecture.
 
 Point Agent Hub manages a small persistent AI team on top of the local
 `point-core` runtime. A user develops a bounded set of reusable specialists and
@@ -16,7 +19,7 @@ every repository.
 - **ProjectAgent** — workspace-scoped adaptation of that specialist with local
   rules, overrides, XP and project memory
 - **ExecutionInstance** — one concrete task run with immutable config snapshot v2
-- **Sandbox** — filtered per-execution copy; tools write here, not into the live workspace
+- **Sandbox** — execution workspace selected by the route and approved plan; v2 Fast Agent requires a separate copy, while legacy or explicit live-write paths may touch the open project
 - **ChangeSet** — reviewable exact-snapshot journal; Apply/Reject/Revert are separate user actions
 - **Quest / Flow** — first-class work units and persisted graph runtime
 - **WorkOrder** — the single immutable launch contract of v2: goal, scope,
@@ -50,7 +53,7 @@ leak into other repositories.
 
 ## Runtime guarantees
 
-1. Agent file tools write the **open live workspace** by default (Cursor/Claude/Codex local model). Each write is snapshotted first; Change Set is an audit/revert journal of already-written files, not a mandatory Apply gate. An opt-in isolated sandbox copy remains available for compatibility. Docker isolates **commands and network**, not a staging copy of the tree before Apply.
+1. File mutation mode is route-specific. The v2 Fast Agent requires an isolated worktree/snapshot, while legacy or explicitly selected live-write paths journal direct changes against an immutable baseline. Docker isolates commands and network; it does not by itself stage file writes. The selected mode must be shown before execution. See [sandbox.md](sandbox.md).
 2. Persistent project entities carry `workspace_id`. Bootstrap, Runs, Journal, Statistics, patch/changeset mutations and Companion run evidence stay inside the open project world; Blueprints, Skill definitions and Connections remain global.
 3. Flow runs restore from SQLite after reload.
 4. Connection secrets stay in VS Code `SecretStorage` (`secretRef` only in SQLite).
@@ -73,8 +76,8 @@ leak into other repositories.
 17. Companion chat stays on the surface that opened it (peek / sidebar / Hub overview). Moving peek → sidebar preserves the in-flight thread; Stop freezes any streamed partial reply. Interventions refresh without stealing editor focus.
 
 18. A configured Orchestrator model receives one bounded, no-tools planning request and may choose only listed ProjectAgent IDs plus 1–4 execution phases. Point Core validates the complete JSON contract, compiles graph IDs and node kinds itself, always appends verification, preserves user-selected parties, and adds policy-required approvals. Invalid output or provider failure produces an explained deterministic fallback instead of breaking Quest Start. The credential is read from IDE SecretStorage, sent transiently for this planning turn, never persisted, and model usage is recorded as `orchestrator_plan`.
-19. **Orchestrator supervision (runtime v1):** while agents execute, the Orchestrator periodically inspects progress and at `identicalPlans≥2` pauses and asks the user before the local engine stall-fail. Spec: [AGENT-HUB-ORCHESTRATOR-NETWORK-POLICY.md](AGENT-HUB-ORCHESTRATOR-NETWORK-POLICY.md).
-20. **Confirmed git + egress escalation (runtime v1):** outbound git remotes require `ConfirmedGitRemotes` (seeded from approved git intake). Unknown hosts/remotes create an egress Decision (`allow_once`/`allow_quest`/`deny`); agents cannot widen policy from the prompt. Spec: same policy doc.
+19. **Target policy — Orchestrator supervision:** periodically inspect execution progress and pause or route repeated stalls with an explained reason. The exact runtime coverage remains to be verified. Spec: [AGENT-HUB-ORCHESTRATOR-NETWORK-POLICY.md](AGENT-HUB-ORCHESTRATOR-NETWORK-POLICY.md).
+20. **Target policy — confirmed git and egress escalation:** outbound git remotes and new network hosts require the approved policy or a user decision; agents cannot widen it from the prompt. The exact runtime coverage remains to be verified. Spec: same policy doc.
 21. A `requireResult` verifier understands direct agent output and nested Join/Loop aggregates. Parallel work passes only when every participating branch has a non-empty result; an empty branch fails the Flow instead of being hidden by the Join wrapper.
 22. The IDE keeps a lightweight coordinator for already-authorized active Flows even when Hub and Companion surfaces are hidden. It launches newly ready cloud executions with credentials read just-in-time from SecretStorage, supports multiple active Flows, and resumes persisted pending/interrupted Flow executions after an IDE/core restart. Waiting approvals and missing credentials remain pending; the coordinator never stores a secret in Point Core.
 23. Agent-to-agent handoff contains the Quest brief, upstream result and a bounded redacted review view of the exact Change Set produced by that execution (ID, status, paths, operations and unified diffs). A reviewer therefore evaluates persisted evidence instead of trusting only the previous agent's prose; under live-write mode those files are already on disk and the Change Set is the revert journal.

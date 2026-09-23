@@ -163,21 +163,21 @@ func TestControlledEgressDefersImplicitAndExplicitDestinationsToGateway(t *testi
 	raw, _ := json.Marshal(map[string]any{"command": "npm install package", "reason": "resolve dependency", "timeoutSeconds": 10})
 	result := (RunCommand{
 		FS: fs, NetworkPolicy: "ALLOWLIST", AllowedNetworkHosts: []string{"registry.npmjs.org:443"},
-		Executor: executor, RunID: "run-controlled",
+		Executor: executor, SandboxImage: "point-agent-sandbox-php:1.3.1", RunID: "run-controlled",
 	}).Execute(context.Background(), raw)
 	if !result.OK {
 		t.Fatalf("controlled gateway did not receive implicit registry command: %#v", result)
 	}
-	if len(requests.requests) != 1 || requests.requests[0].RunID != "run-controlled" || len(requests.requests[0].AllowedNetworkHosts) != 1 {
+	if len(requests.requests) != 1 || requests.requests[0].RunID != "run-controlled" || len(requests.requests[0].AllowedNetworkHosts) != 1 || requests.requests[0].Image != "point-agent-sandbox-php:1.3.1" {
 		t.Fatalf("controlled process attribution=%#v", requests.requests)
 	}
 
 	customRaw := json.RawMessage(`{"reason":"resolve dependency"}`)
 	result = (CustomProcess{
 		FS: fs, Config: domain.CustomTool{ID: "npm-install", Kind: domain.CustomToolProcess, Program: "npm", Arguments: []string{"install", "package"}, CWD: ".", TimeoutSeconds: 10},
-		NetworkPolicy: "ALLOWLIST", AllowedNetworkHosts: []string{"registry.npmjs.org:443"}, Executor: executor, RunID: "run-custom",
+		NetworkPolicy: "ALLOWLIST", AllowedNetworkHosts: []string{"registry.npmjs.org:443"}, Executor: executor, SandboxImage: "point-agent-sandbox-php:1.3.1", RunID: "run-custom",
 	}).Execute(context.Background(), customRaw)
-	if !result.OK || len(requests.requests) != 2 || requests.requests[1].RunID != "run-custom" {
+	if !result.OK || len(requests.requests) != 2 || requests.requests[1].RunID != "run-custom" || requests.requests[1].Image != "point-agent-sandbox-php:1.3.1" {
 		t.Fatalf("custom process did not reach controlled gateway: result=%#v requests=%#v", result, requests.requests)
 	}
 

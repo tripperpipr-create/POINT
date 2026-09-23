@@ -40,7 +40,48 @@ func (a *App) SaveWorkOrderV2(ctx context.Context, order domain.WorkOrder) (doma
 	if err != nil {
 		return domain.WorkOrder{}, err
 	}
+	order = a.refreshWorkOrderRosterStateV2(ctx, order)
 	return a.store.SaveWorkOrderV2(ctx, order)
+}
+
+// refreshWorkOrderRosterStateV2 makes ready a server invariant. A settled
+// brief with a proposed or unavailable agent stays in staffing until the feed
+// card has created a real runnable ProjectAgent.
+func (a *App) refreshWorkOrderRosterStateV2(ctx context.Context, order domain.WorkOrder) domain.WorkOrder {
+	if order.State != "staffing" && order.State != "ready" {
+		return order
+	}
+	ids := make([]string, 0, len(order.Roster.Permanent))
+	parents := make(map[string]bool, len(order.Roster.Permanent))
+	for _, draft := range order.Roster.Permanent {
+		if !draft.Existing || strings.TrimSpace(draft.ID) == "" {
+			order.State = "staffing"
+			order.Roster.AgentIDs = ids
+			return order
+		}
+		id := strings.TrimSpace(draft.ID)
+		ids = append(ids, id)
+		parents[id] = true
+	}
+	if len(ids) == 0 {
+		order.State = "staffing"
+		order.Roster.AgentIDs = nil
+		return order
+	}
+	for _, temporary := range order.Roster.Temporary {
+		if !parents[strings.TrimSpace(temporary.ParentAgentID)] || strings.TrimSpace(temporary.Role) == "" || strings.TrimSpace(temporary.Mission) == "" {
+			order.State = "staffing"
+			order.Roster.AgentIDs = ids
+			return order
+		}
+	}
+	order.Roster.AgentIDs = ids
+	if err := a.requireProjectAgentsReady(ctx, order.WorkspaceID, ids); err != nil {
+		order.State = "staffing"
+		return order
+	}
+	order.State = "ready"
+	return order
 }
 
 func (a *App) WorkOrderV2(ctx context.Context, id string) (domain.WorkOrder, error) {
@@ -83,6 +124,7 @@ func (a *App) ReviseWorkOrderV2(ctx context.Context, id string, request ReviseWo
 		return domain.WorkOrder{}, err
 	}
 	next = domain.NormalizeWorkOrder(next)
+	next = a.refreshWorkOrderRosterStateV2(ctx, next)
 	if err = domain.ValidateWorkOrder(next); err != nil {
 		return domain.WorkOrder{}, err
 	}
@@ -127,6 +169,7 @@ func (a *App) ReviseWorkOrderV2(ctx context.Context, id string, request ReviseWo
 	if err = a.store.SaveWorkOrderRevisionReplayV2(ctx, request.IdempotencyKey, request.ExpectedVersion, request.ExpectedDigest, saved); err != nil {
 		return domain.WorkOrder{}, err
 	}
+	a.recordMasterEvidence(ctx, saved, "", "revision", "user_revised")
 	return saved, nil
 }
 
@@ -184,6 +227,9 @@ func (a *App) ApproveWorkOrderV2(ctx context.Context, id string, request Approve
 	if err != nil {
 		return domain.WorkOrderApproval{}, err
 	}
+	if order.State != "ready" {
+		return domain.WorkOrderApproval{}, fmt.Errorf("work order is not ready for approval: %s", order.State)
+	}
 	if err = requireRosterConsentV2(order, request.RosterConsent); err != nil {
 		return domain.WorkOrderApproval{}, err
 	}
@@ -238,6 +284,7 @@ func (a *App) ApproveWorkOrderV2(ctx context.Context, id string, request Approve
 	if err != nil {
 		return domain.WorkOrderApproval{}, err
 	}
+	a.recordMasterEvidence(ctx, approval.WorkOrder, approval.QuestID, "approval", "approved")
 	return a.resumeApprovedWorkOrderV2(ctx, approval, request.APIKey)
 }
 
@@ -245,6 +292,14 @@ func (a *App) ApproveWorkOrderV2(ctx context.Context, id string, request Approve
 // обязаны быть готовы теми же правилами, что показывает их карточка, а новые
 // черновики — опираться на инструменты, которые в этой сборке есть.
 func (a *App) requireRosterRunnableV2(ctx context.Context, order domain.WorkOrder) error {
+	for _, draft := range order.Roster.Permanent {
+		if !draft.Existing {
+			return fmt.Errorf("agent %q must be created from its staffing card before launch", draft.Name)
+		}
+	}
+	if len(order.Roster.Permanent) == 0 {
+		return errors.New("work order roster has no runnable project agents")
+	}
 	existing := make([]string, 0, len(order.Roster.Permanent))
 	for _, draft := range order.Roster.Permanent {
 		if draft.Existing {

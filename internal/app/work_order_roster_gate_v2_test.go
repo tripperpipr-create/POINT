@@ -11,13 +11,13 @@ import (
 func TestApproveWorkOrderRefusesSelectorDraft(t *testing.T) {
 	application, world := rosterTestApp(t, "dispatcher")
 	order := rosterTestOrder(t, application, rosterTestProposal(world.ID, "qp-invented", "Собрать backend API с /health", false), "conversation-invented")
-	if len(order.Roster.Permanent) != 1 || !order.Roster.Permanent[0].Existing {
-		t.Fatalf("selector must persist draft before approval: %#v", order.Roster)
+	if order.State != "staffing" || len(order.Roster.Permanent) != 1 || order.Roster.Permanent[0].Existing {
+		t.Fatalf("selector must keep a non-persisted staffing draft: %#v", order)
 	}
 	_, err := application.ApproveWorkOrderV2(context.Background(), order.ID, ApproveWorkOrderV2Request{
 		Version: order.Version, Digest: domain.WorkOrderDigest(order), IdempotencyKey: "approve-draft",
 	})
-	if err == nil || !strings.Contains(err.Error(), "активирован") {
+	if err == nil || !strings.Contains(err.Error(), "not ready") {
 		t.Fatalf("WorkOrder with draft was approved: %v", err)
 	}
 }

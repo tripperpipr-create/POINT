@@ -38,6 +38,7 @@ import { createMasterInbox } from './master-inbox.js'
 import { createHubEntityInbox } from './hub-entity-inbox.js'
 import { createRunInbox } from './run-inbox.js'
 import { createWorldStateInbox } from './world-state-inbox.js'
+import { acknowledgesForm } from './request-failure-routing.js'
 import { createDecisionViews } from './decision-views.js'
 import { createCompanionThreadViews } from './companion-thread-views.js'
 import { createKeyboardNavigation } from './keyboard-navigation.js'
@@ -491,6 +492,9 @@ const TOOL_PRESETS = [
 // (фильтр журнала, вкладка и режим Git, развёрнутая рейка компаньона) человеку
 // принадлежат, а не проекту, и переживают переключение.
 function resetProjectScopedState() {
+  // Отправка принадлежала прежнему миру. После переключения её ответ уже не
+  // может законно управлять формой нового проекта.
+  submittingForm = ''
   // Что принадлежит миру, решает ядро, а не эта функция: у мирских сущностей в
   // `internal/storage` есть параметр `workspaceID`, у машинных его нет. Списки
   // связей, серверов, своих инструментов, навыков, чертежей и workflow идут без
@@ -2525,13 +2529,18 @@ const {
   taskProposalById: (...args) => taskProposalById(...args),
   taskBriefActionsHtml, taskBriefBodyHtml, taskBriefReady, taskBriefStateLabel,
   legacyProposalHtml: (...args) => masterProposalHtml(...args),
+  // Состояние запущенной работы считают виды разговора — там же, где его
+  // читает карточка в ленте. Панель получает готовую сводку, а не второй
+  // перебор прогонов: разойдясь, они назвали бы одному квесту два состояния.
+  startedQuestSummary: (...args) => masterStartedQuestSummary(...args),
   rosterHasAgent: () => rosterHasAgent(),
 })
 
 const {
   masterAskSlotHtml,
   masterDialogueHtml, masterDiscussionContextHtml, masterModelLabel, masterProposalHtml,
-  masterComposeActionsInnerHtml, masterThreadContentHtml, masterThreadHtml, stampMasterAnswer,
+  masterComposeActionsInnerHtml, masterStartedQuestSummary, masterThreadContentHtml,
+  masterThreadHtml, stampMasterAnswer,
 } = createMasterThreadViews({
   masterBriefPanelHtml: (...args) => masterBriefPanelHtml(...args),
   masterBriefTabHtml: (...args) => masterBriefTabHtml(...args),
@@ -3719,9 +3728,12 @@ const FAILED_REQUEST_SECTIONS = {
   loadDecisions: 'decisions',
   resolveDecision: 'decisions',
   loadStatistics: 'statistics',
+  saveBudget: 'statistics',
   createSystemBackup: 'statistics',
   restoreSystemBackup: 'statistics',
+  loadDocker: 'docker',
   loadFileHistory: 'fileHistory',
+  loadContextInspector: 'contextInspector',
   // Обе половины разговора, а не одна: без loadMaster неудачная загрузка
   // переписки считалась безымянной и метила ошибкой все ждущие разделы разом —
   // статистику, Docker, историю файлов, — хотя падал только Мастер.
@@ -3763,6 +3775,7 @@ const applyWorldStateMessage = createWorldStateInbox({
   resetProjectScopedState: (...args) => resetProjectScopedState(...args),
   decisionsQueueIsStale: (...args) => decisionsQueueIsStale(...args),
   releaseMasterAgentCards: (...args) => releaseMasterAgentCards(...args),
+  currentMasterAgentCards: () => masterAgentCardsAll(masterData, state.boot?.companionActionProposals || []),
   mergeCompanionTranscript: (...args) => mergeCompanionTranscript(...args),
   prepareAgentConstructor: (...args) => prepareAgentConstructor(...args),
   agentById: (...args) => agentById(...args),
@@ -3774,6 +3787,7 @@ const applyWorldStateMessage = createWorldStateInbox({
 
 window.addEventListener('message', event => {
   const message=event.data
+  if (acknowledgesForm(submittingForm, message)) submittingForm = ''
   if (message.type === 'collectGarbage') {
     setTimeout(() => globalThis.gc?.(), 0)
     return
@@ -4178,11 +4192,16 @@ window.addEventListener('message', event => {
     render()
   }
   if (message.type === 'statistics') {
+    // Сохранение бюджета отвечает свежей статистикой, но не полным снимком
+    // мира. Общий замок формы раньше ждал только `state`, поэтому после первого
+    // успешного сохранения кнопка снова выглядела активной, а submit молча
+    // отбрасывался до перезагрузки webview.
     statisticsData = message.statistics
     statisticsStatus = 'ready'
     render()
   }
   if (message.type === 'experienceSearch') {
+    // Поиск — повторяемое действие и тоже отвечает своим сообщением без state.
     experienceSearchQuery = String(message.query || experienceSearchQuery)
     experienceSearchItems = Array.isArray(message.items) ? message.items : []
     experienceSearchStatus = 'ready'
@@ -4190,6 +4209,8 @@ window.addEventListener('message', event => {
     render()
   }
   if (message.type === 'manualLearningPreview') {
+    // После просмотра человек вправе поправить формулировку и собрать новый
+    // preview. Точный ответ ядра и есть подтверждение этой отправки.
     manualLearningDraft = message.request || manualLearningDraft
     manualLearningPreview = message.preview
     manualLearningStatus = 'ready'

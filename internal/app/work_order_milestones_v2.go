@@ -112,10 +112,29 @@ func (a *App) advanceWorkOrderMilestoneV2(approval domain.WorkOrderApproval, suc
 			break
 		}
 	}
+	// A deterministic first node can finish before launchApprovedWorkOrderV2
+	// returns and records the Flow identity on its milestone runtime.  The root
+	// quest already carries the approved current milestone, so use that durable
+	// link to close the race instead of leaving the WorkOrder in preflight.
+	if currentIndex < 0 && quest.Controller != nil {
+		currentMilestoneID, _ := quest.Controller["currentMilestoneId"].(string)
+		for index := range runtimes {
+			if currentMilestoneID != "" && runtimes[index].MilestoneID == currentMilestoneID {
+				currentIndex = index
+				break
+			}
+		}
+	}
 	if currentIndex < 0 {
 		return false, errors.New("current work order milestone runtime was not found")
 	}
 	current := runtimes[currentIndex]
+	if current.FlowID == "" {
+		current.FlowID = quest.FlowID
+	}
+	if current.FlowRunID == "" {
+		current.FlowRunID = quest.FlowRunID
+	}
 	if success {
 		if err = a.markWorkOrderMilestoneV2(ctx, approval, current, domain.QuestCompleted, current.FlowID, current.FlowRunID); err != nil {
 			return false, err

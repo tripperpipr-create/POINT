@@ -289,6 +289,15 @@ export function createQuestRuntimeViews(dependencies) {
       <span class="hall-quest-block-label">Карточка квеста</span>
       <small class="hall-quest-empty">Удаление убирает квест из списка проекта. Хроника прогонов остаётся и переезжает в «запуски без квеста».</small>
       <button type="button" class="hall-btn is-sm is-danger" data-action="delete-quest" data-id="${esc(questId)}">УДАЛИТЬ КВЕСТ</button>
+      ${/* Вторая кнопка — не «удалить посильнее», а ответ на другое решение.
+           Удаление бережёт сделанное и отказывает, пока работа идёт: живой
+           прогон, идущая схема, незакрытый набор правок держат квест по
+           очереди. Снос — для случая, когда человек решил, что этой работы
+           быть не должно вовсе: он останавливает прогон, возвращает проект к
+           тому, что было до квеста, и убирает сам квест. Отменить это нельзя,
+           поэтому подтверждение спрашивает оболочка, а не вебвью. */''}
+      <small class="hall-quest-empty">Снос останавливает прогон, откатывает изменения в проекте и удаляет квест со схемой, прогонами и наборами правок. Записи о потраченном остаются.</small>
+      <button type="button" class="hall-btn is-sm is-danger" data-action="purge-quest" data-id="${esc(questId)}">СНЕСТИ КВЕСТ И ОТКАТИТЬ ИЗМЕНЕНИЯ</button>
     </div>`
 
     return `<div class="hall-quest-work">${blocker}${autonomyBlock}${runsBlock}${setsBlock}${questMidFlightHtml(quest)}${removal}</div>`
@@ -907,6 +916,7 @@ export function createQuestRuntimeViews(dependencies) {
     [/context deadline exceeded|deadline exceeded/i, 'Ядро не дождалось ответа модели — истекло отведённое время.'],
     [/workspace is not open/i, 'Проект не открыт: откройте папку проекта, чтобы ядро могло работать.'],
     [/resource belongs to another project world/i, 'Эта запись принадлежит другому проекту.'],
+    [/belongs to another workspace/i, 'Эта запись принадлежит другому проекту. Переключитесь на него и повторите действие.'],
   ]
   
   // Незнакомую причину не глотаем: показываем как есть, иначе человек останется

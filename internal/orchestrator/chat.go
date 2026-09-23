@@ -33,6 +33,7 @@ func (s ChatService) Chat(ctx context.Context, req ChatRequest) (ChatResponse, e
 	if req.TaskIntake {
 		return s.DiscussTask(ctx, req)
 	}
+	s = s.withSkills(req)
 	req.Message = strings.TrimSpace(req.Message)
 	if req.Message == "" {
 		return ChatResponse{}, errors.New("сообщение мастеру не может быть пустым")

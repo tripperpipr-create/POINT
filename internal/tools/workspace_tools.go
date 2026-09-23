@@ -24,7 +24,6 @@ import (
 )
 
 func schema(value string) json.RawMessage { return json.RawMessage(value) }
-
 type ListFiles struct{ FS *workspace.FS }
 
 func (t ListFiles) Definition() domain.ToolDefinition {
@@ -367,6 +366,7 @@ type RunCommand struct {
 	MaxOutput      int
 	DefaultTimeout time.Duration
 	Executor       sandbox.ProcessExecutor
+	SandboxImage   string
 	RunID          string
 	QuestID        string
 	// NetworkPolicy is empty for user-owned terminal actions. Agent runtimes
@@ -435,7 +435,7 @@ func (t RunCommand) Execute(ctx context.Context, raw json.RawMessage) domain.Too
 	var cmd *exec.Cmd
 	if t.Executor != nil {
 		prepared, prepareErr := t.Executor.PrepareProcess(commandCtx, sandbox.ProcessRequest{
-			WorkspaceRoot: t.FS.Root(), WorkingDirectory: cwd, ShellCommand: input.Command,
+			WorkspaceRoot: t.FS.Root(), WorkingDirectory: cwd, ShellCommand: input.Command, Image: t.SandboxImage,
 			Environment: sanitizedProcessEnv(), NetworkPolicy: t.NetworkPolicy,
 			AllowedNetworkHosts: append([]string(nil), effectiveHosts...),
 			RunID:               t.RunID,

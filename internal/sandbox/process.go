@@ -11,6 +11,7 @@ import (
 type ProcessRequest struct {
 	WorkspaceRoot       string
 	WorkingDirectory    string
+	Image               string
 	Program             string
 	Arguments           []string
 	ShellCommand        string

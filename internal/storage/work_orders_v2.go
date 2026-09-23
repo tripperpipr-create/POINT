@@ -143,6 +143,7 @@ func (s *SQLite) GetWorkOrderV2(ctx context.Context, id string) (domain.WorkOrde
 	if err := json.Unmarshal([]byte(raw), &order); err != nil {
 		return domain.WorkOrder{}, err
 	}
+	s.normalizeWorkOrderStaffingV2(ctx, &order)
 	order.Digest = domain.WorkOrderDigest(order)
 	s.attachWorkOrderRuntimeV2(ctx, &order)
 	return order, nil
@@ -211,6 +212,7 @@ func (s *SQLite) ListWorkOrdersForConversationV2(ctx context.Context, conversati
 		return nil, err
 	}
 	for index := range result {
+		s.normalizeWorkOrderStaffingV2(ctx, &result[index])
 		s.attachWorkOrderRuntimeV2(ctx, &result[index])
 	}
 	return result, nil
@@ -248,9 +250,34 @@ func (s *SQLite) ListWorkOrdersForWorkspaceV2(ctx context.Context, workspaceID s
 		return nil, err
 	}
 	for index := range result {
+		s.normalizeWorkOrderStaffingV2(ctx, &result[index])
 		s.attachWorkOrderRuntimeV2(ctx, &result[index])
 	}
 	return result, nil
+}
+
+// normalizeWorkOrderStaffingV2 keeps legacy ready records honest without
+// rewriting their immutable revision. Draft, missing, or disabled agents make
+// the current view staffing; approval therefore cannot race old persisted UI.
+func (s *SQLite) normalizeWorkOrderStaffingV2(ctx context.Context, order *domain.WorkOrder) {
+	if order == nil || order.State != "ready" {
+		return
+	}
+	if len(order.Roster.Permanent) == 0 {
+		order.State = "staffing"
+		return
+	}
+	for _, draft := range order.Roster.Permanent {
+		if !draft.Existing || strings.TrimSpace(draft.ID) == "" {
+			order.State = "staffing"
+			return
+		}
+		var status string
+		if err := s.db.QueryRowContext(ctx, `SELECT status FROM project_agents WHERE id=? AND workspace_id=?`, draft.ID, order.WorkspaceID).Scan(&status); err != nil || status != "" && status != domain.ProjectAgentActive {
+			order.State = "staffing"
+			return
+		}
+	}
 }
 
 func (s *SQLite) attachWorkOrderRuntimeV2(ctx context.Context, order *domain.WorkOrder) {
@@ -278,6 +305,12 @@ WHERE approval.work_order_id=? ORDER BY approval.version DESC LIMIT 1`, order.ID
 	if message, _ := state["statusMessage"].(string); message != "" {
 		runtime.Message = message
 	}
+	runtime.LaunchPhase, _ = state["launchPhase"].(string)
+	if raw, _ := state["launchStartedAt"].(string); raw != "" {
+		if parsed, parseErr := time.Parse(time.RFC3339Nano, raw); parseErr == nil {
+			runtime.LaunchStartedAt = &parsed
+		}
+	}
 	if note, _ := state["plannerNote"].(string); note != "" {
 		runtime.PlannerNote = note
 	}
@@ -285,9 +318,20 @@ WHERE approval.work_order_id=? ORDER BY approval.version DESC LIMIT 1`, order.ID
 	if bundle, evidenceErr := s.GetEvidenceBundle(ctx, runtime.QuestID); evidenceErr == nil {
 		evidence := bundle
 		runtime.Evidence = &evidence
+		runtime.Assurance = bundle.Assurance
+		runtime.OutcomeSummary = bundle.OutcomeSummary
+		if domain.IsTerminalQuestStatus(runtime.Status) && strings.TrimSpace(bundle.OutcomeSummary) != "" {
+			runtime.Message = bundle.OutcomeSummary
+		}
 		if bundle.DeliveryReceipt != nil {
 			receipt := *bundle.DeliveryReceipt
 			runtime.DeliveryReceipt = &receipt
+		}
+	}
+	if runtime.Assurance == "" && (runtime.Status == domain.QuestBlocked || runtime.Status == domain.QuestFailed) {
+		runtime.Assurance = domain.WorkOrderAssuranceFailed
+		if runtime.OutcomeSummary == "" {
+			runtime.OutcomeSummary = runtime.Message
 		}
 	}
 	if milestones, milestoneErr := s.ListMilestoneRuntimesV2(ctx, runtime.QuestID, order.Version); milestoneErr == nil {
@@ -535,6 +579,15 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 	if _, err = tx.ExecContext(ctx, `INSERT INTO work_order_approvals_v2(idempotency_key,work_order_id,version,digest,quest_id,response_json,created_at) VALUES(?,?,?,?,?,?,?)`,
 		idempotencyKey, id, version, digest, questID, marshalJSON(response), now); err != nil {
 		return domain.WorkOrderApproval{}, err
+	}
+	if strings.TrimSpace(approved.ProposalID) != "" {
+		result, proposalErr := tx.ExecContext(ctx, `UPDATE quest_proposals SET status='started' WHERE id=? AND workspace_id=? AND status IN ('pending','modified','started')`, approved.ProposalID, approved.WorkspaceID)
+		if proposalErr != nil {
+			return domain.WorkOrderApproval{}, proposalErr
+		}
+		if affected, _ := result.RowsAffected(); affected != 1 {
+			return domain.WorkOrderApproval{}, errors.New("linked quest proposal is missing or no longer approvable")
+		}
 	}
 	if err = tx.Commit(); err != nil {
 		return domain.WorkOrderApproval{}, err

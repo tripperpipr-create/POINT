@@ -106,7 +106,7 @@ export function createHubEntityInbox({
           // именно заменил новый исполнитель.
           const [orderId, draftId] = intent.slice('work-order:'.length).split('|')
           const order = (Array.isArray(ui.masterData?.workOrders) ? ui.masterData.workOrders : []).find(item => item.id === orderId)
-          const agent = (ui.state.boot?.projectAgents || []).find(item => item.id === message.agentId)
+          const agent = message.agent || (ui.state.boot?.projectAgents || []).find(item => item.id === message.agentId)
           if (order && agent) {
             const hired = {
               id: agent.id, blueprintId: agent.blueprintId || '', existing: true, name: agent.name,

@@ -16,7 +16,7 @@ foreach ($root in @($portable, $installed)) {
 }
 
 Add-Type -AssemblyName System.IO.Compression.FileSystem
-$vsix = Join-Path $repo 'build/vsix/point-ide-1.2.2.vsix'
+$vsix = Join-Path $repo 'build/vsix/point-ide-1.2.3.vsix'
 $unpacked = Join-Path $recordRoot 'vsix'
 [IO.Compression.ZipFile]::ExtractToDirectory($vsix, $unpacked)
 $extension = Join-Path $unpacked 'extension'

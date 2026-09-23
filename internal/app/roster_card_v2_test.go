@@ -32,6 +32,20 @@ func TestHiringCardSkipsApprovedOrder(t *testing.T) {
 	}
 }
 
+// Уточняющие вопросы ещё не являются согласованным заданием. Состав на этом
+// этапе нестабилен, поэтому карточка «Кем делать» не должна опережать ответ
+// человека и предлагать исполнителей для черновика.
+func TestHiringCardSkipsDiscussionOrder(t *testing.T) {
+	application, world := rosterTestApp(t, "dispatcher")
+	order := rosterTestOrder(t, application, rosterTestProposal(world.ID, "qp-discussion-card", "Собрать backend API и проверить", false), "conversation-discussion-card")
+	order.State = "discussion"
+	order.Roster = domain.AgentRosterPlan{}
+
+	if cards := application.hiringCardsForConversation(context.Background(), []domain.WorkOrder{order}); len(cards) != 0 {
+		t.Fatalf("несогласованное задание получило карточку подбора: %#v", cards)
+	}
+}
+
 // Когда решать нечего — состав собран, замены нет, пробелов нет, — карточки
 // быть не должно: она повторяла бы блок «Агенты» карточки запуска.
 func TestHiringCardStaysQuietWhenNothingToDecide(t *testing.T) {
@@ -42,5 +56,10 @@ func TestHiringCardStaysQuietWhenNothingToDecide(t *testing.T) {
 	card.Considered = []RosterCandidate{{AgentID: "agent-2", Readiness: "READY"}}
 	if !rosterCardWorthShowing(card) {
 		t.Fatal("возможная замена исполнителя обязана показываться")
+	}
+	card.Considered = nil
+	card.Blueprints = []RosterBlueprintMatch{{BlueprintID: "tester", Name: "Тестировщик"}}
+	if rosterCardWorthShowing(card) {
+		t.Fatal("невидимый чертёж без действия не должен показывать пустую карточку")
 	}
 }

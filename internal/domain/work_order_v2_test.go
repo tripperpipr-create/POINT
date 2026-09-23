@@ -33,6 +33,21 @@ func TestWorkOrderApprovalIsBoundToExactVersion(t *testing.T) {
 	}
 }
 
+func TestStaffingWorkOrderIsCompleteButCannotBeApproved(t *testing.T) {
+	order := validWorkOrder()
+	order.State = "staffing"
+	order.Roster = AgentRosterPlan{Permanent: []AgentDraft{{
+		ID: "agentdraft-frontend", Name: "Frontend", Role: "Frontend developer",
+		Mission: "Own the UI", RequiredTools: []string{"read_file"}, ProjectOnly: true, RequiresConsent: true,
+	}}}
+	if err := ValidateWorkOrder(order); err != nil {
+		t.Fatalf("complete staffing work order rejected: %v", err)
+	}
+	if _, err := ApproveWorkOrder(order); err == nil || !strings.Contains(err.Error(), "not ready") {
+		t.Fatalf("staffing work order was approved: %v", err)
+	}
+}
+
 func TestWorkOrderRejectsUnsafeAutoAndNetwork(t *testing.T) {
 	order := validWorkOrder()
 	order.Routing = ModelRoutingPolicy{Mode: "auto", RouterConnectionID: "router", RouterModel: "router", CostKnown: false}

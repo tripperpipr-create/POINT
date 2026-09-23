@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -68,48 +67,25 @@ func TestV2SourceWorkOrderApprovalContract(t *testing.T) {
 	if err = json.Unmarshal(revisionReplayBody, &revisionReplay); err != nil || revisionReplay.Version != revised.Version || domain.WorkOrderDigest(revisionReplay) != domain.WorkOrderDigest(revised) {
 		t.Fatalf("revision replay=%s err=%v", revisionReplayBody, err)
 	}
-	created = revised
-	approvalBody := doV2JSON(t, server.URL+"/api/v2/work-orders/"+created.ID+"/approve", map[string]any{
-		"version": created.Version, "digest": domain.WorkOrderDigest(created), "idempotencyKey": "http-contract-once",
+	// A missing agent is now a staffing proposal. It must be settled before
+	// approval can create a Quest or provision the managed workspace.
+	requestBody, err := json.Marshal(map[string]any{
+		"version": revised.Version, "digest": domain.WorkOrderDigest(revised), "idempotencyKey": "http-contract-once",
 	})
-	var approval domain.WorkOrderApproval
-	if err = json.Unmarshal(approvalBody, &approval); err != nil || approval.QuestID == "" {
-		t.Fatalf("approval response=%s err=%v", approvalBody, err)
-	}
-	// Утверждение только начинает запуск: проверка окружения и планировщик
-	// переживают свой HTTP-запрос, и синхронный ответ — это «Готовим план», а не
-	// исход. Исход читается с карточки наряда, куда его кладёт фоновая работа.
-	runtime := awaitWorkOrderRuntimeV2(t, server.URL, created.ID)
-	if runtime.Status != domain.QuestBlocked || !strings.Contains(runtime.Message, "roster") {
-		t.Fatalf("empty roster was not refused: status=%s message=%q", runtime.Status, runtime.Message)
-	}
-	if info, statErr := os.Stat(created.Workspace.Path); statErr != nil || !info.IsDir() {
-		t.Fatalf("managed workspace was not provisioned: path=%q err=%v", created.Workspace.Path, statErr)
-	}
-	replayBody := doV2JSON(t, server.URL+"/api/v2/work-orders/"+created.ID+"/approve", map[string]any{
-		"version": created.Version, "digest": domain.WorkOrderDigest(created), "idempotencyKey": "http-contract-once",
-	})
-	var replay domain.WorkOrderApproval
-	if err = json.Unmarshal(replayBody, &replay); err != nil || !replay.Replayed || replay.QuestID != approval.QuestID {
-		t.Fatalf("approval replay=%s err=%v", replayBody, err)
-	}
-	pauseBody := doV2JSON(t, server.URL+"/api/v2/master/quests/"+approval.QuestID+"/cancel", map[string]any{})
-	var control app.WorkOrderQuestControlResult
-	if err = json.Unmarshal(pauseBody, &control); err != nil || control.Status != domain.QuestCancelled {
-		t.Fatalf("cancel response=%s err=%v", pauseBody, err)
-	}
-	questResponse, err := http.Get(server.URL + "/api/v2/master/quests/" + approval.QuestID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var quest domain.Quest
-	if decodeErr := json.NewDecoder(questResponse.Body).Decode(&quest); decodeErr != nil {
-		_ = questResponse.Body.Close()
-		t.Fatal(decodeErr)
+	response, err := http.Post(server.URL+"/api/v2/work-orders/"+revised.ID+"/approve", "application/json", bytes.NewReader(requestBody))
+	if err != nil {
+		t.Fatal(err)
 	}
-	_ = questResponse.Body.Close()
-	if questResponse.StatusCode != http.StatusOK || quest.Status != domain.QuestCancelled {
-		t.Fatalf("quest status endpoint returned %d %#v", questResponse.StatusCode, quest)
+	body, err := io.ReadAll(response.Body)
+	_ = response.Body.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.StatusCode != http.StatusBadRequest || !strings.Contains(string(body), "staffing") {
+		t.Fatalf("unsettled roster approval returned %d: %s", response.StatusCode, body)
 	}
 }
 

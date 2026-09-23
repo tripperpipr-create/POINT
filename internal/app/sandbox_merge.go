@@ -481,8 +481,13 @@ func (a *App) startMergedSandboxedExecution(projectAgentID, task, questID, flowR
 	if err != nil {
 		return domain.ExecutionInstance{}, sandbox.MergeResult{}, nil, err
 	}
+	brief, err := a.taskBriefForQuest(context.Background(), ws.ID, questID)
+	if err != nil {
+		return domain.ExecutionInstance{}, sandbox.MergeResult{}, nil, err
+	}
 	merged, err := manager.Merge(context.Background(), sandbox.MergeRequest{
 		WorkspaceID: ws.ID, ExecutionID: execID, BasePath: plan.BasePath, Seeds: plan.Seeds,
+		Runtime:     managedSandboxRuntimeForBrief(brief),
 		Resolutions: resolutions, BaselineChangeSetIDs: plan.DependsOn,
 	})
 	if err != nil || len(merged.Conflicts) > 0 {

@@ -117,6 +117,20 @@ const check = (name, ok, detail) => { if (!ok) failures.push(`${name}: ${detail}
   check('после отказа запуск можно повторить', ui.starts() === 2, `запусков ${ui.starts()}`)
 }
 
+// Ошибка параллельного фонового запроса не означает, что startRun завершился.
+// Иначе она снимет локальный guard, и повторный Enter запустит второго агента
+// поверх всё ещё создаваемого первого прогона.
+{
+  const ui = ready()
+  ui.submit()
+  ui.listeners['window:message']({ data: { type: 'error', request: 'loadDocker', message: 'Docker не ответил' } })
+  ui.submit()
+  check('чужой отказ не разрешает второй запуск', ui.starts() === 1, `запусков ${ui.starts()}`)
+  ui.listeners['window:message']({ data: { type: 'error', request: 'startRun', message: 'запуск не создан' } })
+  ui.submit()
+  check('свой отказ разрешает повтор запуска', ui.starts() === 2, `запусков ${ui.starts()}`)
+}
+
 if (failures.length) {
   console.log('ЗАПУСК ЗАДАЧИ — ПРОВАЛ:')
   for (const line of failures) console.log('  ' + line)

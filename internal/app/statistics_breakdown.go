@@ -249,7 +249,7 @@ func buildStatisticsBreakdowns(
 func classifyUsagePhase(record domain.UsageRecord) string {
 	outcome := strings.TrimSpace(record.Outcome)
 	switch outcome {
-	case "master_model":
+	case "master_model", "report_model":
 		return "discussion"
 	case "companion_model":
 		if strings.TrimSpace(record.QuestID) == "" {

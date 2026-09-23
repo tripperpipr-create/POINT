@@ -45,6 +45,19 @@ const STALL_REASON = {
   sandbox_merge_conflict: 'Расхождение в песочнице',
 }
 
+const LAUNCH_PHASE = { preflight: 0, planning: 1, compiling: 2, launching: 3 }
+const LAUNCH_STEPS = ['Проверка окружения', 'Планирование', 'Сборка Flow', 'Запуск исполнителя']
+
+function launchPlan(runtime, esc) {
+  if (runtime?.status !== 'preflight' || !runtime?.launchPhase) return ''
+  const current = LAUNCH_PHASE[runtime.launchPhase] ?? 0
+  return masterPlanHtml('Запуск плана', LAUNCH_STEPS.map((text, index) => ({
+    text,
+    state: index < current ? 'done' : index === current ? 'now' : 'wait',
+    note: index === current ? String(runtime.message || 'выполняется') : '',
+  })), esc, { limit: 4 })
+}
+
 // Идёт ли этап прямо сейчас. Хронику показываем по нему: у завершённых прогонов
 // своя история, и подменять ею текущую работу нельзя.
 function activeStage(stages) {
@@ -119,8 +132,11 @@ export function workOrderExecutionHtml(order, ui, deps = {}) {
     state: masterPlanState(stage.status),
     note: STAGE_NOTE[stage.waitReason] || STAGE_NOTE[stage.status] || '',
   }))
-  const plan = masterPlanHtml('Этапы', planRows, esc, { limit: 12 })
+  const plan = launchPlan(runtime, esc) || masterPlanHtml('Этапы', planRows, esc, { limit: 12 })
   const transcript = transcriptFor(order, ui, deps)
+  const provisioning = ['runtime_provisioning', 'runtime_building'].includes(runtime.launchPhase)
+    && !['completed', 'blocked', 'failed', 'cancelled'].includes(runtime.status)
+    ? `<small class="work-order-exec-note">${esc(runtime.message || 'Подготавливаем инструменты sandbox')}</small>` : ''
   // Примечание планировщика: план мог собрать движок Point, а не модель. Без
   // этой строки человек читает шаблонный план как ответ модели.
   const plannerNote = runtime.plannerNote ? `<small class="work-order-exec-note">${esc(runtime.plannerNote)}</small>` : ''
@@ -140,6 +156,7 @@ export function workOrderExecutionHtml(order, ui, deps = {}) {
            агент, и только потом решают, вмешиваться ли. Поле «сообщение
            активному квесту» над этапами занимало верх экрана формой. */''}
       ${deps.headless ? '' : deps.controlsHtml || ''}
+      ${provisioning}
       ${plan}
       ${transcript ? `<div class="work-order-exec-log">${transcript}</div>`
         : `<div class="work-order-exec-empty"><span>${esc(emptyTranscriptText(stall, stages))}</span></div>`}
@@ -229,6 +246,7 @@ export function workOrderRunHtml(order, ui, deps = {}) {
         ${deps.controlsHtml || ''}
         ${deps.compositionHtml || ''}
         ${deps.applicationHtml || ''}
+        ${deps.reportHtml || ''}
         ${deps.evidenceHtml || ''}
       </details>
     </section>`

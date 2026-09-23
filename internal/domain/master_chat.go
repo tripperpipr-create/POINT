@@ -58,6 +58,7 @@ type MasterMemoryEntry struct {
 	UpdatedAt string `json:"updatedAt"`
 }
 type MasterTurn struct {
+	Skills []SkillAttribution `json:"skills,omitempty"`
 	ID             string `json:"id"`
 	ConversationID string `json:"conversationId"`
 	WorkspaceID    string `json:"workspaceId"`

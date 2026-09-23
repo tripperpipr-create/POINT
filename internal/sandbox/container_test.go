@@ -78,6 +78,35 @@ func TestContainerBackendExecutesProbedImmutableImageDigest(t *testing.T) {
 	}
 }
 
+func TestManagedRuntimeBuildInputsAreValidatedAndContentAddressed(t *testing.T) {
+	commands, packages, candidates, err := normalizeRuntimeRequirements(RuntimeRequirements{
+		RequiredCommands: []string{"php", "composer", "php"},
+		Packages:         []string{"composer=2.10.3-r0", "php-8.3=8.3.33-r3"},
+		CandidateImages:  []string{"point-agent-sandbox-php:1.3.1"},
+	})
+	if err != nil || strings.Join(commands, ",") != "composer,php" || len(packages) != 2 || len(candidates) != 1 {
+		t.Fatalf("normalized runtime: commands=%v packages=%v candidates=%v err=%v", commands, packages, candidates, err)
+	}
+	if _, _, _, err = normalizeRuntimeRequirements(RuntimeRequirements{Packages: []string{"php\nRUN touch /escaped"}}); err == nil {
+		t.Fatal("runtime package injection was accepted")
+	}
+	base := "sha256:" + strings.Repeat("a", 64)
+	dockerfile := runtimeDockerfile(base, strings.Repeat("b", 64), "10001:10001", packages)
+	for _, required := range []string{base, "USER root", "apk add --no-cache", "USER 10001:10001", "WORKDIR /workspace"} {
+		if !strings.Contains(dockerfile, required) {
+			t.Fatalf("runtime Dockerfile missing %q: %s", required, dockerfile)
+		}
+	}
+}
+
+func TestContainerBackendRejectsRuntimeDockerfileUserInjection(t *testing.T) {
+	backend := NewContainerBackend(filepath.Join(t.TempDir(), "sandboxes"))
+	backend.User = "10001\nRUN touch /escaped"
+	if err := backend.validate(); err == nil {
+		t.Fatal("runtime Dockerfile user injection was accepted")
+	}
+}
+
 func TestContainerBackendFailsClosedForUnenforceableEgressAndPathEscape(t *testing.T) {
 	root := t.TempDir()
 	outside := t.TempDir()

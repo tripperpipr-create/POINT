@@ -117,7 +117,7 @@ func (a *App) masterChatService(ctx context.Context, briefing orchestrator.Proje
 	fs := a.currentFS
 	a.mu.RUnlock()
 	workspaceID := a.currentWorldID()
-	reading := newMasterReadTools(fs, a.store, workspaceID, a.ObserveRoster)
+	reading := newMasterReadTools(fs, a.store, workspaceID, nil)
 	return orchestrator.ChatService{
 		ReadTools: reading,
 		Store:     a.store,
@@ -432,6 +432,23 @@ func (a *App) masterChatPrepared(ctx context.Context, req MasterChatRequest, wor
 			summary = v.Summary
 		}
 	}
+	phase := "explanation"
+	if req.TaskIntake || sessions.WorkMode == "discuss" {
+		phase = "intake"
+	}
+	service.Skills, err = a.newMasterSkillSession(ctx, workspaceID, phase, req.TurnID, req.ProposalID, "")
+	if err != nil {
+		return MasterChatView{}, err
+	}
+	temporary := false
+	for _, conversation := range sessions.Items {
+		if conversation.ID == sessions.Active {
+			temporary = conversation.Temporary
+		}
+	}
+	if !temporary {
+		defer a.finishMasterOperation(service.Skills, cfg, req.APIKey)
+	}
 	response, err := service.Chat(ctx, orchestrator.ChatRequest{
 		AutoRunReadOnly: sessions.AutoRunReadOnly,
 		Summary:         summary,
@@ -444,6 +461,12 @@ func (a *App) masterChatPrepared(ctx context.Context, req MasterChatRequest, wor
 
 		PreviousAnswerRejected: req.PreviousAnswerRejected,
 	})
+	if response.Proposal != nil {
+		service.Skills.Operation.ProposalID = response.Proposal.ID
+	}
+	if response.FallbackReason != "" && !service.Skills.Operation.ProviderError {
+		service.Skills.Operation.ContractError = true
+	}
 	if err != nil {
 		return MasterChatView{}, err
 	}
@@ -533,7 +556,13 @@ func (a *App) MasterMessageFeedback(ctx context.Context, messageID, value string
 	default:
 		return errors.New("оценка бывает только «up», «down» или пустой")
 	}
-	return a.store.SetChatMessageFeedback(ctx, a.currentWorldID(), messageID, value)
+	if err := a.store.SetChatMessageFeedback(ctx, a.currentWorldID(), messageID, value); err != nil {
+		return err
+	}
+	if err := a.store.SetMasterOperationFeedback(ctx, a.currentWorldID(), messageID, value); err != nil {
+		return err
+	}
+	return a.updateMasterCanaries(ctx, a.currentWorldID())
 }
 
 // MasterHistory отдаёт разговор без нового хода — для открытия раздела.

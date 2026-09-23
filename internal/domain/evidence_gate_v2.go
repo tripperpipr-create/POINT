@@ -12,6 +12,12 @@ import (
 
 const CurrentWorkOrderEvidenceVersion = 3
 
+const (
+	WorkOrderAssuranceVerified = "verified"
+	WorkOrderAssurancePartial  = "partial"
+	WorkOrderAssuranceFailed   = "failed"
+)
+
 func WorkOrderSourceDigest(order WorkOrder) string {
 	if len(order.Sources) == 0 {
 		return "sha256:none"
@@ -40,18 +46,23 @@ func WorkOrderSourceDigest(order WorkOrder) string {
 // шлюза откатывается. Reason и Missing — честный провал: bundle сохраняется,
 // потому что он и есть объяснение, почему работа не принята.
 type GateVerdict struct {
-	Status  QuestStatus
-	Err     error
-	Reason  string
-	Missing []string
+	Status    QuestStatus
+	Assurance string
+	Err       error
+	Reason    string
+	Missing   []string
 }
 
 func gateRejected(err error) GateVerdict {
-	return GateVerdict{Status: QuestBlocked, Err: err, Reason: err.Error()}
+	return GateVerdict{Status: QuestBlocked, Assurance: WorkOrderAssuranceFailed, Err: err, Reason: err.Error()}
 }
 
 func gateFailed(reason string, missing ...string) GateVerdict {
-	return GateVerdict{Status: QuestBlocked, Reason: reason, Missing: missing}
+	return GateVerdict{Status: QuestBlocked, Assurance: WorkOrderAssuranceFailed, Reason: reason, Missing: missing}
+}
+
+func gatePartial(reason string, missing ...string) GateVerdict {
+	return GateVerdict{Status: QuestCompleted, Assurance: WorkOrderAssurancePartial, Reason: reason, Missing: missing}
 }
 
 // WorkOrderEvidenceStatus is the only semantic path from verification to a
@@ -128,6 +139,8 @@ func WorkOrderEvidenceVerdict(order WorkOrder, bundle EvidenceBundle) GateVerdic
 	// machine-verifiable. A professional-mode quest must never become completed
 	// before the user accepts the isolated result.
 	hasManual := order.Delivery.ApplyMode == "manual"
+	hasPartial := false
+	actualFailure := false
 	allMachineSatisfied := true
 	// Незакрытые условия собираются поимённо, а не сводятся к одному флагу:
 	// «работа не принята» и «не принята вот по этим двум критериям» стоят
@@ -141,23 +154,26 @@ func WorkOrderEvidenceVerdict(order WorkOrder, bundle EvidenceBundle) GateVerdic
 			continue
 		}
 		if criterion.Kind == "manual" {
-			hasManual = true
+			hasPartial = true
+			missing = append(missing, "criterion:"+criterion.ID+" (manual)")
 			continue
 		}
 		check, checkOK := checksByID[criterion.ID]
 		if !item.Satisfied || !checkOK || !verificationCheckSatisfiesCriterion(criterion, item, check) {
 			allMachineSatisfied = false
 			missing = append(missing, "criterion:"+criterion.ID)
+			if item.ExitCode != nil || checkOK && check.ExitCode != nil {
+				actualFailure = true
+			} else {
+				hasPartial = true
+			}
 		}
 	}
 	if len(byID) != len(order.Criteria) {
 		return gateRejected(errors.New("evidence contains unknown or missing criteria"))
 	}
-	// An external change to the workspace is not a failed quest: the transfer
-	// was rolled back whole, and the verified result waits for a human to
-	// reconcile it rather than for this gate to call it broken.
-	if bundle.DeliveryConflict && !bundle.DeliveryVerified && allMachineSatisfied {
-		return GateVerdict{Status: QuestNeedsReview, Reason: "workspace changed outside the approved delivery; transfer rolled back whole"}
+	if bundle.DeliveryConflict {
+		return gateFailed("workspace changed outside the approved delivery; transfer rolled back whole", "delivery_conflict")
 	}
 	// A profile entry nobody executed is a promise, not proof. This only
 	// judges a bundle that claims a delivered result: a quest that never got
@@ -171,7 +187,10 @@ func WorkOrderEvidenceVerdict(order WorkOrder, bundle EvidenceBundle) GateVerdic
 			}
 			check, ok := checksByID[CompletionCheckEvidenceID(required.Kind)]
 			if !ok {
-				return gateRejected(fmt.Errorf("completion profile check %q has no executed evidence", required.Kind))
+				hasPartial = true
+				allMachineSatisfied = false
+				missing = append(missing, "completion:"+required.Kind+" (unavailable)")
+				continue
 			}
 			if strings.TrimSpace(check.Command) != strings.TrimSpace(required.Command) {
 				return gateRejected(fmt.Errorf("completion profile check %q was executed with a different command", required.Kind))
@@ -179,10 +198,15 @@ func WorkOrderEvidenceVerdict(order WorkOrder, bundle EvidenceBundle) GateVerdic
 			if !check.Satisfied || check.ExitCode == nil || *check.ExitCode != required.ExpectedExitCode {
 				allMachineSatisfied = false
 				missing = append(missing, "completion:"+required.Kind)
+				if check.ExitCode == nil {
+					hasPartial = true
+				} else {
+					actualFailure = true
+				}
 			}
 		}
 	}
-	if !allMachineSatisfied || !bundle.DeliveryVerified || strings.TrimSpace(bundle.WorkspaceRevision) == "" {
+	if actualFailure || !bundle.DeliveryVerified || strings.TrimSpace(bundle.WorkspaceRevision) == "" {
 		if !bundle.DeliveryVerified {
 			missing = append(missing, "delivery_verified")
 		}
@@ -204,19 +228,28 @@ func WorkOrderEvidenceVerdict(order WorkOrder, bundle EvidenceBundle) GateVerdic
 	// not untrusted evidence. Erroring here would roll back the bundle and take
 	// the failed service check — the only explanation the user has — with it.
 	if order.Delivery.KeepServicesRunning && (receipt.URL != order.Delivery.ApplicationURL || strings.TrimSpace(receipt.ComposeFile) == "" || !receipt.ServicesRunning) {
-		switch {
-		case !receipt.ServicesRunning:
-			return gateFailed("promised application is not running", "services_running")
-		case strings.TrimSpace(receipt.ComposeFile) == "":
-			return gateFailed("promised application has no compose file", "compose_file")
-		default:
-			return gateFailed("delivered application URL does not match the approved one", "application_url")
+		serviceCheck, serviceCheckFound := checksByID[CompletionCheckEvidenceID("service_start")]
+		if !serviceCheckFound || serviceCheck.ExitCode == nil {
+			hasPartial = true
+			missing = append(missing, "services_running (unavailable)")
+		} else {
+			switch {
+			case !receipt.ServicesRunning:
+				return gateFailed("promised application is not running", "services_running")
+			case strings.TrimSpace(receipt.ComposeFile) == "":
+				return gateFailed("promised application has no compose file", "compose_file")
+			default:
+				return gateFailed("delivered application URL does not match the approved one", "application_url")
+			}
 		}
 	}
 	if hasManual {
 		return GateVerdict{Status: QuestNeedsReview, Reason: "manual delivery or a manual criterion: a human accepts the result"}
 	}
-	return GateVerdict{Status: QuestCompleted}
+	if hasPartial || !allMachineSatisfied {
+		return gatePartial("work completed with checks that require manual review or were unavailable", missing...)
+	}
+	return GateVerdict{Status: QuestCompleted, Assurance: WorkOrderAssuranceVerified}
 }
 
 func validateModelCallLedger(items []ModelCallLedgerEntry) error {

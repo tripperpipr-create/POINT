@@ -186,6 +186,8 @@ type EvidenceBundle struct {
 	DeliveryConflict         bool                     `json:"deliveryConflict,omitempty"`
 	DeliveryTarget           string                   `json:"deliveryTarget,omitempty"`
 	DeliveryReceipt          *DeliveryReceipt         `json:"deliveryReceipt,omitempty"`
+	Assurance                string                   `json:"assurance,omitempty"`
+	OutcomeSummary           string                   `json:"outcomeSummary,omitempty"`
 	CreatedAt                time.Time                `json:"createdAt"`
 }
 

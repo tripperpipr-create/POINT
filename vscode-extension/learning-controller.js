@@ -117,6 +117,7 @@ async function handleLearningMessage(message) {
         body: JSON.stringify(message.budget || {}),
       })
       const statistics = await this.loadStatisticsSnapshot()
+      this.post({ type: 'budgetSaved' })
       this.post({ type: 'statistics', statistics })
       break
     }

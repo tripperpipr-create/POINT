@@ -20,6 +20,7 @@ export function createWorldStateInbox({
   resetProjectScopedState,
   decisionsQueueIsStale,
   releaseMasterAgentCards,
+  currentMasterAgentCards,
   mergeCompanionTranscript,
   prepareAgentConstructor,
   agentById,
@@ -35,12 +36,12 @@ export function createWorldStateInbox({
   return function applyWorldStateMessage(message) {
     if (message.type !== 'state') return false
       if (message.type === 'state') {
-        // Ответ пришёл — форму отпираем. Иначе после первой же отправки она
-        // осталась бы запертой до перезагрузки панели.
-        ui.submittingForm = ''
         if (String(message.workspacePath || '') !== ui.projectKey) {
           ui.projectKey = String(message.workspacePath || '')
           resetProjectScopedState()
+	      ui.masterDevelopment = undefined
+	      ui.masterDevelopmentBusy = false
+	      ui.masterDevelopmentError = ''
         }
         ui.state={...message, selectedTab: canonicalTab(message.selectedTab)}
         const discussed = (ui.state.boot?.questProposals || []).find(p => p.id === ui.masterDiscussionProposalId)
@@ -73,9 +74,10 @@ export function createWorldStateInbox({
           const awaited = (ui.state.boot?.companionActionProposals || []).find(item => item.id === id)
           if (!awaited || awaited.status === 'applied' || awaited.status === 'ignored') companionActionApplying.delete(id)
         }
-        // Карточка исполнителя ждала ответа ядра: состояние пришло, и держать её
-        // кнопку запертой больше не на чем.
-        releaseMasterAgentCards()
+        // Общий state приходит и по чужим фоновым поводам. Оставляем занятыми
+        // карточки, которые всё ещё существуют; обработанная исчезает из
+        // списка предложений и освобождается здесь.
+        releaseMasterAgentCards(currentMasterAgentCards())
         for (const id of proposalEditDrafts.keys()) {
           const awaited = (ui.state.boot?.questProposals || []).find(item => item.id === id)
           if (!awaited || awaited.status === 'started' || awaited.status === 'ignored') {

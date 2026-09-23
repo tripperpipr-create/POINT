@@ -19,6 +19,8 @@ import { list, shortLabel } from './format-units.js'
 import { masterCardMoreAttrs } from './master-card-open.js'
 import { questMenuHtml } from './master-quest-views.js'
 import { EFFORT_OPTIONS, agentGearHtml, agentPortraitHtml, agentStatsHtml } from './master-agent-sheet.js'
+import { masterAgentBusy, masterAgentConsent, masterAgentDrafts, masterAgentErrors } from './master-agent-card-state.js'
+export { masterAgentBusy, masterAgentConsent, masterAgentDrafts, masterAgentErrors, releaseMasterAgentCards } from './master-agent-card-state.js'
 
 const text = value => String(value ?? '').trim()
 
@@ -29,17 +31,6 @@ const text = value => String(value ?? '').trim()
 const DEFAULT_TOOLS = ['project_map', 'search_code', 'list_files', 'read_file', 'search_text', 'git_diff']
 const POLICY_OPTIONS = [['ALLOW', 'можно'], ['ASK', 'спросить'], ['DENY', 'нельзя']]
 const APPROVAL_OPTIONS = [['safe', 'спрашивать про опасное'], ['always', 'спрашивать про всё']]
-
-// Набранное переживает перерисовку. Лента перерисовывается на каждый ход
-// Мастера, на приход квеста и на фоновое обновление ростера — прежние формы
-// снимали значения только при отправке, и любое из этих событий стирало
-// написанное человеком молча и целиком.
-export const masterAgentDrafts = new Map()
-export const masterAgentBusy = new Set()
-export const masterAgentErrors = new Map()
-// Согласие «создать при запуске»: его читает карточка запуска, чтобы решить,
-// можно ли утверждать наряд. Раньше это же согласие раскрывало ярус внутри неё.
-export const masterAgentConsent = new Set()
 
 function normalizeRisk(value) {
   const risk = String(value || '').toUpperCase()
@@ -97,7 +88,7 @@ export function masterAgentCardFromAction(item) {
 // Наряд на уточнении — тоже: карточка с ролью, моделью и снаряжением вставала
 // рядом с неотвеченным вопросом, под задание, которого ещё нет. От ответа
 // меняется состав наряда, а с ним и то, кто нужен. `ready` — «всё собрано».
-const orderCollected = order => order?.state === 'ready'
+const orderCollected = order => order?.state === 'staffing'
 
 export function masterAgentCardsFor(masterData) {
   const hiring = list(masterData?.hiring)
@@ -300,7 +291,6 @@ export function masterAgentCardHtml(card, esc, deps = {}) {
     <div class="hall-panel-row hall-actions">
       <div class="hall-quest-acts">
         <button type="button" class="hall-btn is-primary" data-action="agent-card-create" data-card="${esc(card.id)}"${busy ? ' disabled' : ''}>${busy ? 'Заводим…' : 'Создать исполнителя'}</button>
-        ${card.kind === 'work-order' ? `<button type="button" class="hall-btn" data-action="agent-card-later" data-card="${esc(card.id)}"${busy || consented ? ' disabled' : ''}>${consented ? 'Создастся при запуске' : 'Создать при запуске'}</button>` : ''}
         ${menu}
       </div>
       <small class="hall-fineprint is-trailing">Исполнитель появится в ростере проекта и встанет в это задание.</small>
@@ -440,10 +430,4 @@ export function handleMasterAgentCardAction(action, target, ctx) {
     return true
   }
   return true
-}
-
-// Карточка отпускается, когда ядро ответило: оставленная «занятость» заперла бы
-// кнопку навсегда, если ответ пришёл отказом.
-export function releaseMasterAgentCards() {
-  masterAgentBusy.clear()
 }

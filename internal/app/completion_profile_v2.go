@@ -1,13 +1,17 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"net/http"
 	"os/exec"
 	"strings"
 	"time"
 
 	"local-agent-workbench/internal/domain"
+	"local-agent-workbench/internal/osproc"
 	"local-agent-workbench/internal/security"
 )
 
@@ -58,7 +62,19 @@ func (a *App) runCompletionProfileV2(ctx context.Context, order domain.WorkOrder
 		}
 		started := time.Now()
 		attemptCtx, cancel := context.WithTimeout(ctx, completionCheckTimeout)
-		code, output, err := runner.Run(attemptCtx, directory, required.Command)
+		var code int
+		var output string
+		var err error
+		if required.Kind == "health" && strings.TrimSpace(required.URL) != "" {
+			switch runner.(type) {
+			case shellCompletionCheckRunner:
+				code, output, err = runManagedHealthCheckV2(attemptCtx, directory, required.Command, required.URL)
+			default:
+				code, output, err = runner.Run(attemptCtx, directory, required.Command)
+			}
+		} else {
+			code, output, err = runner.Run(attemptCtx, directory, required.Command)
+		}
 		cancel()
 		check := domain.VerificationCheck{
 			ID: domain.CompletionCheckEvidenceID(required.Kind), Kind: required.Kind,
@@ -73,6 +89,54 @@ func (a *App) runCompletionProfileV2(ctx context.Context, order domain.WorkOrder
 		results = append(results, check)
 	}
 	return results
+}
+
+func runManagedHealthCheckV2(ctx context.Context, directory, command, probeURL string) (int, string, error) {
+	parts := strings.Fields(command)
+	if len(parts) < 2 || !strings.EqualFold(parts[0], "php") || parts[1] != "-S" {
+		return 0, "", errors.New("managed health check requires an approved php -S command")
+	}
+	var output bytes.Buffer
+	cmd := osproc.CommandContext(ctx, parts[0], parts[1:]...)
+	cmd.Dir, cmd.Stdout, cmd.Stderr = directory, &output, &output
+	if err := cmd.Start(); err != nil {
+		return 0, output.String(), err
+	}
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+	defer func() {
+		if cmd.Process != nil {
+			_ = cmd.Process.Kill()
+		}
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+		}
+	}()
+	client := &http.Client{Timeout: 2 * time.Second}
+	for {
+		select {
+		case err := <-done:
+			if err == nil {
+				err = errors.New("temporary PHP server stopped before the health check")
+			}
+			return 1, output.String(), err
+		case <-ctx.Done():
+			return 0, output.String(), ctx.Err()
+		case <-time.After(250 * time.Millisecond):
+			response, requestErr := client.Get(probeURL)
+			if requestErr != nil {
+				continue
+			}
+			_ = response.Body.Close()
+			if response.StatusCode >= 200 && response.StatusCode < 400 {
+				return 0, fmt.Sprintf("GET %s: %s\n%s", probeURL, response.Status, output.String()), nil
+			}
+			if response.StatusCode >= 500 {
+				return 1, fmt.Sprintf("GET %s: %s\n%s", probeURL, response.Status, output.String()), nil
+			}
+		}
+	}
 }
 
 func completionCheckSummaryV2(output string, err error) string {

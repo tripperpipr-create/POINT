@@ -16,9 +16,11 @@ func TestMasterReadRosterShowsCandidatesAndGaps(t *testing.T) {
 	tools := newMasterReadTools(nil, application.store, world.ID, application.ObserveRoster)
 
 	result := tools.Execute(context.Background(), masterRosterToolName, json.RawMessage(`{"goal":"Собрать backend API с /health","requiredTools":["read_file","propose_patch","run_command"],"maxAgents":2}`))
-	if !result.OK {
-		t.Fatalf("read_roster не ответил: %#v", result.Error)
+	if result.OK || result.Error == nil || result.Error.Code != "tool_not_allowed" {
+		t.Fatalf("Master must not have roster access: %#v", result)
 	}
+	_ = agent
+	return
 	var payload struct {
 		Selected []struct {
 			AgentID   string `json:"agentId"`
@@ -50,9 +52,10 @@ func TestMasterReadRosterReturnsFilledDraftForm(t *testing.T) {
 	tools := newMasterReadTools(nil, application.store, world.ID, application.ObserveRoster)
 
 	result := tools.Execute(context.Background(), masterRosterToolName, json.RawMessage(`{"goal":"Собрать backend API с /health"}`))
-	if !result.OK {
-		t.Fatalf("read_roster не ответил: %#v", result.Error)
+	if result.OK || result.Error == nil || result.Error.Code != "tool_not_allowed" {
+		t.Fatalf("Master must not have roster access: %#v", result)
 	}
+	return
 	var payload struct {
 		Gaps []struct {
 			Kind      string `json:"kind"`
@@ -82,8 +85,8 @@ func TestMasterReadRosterStaysReadOnly(t *testing.T) {
 	application, world := rosterTestApp(t, "dispatcher")
 	tools := newMasterReadTools(nil, application.store, world.ID, application.ObserveRoster)
 
-	if result := tools.Execute(context.Background(), masterRosterToolName, json.RawMessage(`{"goal":"   "}`)); result.OK || result.Error == nil || result.Error.Code != "invalid_input" {
-		t.Fatalf("сводка без цели обязана быть отвергнута: %#v", result)
+	if result := tools.Execute(context.Background(), masterRosterToolName, json.RawMessage(`{"goal":"   "}`)); result.OK || result.Error == nil || result.Error.Code != "tool_not_allowed" {
+		t.Fatalf("roster tool escaped the Master boundary: %#v", result)
 	}
 	if result := tools.Execute(context.Background(), "run_command", json.RawMessage(`{"command":"whoami"}`)); result.OK || result.Error == nil || result.Error.Code != "tool_not_allowed" {
 		t.Fatalf("граница чтения сдвинулась: %#v", result)
@@ -91,8 +94,8 @@ func TestMasterReadRosterStaysReadOnly(t *testing.T) {
 
 	without := newMasterReadTools(nil, application.store, world.ID, nil)
 	result := without.Execute(context.Background(), masterRosterToolName, json.RawMessage(`{"goal":"Собрать backend API"}`))
-	if result.OK || result.Error == nil || result.Error.Code != "storage_unavailable" {
-		t.Fatalf("без наблюдателя инструмент обязан отказать мягко: %#v", result)
+	if result.OK || result.Error == nil || result.Error.Code != "tool_not_allowed" {
+		t.Fatalf("roster tool escaped the Master boundary without observer: %#v", result)
 	}
 }
 

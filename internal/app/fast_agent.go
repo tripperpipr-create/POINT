@@ -73,6 +73,7 @@ func (a *App) startFastAgentV2(request FastAgentRequest) (domain.Run, error) {
 	}
 	createRequest := sandbox.CreateRequest{
 		WorkspaceID: order.WorkspaceID, WorkspacePath: order.Workspace.Path, ExecutionID: launch.Execution.ID,
+		Runtime:        environment.RuntimeRequirementsForWorkOrder(&order),
 		PreferWorktree: order.Workspace.Isolation == "git_worktree", LiveWorkspace: false,
 	}
 	sandboxRecord, err := a.sandboxBackend.Create(ctx, createRequest)

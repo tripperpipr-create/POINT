@@ -5,7 +5,7 @@ import { masterCardMoreAttrs } from './master-card-open.js'
 import { DEFAULT_CRITERION_KIND, questChecklistHtml, questMenuHtml } from './master-quest-views.js'
 
 const labels = {
-  discussion: 'Нужно уточнение', ready: 'Готов к запуску', approved: 'Утверждён',
+  discussion: 'Нужно уточнение', staffing: 'Собираем состав', ready: 'Готов к запуску', approved: 'Утверждён',
 }
 
 // Провал — такое же состояние квеста, как остальные, и без него карточка
@@ -31,6 +31,17 @@ const runtimeTones = {
   completed:'is-done', needs_review:'is-attention', blocked:'is-attention', failed:'is-attention', awaiting_user:'is-attention',
   cancelled:'is-quiet', paused:'is-quiet',
   preflight:'is-active', running:'is-active', verifying:'is-active', applying:'is-active',
+}
+
+function runtimePresentation(runtime) {
+  if (runtime?.status === 'completed' && runtime?.assurance === 'partial') {
+    return { label: 'Готово с ограничениями', mark: '!', tone: 'is-attention' }
+  }
+  return {
+    label: runtimeLabels[runtime?.status] || runtime?.status,
+    mark: runtimeMarks[runtime?.status] || '✓',
+    tone: runtimeTones[runtime?.status] || 'is-done',
+  }
 }
 
 // Какие условия закрыты — поимённо.
@@ -78,7 +89,7 @@ function jsonValue(value, esc) {
 }
 
 export function masterWorkOrderCardsHtml(orders, esc, busyIds = new Set(), deps = {}) {
-  return list(orders).map(order => {
+  return list(orders).filter(order => order?.state === 'ready' || order?.state === 'approved').map(order => {
     let ready=order.state==='ready' && order.digest
     const busy=busyIds.has(order.id)
     const agents=list(order.roster?.permanent)
@@ -95,6 +106,7 @@ export function masterWorkOrderCardsHtml(orders, esc, busyIds = new Set(), deps 
     const completionChecks=list(order.completion?.checks)
     const sourceCount=list(order.sources).length
 	const runtime=order.runtime
+	const runtimeView=runtimePresentation(runtime)
 	// Утверждение создаёт исполнителей из ростера. Пока карточка знала только
 	// обещание «будет создан», человек искал создание агента, которого ядро уже
 	// создало.
@@ -136,7 +148,7 @@ export function masterWorkOrderCardsHtml(orders, esc, busyIds = new Set(), deps 
 	// Утверждённый наряд без рантайма — договор, по которому работа так и не
 	// пошла: квест не создан или уже удалён. Прежняя подпись обещала слежение за
 	// тем, чего нет, и карточка читалась как незакрытое дело.
-	const approvedText=runtime ? `${runtimeLabels[runtime.status] || runtime.status}${runtime.message?` · ${runtime.message}`:''}` : 'Квест не создан — работа по этому наряду не идёт'
+	const approvedText=runtime ? `${runtimeView.label}${runtime.message?` · ${runtime.message}`:''}` : 'Квест не создан — работа по этому наряду не идёт'
 	const pausable=runtime && ['preflight','running','verifying','applying','awaiting_user'].includes(runtime.status)
 	// Пауза — решение человека, блокировка — состояние среды. Второе тоже
 	// возобновляемо: причину чинят и просят повторить проверку окружения. Пока
@@ -162,6 +174,7 @@ export function masterWorkOrderCardsHtml(orders, esc, busyIds = new Set(), deps 
         <div><strong>Приложение готово</strong>${receipt.url?`<a href="${esc(receipt.url)}" title="Открыть приложение">${esc(receipt.url)}</a>`:'<span>Локальный URL не указан</span>'}</div>
         <div><button type="button" class="hall-btn is-primary" data-action="control-master-application-v2" data-control="start" data-id="${esc(order.id)}" data-quest-id="${esc(runtime.questId)}" data-version="${Number(order.version)||1}" data-digest="${esc(order.digest || '')}" data-receipt-id="${esc(receipt.id)}" ${busy?'disabled':''}>Запустить</button><button type="button" class="hall-btn" data-action="control-master-application-v2" data-control="stop" data-id="${esc(order.id)}" data-quest-id="${esc(runtime.questId)}" data-version="${Number(order.version)||1}" data-digest="${esc(order.digest || '')}" data-receipt-id="${esc(receipt.id)}" ${busy?'disabled':''}>Остановить</button></div>
       </div>` : ''
+	const reportControl=runtime?.status==='completed' ? `<div class="master-v2-runtime-controls"><div><strong>Итоговый документ</strong><span>Архивариус соберёт видимые результаты этого плана в MD, HTML или XLSX.</span></div><button type="button" class="hall-btn" data-action="generate-work-order-report" data-id="${esc(order.id)}">Собрать отчёт</button></div>` : ''
 	// Утверждённый наряд перестаёт быть предложением: решать в нём больше
 	// нечего, а место нужно тому, что происходит сейчас. Состав уходит под один
 	// раскрывающийся заголовок, на его месте — экран выполнения.
@@ -228,13 +241,14 @@ export function masterWorkOrderCardsHtml(orders, esc, busyIds = new Set(), deps 
 	if (executing) return workOrderRunHtml(order, deps.ui, {
 		...deps, esc,
 		statusText: approvedText,
-		tone: runtimeTones[runtime.status] || 'is-done',
-		mark: runtimeMarks[runtime.status] || '✓',
+		tone: runtimeView.tone,
+		mark: runtimeView.mark,
 		resumable, resumeLabel,
 		controlsHtml: runtimeControls,
 		compositionHtml, createdHtml,
 		checklistHtml: criteriaChecklistHtml(order, esc),
 		applicationHtml: applicationControls,
+		reportHtml: reportControl,
 		evidenceHtml: evidenceSummary,
 	})
     // Шапка квеста: точка состояния, кикер и мета справа. Гриф «ЕДИНАЯ
@@ -261,7 +275,7 @@ export function masterWorkOrderCardsHtml(orders, esc, busyIds = new Set(), deps 
              какая из них главная: «Обсудить», «Подтвердить», «Убрать» и
              подпись стояли одним весом, и глаз выбирал крайнюю левую. */''}
         ${order.state==='approved'
-          ? `<span class="master-v2-approved ${runtime?(runtimeTones[runtime.status] || 'is-done'):'is-quiet'}">${runtime?(runtimeMarks[runtime.status] || '✓'):'·'} ${esc(approvedText)}</span>${runtime?'':questMenuHtml([{action:'delete-work-order-v2',id:order.id,label:'Убрать наряд',busy}],esc)}`
+          ? `<span class="master-v2-approved ${runtime?runtimeView.tone:'is-quiet'}">${runtime?runtimeView.mark:'·'} ${esc(approvedText)}</span>${runtime?'':questMenuHtml([{action:'delete-work-order-v2',id:order.id,label:'Убрать наряд',busy}],esc)}`
           : `<div class="hall-quest-acts">
               <button type="button" class="hall-btn is-primary" data-action="approve-master-work-order-v2" data-id="${esc(order.id)}" data-version="${Number(order.version)||1}" data-digest="${esc(order.digest || '')}" ${ready&&consented&&!busy?'':'disabled'}>${busy?'Запускаем…':esc(approveLabel)}</button>
               ${questMenuHtml([{action:'revise-master-work-order-v2',id:order.id,label:'Обсудить с Мастером'}],esc)}

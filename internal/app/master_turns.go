@@ -241,7 +241,12 @@ func (a *App) CancelMasterTurn(ctx context.Context, id string) error {
 	return nil
 }
 func (a *App) MasterTurn(ctx context.Context, id string) (domain.MasterTurn, error) {
-	return a.store.MasterTurn(ctx, a.currentWorldID(), id)
+	turn, err := a.store.MasterTurn(ctx, a.currentWorldID(), id)
+	if err != nil {
+		return turn, err
+	}
+	turn.Skills, err = a.store.MasterTurnSkills(ctx, turn.WorkspaceID, id)
+	return turn, err
 }
 func (a *App) MasterTurnEvents(ctx context.Context, id string, after int64) ([]domain.MasterTurnEvent, error) {
 	return a.store.MasterEvents(ctx, a.currentWorldID(), id, after)

@@ -1,4 +1,5 @@
 import { fillAttribute, formatDateTime } from './format-units.js'
+import { masterDevelopmentHtml } from './master-development.js'
 import { normalizeBrainMode } from './companion-compose.js'
 import { createAgentWorkTranscript } from './agent-work-transcript.js'
 import {
@@ -578,10 +579,11 @@ export function createHallOnboardingViews(dependencies) {
     const orchDetail = orchDraft
       ? orchestratorPolicyLines(orchDraft)[0]
       : 'Отдельный агент: раздаёт задачи отряду, собирает Flow и ведёт квест.'
-    // Две карточки, потому что это две роли. Компаньон смотрит за IDE и только
-    // советует; Мастер — диспетчер, он раздаёт задачи отряду. Сливать их нельзя:
-    // на разделении держится правило «наблюдение не начинает работу само».
-    return `<section class="system-agents-pair"><header class="section-title"><span>СИСТЕМНЫЕ АГЕНТЫ</span><em>настраиваются в начале</em></header><div class="system-agents-grid"><article class="system-agent-card companion hub-card" data-action="open-companion-setup" title="Открыть настройку компаньона"><span>✦</span><div><small>КОМПАНЬОН</small><strong>${esc(companionPreset?.label || 'Помощник IDE')}</strong><p>Встроен в IDE и только рекомендует. Квесты сам не стартует.</p><em>${esc(companionMode)}</em></div><button type="button" class="secondary" data-action="open-companion-setup">Настроить</button></article><article class="system-agent-card orchestrator hub-card" data-action="open-orchestrator-setup" title="Открыть настройку мастера"><span>⬡</span><div><small>МАСТЕР</small><strong>${esc(orchPreset?.label || 'Не настроен')}</strong><p>${esc(orchDetail)}</p><em>${esc(orchMode)}</em></div><button type="button" class="secondary" data-action="open-orchestrator-setup">Настроить</button></article></div></section>`
+    // Три отдельные роли: Компаньон наблюдает, Мастер распоряжается, Архивариус
+    // выпускает файлы. Последний наследует только подключение Мастера, но имеет
+    // собственный системный промпт и детерминированные рендереры.
+    const reporterReady = Boolean(orch?.provider && orch?.model)
+    return `<section class="system-agents-pair"><header class="section-title"><span>СИСТЕМНЫЕ АГЕНТЫ</span><em>компаньон, управление и документы</em></header><div class="system-agents-grid"><article class="system-agent-card companion hub-card" data-action="open-companion-setup" title="Открыть настройку компаньона"><span>✦</span><div><small>КОМПАНЬОН</small><strong>${esc(companionPreset?.label || 'Помощник IDE')}</strong><p>Встроен в IDE и только рекомендует. Квесты сам не стартует.</p><em>${esc(companionMode)}</em></div><button type="button" class="secondary" data-action="open-companion-setup">Настроить</button></article><article class="system-agent-card orchestrator hub-card" data-action="open-orchestrator-setup" title="Открыть настройку мастера"><span>⬡</span><div><small>МАСТЕР</small><strong>${esc(orchPreset?.label || 'Не настроен')}</strong><p>${esc(orchDetail)}</p><em>${esc(orchMode)}</em></div><button type="button" class="secondary" data-action="open-orchestrator-setup">Настроить</button></article><article class="system-agent-card reporter hub-card" data-action="${reporterReady ? 'generate-report' : 'open-orchestrator-setup'}" title="${reporterReady ? 'Собрать новый отчёт' : 'Сначала подключите модель Мастера'}"><span>▤</span><div><small>АРХИВАРИУС</small><strong>Агент красивых отчётов</strong><p>Собирает понятные MD, HTML и XLSX с выводом, ссылками и таблицами.</p><em>${reporterReady ? `модель Мастера · MD · HTML · XLSX` : 'ждёт модель Мастера'}</em></div><button type="button" class="secondary" data-action="${reporterReady ? 'generate-report' : 'open-orchestrator-setup'}">${reporterReady ? 'Создать файл' : 'Подключить'}</button></article></div></section>`
   }
   function onboardingCompanionActive() {
     return ui.state.selectedTab === 'onboarding' && isCompanionOnboardingStep(ui.onboardingStep) && !ui.companionSetupOpen
@@ -830,6 +832,7 @@ export function createHallOnboardingViews(dependencies) {
           <small>Первый специалист уже получил навыки и инструменты основного профиля — это дальнейшее развитие, а не условие запуска.</small>
         </div>${indexQuick}<button type="button" class="secondary" data-action="restart-onboarding">Пройти онбординг заново</button></section>`
     }
+    if (step === 'orchestrator-brain' || step === 'orchestrator-choose') panel += masterDevelopmentHtml(ui, esc)
     // Один список готовности на экран. Раньше их было три: карта пути, короткий
     // перечень в центре и эта колонка — причём «ядро» жило только в центральном,
     // а «проект» и «агенты» повторялись дважды.

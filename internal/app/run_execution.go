@@ -17,6 +17,7 @@ import (
 	"local-agent-workbench/internal/changesets"
 	"local-agent-workbench/internal/domain"
 	"local-agent-workbench/internal/egress"
+	"local-agent-workbench/internal/environment"
 	"local-agent-workbench/internal/flowruntime"
 	"local-agent-workbench/internal/observability"
 	"local-agent-workbench/internal/policy"
@@ -336,6 +337,7 @@ func (a *App) StartRun(request StartRunRequest) (domain.Run, error) {
 	}
 	slog.Info("agent start progress", "execution_id", execID, "phase", "stage_brief", "stage_role", request.StageRole)
 	brief = stageScopedBrief(brief, request.StageRole)
+	runtimeRequirements := managedSandboxRuntimeForBrief(brief)
 	if err := a.validateTaskEnvironment(brief); err != nil {
 		return domain.Run{}, err
 	}
@@ -431,7 +433,7 @@ func (a *App) StartRun(request StartRunRequest) (domain.Run, error) {
 		}
 		created, sandboxErr := a.sandboxBackend.Create(context.Background(), sandbox.CreateRequest{
 			WorkspaceID: prepared.workspace.ID, WorkspacePath: prepared.workspace.Path, ExecutionID: execID,
-			PreferWorktree: true, LiveWorkspace: liveWorkspace,
+			Runtime: runtimeRequirements, PreferWorktree: true, LiveWorkspace: liveWorkspace,
 		})
 		if sandboxErr != nil {
 			return domain.Run{}, fmt.Errorf("create execution sandbox: %w", sandboxErr)
@@ -451,7 +453,7 @@ func (a *App) StartRun(request StartRunRequest) (domain.Run, error) {
 		_ = a.sandboxBackend.Close(context.Background(), sandboxRecord, prepared.workspace.Path)
 		created, sandboxErr := a.sandboxBackend.Create(context.Background(), sandbox.CreateRequest{
 			WorkspaceID: prepared.workspace.ID, WorkspacePath: prepared.workspace.Path, ExecutionID: execID,
-			PreferWorktree: true, LiveWorkspace: false,
+			Runtime: runtimeRequirements, PreferWorktree: true, LiveWorkspace: false,
 		})
 		if sandboxErr != nil {
 			return domain.Run{}, fmt.Errorf("create isolated project sandbox: %w", sandboxErr)
@@ -465,6 +467,7 @@ func (a *App) StartRun(request StartRunRequest) (domain.Run, error) {
 			return domain.Run{}, err
 		}
 	}
+	sandboxImage := sandbox.ExecutionImageForRecord(sandboxRecord)
 	createdDirectQuest := false
 	if questID == "" && flowRunID == "" {
 		title := strings.TrimSpace(request.Task)
@@ -505,7 +508,8 @@ func (a *App) StartRun(request StartRunRequest) (domain.Run, error) {
 	run, err := a.engine.Start(agent.StartInput{
 		TaskBrief:     brief,
 		Configuration: snapshot, Workspace: prepared.workspace, SandboxPath: sandboxRecord.Path,
-		RunID: request.preparedRunID, AgentID: request.preparedAgentID, StartedAt: request.preparedStartedAt,
+		SandboxImage: sandboxImage,
+		RunID:        request.preparedRunID, AgentID: request.preparedAgentID, StartedAt: request.preparedStartedAt,
 		InitialBudgetReservationID: request.initialBudgetReservationID,
 		ExecutionID:                execID, QuestID: questID, FlowRunID: flowRunID, FlowNodeID: flowNodeID,
 		CompletionCheckKind: request.CompletionCheckKind,
@@ -650,4 +654,11 @@ func (a *App) StartRun(request StartRunRequest) (domain.Run, error) {
 		"tools", prepared.profile.AllowedTools,
 	)
 	return publicRun(run), nil
+}
+
+func managedSandboxRuntimeForBrief(brief *domain.TaskBrief) sandbox.RuntimeRequirements {
+	if brief == nil || brief.WorkOrder == nil {
+		return sandbox.RuntimeRequirements{}
+	}
+	return environment.RuntimeRequirementsForExecutionContract(brief.WorkOrder)
 }

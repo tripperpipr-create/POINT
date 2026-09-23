@@ -25,6 +25,8 @@ type StartInput struct {
 	Workspace     domain.Workspace
 	// SandboxPath, when set, is the isolated FS root for tools. Live workspace stays read-only until Change Set apply.
 	SandboxPath string
+	// SandboxImage is selected by trusted stack policy, never by the model.
+	SandboxImage string
 	// RunID and InitialBudgetReservationID are set only by an atomic launch
 	// commit. The worker reuses those durable records instead of creating a
 	// visibility gap between persistence and the first model request.
@@ -108,7 +110,7 @@ func (e *Engine) Start(input StartInput) (domain.Run, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), maxDuration)
 	active := &activeRun{
 		run: run, cancel: cancel, onFinished: input.OnFinished, finalized: make(chan struct{}), taskBrief: input.TaskBrief,
-		clock: newActiveClock(activeBudget), sandboxPath: input.SandboxPath, apiKey: input.APIKey,
+		clock: newActiveClock(activeBudget), sandboxPath: input.SandboxPath, sandboxImage: input.SandboxImage, apiKey: input.APIKey,
 		initialBudgetReservationID: strings.TrimSpace(input.InitialBudgetReservationID),
 		serverProfiles:             input.ServerProfiles, dbSource: input.DBSource, teamBus: input.TeamBus,
 		correlation: runCorrelation{
@@ -177,7 +179,7 @@ func (e *Engine) Start(input StartInput) (domain.Run, error) {
 		"execution_id", input.ExecutionID,
 		"quest_id", input.QuestID,
 	)
-	registry, patches := buildToolRegistryWithExecution(fs, input.Configuration.CustomTools, input.ServerProfiles, input.DBSource, e.processExecutor, run.ID, confirmedRemotesFromBrief(input.TaskBrief), e.networkGrants, input.TeamBus, active.correlation, profile)
+	registry, patches := buildToolRegistryWithExecution(fs, input.Configuration.CustomTools, input.ServerProfiles, input.DBSource, e.processExecutor, run.ID, input.SandboxImage, confirmedRemotesFromBrief(input.TaskBrief), e.networkGrants, input.TeamBus, active.correlation, profile)
 	var model providers.Model
 	var modelErr error
 	if executors.KindForProvider(profile.Provider) == executors.KindPoint {
@@ -256,7 +258,7 @@ func (e *Engine) ContinueFromCheckpoint(input StartInput, existing domain.Run, c
 	existing.Controller.ActiveTimeExtensions = checkpoint.ActiveTimeExtensions
 	active := &activeRun{
 		run: existing, cancel: cancel, onFinished: input.OnFinished, finalized: make(chan struct{}), taskBrief: input.TaskBrief,
-		clock: newActiveClock(activeBudget), sandboxPath: fsRoot, apiKey: input.APIKey,
+		clock: newActiveClock(activeBudget), sandboxPath: fsRoot, sandboxImage: input.SandboxImage, apiKey: input.APIKey,
 		serverProfiles: input.ServerProfiles, dbSource: input.DBSource, teamBus: input.TeamBus, checkpointSeq: checkpoint.Seq,
 		workspaceRevision: checkpoint.WorkspaceRevision,
 		correlation: runCorrelation{
@@ -283,7 +285,7 @@ func (e *Engine) ContinueFromCheckpoint(input StartInput, existing domain.Run, c
 		e.discardUnstarted(existing.ID)
 		return domain.Run{}, err
 	}
-	registry, patches := buildToolRegistryWithExecution(fs, input.Configuration.CustomTools, input.ServerProfiles, input.DBSource, e.processExecutor, existing.ID, confirmedRemotesFromBrief(input.TaskBrief), e.networkGrants, input.TeamBus, active.correlation, profile)
+	registry, patches := buildToolRegistryWithExecution(fs, input.Configuration.CustomTools, input.ServerProfiles, input.DBSource, e.processExecutor, existing.ID, input.SandboxImage, confirmedRemotesFromBrief(input.TaskBrief), e.networkGrants, input.TeamBus, active.correlation, profile)
 	modelTimeout := profile.MaxDurationSeconds
 	if modelTimeout <= 0 {
 		modelTimeout = 600

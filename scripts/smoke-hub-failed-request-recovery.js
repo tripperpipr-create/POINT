@@ -49,9 +49,9 @@ const boot = {
   runs: [{ id: 'run-1', status: 'waiting_approval' }],
   quests: [], executions: [], changeSets: [],
 }
-const sendState = () => listeners['window:message']({ data: {
+const sendState = (selectedTab = 'decisions') => listeners['window:message']({ data: {
   type: 'state', service: { state: 'running' }, workspaceTrusted: true,
-  workspace: 'w', selectedTab: 'decisions', boot,
+  workspace: 'w', selectedTab, boot,
 } })
 
 const failures = []
@@ -108,6 +108,25 @@ click({ action: 'retry-decisions' })
 check('повтор действительно запрашивает',
   posted.slice(before).some(m => m.type === 'loadDecisions'),
   'нажатие «повторить» не отправило нового запроса')
+
+// Два раздела могут грузиться одновременно. Именованный отказ обязан погасить
+// только свой индикатор: раньше неизвестные таблице saveBudget/loadDocker
+// считались безымянными и помечали ошибкой все соседние ожидания.
+sendState('docker')
+click({ action: 'reload-statistics' })
+click({ action: 'reload-docker' })
+listeners['window:message']({ data: {
+  type: 'error', request: 'saveBudget', message: 'бюджет не сохранён',
+} })
+check('отказ бюджета не сбивает загрузку Docker',
+  root.innerHTML.includes('Спрашиваю ядро'),
+  'чужой отказ преждевременно погасил индикатор Docker')
+listeners['window:message']({ data: {
+  type: 'error', request: 'loadDocker', message: 'Docker не ответил',
+} })
+check('свой отказ завершает загрузку Docker',
+  !root.innerHTML.includes('Спрашиваю ядро'),
+  'после собственного отказа Docker всё ещё показывает загрузку')
 
 if (failures.length) {
   console.log('ВОССТАНОВЛЕНИЕ ПОСЛЕ ОТКАЗА — ПРОВАЛ')

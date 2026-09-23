@@ -40,6 +40,11 @@ func TestMasterReadExecutionIsWorkspaceScopedAndIncludesEvents(t *testing.T) {
 	}
 
 	tools := newMasterReadTools(nil, application.store, view.Workspace.ID, application.ObserveRoster)
+	for _, definition := range tools.Definitions() {
+		if definition.Name == masterRosterToolName {
+			t.Fatal("Master must delegate roster assembly to agent-selector")
+		}
+	}
 	result := tools.Execute(ctx, "read_execution", json.RawMessage(`{"id":"run-failed"}`))
 	if !result.OK {
 		t.Fatalf("read_execution failed: %#v", result.Error)

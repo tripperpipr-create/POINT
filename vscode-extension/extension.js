@@ -1069,11 +1069,18 @@ class AgentViewProvider {
         case 'applyChangeSet':
         case 'rejectChangeSet':
         case 'revertChangeSet':
+        // То же самое у приёмки задачи по ссылке: обработчики в
+        // hub-runtime-controller.js полны, а сообщения до них не доходили.
+        case 'createIntake':
+        case 'approveIntake':
+        case 'expandIntake':
+        case 'selectIntake':
           await handleHubRuntimeMessage.call(this, message)
           break
         case 'saveMemory': {
           const saved = await this.service.request('/api/memories', { method: 'POST', body: JSON.stringify(message.memory) })
           this.upsertBootItem('memories', saved)
+          this.post({ type: 'memorySaved', memoryId: saved?.id || '' })
           this.postState()
           break
         }
@@ -1137,6 +1144,7 @@ class AgentViewProvider {
         case 'forkMasterConversation':
         case 'deleteMasterConversation':
         case 'exportMasterConversation':
+        case 'generateReport':
         case 'pickMasterModel':
         case 'pickMasterContext':
         case 'previewMasterContext':
@@ -1144,6 +1152,9 @@ class AgentViewProvider {
         case 'attachMasterContext':
         case 'masterSession':
         case 'loadMaster':
+		case 'loadMasterDevelopment':
+		case 'setMasterLearning':
+		case 'rollbackMasterSkill':
         case 'masterChat':
         case 'copyMasterText':
         case 'openMasterMessageDetails':
@@ -1153,6 +1164,15 @@ class AgentViewProvider {
 		case 'reviseMasterWorkOrderV2':
         case 'controlMasterWorkOrderQuestV2':
         case 'controlMasterApplicationV2':
+        // Четыре ветки ниже написаны в master-chat-controller.js давно, но во
+        // внешнем разборе их не было: поиск по контексту, вложение по пути,
+        // список чатов и чат чужого мира нажимались вхолостую. Нашёл затвор
+        // scripts/check-webview-message-routes.mjs — тем же способом, каким
+        // нашёл мёртвый `purgeQuest`.
+        case 'searchMasterContext':
+        case 'attachMasterContextPath':
+        case 'loadChatDirectory':
+        case 'openProjectChat':
           await handleMasterMessage.call(this, message)
           break
         case 'loadStatistics':
@@ -1173,6 +1193,7 @@ class AgentViewProvider {
         case 'activateProjectAgentDraft':
         case 'rejectProjectAgentDraft':
         case 'deleteQuest':
+        case 'purgeQuest':
         case 'deleteTeam':
         case 'deleteFlow':
         case 'deleteWorkOrderV2':
@@ -1288,6 +1309,7 @@ class AgentViewProvider {
         case 'defaultConnection':
         case 'deleteConnection': {
           await this.connections().handle(message)
+          if (message.type === 'saveConnection') this.post({ type: 'connectionSaved' })
           this.postState()
           break
         }
@@ -1338,13 +1360,22 @@ class AgentViewProvider {
         case 'openRoster':
           this.showWide('settings'); break
         default:
+          // Сообщение без маршрута молча исчезало, и кнопка, которая его
+          // шлёт, выглядела нажатой-без-последствий: ни ошибки, ни записи.
+          // Так «СНЕСТИ КВЕСТ» доехал до выложенного приложения мёртвым —
+          // вебвью слал `purgeQuest`, а разбор о таком типе не знал.
+          // Затвор scripts/check-webview-message-routes.mjs ловит это до
+          // сборки; строка ниже — на случай, когда затвор обошли.
+          console.warn(`[point] сообщение вебвью без маршрута: ${String(message?.type || '(без типа)')}`)
           break
       }
     } catch (error) {
       // notify уже посылает webview сообщение вида {type:'error'} — отдельного
       // канала об отказе заводить не нужно. Не хватало ему только имени
       // запроса: без него интерфейс не знает, какой раздел замер в «загрузке».
-      this.notify(error, String(message?.type || ''))
+      this.notify(error, String(message?.type || ''), {
+        workOrderId: String(message?.workOrderId || ''),
+      })
     }
   }
 
@@ -1690,9 +1721,74 @@ class AgentViewProvider {
     )
     if (answer !== 'Удалить') return
     await this.service.request(`/api/quests/${encodeURIComponent(id)}`, { method: 'DELETE' })
+    // Само удаление уже состоялось. Даже если следующий GET сорвётся, нельзя
+    // оставить карточку на месте и показать общий «deleteQuest failed»:
+    // повторное нажатие тогда закономерно ответит «квест не найден».
     this.removeBootItem('quests', id)
     this.post({ type: 'questDeleted', questId: id })
+    // DeleteQuest может заодно убрать схему, принадлежавшую только этому
+    // квесту. Локальная правка одного `quests` оставляет уже удалённую схему в
+    // webview: ростер продолжает звать в уборку и визуально держит персонажей
+    // до следующего полного bootstrap. Берём цельный runtime-срез, чтобы
+    // quests, flows и их прогоны описывали один момент базы.
+    try {
+      await this.refreshRuntimeState()
+    } catch (error) {
+      this.postState()
+      throw new Error(`Квест удалён, но Хаб не смог обновить связанные схемы: ${error instanceof Error ? error.message : String(error)}`)
+    }
     this.postState()
+  }
+
+  // Снос квеста: остановить, откатить, удалить — одним решением человека.
+  //
+  // Отдельная кнопка, а не режим удаления. Удаление бережёт сделанное и
+  // отказывает, пока работа идёт; снос отвечает на другой вопрос — «этой работы
+  // быть не должно». Подтверждение спрашивается здесь, в оболочке: модальное
+  // окно вебвью человек закрывает мимоходом, а отменить снос нельзя.
+  //
+  // Что откатить не вышло — файл правили руками, набор уже в коммите — ядро
+  // возвращает списком, и об этом говорится вслух. Молчаливый снос оставил бы
+  // чужие правки в проекте без единой карточки, по которой их можно найти.
+  async purgeQuest(id) {
+    const quest = this.boot?.quests?.find(item => item.id === id)
+    if (!quest) throw new Error('Квест не найден в проекте.')
+    const answer = await vscode.window.showWarningMessage(
+      `Снести квест «${quest.title || 'без названия'}» и откатить его изменения?`,
+      {
+        modal: true,
+        detail: 'Прогон будет остановлен, изменения квеста — откачены в проекте, а сам квест вместе со схемой, прогонами, наборами правок и предложением удалён. Записи о потраченных токенах останутся. Отменить это нельзя.',
+      },
+      'Снести квест',
+    )
+    if (answer !== 'Снести квест') return
+    const result = await this.service.request(`/api/quests/${encodeURIComponent(id)}/purge`, { method: 'POST', body: '{}' })
+    // Снос уже состоялся: карточку убираем до обновления среза, иначе отказ
+    // следующего GET оставит на экране квест, которого больше нет.
+    this.removeBootItem('quests', id)
+    // Тот же тип сообщения, что у обычного удаления: вебвью нужно ровно одно —
+    // убрать исчезнувший квест с экрана и сбросить кэш по его идентификатору.
+    // Отличие сноса несёт поле `purged`, а рассказ о снесённом — оболочка:
+    // он нужен и тогда, когда Хаб уже закрыт.
+    this.post({ type: 'questDeleted', questId: id, purged: true, result })
+    try {
+      await this.refreshRuntimeState()
+    } catch (error) {
+      this.postState()
+      throw new Error(`Квест снесён, но Хаб не смог обновить связанные схемы: ${error instanceof Error ? error.message : String(error)}`)
+    }
+    this.postState()
+    const failures = Array.isArray(result?.failures) ? result.failures : []
+    const reverted = Number(result?.revertedFiles || 0)
+    if (failures.length) {
+      const named = failures.slice(0, 5).map(item => `${item.title || item.changeSetId || 'правка'}: ${item.reason}`).join('; ')
+      const rest = failures.length > 5 ? ` и ещё ${failures.length - 5}` : ''
+      vscode.window.showWarningMessage(`Квест снесён, но откатить удалось не всё — эти изменения остались в проекте: ${named}${rest}`)
+      return
+    }
+    vscode.window.showInformationMessage(reverted
+      ? `Квест снесён, откачено файлов: ${reverted}.`
+      : 'Квест снесён. Откатывать было нечего — изменений в проекте он не оставил.')
   }
 
   // Отряд держит своих участников: пока он есть, персонажа не распустить. Ядро
@@ -1976,7 +2072,7 @@ class AgentViewProvider {
   updateAgentBusy() { return hubPolling.updateAgentBusy(this) }
   onHubVisibility(visible) { return hubPolling.onHubVisibility(this, visible) }
   onServiceStatus(value) { return hubPolling.onServiceStatus(this, value) }
-  notify(error, request = '') {
+  notify(error, request = '', detail = {}) {
     const message = describeCoreFailure(error)
     if (!vscode.workspace.isTrusted) {
       this.postState()
@@ -1984,7 +2080,7 @@ class AgentViewProvider {
     }
     // `request` — имя запроса, на котором всё сломалось. Раздел, ушедший в
     // «загрузку», по нему узнаёт себя и перестаёт врать про загрузку.
-    this.post({ type: 'error', message, request })
+    this.post({ type: 'error', message, request, ...detail })
     void this.showCoreFailure(message)
   }
 
@@ -2643,6 +2739,7 @@ const CORE_FAILURE_HINTS = [
   [/the default profile cannot be deleted/i, 'Персонажа по умолчанию удалить нельзя.'],
   [/workspace is not open/i, 'Проект не открыт: откройте папку проекта, чтобы ядро могло работать.'],
   [/resource belongs to another project world/i, 'Эта запись принадлежит другому проекту.'],
+  [/belongs to another workspace/i, 'Эта запись принадлежит другому проекту. Переключитесь на него и повторите действие.'],
 ]
 
 function describeCoreFailure(error) {

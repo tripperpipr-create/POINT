@@ -27,7 +27,7 @@ import (
 	"local-agent-workbench/internal/workspace"
 )
 
-const Version = "1.2.2"
+const Version = "1.2.3"
 
 type App struct {
 	masterTurnsMu       sync.Mutex
@@ -58,6 +58,8 @@ type App struct {
 	diagnosticsMemo         map[string]diagnostics.RunDiagnostics
 	learningMu              sync.Mutex
 	learningReviewMu        sync.Mutex
+	masterLearningMu        sync.Mutex
+	masterLearningRunning   bool
 	learningWG              sync.WaitGroup
 	learningCtx             context.Context
 	learningCancel          context.CancelFunc

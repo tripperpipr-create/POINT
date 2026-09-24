@@ -37,7 +37,7 @@ export function createCompanionThreadViews({ live, COMPANION_PRESETS, companionB
     const repair = locked
       ? `<button type="button" class="primary" data-action="manage-trust">Настроить доступ</button>`
       : coreDown
-        ? `<button type="button" class="secondary" data-action="show-output">Хроника ядра</button><button type="button" class="primary" data-action="start-server">Запустить ядро</button>`
+        ? `<button type="button" class="secondary" data-action="show-output">Журнал ядра</button><button type="button" class="primary" data-action="start-server">Запустить ядро</button>`
         : `<button type="button" class="secondary" data-action="open-companion-setup">Настроить модель</button><button type="button" class="primary" data-action="companion-retry-last">Повторить</button>`
     // Остановленный вопрос человек чаще всего хочет задать снова — но только если
     // остановил его сам. Отмена новым сообщением значит, что он уже спросил

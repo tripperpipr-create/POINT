@@ -414,9 +414,9 @@ class BackendService {
     try {
       const choice = await vscode.window.showErrorMessage(
         'Ядро Point не запустилось с Docker sandbox. Docker Engine должен быть запущен, иначе автономные проекты выполнять негде.',
-        'Выключить Docker sandbox', 'Хроника ядра',
+        'Выключить Docker sandbox', 'Журнал ядра',
       )
-      if (choice === 'Хроника ядра') this.output.show(true)
+      if (choice === 'Журнал ядра') this.output.show(true)
       if (choice !== 'Выключить Docker sandbox') return
       await vscode.workspace.getConfiguration('localAgent').update('sandboxBackend', 'filtered-copy', vscode.ConfigurationTarget.Global)
       await vscode.commands.executeCommand('localAgent.restartServer')
@@ -447,7 +447,7 @@ class BackendService {
         const reason = child?.signalCode || child?.exitCode
         throw new Error(
           `Локальное ядро Point завершилось до готовности${reason != null ? ` (${reason})` : ''}. `
-          + `Откройте «Хроника ядра» (Output) — ${this.logPath}`,
+          + `Откройте «Журнал ядра» (Output) — ${this.logPath}`,
         )
       }
       try {
@@ -461,7 +461,7 @@ class BackendService {
     }
     const detail = lastError?.message || lastError?.cause?.message || 'нет ответа'
     const hint = /fetch failed|ECONNREFUSED|network/i.test(String(detail))
-      ? 'Процесс не отвечает на 127.0.0.1 (проверьте антивирус/брандмауэр или «Хроника ядра»).'
+      ? 'Процесс не отвечает на 127.0.0.1 (проверьте антивирус/брандмауэр или «Журнал ядра»).'
       : detail
     throw new Error(`Локальный сервис не запустился за 30 с: ${hint}`)
   }
@@ -583,7 +583,7 @@ class BackendService {
           throw cancel
         }
         this.hostLog('warn', `[api] ${requestId} ${method} ${route} timeout after ${timeoutMs}ms`)
-        throw new Error(`Локальное ядро не ответило за ${Math.round(timeoutMs / 1000)} с. Откройте «Хроника ядра».`)
+        throw new Error(`Локальное ядро не ответило за ${Math.round(timeoutMs / 1000)} с. Откройте «Журнал ядра».`)
       }
       if (!String(error?.message || '').startsWith('HTTP ') && !String(error?.message || '').includes('provider') && !String(error?.message || '').includes('companion')) {
         this.hostLog('error', `[api] ${requestId} ${method} ${route} failed: ${String(error?.message || error).slice(0, 400)}`)
@@ -2090,8 +2090,8 @@ class AgentViewProvider {
       await vscode.window.showErrorMessage(`Point: ${message}`)
       return
     }
-    const choice = await vscode.window.showErrorMessage(`Point: ${message}`, 'Хроника ядра', 'Перезапустить ядро')
-    if (choice === 'Хроника ядра') {
+    const choice = await vscode.window.showErrorMessage(`Point: ${message}`, 'Журнал ядра', 'Перезапустить ядро')
+    if (choice === 'Журнал ядра') {
       this.output.show(true)
       await showCoreChronicle(this.service, this.output)
       return
@@ -2753,13 +2753,13 @@ function describeCoreFailure(error) {
   // «Error» — ни причины, ни языка интерфейса.
   if (!text || /^Error:?$/i.test(text)) return 'Неизвестная ошибка локального ядра Point.'
   if (/fetch failed|Failed to fetch|ECONNREFUSED|ENOTFOUND|ECONNRESET|network/i.test(text)) {
-    return 'Локальное ядро Point не отвечает на 127.0.0.1. Откройте «Хроника ядра» или перезапустите ядро — антивирус/брандмауэр могут блокировать порт.'
+    return 'Локальное ядро Point не отвечает на 127.0.0.1. Откройте «Журнал ядра» или перезапустите ядро — антивирус/брандмауэр могут блокировать порт.'
   }
   for (const [pattern, russian] of CORE_FAILURE_HINTS) {
     if (pattern.test(text)) return russian
   }
   if (/^TypeError:/i.test(text) && /fetch/i.test(text)) {
-    return 'Не удалось связаться с локальным ядром Point. Откройте «Хроника ядра» или перезапустите ядро.'
+    return 'Не удалось связаться с локальным ядром Point. Откройте «Журнал ядра» или перезапустите ядро.'
   }
   return text
 }
@@ -2884,7 +2884,7 @@ const { createIDEObservationController } = createIDEObservations({
 
 function activate(context) {
   const activationStartedAt = Date.now()
-  const output = vscode.window.createOutputChannel('Point · Хроника ядра')
+  const output = vscode.window.createOutputChannel('Point · Журнал ядра')
   output.appendLine(`[activation] start pid=${process.pid}`)
   const status = vscode.window.createStatusBarItem('point.core', vscode.StatusBarAlignment.Left, 90)
   status.name = 'Ядро Point'
@@ -3327,7 +3327,7 @@ function activate(context) {
         { label: '$(extensions) Поддержка языков', description: 'Language Center', detail: 'Установить language server по требованию', command: 'localAgent.languageSupport' },
         { label: '$(database) Перестроить индекс', description: 'Карта мира', detail: 'Локальный индекс для search_code', command: 'localAgent.rebuildIndex' },
         { label: '$(server-process) Процессы', description: '', detail: 'Запущенные процессы IDE', command: 'localAgent.openProcesses' },
-        { label: '$(output) Хроника ядра', description: '', detail: 'Лог point-core', command: 'localAgent.showCoreChronicle' },
+        { label: '$(output) Журнал ядра', description: '', detail: 'Лог point-core', command: 'localAgent.showCoreChronicle' },
         { label: '$(settings-gear) Настройки IDE', description: 'Ctrl+Alt+S', detail: 'Параметры редактора и Point', command: 'localAgent.openIdeSettings' },
         { label: '$(home) Главная Point', description: 'Ctrl+Shift+1', detail: 'Стартовая страница мира', command: 'localAgent.openHome' },
         { label: '$(book) Летопись Git', description: 'Alt+9', detail: 'Коммиты и ветка текущего мира', command: 'localAgent.openChronicle' },
@@ -3532,8 +3532,8 @@ function activate(context) {
       }
       if (service.state === 'error') {
         const detail = service.lastDetail || 'Локальное ядро завершилось с ошибкой.'
-        const choice = await vscode.window.showErrorMessage(`Ядро Point: ${detail}`, 'Хроника ядра', 'Перезапустить', 'Открыть Гильдию')
-        if (choice === 'Хроника ядра') await showCoreChronicle(service, output)
+        const choice = await vscode.window.showErrorMessage(`Ядро Point: ${detail}`, 'Журнал ядра', 'Перезапустить', 'Открыть Гильдию')
+        if (choice === 'Журнал ядра') await showCoreChronicle(service, output)
         else if (choice === 'Перезапустить') await vscode.commands.executeCommand('localAgent.restartServer')
         else if (choice === 'Открыть Гильдию') await vscode.commands.executeCommand('localAgent.open')
         return

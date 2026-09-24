@@ -277,7 +277,7 @@
       },
       {
         "command": "localAgent.showCoreChronicle",
-        "title": "Хроника ядра",
+        "title": "Журнал ядра",
         "category": "Point",
         "icon": "$(output)"
       },
@@ -764,7 +764,7 @@
             "json"
           ],
           "default": "text",
-          "description": "Формат логов ядра Point. text — читаемый в «Хроника ядра»; json — для разбора скриптами."
+          "description": "Формат логов ядра Point. text — читаемый в «Журнал ядра»; json — для разбора скриптами."
         },
         "localAgent.cursorCommand": {
           "type": "string",

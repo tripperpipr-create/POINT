@@ -47,23 +47,23 @@ const alive = screen({ state: 'running' }, {
   onboarded: true, profiles: [], projectAgents: [], usageRecords: [],
   runs: [], quests: [], executions: [], changeSets: [],
 })
-if (/Ядро не поднялось|Гильдия отдыхает|Пробуждаем локальное ядро/.test(alive)) {
+if (/Ядро не поднялось|Ядро остановлено|Запускаем локальное ядро/.test(alive)) {
   console.log('с поднятым ядром показан экран службы — проверки прошли бы вхолостую')
   process.exit(1)
 }
 
 const starting = screen({ state: 'starting' }, undefined)
-check('запуск: сказано, что ядро поднимается', /Пробуждаем локальное ядро/.test(starting), starting.slice(0, 120))
+check('запуск: сказано, что ядро поднимается', /Запускаем локальное ядро/.test(starting), starting.slice(0, 120))
 check('запуск: не выдаётся за поломку', !/не поднялось|ошибк/i.test(starting), 'на экране запуска говорится об ошибке')
 
 const stopped = screen({ state: 'stopped' }, undefined)
-check('остановлено: есть чем запустить', /Пробудить ядро/.test(stopped), stopped.slice(0, 120))
+check('остановлено: есть чем запустить', /Запустить ядро/.test(stopped), stopped.slice(0, 120))
 
 const reason = 'listen tcp 127.0.0.1:8081: bind: address already in use'
 const failed = screen({ state: 'error', detail: reason }, undefined)
 check('ошибка: названа настоящая причина', failed.includes(reason), failed.slice(0, 160))
 check('ошибка: есть повтор запуска', /Повторить запуск/.test(failed), 'кнопки повтора нет')
-check('ошибка: есть путь к полному логу', /Хроника ядра/.test(failed), 'ссылки на хронику нет')
+check('ошибка: есть путь к полному логу', /Журнал ядра/.test(failed), 'ссылки на журнал ядра нет')
 
 // Причина может и не прийти — тогда экран обязан остаться осмысленным, а не
 // показывать пустое место там, где ждали текст.
@@ -78,7 +78,7 @@ check('ошибка без причины: экран не пустой',
 const dockFailed = screen({ state: 'error', detail: reason }, undefined, 'companion-peek')
 check('компаньон: названа настоящая причина', dockFailed.includes(reason), dockFailed.slice(0, 160))
 check('компаньон: есть чем запустить ядро',
-  /Пробудить ядро|Повторить запуск/.test(dockFailed),
+  /Запустить ядро|Повторить запуск/.test(dockFailed),
   dockFailed.slice(0, 160))
 
 if (failures.length) {

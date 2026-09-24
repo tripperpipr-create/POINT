@@ -51,48 +51,15 @@ body[data-layout="wide"] .agent-studio form > .profile-step-footer { grid-column
 body[data-layout="wide"] .agent-studio form > .profile-config-block { grid-column: 1 / -1; }
 .roster-expand, .roster-back { width: 100%; margin: 0 0 var(--s-4h); color: var(--point-mana); border-color: color-mix(in srgb, var(--point-mana) 45%, var(--point-border)); }
 
-.guild-roster { flex: 1; min-height: 0; padding: var(--s-5) 14px var(--s-4h); overflow: auto; color: var(--point-primary); background: var(--point-void); }
-.guild-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s-6); max-width: 1480px; margin: 0 auto var(--s-5); padding: 0 0 var(--s-5); border-bottom: 1px solid var(--point-border); }
-.guild-heading > div:first-child > span {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-4);
-  color: var(--point-mana);
-  font: 700 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace;
-  letter-spacing: .16em;
-  text-transform: uppercase;
-}
-.guild-heading > div:first-child > span::before {
-  content: '';
-  width: 8px;
-  height: 8px;
-  background: var(--point-ember);
-  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
-}
-.guild-heading h1 { margin: var(--s-4) 0 var(--s-2); color: var(--point-primary); font: 500 var(--t-display)/1.15 "JetBrains Mono", Consolas, monospace; letter-spacing: .02em; }
-.guild-heading p { margin: 0; max-width: var(--measure-narrow); color: var(--point-muted); font-size: var(--t-body); line-height: 1.45; }
-.guild-heading > div:last-child { display: flex; gap: var(--s-4); flex-wrap: wrap; justify-content: flex-end; align-items: flex-start; padding-top: 2px; }
-.guild-heading button { min-height: 34px; padding: var(--s-4) 14px; border-radius: var(--r-1); font: 650 var(--t-tiny)/1 "JetBrains Mono", Consolas, monospace; letter-spacing: .06em; text-transform: uppercase; }
-.guild-heading .primary,
-.guild-heading .launch {
-  color: var(--surface-void);
-  background: var(--point-ember);
-  border: 1px solid var(--point-ember);
- 
-}
-.guild-heading .primary:hover,
-.guild-heading .launch:hover { background: var(--ember-pressed, var(--ember-pressed)); border-color: var(--ember-hover); }
-.guild-heading .secondary { color: var(--point-arcane); border-color: color-mix(in srgb, var(--point-arcane) 55%, var(--point-border)); background: transparent; }
-.guild-heading .recruit {
-  color: var(--point-ember);
-  background: transparent;
-  border: 1px solid var(--point-ember);
- 
-}
-.guild-heading .recruit:hover {
-  color: var(--surface-void);
-  background: var(--point-ember);
-}
+/* ── Гильдия: шапка страницы ──────────────────────────────────────────────────
+   Название, одна строка о составе и два действия. Надписи над заголовком,
+   ромба-маркера и кнопок трёх разных цветов больше нет: раздел и так назван
+   вкладкой, а главное действие у страницы одно. */
+.guild-roster { flex: 1; min-height: 0; padding: var(--s-6) var(--s-7) var(--s-8); overflow: auto; color: var(--hub-text); background: var(--hub-void); }
+.guild-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s-6); max-width: 1480px; margin: 0 auto var(--s-5); }
+.guild-heading h1 { margin: 0 0 var(--s-2); color: var(--hub-text); font: var(--fw-semibold) var(--t-title)/1.2 var(--font-ui); }
+.guild-heading p { margin: 0; max-width: var(--measure-narrow); color: var(--hub-muted); font-size: var(--t-body); line-height: var(--lh-base); }
+.guild-heading > div:last-child { display: flex; flex: none; flex-wrap: wrap; justify-content: flex-end; gap: var(--s-4); }
 .quick-chat-hub {
   max-width: 1480px;
   margin: 0 auto 14px;
@@ -112,10 +79,9 @@ body[data-layout="wide"] .agent-studio form > .profile-config-block { grid-colum
   display: block;
   margin-bottom: 4px;
   color: var(--point-ember);
-  font: 650 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace;
-  letter-spacing: .08em;
+  font: 650 var(--t-small)/1 var(--font-ui);
 }
-.quick-chat-hub strong { display: block; font: 600 var(--t-lead)/1.2 "JetBrains Mono", Consolas, monospace; }
+.quick-chat-hub strong { display: block; font: 600 var(--t-lead)/1.2 var(--font-ui); }
 /* Абзац шёл в 107 знаков: читаемо примерно до 75, дальше глаз теряет начало
    следующей строки. Ограничение по мере, а не по пикселям, — оно держится при
    любом кегле. */
@@ -155,275 +121,134 @@ body[data-layout="wide"] .agent-studio form > .profile-config-block { grid-colum
   min-height: 32px;
   padding: 0 14px;
   border-radius: var(--r-1);
-  font: 650 var(--t-tiny)/1 "JetBrains Mono", Consolas, monospace;
-  letter-spacing: .06em;
-  text-transform: uppercase;
+  font: 650 var(--t-small)/1 var(--font-ui);
 }
 @media (max-width: 900px) {
   .quick-chat-grid { grid-template-columns: 1fr; }
 }
-.guild-layout { display: grid; grid-template-columns: minmax(280px, 1.05fr) minmax(360px, 1.45fr) minmax(240px, .85fr); gap: 1px; max-width: 1480px; min-height: 0; margin: 0 auto; padding: 1px; background: var(--point-border); }
-.roster-list, .roster-detail, .roster-progression { min-width: 0; background: var(--point-panel); }
-.roster-list, .roster-progression { padding: var(--s-4h); }
-.roster-list > header, .roster-progression > header, .equipped-tools > header { display: flex; align-items: center; justify-content: space-between; padding-bottom: var(--s-4); color: var(--point-muted); border-bottom: 1px solid var(--point-border); font: 650 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace; letter-spacing: .09em; text-transform: uppercase; }
-.roster-list > header span, .roster-progression > header span, .equipped-tools > header span { color: var(--point-mana); }
-/* Карточки ростера раскладываются по доступной ширине, а не всегда по две.
-   В колонке 286px две карточки дают по 139px, и на имя остаётся 35px: «SAGE-7»
-   превращался в «SAG…», «FORGE» — в «FO…». Список, по которому нельзя отличить
-   агентов, не выполняет свою работу. */
-.roster-list > div { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: var(--s-4); padding-top: var(--s-4h); }
-.roster-list > div:has(> .roster-card:only-child) { grid-template-columns: minmax(0, 1fr); }
+/* ── Гильдия: ростер и лист агента ────────────────────────────────────────────
+   Две колонки вместо трёх: слева карточки агентов, справа лист выбранного.
+   Прогрессия жила третьей колонкой и повторяла уровень и опыт из листа; теперь
+   это его первая строка.
+
+   Карточка — RPG-лист в три строки: плашка уровня у имени, опыт до следующего
+   уровня и две характеристики полосами. Игровое здесь — уровень, опыт и статы:
+   они считаются по настоящим запускам. Эмблемы в рамке со штриховкой нет —
+   один и тот же знак у каждого агента никого не отличал. */
+.guild-layout { display: grid; grid-template-columns: minmax(240px, 320px) minmax(0, 1fr); gap: var(--s-6); align-items: start; max-width: 1480px; margin: 0 auto; }
+.roster-list, .roster-detail { min-width: 0; }
+.roster-list > div { display: grid; gap: var(--s-3); }
 .roster-card {
   display: grid;
-  grid-template-columns: 48px minmax(0,1fr);
-  gap: var(--s-4h);
-  min-height: 0;
-  padding: var(--s-4h);
-  color: var(--point-primary);
-  background: var(--point-void);
-  border: 1px solid var(--point-border);
-  border-radius: var(--r-1);
+  gap: var(--s-4);
+  width: 100%;
+  padding: var(--s-5);
+  color: var(--hub-text);
+  background: var(--hub-raised);
+  border: 1px solid var(--hub-border);
+  border-radius: var(--r-2);
   text-align: left;
- 
+  cursor: pointer;
+  transition: border-color var(--motion-fast) var(--ease), background-color var(--motion-fast) var(--ease);
 }
-.roster-card:hover { background: var(--point-raised); border-color: color-mix(in srgb, var(--point-border) 70%, var(--point-muted)); }
-.roster-card.selected {
-  background: var(--point-selected);
-  border-color: var(--point-ember);
-  box-shadow: inset 2px 0 0 var(--point-ember);
-}
-.roster-avatar,
-.detail-avatar {
-  position: relative;
-  display: grid;
-  place-items: center;
-  flex: 0 0 auto;
-  color: var(--point-arcane);
-  background:
-    linear-gradient(90deg, color-mix(in srgb, var(--point-arcane) 14%, transparent) 1px, transparent 1px) 0 0 / 4px 4px,
-    linear-gradient(0deg, color-mix(in srgb, var(--point-arcane) 14%, transparent) 1px, transparent 1px) 0 0 / 4px 4px,
-    var(--point-void);
-  border: 1px solid var(--point-arcane);
-  border-radius: var(--r-1);
- 
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--point-void) 70%, transparent);
-}
-.roster-avatar { width: 44px; height: 44px; font-size: var(--t-title); }
-.detail-avatar { width: 52px; height: 52px; font-size: var(--t-display); color: var(--point-ember); border-color: var(--point-ember); background:
-  linear-gradient(90deg, color-mix(in srgb, var(--point-ember) 16%, transparent) 1px, transparent 1px) 0 0 / 4px 4px,
-  linear-gradient(0deg, color-mix(in srgb, var(--point-ember) 16%, transparent) 1px, transparent 1px) 0 0 / 4px 4px,
-  var(--point-void);
-}
-.roster-avatar::before,
-.roster-avatar::after,
-.detail-avatar::before,
-.detail-avatar::after {
-  content: '';
-  position: absolute;
-  width: 5px;
-  height: 5px;
-  border: 1px solid currentColor;
-  pointer-events: none;
-}
-.roster-avatar::before,
-.detail-avatar::before { top: 2px; left: 2px; border-right: 0; border-bottom: 0; }
-.roster-avatar::after,
-.detail-avatar::after { right: 2px; bottom: 2px; border-left: 0; border-top: 0; }
-.roster-avatar i,
-.detail-avatar i {
-  display: grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  font-style: normal;
-  line-height: 1;
-  image-rendering: pixelated;
-}
-.detail-avatar i { width: 26px; height: 26px; }
-.roster-card.selected .roster-avatar {
-  color: var(--point-ember);
-  border-color: var(--point-ember);
-  background:
-    linear-gradient(90deg, color-mix(in srgb, var(--point-ember) 18%, transparent) 1px, transparent 1px) 0 0 / 4px 4px,
-    linear-gradient(0deg, color-mix(in srgb, var(--point-ember) 18%, transparent) 1px, transparent 1px) 0 0 / 4px 4px,
-    color-mix(in srgb, var(--point-ember) 6%, var(--point-void));
-}
-.roster-card > div { min-width: 0; display: grid; gap: var(--s-3); align-content: start; }
-.roster-card-head { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: var(--s-4); align-items: start; }
+.roster-card:hover { border-color: var(--hub-border-strong); }
+.roster-card.selected { background: var(--hub-selected); border-color: var(--ember-line-loud); }
+.roster-card:focus-visible { outline: 1px solid var(--ui-focus); outline-offset: 1px; }
+.roster-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s-4); }
 .roster-card-head > div { min-width: 0; }
 .roster-card strong, .roster-card small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.roster-card strong { font: 600 var(--t-base)/1.2 "JetBrains Mono", Consolas, monospace; }
-.roster-card small { margin-top: 2px; color: var(--point-arcane); font: 600 var(--t-tiny)/1.2 "JetBrains Mono", Consolas, monospace; }
-.roster-lv {
-  padding: var(--s-2) var(--s-3);
-  color: var(--point-ember);
-  border: 1px solid var(--point-ember);
-  border-radius: var(--r-1);
-  font: normal 700 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace;
-  letter-spacing: .04em;
-  white-space: nowrap;
-}
-.roster-card .roster-bars { display: grid; gap: var(--s-3); margin-top: 2px; }
-/* Метка и значение разводятся по краям строки. Без этого они склеивались в
-   «НАДЁЖНОСТЬ100%»: подпись 54px и число 22px ровно заполняли строку 76px, и
-   зазору взяться было неоткуда. */
-.roster-card .roster-bars > label { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-3); }
-.roster-card .roster-bars > label > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.roster-card .roster-bars > label > b { flex: none; }
-.roster-card label { display: flex; justify-content: space-between; margin-top: 0; color: var(--point-muted); font: 600 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace; letter-spacing: .05em; text-transform: uppercase; }
-.roster-card label b { color: var(--point-primary); font-weight: 650; }
-.roster-card progress { margin-top: 2px; height: 4px; }
-.roster-card progress.mana::-webkit-progress-value { background: var(--point-mana); }
-.roster-card footer { display: flex; align-items: center; justify-content: flex-end; margin-top: 2px; color: var(--point-muted); font: 600 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace; }
-.roster-card .roster-status { display: inline-flex; align-items: center; gap: var(--s-3); letter-spacing: .05em; text-transform: uppercase; }
-.roster-card .roster-status i { width: 5px; height: 5px; border-radius: 0; background: currentColor; transform: rotate(45deg); }
-.roster-card .roster-status.idle { color: var(--point-vital); }
-.roster-card .roster-status.setup { color: var(--point-ember); }
-.roster-card .roster-status.channeling { color: var(--point-arcane); }
+.roster-card strong { font: var(--fw-semibold) var(--t-base)/1.3 var(--font-ui); }
+.roster-card small { margin-top: var(--s-1); color: var(--hub-muted); font: var(--fw-normal) var(--t-small)/1.3 var(--font-ui); }
+/* Уровень — единственный игровой знак рядом с именем: плашка, а не рамка. */
+.roster-lv { flex: none; padding: var(--s-1) var(--s-3); border-radius: var(--r-1); background: var(--ember-wash-strong); color: var(--hub-text); font: normal var(--fw-semibold) var(--t-small)/1.3 var(--font-ui); white-space: nowrap; }
+.roster-bars { display: grid; gap: var(--s-2); }
+.roster-bars > label,
+.level-track > label { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-3); color: var(--hub-muted); font: var(--fw-normal) var(--t-small)/1.3 var(--font-ui); }
+.roster-bars > label > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.roster-bars > label > b,
+.level-track > label > b { flex: none; color: var(--hub-text-2); font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; }
+.roster-bars > progress { margin-bottom: var(--s-2); }
+.roster-card footer { display: flex; }
+.roster-card .roster-status { display: inline-flex; align-items: center; gap: var(--s-3); color: var(--hub-muted); font: var(--fw-medium) var(--t-small)/1.3 var(--font-ui); }
+.roster-card .roster-status.idle { color: var(--vital); }
+.roster-card .roster-status.setup { color: var(--caution); }
+.roster-card .roster-status.channeling { color: var(--ember-light); }
 
-.roster-detail { display: grid; align-content: start; gap: var(--s-4h); padding: var(--s-5); }
-.roster-detail > header { display: grid; grid-template-columns: 52px minmax(0,1fr) auto; align-items: center; gap: var(--s-5); padding-bottom: var(--s-4h); border-bottom: 1px solid var(--point-border); }
-.roster-detail header small { color: var(--point-muted); font: 650 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace; letter-spacing: .1em; text-transform: uppercase; }
-.roster-detail h2 { margin: var(--s-3) 0 var(--s-1); font: 500 var(--t-title)/1.15 "JetBrains Mono", Consolas, monospace; }
-.roster-detail header p { margin: 0; color: var(--point-arcane); font: 600 var(--t-small)/1.3 "JetBrains Mono", Consolas, monospace; }
-.roster-detail header em { align-self: start; padding: var(--s-2) var(--s-4); color: var(--point-ember); border: 1px solid var(--point-ember); border-radius: var(--r-1); font: normal 700 var(--t-tiny)/1.2 "JetBrains Mono", Consolas, monospace; letter-spacing: .04em; }
-.character-purpose small, .agent-runtime small { color: var(--point-muted); font: 650 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace; letter-spacing: .08em; text-transform: uppercase; }
-.character-purpose p { margin: var(--s-4) 0 0; color: var(--point-muted); font-size: var(--t-body); line-height: 1.55; }
-.character-purpose ul { margin: var(--s-4) 0 0; padding-left: 16px; color: var(--point-muted); font-size: var(--t-small); line-height: 1.45; }
-.detail-stats { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 1px; padding: 1px; background: var(--point-border); }
-.detail-stats span { display: grid; gap: var(--s-3); padding: var(--s-4h); background: var(--point-void); }
-.detail-stats small { color: var(--point-muted); font: 650 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace; letter-spacing: .06em; text-transform: uppercase; }
-.detail-stats b { color: var(--point-primary); font: 550 var(--t-lead)/1 "JetBrains Mono", Consolas, monospace; }
-.equipped-tools > div { display: flex; flex-wrap: wrap; gap: var(--s-3); padding-top: var(--s-4); }
-.equipped-tools > div span { padding: var(--s-3) var(--s-4); color: var(--point-mana); border: 1px solid color-mix(in srgb, var(--point-mana) 48%, var(--point-border)); border-radius: var(--r-1); font: 650 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace; text-transform: uppercase; }
-.equipped-tools > div .tone-1 { color: var(--point-arcane); border-color: color-mix(in srgb, var(--point-arcane) 50%, var(--point-border)); }
-.equipped-tools > div .tone-2 { color: var(--point-vital); border-color: color-mix(in srgb, var(--point-vital) 50%, var(--point-border)); }
-.equipped-tools em { color: var(--point-muted); font-size: var(--t-small); }
-.agent-runtime { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 1px; background: var(--point-border); }
-.agent-runtime > div { display: grid; gap: var(--s-3); min-width: 0; padding: var(--s-4h); background: var(--point-panel); }
-.agent-runtime strong { overflow: hidden; color: var(--point-primary); font-size: var(--t-tiny); text-overflow: ellipsis; white-space: nowrap; }
-.roster-detail > footer { display: flex; justify-content: flex-end; gap: var(--s-4); padding-top: 2px; }
-.roster-detail > footer .secondary {
-  color: var(--point-primary);
-  background: transparent;
-  border: 1px solid var(--point-border);
-}
-.roster-detail > footer .primary { }
+/* Полосы характеристик: опыт — цветом действия темы, надёжность — успехом,
+   доля инструментов — нейтральной ступенью: это охват, а не оценка. */
+.guild-roster progress { display: block; width: 100%; height: 4px; border: 0; border-radius: var(--r-full); overflow: hidden; background: var(--hall-track); appearance: none; }
+.guild-roster progress::-webkit-progress-bar { background: var(--hall-track); }
+.guild-roster progress::-webkit-progress-value { background: var(--ember); }
+.guild-roster progress::-moz-progress-bar { background: var(--ember); }
+.guild-roster progress.vital::-webkit-progress-value { background: var(--vital); }
+.guild-roster progress.vital::-moz-progress-bar { background: var(--vital); }
+.guild-roster progress.mana::-webkit-progress-value { background: var(--hub-muted); }
+.guild-roster progress.mana::-moz-progress-bar { background: var(--hub-muted); }
 
-.roster-progression { display: grid; align-content: start; gap: var(--s-5); }
-.roster-progression > header { border-bottom-color: color-mix(in srgb, var(--point-ember) 35%, var(--point-border)); }
-.roster-progression > header span { color: var(--point-ember); }
-.roster-progression > .active-quest {
-  margin: 0;
-  border-left-width: var(--edge-accent);
-}
-.level-track { display: grid; gap: var(--s-3); padding: var(--s-4h); background: var(--point-void); border: 1px solid var(--point-border); border-left: var(--edge-accent) solid var(--point-ember); border-radius: var(--r-1); }
-.level-track label { display: flex; justify-content: space-between; color: var(--point-muted); font: 650 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace; letter-spacing: .05em; text-transform: uppercase; }
-.level-track label b { color: var(--point-primary); }
-.level-track small { color: var(--point-muted); font-size: var(--t-micro); line-height: 1.4; }
-.roster-synergy { display: grid; gap: var(--s-4); padding: var(--s-4h); background: var(--point-void); border: 1px solid var(--point-border); border-radius: var(--r-1); }
+.roster-detail { display: grid; align-content: start; gap: var(--s-6); padding: var(--s-6); background: var(--hub-raised); border: 1px solid var(--hub-border); border-radius: var(--r-2); }
+.roster-detail > header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s-5); }
+.roster-detail > header > div { min-width: 0; }
+.roster-detail h2 { margin: 0; overflow-wrap: anywhere; font: var(--fw-semibold) var(--t-title)/1.2 var(--font-ui); }
+.roster-detail > header p { margin: var(--s-2) 0 0; color: var(--hub-muted); font: var(--fw-normal) var(--t-body)/1.3 var(--font-ui); }
+.level-track { display: grid; gap: var(--s-3); }
+.level-track progress { height: 6px; }
+.level-track small { color: var(--hub-muted); font-size: var(--t-small); line-height: var(--lh-base); }
+.roster-actions { display: flex; flex-wrap: wrap; gap: var(--s-4); }
+.roster-actions .danger-button { margin-left: auto; }
+.detail-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s-4); }
+.detail-stats span { display: grid; gap: var(--s-2); min-width: 0; padding: var(--s-4) var(--s-5); border-radius: var(--r-1); background: var(--hub-void); }
+.detail-stats small { color: var(--hub-muted); font: var(--fw-normal) var(--t-small)/1.3 var(--font-ui); }
+.detail-stats b { color: var(--hub-text); font: var(--fw-semibold) var(--t-lead)/1.2 var(--font-ui); font-variant-numeric: tabular-nums; }
+.character-purpose small,
+.agent-runtime small { color: var(--hub-muted); font: var(--fw-normal) var(--t-small)/1.3 var(--font-ui); }
+.character-purpose p { margin: var(--s-2) 0 0; max-width: var(--measure); color: var(--hub-text-2); font-size: var(--t-body); line-height: var(--lh-base); }
+.character-purpose ul { margin: var(--s-3) 0 0; padding-left: var(--s-6); color: var(--hub-text-3); font-size: var(--t-body); line-height: var(--lh-base); }
+.equipped-tools > header,
 .roster-synergy > header,
-.recent-quests > header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  color: var(--point-muted);
-  font: 650 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace;
-  letter-spacing: .09em;
-  text-transform: uppercase;
-}
+.recent-quests > header { display: flex; align-items: baseline; gap: var(--s-3); color: var(--hub-text); font: var(--fw-semibold) var(--t-body)/1.3 var(--font-ui); }
+.equipped-tools > header span,
 .roster-synergy > header span,
-.recent-quests > header span { color: var(--point-mana); }
-.roster-synergy > div { display: grid; gap: var(--s-3); }
-.roster-synergy > div > button {
-  display: grid;
-  grid-template-columns: 22px minmax(0,1fr) auto;
-  gap: var(--s-4);
-  align-items: center;
-  padding: var(--s-4) var(--s-4);
-  color: var(--point-primary);
-  background: var(--point-panel);
-  border: 1px solid var(--point-border);
-  border-radius: var(--r-1);
-  text-align: left;
-}
-.roster-synergy > div > button:hover { background: var(--point-raised); border-color: color-mix(in srgb, var(--point-arcane) 45%, var(--point-border)); }
-.roster-synergy > div > button > span:first-child {
-  display: grid;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-  color: var(--point-arcane);
-  border: 1px solid var(--point-arcane);
-  border-radius: var(--r-1);
-  font-size: var(--t-tiny);
-}
-.roster-synergy > div > button strong,
-.roster-synergy > div > button small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.roster-synergy > div > button strong { font: 600 var(--t-small)/1.2 "JetBrains Mono", Consolas, monospace; }
-.roster-synergy > div > button small { margin-top: 2px; color: var(--point-muted); font-size: var(--t-micro); }
-.roster-synergy > div > button em {
-  color: var(--point-arcane);
-  font: normal 650 var(--t-tiny)/1 "JetBrains Mono", Consolas, monospace;
-}
-.roster-synergy > p,
-.roster-synergy.empty > p { margin: 0; color: var(--point-muted); font-size: var(--t-tiny); line-height: 1.45; }
-.recent-quests { display: grid; gap: var(--s-4); }
-.recent-quests > button { display: grid; grid-template-columns: 24px minmax(0,1fr); gap: var(--s-4); padding: var(--s-4); color: var(--point-primary); background: var(--point-void); border: 1px solid var(--point-border); border-radius: var(--r-1); text-align: left; }
-.recent-quests > button:hover { background: var(--point-raised); border-color: color-mix(in srgb, var(--point-border) 65%, var(--point-muted)); }
-.recent-quests > button > span:first-child { grid-row: 1 / span 2; display: grid; place-items: center; width: 22px; height: 22px; color: var(--point-ember); border: 1px solid var(--point-ember); border-radius: var(--r-1); font: 650 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace; }
+.recent-quests > header span { color: var(--hub-muted); font-weight: var(--fw-normal); }
+.equipped-tools > div { display: flex; flex-wrap: wrap; gap: var(--s-3); padding-top: var(--s-4); }
+.equipped-tools > div span { padding: var(--s-1) var(--s-3); border-radius: var(--r-1); background: var(--hub-selected); color: var(--hub-text-3); font: var(--fw-normal) var(--t-small)/1.3 var(--font-ui); }
+.equipped-tools em { color: var(--hub-muted); font-size: var(--t-small); font-style: normal; }
+.agent-runtime { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-4) var(--s-6); }
+.agent-runtime > div { display: grid; gap: var(--s-1); min-width: 0; }
+.agent-runtime strong { overflow: hidden; color: var(--hub-text); font: var(--fw-medium) var(--t-body)/1.3 var(--font-ui); text-overflow: ellipsis; white-space: nowrap; }
+.roster-synergy { display: grid; gap: var(--s-4); }
+.roster-synergy > div { display: grid; gap: var(--s-2); }
+.roster-synergy > div > button,
+.recent-quests > button { display: flex; align-items: center; justify-content: space-between; gap: var(--s-4); width: 100%; padding: var(--s-3) var(--s-4); border: 1px solid var(--hub-border); border-radius: var(--r-1); background: transparent; color: var(--hub-text); text-align: left; cursor: pointer; }
+.roster-synergy > div > button:hover,
+.recent-quests > button:hover { background: var(--hub-selected); }
+.roster-synergy > div > button > div,
 .recent-quests > button > div { min-width: 0; }
+.roster-synergy strong, .roster-synergy small,
 .recent-quests strong, .recent-quests small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.recent-quests strong { font-size: var(--t-tiny); }
-.recent-quests small { margin-top: var(--s-2); color: var(--point-muted); font-size: var(--t-micro); }
-.recent-quests .status { grid-column: 2; justify-self: start; margin-top: var(--s-2); }
-.recent-quests > p { color: var(--point-muted); font-size: var(--t-tiny); }
-/* Итог по отряду виден, а не лежит за краем.
-   Три числа обо всей команде стояли в конце страницы — на y=910 при видимых
-   860, ниже трёх колонок, и их не видел никто. Теперь это строка под шапкой:
-   сначала сколько квестов у отряда и какова его надёжность, потом сам ростер
-   и разбор выбранного. Тот же порядок, что на Статистике, где числа тоже
-   переехали наверх. */
-.guild-summary {
-  display: grid;
-  margin-top: 0;
-  grid-template-columns: auto repeat(3, minmax(110px, 180px)) 1fr;
-  gap: 1px;
-  max-width: 1480px;
-  margin: var(--s-4h) auto 0;
-  padding: 1px;
-  background: var(--point-border);
-  border: 1px solid var(--point-border);
-}
-.guild-summary::before {
-  content: 'ОТРЯД';
-  display: grid;
-  place-items: center;
-  padding: 0 14px;
-  color: var(--point-ember);
-  background: var(--point-panel);
-  font: 700 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace;
-  letter-spacing: .12em;
-}
-.guild-summary > span, .guild-summary > p { margin: 0; padding: var(--s-4h) var(--s-5); background: var(--point-panel); }
-.guild-summary > span { display: grid; gap: var(--s-2); }
-.guild-summary small { color: var(--point-muted); font: 650 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace; letter-spacing: .06em; text-transform: uppercase; }
-.guild-summary b { color: var(--point-primary); font: 500 var(--t-lead)/1 "JetBrains Mono", Consolas, monospace; }
-.guild-summary > span:nth-child(3) b { color: var(--point-vital); }
-.guild-summary p { display: grid; place-items: center end; color: var(--point-muted); font: 600 var(--t-micro)/1.35 "JetBrains Mono", Consolas, monospace; text-align: right; }
-.history-limit { color: var(--point-muted); font-size: var(--t-tiny); text-align: center; }
+.roster-synergy strong,
+.recent-quests strong { font: var(--fw-medium) var(--t-body)/1.3 var(--font-ui); }
+.roster-synergy small,
+.recent-quests small { margin-top: var(--s-1); color: var(--hub-muted); font-size: var(--t-small); }
+.roster-synergy em { flex: none; color: var(--hub-text-2); font: normal var(--fw-medium) var(--t-small)/1 var(--font-ui); }
+.roster-synergy > p,
+.recent-quests > p { margin: 0; color: var(--hub-muted); font-size: var(--t-small); line-height: var(--lh-base); }
+.recent-quests { display: grid; gap: var(--s-3); }
+/* Итог по отряду — строка под шапкой, а не таблица с меткой сбоку: сколько
+   квестов, сколько завершено и какова надёжность, и откуда эти числа. */
+.guild-summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s-3) var(--s-7); max-width: 1480px; margin: 0 auto var(--s-6); padding-bottom: var(--s-5); border-bottom: 1px solid var(--hub-border-soft); }
+.guild-summary > span { display: flex; align-items: baseline; gap: var(--s-3); }
+.guild-summary small { color: var(--hub-muted); font: var(--fw-normal) var(--t-small)/1.3 var(--font-ui); }
+.guild-summary b { color: var(--hub-text); font: var(--fw-semibold) var(--t-base)/1.3 var(--font-ui); font-variant-numeric: tabular-nums; }
+.guild-summary p { margin: 0 0 0 auto; color: var(--hub-muted); font-size: var(--t-small); }
+.guild-roster > .hire-drawer,
+.guild-roster > .roster-flows-note { max-width: 1480px; margin: var(--s-6) auto 0; }
+.history-limit { color: var(--point-muted); font-size: var(--t-small); text-align: center; }
 
-@media (max-width: 1050px) {
-  .guild-layout { grid-template-columns: minmax(270px,.9fr) minmax(390px,1.3fr); }
-  .roster-progression { grid-column: 1 / -1; }
-  .roster-progression .recent-quests { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); }
+@media (max-width: 980px) {
+  .guild-heading { display: grid; }
+  .guild-heading > div:last-child { justify-content: flex-start; }
+  .guild-summary p { margin-left: 0; }
 }
 @media (max-width: 760px) {
   body[data-layout="wide"] .app { min-width: 520px; }
-  .guild-heading { display: grid; }
-  .guild-layout { grid-template-columns: 1fr; }
-  .roster-progression { grid-column: auto; }
-  .guild-summary { grid-template-columns: auto repeat(3,minmax(0,1fr)); }
-  .guild-summary p { grid-column: 1 / -1; place-items: center start; text-align: left; }
-  .guild-summary::before { grid-row: 1; }
 }

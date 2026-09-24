@@ -8,7 +8,6 @@
 .command-center-kicker > span {
   color: var(--mana);
   font: 650 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace;
-  letter-spacing: .1em;
 }
 .situation-badge {
   display: inline-flex;
@@ -19,9 +18,7 @@
   border-radius: var(--radius);
   background: var(--void);
   color: var(--muted);
-  font: 650 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace;
-  letter-spacing: .06em;
-  text-transform: uppercase;
+  font: 650 var(--t-small)/1 var(--font-ui);
   font-style: normal;
 }
 .situation-badge.tone-alert {
@@ -68,12 +65,11 @@
 }
 .hub-shell.tabs > button,
 .hub-shell-8.tabs > button {
-  font-family: "JetBrains Mono", Consolas, monospace;
-  font-size: var(--t-tiny);
-  letter-spacing: .02em;
+  font-family: var(--font-ui);
+  font-size: var(--t-small);
 }
 .hub-shell-8.tabs > button b {
-  font: 650 var(--t-tiny)/1.15 "JetBrains Mono", Consolas, monospace;
+  font: 650 var(--t-small)/1.15 var(--font-ui);
 }
 .hub-card-footer,
 .proposal-actions {
@@ -99,7 +95,7 @@
   border-radius: var(--radius);
   background: var(--void);
   color: var(--mana);
-  font: 650 var(--t-micro)/1.2 "JetBrains Mono", Consolas, monospace;
+  font: 650 var(--t-small)/1.2 var(--font-ui);
 }
 .hub-skill-card {
   display: grid;
@@ -109,9 +105,8 @@
 }
 .hub-skill-card .equip-on {
   color: var(--vital);
-  font: 650 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace;
+  font: 650 var(--t-small)/1 var(--font-ui);
   font-style: normal;
-  text-transform: uppercase;
 }
 .empty.compact.point-frame {
   display: grid;
@@ -123,7 +118,7 @@
 }
 .empty-glyph {
   color: var(--mana);
-  font: 700 var(--t-title)/1 "JetBrains Mono", Consolas, monospace;
+  font: 700 var(--t-title)/1 var(--font-ui);
 }
 .empty.compact .empty-next {
   display: flex;
@@ -143,11 +138,9 @@
 }
 .companion-review-head strong {
   color: var(--ember);
-  font: 650 var(--t-tiny)/1 "JetBrains Mono", Consolas, monospace;
-  letter-spacing: .06em;
-  text-transform: uppercase;
+  font: 650 var(--t-small)/1 var(--font-ui);
 }
-.companion-review-head small { color: var(--muted); font-size: var(--t-micro); }
+.companion-review-head small { color: var(--muted); font-size: var(--t-small); }
 .quest-proposal-list,
 .companion-action-list {
   scroll-margin-top: 12px;
@@ -180,9 +173,7 @@
 }
 .companion-pending-cue > span {
   color: var(--mana);
-  font: 700 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace;
-  letter-spacing: .06em;
-  text-transform: uppercase;
+  font: 700 var(--t-small)/1 var(--font-ui);
 }
 .companion-pending-cue p {
   margin: 0;
@@ -236,7 +227,7 @@
 }
 
 .hub-databases .db-table-wrap { overflow: auto; max-height: 360px; border: 1px solid var(--point-border, var(--vscode-widget-border)); }
-.hub-databases .db-table { width: 100%; border-collapse: collapse; font: var(--t-body)/1.35 "JetBrains Mono", Consolas, monospace; }
+.hub-databases .db-table { width: 100%; border-collapse: collapse; font: var(--t-body)/1.35 var(--font-ui); }
 .hub-databases .db-table th, .hub-databases .db-table td { padding: var(--s-2) var(--s-4); border-bottom: 1px solid var(--point-border, var(--vscode-widget-border)); text-align: left; vertical-align: top; }
 .hub-databases .db-table th { position: sticky; top: 0; background: var(--point-panel, var(--vscode-sideBar-background)); }
 .hub-databases .db-query-result, .hub-databases .db-schema { margin-top: 12px; }
@@ -249,9 +240,9 @@ button.linkish { background: none; border: none; color: var(--vscode-textLink-fo
   border-radius: var(--r-3);
   background: var(--surface-void);
 }
-.execution-guarantees summary { cursor: pointer; padding: var(--s-3) var(--s-4h); font-size: var(--t-small); letter-spacing: var(--tracking-label); }
+.execution-guarantees summary { cursor: pointer; padding: var(--s-3) var(--s-4h); font-size: var(--t-small); }
 .execution-guarantees > div { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-2); padding: 0 var(--s-4h) var(--s-4); }
-.execution-guarantees span { display: grid; grid-template-columns: auto 1fr; column-gap: var(--s-3); align-items: center; font-size: var(--t-micro); }
+.execution-guarantees span { display: grid; grid-template-columns: auto 1fr; column-gap: var(--s-3); align-items: center; font-size: var(--t-small); }
 .execution-guarantees span em { grid-column: 2; opacity: .68; font-style: normal; }
 .execution-guarantees .available b { color: var(--point-success, var(--vital)); }
 .execution-guarantees .unavailable b { color: var(--point-warning, var(--caution)); }

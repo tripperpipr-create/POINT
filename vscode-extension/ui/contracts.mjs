@@ -834,7 +834,7 @@ const TYPE_SCALE = new Set(
 // 16. CLI-агенты сняты. Карточка исполнения показывает гарантии Point sandbox
 //     (рабочая копия / процесс / сеть / секреты), а не границу Cursor.
 {
-  for (const label of ['РАБОЧАЯ КОПИЯ', 'ПРОЦЕСС', 'СЕТЬ', 'СЕКРЕТЫ']) {
+  for (const label of ['Рабочая копия', 'Процесс', 'Сеть', 'Секреты']) {
     if (!webviewSource.includes(label)) fail(`в Execution пропала фактическая гарантия ${label}`)
   }
   if (webviewSource.includes('Cursor Agent работает в отдельной копии проекта')) {

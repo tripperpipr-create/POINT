@@ -106,12 +106,12 @@ function screen(selectedTab = 'overview') {
 }
 
 const { html, posted } = screen('overview')
-if (!html.includes('ПЕРЕПЛАНИРОВАТЬ ЭТАП')) {
+if (!html.includes('Перепланировать этап')) {
   console.error('mid-flight replan control missing on overview for active structured quest')
   console.error(html.slice(0, 4000))
   process.exit(1)
 }
-if (!html.includes('УТВЕРДИТЬ НОВУЮ ЦЕЛЬ')) {
+if (!html.includes('Утвердить новую цель')) {
   console.error('mid-flight revise control missing on overview')
   process.exit(1)
 }

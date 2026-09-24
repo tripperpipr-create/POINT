@@ -47,7 +47,7 @@ async function main() {
     type: 'state', service: { state: 'running' }, workspaceTrusted: true,
     workspace: 'fixture', selectedTab: 'agents', onboarding: { complete: true }, boot,
   } })
-  if (!root.innerHTML.includes('Подключите первого специалиста') || !root.innerHTML.includes('data-action="use-template"')) {
+  if (!root.innerHTML.includes('Добавьте первого агента') || !root.innerHTML.includes('data-action="use-template"')) {
     throw new Error('Clean Hub roster did not offer the first-agent creation flow')
   }
 
@@ -60,7 +60,7 @@ async function main() {
   }
 
   await click('use-template', { template: template.id })
-  if (!root.innerHTML.includes('ПРОФИЛЬ СПЕЦИАЛИСТА') || !root.innerHTML.includes('Разработчик') || root.innerHTML.includes('profile-wizard create-flow')) {
+  if (!root.innerHTML.includes('Профиль агента') || !root.innerHTML.includes('Разработчик') || root.innerHTML.includes('profile-wizard create-flow')) {
     throw new Error('Hub template hire was routed to the legacy profile wizard')
   }
   await click('constructor-step', { step: 'review' })
@@ -85,12 +85,12 @@ async function main() {
   }
 
   await click('fix-profile-step', { step: 'model' })
-  if (!root.innerHTML.includes('ПРОФИЛЬ СПЕЦИАЛИСТА') || !root.innerHTML.includes('class="on" data-action="constructor-step" data-step="brain"')) {
+  if (!root.innerHTML.includes('Профиль агента') || !root.innerHTML.includes('class="on" data-action="constructor-step" data-step="brain"')) {
     throw new Error('Hub readiness fix did not open the project-agent constructor at the model step')
   }
   await click('close-agent-constructor')
   await click('new-profile')
-  if (!root.innerHTML.includes('ПРОФИЛЬ СПЕЦИАЛИСТА') || !root.innerHTML.includes('value="Новый агент"')) {
+  if (!root.innerHTML.includes('Профиль агента') || !root.innerHTML.includes('value="Новый агент"')) {
     throw new Error('Hub New Agent action did not open a new project-agent constructor')
   }
 

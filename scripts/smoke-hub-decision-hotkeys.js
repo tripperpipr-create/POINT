@@ -226,7 +226,7 @@ for (const target of [{ tagName: 'INPUT' }, { tagName: 'TEXTAREA' }, { tagName: 
     (click('accept'), ui.posted.length > before && ui.posted.at(-1)?.path === '/api/change-sets/d2/apply'),
     `отправлено ${JSON.stringify(ui.posted.at(-1))}`)
   check('подписи кнопок остались осмысленными',
-    html.includes('ПРИМЕНИТЬ') && html.includes('ОТКЛОНИТЬ'),
+    html.includes('Применить') && html.includes('Отклонить'),
     'кнопки набора подписаны обезличенно')
 }
 

@@ -132,7 +132,7 @@ export function createModelPicker({ getState, escapeHtml, connectionStatusLabels
     return `<article class="hub-card connection-card ${connection.isDefault ? 'is-default' : ''}" data-keynav-item>
       <header>
         <strong>${connectionOrbHtml(connection.status)}${esc(connectionLabel(connection))}</strong>
-        <span>${esc(connectionStatusLabels[connection.status] || connection.status || 'НЕИЗВЕСТНО')}</span>
+        <span>${esc(connectionStatusLabels[connection.status] || connection.status || 'Неизвестно')}</span>
       </header>
       <small>${esc(preset?.name || connection.provider)} · ${esc(connection.baseUrl || preset?.baseUrl || 'адрес из пресета')}${connection.secretRef ? ' · ключ в SecretStorage' : ' · без ключа'}</small>
       <small>${esc(catalogNote)}${connection.defaultModel ? ` · по умолчанию ${esc(connection.defaultModel)}` : ''}${connection.apiVersion ? ` · api-version ${esc(connection.apiVersion)}` : ''}</small>
@@ -213,7 +213,7 @@ export function createModelPicker({ getState, escapeHtml, connectionStatusLabels
 
   function connectionManagerHtml({ editingId } = {}) {
     return `<section class="connection-manager">
-      <aside class="connection-secret-note"><span>i</span><div><strong>Ключи остаются в SecretStorage</strong><small>В файлах проекта, хронике и ответах ядра остаётся только ссылка (<code>secretRef</code>). Сам ключ уходит выбранному провайдеру — иначе он не авторизует запрос. Агент, компаньон и Мастер ссылаются на подключение по идентификатору, а не подбирают ключ по совпадению пресета.</small></div></aside>
+      <aside class="connection-secret-note"><span>i</span><div><strong>Ключи остаются в SecretStorage</strong><small>В файлах проекта, журнале и ответах ядра остаётся только ссылка (<code>secretRef</code>). Сам ключ уходит выбранному провайдеру — иначе он не авторизует запрос. Агент, компаньон и Мастер ссылаются на подключение по идентификатору, а не подбирают ключ по совпадению пресета.</small></div></aside>
       ${modelRoutingHtml()}
       ${connectionListHtml()}
       ${connectionFormHtml(editingId)}

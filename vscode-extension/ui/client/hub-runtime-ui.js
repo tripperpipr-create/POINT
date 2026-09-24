@@ -112,10 +112,10 @@ export function createHubRuntimeUi({
     const sandbox = getState().boot?.sandbox || {}
     const backend = [sandbox.backend || 'среда не определена', sandbox.version || ''].filter(Boolean).join(' · ')
     const guarantees = [
-          ['РАБОЧАЯ КОПИЯ', Boolean(sandbox.liveWorkspaceIsolation), sandbox.liveWorkspaceIsolation ? 'изменения только через набор изменений' : 'нет гарантии'],
-          ['ПРОЦЕСС', Boolean(sandbox.processIsolation), sandbox.processIsolation ? 'контейнерная граница' : 'процесс пользователя Point'],
-          ['СЕТЬ', Boolean(sandbox.networkIsolation), sandbox.networkIsolation ? 'политика выхода в сеть Point' : 'без сетевой границы'],
-          ['СЕКРЕТЫ', Boolean(sandbox.secretEnvironmentSanitization), sandbox.secretEnvironmentSanitization ? 'переменные окружения фильтруются' : 'нет гарантии'],
+          ['Рабочая копия', Boolean(sandbox.liveWorkspaceIsolation), sandbox.liveWorkspaceIsolation ? 'изменения только через набор изменений' : 'нет гарантии'],
+          ['Процесс', Boolean(sandbox.processIsolation), sandbox.processIsolation ? 'контейнерная граница' : 'процесс пользователя Point'],
+          ['Сеть', Boolean(sandbox.networkIsolation), sandbox.networkIsolation ? 'политика выхода в сеть Point' : 'без сетевой границы'],
+          ['Секреты', Boolean(sandbox.secretEnvironmentSanitization), sandbox.secretEnvironmentSanitization ? 'переменные окружения фильтруются' : 'нет гарантии'],
         ]
     return `<details class="execution-guarantees"><summary>Гарантии исполнения · ${esc(backend)}</summary><div>${guarantees.map(([label, enabled, detail]) => `<span class="${enabled ? 'available' : 'unavailable'}"><b>${enabled ? '✓' : '!'}</b><small>${esc(label)}</small><em>${esc(detail)}</em></span>`).join('')}</div></details>`
   }
@@ -176,7 +176,7 @@ export function createHubRuntimeUi({
       const label = node?.name || 'Этап квеста'
       return `<article class="hub-exec-row"><div><strong>${esc(label)}</strong><small>Продолжить после этого этапа?</small></div><div class="hub-exec-actions"><button type="button" class="primary" data-action="resolve-flow-node" data-flow-run-id="${esc(run.id)}" data-node-id="${esc(nodeId)}" data-approved="true">Продолжить</button><button type="button" class="danger-button" data-action="resolve-flow-node" data-flow-run-id="${esc(run.id)}" data-node-id="${esc(nodeId)}" data-approved="false">Остановить</button></div></article>`
     }).join('')
-    return `<section class="hub-flow-approvals hub-card accent-ember live"><header class="section-title"><span>НУЖНО ВАШЕ РЕШЕНИЕ</span><em>${approvals.length + mergeWaiting.length}</em></header>${mergeRows}${approvalRows}</section>`
+    return `<section class="hub-flow-approvals hub-card accent-ember live"><header class="section-title"><span>Нужно ваше решение</span><em>${approvals.length + mergeWaiting.length}</em></header>${mergeRows}${approvalRows}</section>`
   }
 
   function questProgressHtml(quest) {
@@ -307,7 +307,7 @@ export function createHubRuntimeUi({
     const executions = activeExecutions()
     return `<div class="party-status-strip">${teamAgents.map(agent => {
       const exec = executions.find(item => item.projectAgentId === agent.id)
-      const label = exec ? (statusLabels[exec.status] || exec.status) : 'ОЖИДАЕТ'
+      const label = exec ? (statusLabels[exec.status] || exec.status) : 'Ожидает'
       const cls = exec ? exec.status : 'idle'
       return `<span class="party-status ${esc(cls)}"><strong>${esc(agentDisplayName(agent))}</strong><small>${esc(label)}</small></span>`
     }).join('')}</div>`
@@ -357,7 +357,7 @@ export function createHubRuntimeUi({
     }
     const used = plan + execution + learning
     const ceilingLabel = ceiling > 0 ? `${ceiling.toLocaleString('ru-RU')} ток.` : (quest.budgetCents ? formatCents(quest.budgetCents) : '—')
-    return `<div class="hub-budget-phases"><span><small>ПОТОЛОК КВЕСТА</small><b>${ceilingLabel}</b></span><span><small>ПЛАН</small><b>${plan.toLocaleString('ru-RU')}</b></span><span><small>ИСПОЛНЕНИЕ</small><b>${execution.toLocaleString('ru-RU')}</b></span><span><small>ОБУЧЕНИЕ</small><b>${learning.toLocaleString('ru-RU')}</b></span><span><small>УЧТЕНО В КВЕСТЕ</small><b>${used.toLocaleString('ru-RU')}</b></span><span><small>ОБСУЖДЕНИЕ (WORKSPACE)</small><b>${Number(usage.discussionTokens || 0).toLocaleString('ru-RU')}</b></span><small class="hall-fineprint">Покрытие бюджета: частичное — обсуждение до Quest считается только в лимите проекта, не в потолке квеста.</small></div>`
+    return `<div class="hub-budget-phases"><span><small>Потолок квеста</small><b>${ceilingLabel}</b></span><span><small>План</small><b>${plan.toLocaleString('ru-RU')}</b></span><span><small>Исполнение</small><b>${execution.toLocaleString('ru-RU')}</b></span><span><small>Обучение</small><b>${learning.toLocaleString('ru-RU')}</b></span><span><small>Учтено в квесте</small><b>${used.toLocaleString('ru-RU')}</b></span><span><small>Обсуждение (WORKSPACE)</small><b>${Number(usage.discussionTokens || 0).toLocaleString('ru-RU')}</b></span><small class="hall-fineprint">Покрытие бюджета: частичное — обсуждение до Quest считается только в лимите проекта, не в потолке квеста.</small></div>`
   }
 
   return {

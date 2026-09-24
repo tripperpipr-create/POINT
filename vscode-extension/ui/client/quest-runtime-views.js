@@ -139,7 +139,7 @@ export function createQuestRuntimeViews(dependencies) {
   }
   
   function profileReadiness(profile) {
-    if (!profile) return { ready: false, issues: ['Персонаж не выбран'], blockers: [{ text: 'Персонаж не выбран', step: 'identity' }], hasVerifier: false, canWrite: false, toolCount: 0, lines: [] }
+    if (!profile) return { ready: false, issues: ['Агент не выбран'], blockers: [{ text: 'Агент не выбран', step: 'identity' }], hasVerifier: false, canWrite: false, toolCount: 0, lines: [] }
     requestAgentCapability(profile)
     const capability = agentCapabilityFor(profile) || {}
     // Ответа нет и не будет: ядро отказало. Гейт оставляем прежним — запрет всё
@@ -187,7 +187,7 @@ export function createQuestRuntimeViews(dependencies) {
     if (!lines.length) return ''
     const breaking = (capabilityDelta?.introduced || []).length > 0
     return `<div class="hall-delta${breaking ? ' is-breaking' : ''}">
-      <b>ЧТО ИЗМЕНИТСЯ</b>
+      <b>Что изменится</b>
       ${lines.map(line => `<span>${esc(line)}</span>`).join('')}
     </div>`
   }
@@ -235,7 +235,7 @@ export function createQuestRuntimeViews(dependencies) {
             <span>${esc(item.title || 'Набор изменений')}</span>
             <small>${esc(countOf((item.items || []).length, 'файл', 'файла', 'файлов'))}</small>
           </div>`).join('')}
-          <button class="hall-btn is-sm" data-action="tab" data-tab="changesets">ОТКРЫТЬ НАБОРЫ</button>
+          <button class="hall-btn is-sm" data-action="tab" data-tab="changesets">Открыть наборы</button>
         </div>`
       : '<div class="hall-quest-block"><span class="hall-quest-block-label">Изменения</span><small class="hall-quest-empty">Правок пока нет.</small></div>'
 
@@ -258,7 +258,7 @@ export function createQuestRuntimeViews(dependencies) {
       ${modelRuns || '<small class="hall-quest-empty">Назначения моделей появятся после запуска этапов.</small>'}
       ${previewLines}
       ${children.map(item => `<div class="hall-quest-line"><b>${esc(item.kind || 'milestone')}</b><span>${esc(item.title || '')}</span><small>${esc(questStatusLabels[item.status] || item.status || '')}</small></div>`).join('')}
-      ${prep.map(item => `<div class="hall-quest-line"><b>специалист · ${esc(item.state || '')}</b><span>${esc(item.requirement?.role || '')}</span><small>${esc(item.error || '')}</small></div>`).join('')}
+      ${prep.map(item => `<div class="hall-quest-line"><b>агент · ${esc(item.state || '')}</b><span>${esc(item.requirement?.role || '')}</span><small>${esc(item.error || '')}</small></div>`).join('')}
       ${messages.slice(-8).map(item => `<div class="hall-quest-line"><b>${esc(item.kind || 'status')}</b><span>${esc(item.message || '')}</span><small>${esc(item.fromAgentId || 'master')}</small></div>`).join('')}
       ${unansweredQuestions(messages)}
       ${controller.pendingReplan ? `<div class="hall-quest-line"><b>replan</b><span>${esc(controller.pendingReplanReason || 'нужно перепланировать волну')}</span><small>форма ниже</small></div>` : ''}
@@ -279,7 +279,7 @@ export function createQuestRuntimeViews(dependencies) {
     const blocker = waiting
       ? `<div class="hall-quest-blocker">
           <span>Работа стоит: ${esc(reasons.join(', '))}.</span>
-          <button class="hall-btn is-sm is-primary" data-action="tab" data-tab="decisions">РАЗОБРАТЬ</button>
+          <button class="hall-btn is-sm is-primary" data-action="tab" data-tab="decisions">Разобрать</button>
         </div>`
       : ''
   
@@ -288,8 +288,8 @@ export function createQuestRuntimeViews(dependencies) {
     // назовёт то, что держит квест, — здесь мы лишь предлагаем действие.
     const removal = `<div class="hall-quest-block">
       <span class="hall-quest-block-label">Карточка квеста</span>
-      <small class="hall-quest-empty">Удаление убирает квест из списка проекта. Хроника прогонов остаётся и переезжает в «запуски без квеста».</small>
-      <button type="button" class="hall-btn is-sm is-danger" data-action="delete-quest" data-id="${esc(questId)}">УДАЛИТЬ КВЕСТ</button>
+      <small class="hall-quest-empty">Удаление убирает квест из списка проекта. История прогонов остаётся и переезжает в «запуски без квеста».</small>
+      <button type="button" class="hall-btn is-sm is-danger" data-action="delete-quest" data-id="${esc(questId)}">Удалить квест</button>
       ${/* Вторая кнопка — не «удалить посильнее», а ответ на другое решение.
            Удаление бережёт сделанное и отказывает, пока работа идёт: живой
            прогон, идущая схема, незакрытый набор правок держат квест по
@@ -298,7 +298,7 @@ export function createQuestRuntimeViews(dependencies) {
            тому, что было до квеста, и убирает сам квест. Отменить это нельзя,
            поэтому подтверждение спрашивает оболочка, а не вебвью. */''}
       <small class="hall-quest-empty">Снос останавливает прогон, откатывает изменения в проекте и удаляет квест со схемой, прогонами и наборами правок. Записи о потраченном остаются.</small>
-      <button type="button" class="hall-btn is-sm is-danger" data-action="purge-quest" data-id="${esc(questId)}">СНЕСТИ КВЕСТ И ОТКАТИТЬ ИЗМЕНЕНИЯ</button>
+      <button type="button" class="hall-btn is-sm is-danger" data-action="purge-quest" data-id="${esc(questId)}">Снести квест и откатить изменения</button>
     </div>`
 
     return `<div class="hall-quest-work">${blocker}${autonomyBlock}${runsBlock}${setsBlock}${questMidFlightHtml(quest)}${removal}</div>`
@@ -361,12 +361,12 @@ export function createQuestRuntimeViews(dependencies) {
       <label>Новая инструкция<textarea name="replanInstruction" rows="3" placeholder="что должен сделать этап"></textarea></label>
       <label>Причина<textarea name="replanReason" rows="2" placeholder="почему меняем план"></textarea></label>
       ${criterionChecks ? `<div class="hall-quest-criteria">${criterionChecks}</div>` : ''}
-      <button type="button" class="hall-btn is-sm is-primary" data-action="submit-quest-replan" data-quest-id="${esc(questId)}">ПЕРЕПЛАНИРОВАТЬ ЭТАП</button>
+      <button type="button" class="hall-btn is-sm is-primary" data-action="submit-quest-replan" data-quest-id="${esc(questId)}">Перепланировать этап</button>
       <hr>
       <span class="hall-quest-block-label">Смена цели</span>
       ${pauseHint}
       <label>Новая цель<textarea name="reviseGoal" rows="2" placeholder="${esc(brief.goal || '')}">${esc(brief.goal || '')}</textarea></label>
-      <button type="button" class="hall-btn is-sm" data-action="submit-quest-revise" data-quest-id="${esc(questId)}" data-expected-version="${version}" ${runsLive.length ? 'disabled' : ''}>УТВЕРДИТЬ НОВУЮ ЦЕЛЬ</button>
+      <button type="button" class="hall-btn is-sm" data-action="submit-quest-revise" data-quest-id="${esc(questId)}" data-expected-version="${version}" ${runsLive.length ? 'disabled' : ''}>Утвердить новую цель</button>
     </div>`
   }
   
@@ -389,7 +389,7 @@ export function createQuestRuntimeViews(dependencies) {
     const agents = hubAgents()
     const nameOf = id => (agents.find(item => item.id === id) || {}).name || 'исполнитель неизвестен'
     return `<section class="hall-panel hall-quest-list">
-      <header><b>ЗАПУСКИ БЕЗ КВЕСТА</b><small>${esc(countOf(orphans.length, 'запуск', 'запуска', 'запусков'))}</small></header>
+      <header><b>Запуски без квеста</b><small>${esc(countOf(orphans.length, 'запуск', 'запуска', 'запусков'))}</small></header>
       ${orphans.map(item => `<div class="hall-quest-row"><div class="hall-quest-head">
         <span class="hall-quest-status is-${esc(item.status || '')}">${esc(statusLabels[item.status] || item.status || '')}</span>
         <b>${esc(item.task || 'без описания')}</b>
@@ -417,7 +417,7 @@ export function createQuestRuntimeViews(dependencies) {
       </div>`
     }).join('')
     return `<section class="hall-panel hall-quest-list">
-      <header><b>КВЕСТЫ ПРОЕКТА</b><small>${esc(countOf(quests.length, 'квест', 'квеста', 'квестов'))}</small></header>
+      <header><b>Квесты проекта</b><small>${esc(countOf(quests.length, 'квест', 'квеста', 'квестов'))}</small></header>
       ${rows}
     </section>`
   }
@@ -442,7 +442,7 @@ export function createQuestRuntimeViews(dependencies) {
       ? `<aside class="readiness-banner compact"><span>!</span><div><strong>Не подтверждено</strong><small>${esc(outcome.unverifiedReason)}</small></div></aside>`
       : ''
     return `<section class="hall-panel is-stacked${failing ? ' is-alarm' : ''}">
-      <header><b>ОБЕЩАНО И ПОЛУЧЕНО</b><small>${outcome.met}/${outcome.total}</small></header>
+      <header><b>Обещано и получено</b><small>${outcome.met}/${outcome.total}</small></header>
       ${unverified}
       ${promises.map(item => `<div class="hall-panel-row hall-promise">
         <span class="hall-promise-mark${item.met ? ' is-met' : ''}">${item.met ? '✓' : '·'}</span>
@@ -470,7 +470,7 @@ export function createQuestRuntimeViews(dependencies) {
     const waiting = handoffChain?.waiting || []
     if (!items.length && !waiting.length) return ''
     return `<section class="hall-panel is-stacked">
-      <header><b>ПЕРЕДАЧА МЕЖДУ АГЕНТАМИ</b><small>${items.length}</small></header>
+      <header><b>Передача между агентами</b><small>${items.length}</small></header>
       ${items.map(item => `<div class="hall-panel-row hall-handoff">
         <div class="hall-handoff-who">
           <b>${esc(item.fromAgent || item.fromNode)}</b>
@@ -483,7 +483,7 @@ export function createQuestRuntimeViews(dependencies) {
           ? `<div class="hall-handoff-files">${item.changedFiles.map(path => `<span>${esc(path)}</span>`).join('')}</div>`
           : '<span class="hall-handoff-summary is-muted">файлы не изменялись</span>'}
         ${(item.changeSetIds || []).length
-          ? `<button class="hall-btn is-sm" data-action="tab" data-tab="changesets">НАБОР ${esc(item.changeSetIds[0])}</button>`
+          ? `<button class="hall-btn is-sm" data-action="tab" data-tab="changesets">Набор ${esc(item.changeSetIds[0])}</button>`
           : ''}
       </div>`).join('')}
       ${waiting.length ? `<div class="hall-panel-row"><span class="hall-handoff-summary is-muted">Ждут предшественника: ${waiting.map(name => esc(name)).join(', ')}</span></div>` : ''}
@@ -496,7 +496,7 @@ export function createQuestRuntimeViews(dependencies) {
     const readiness = profileReadiness(profile)
     if (!readiness.lines.length && !readiness.issues.length) return ''
     return `<section class="hall-panel is-stacked${readiness.issues.length ? ' is-alarm' : ''}">
-      <header><b>ЧТО СМОЖЕТ АГЕНТ</b><small>${readiness.issues.length ? 'запуск невозможен' : 'готов к запуску'}</small></header>
+      <header><b>Что сможет агент</b><small>${readiness.issues.length ? 'запуск невозможен' : 'готов к запуску'}</small></header>
       <div class="hall-panel-row is-stack is-tight">
         ${readiness.lines.map(line => `<span class="hall-cap-line">${esc(line)}</span>`).join('')}
         ${readiness.issues.map(item => `<span class="hall-cap-line is-blocking">${esc(item)}</span>`).join('')}
@@ -535,9 +535,9 @@ export function createQuestRuntimeViews(dependencies) {
     const needsPreflight = Boolean(ui.taskDraft.trim()) && !ui.agentRunPreview?.fingerprint
     const reasons = []
     if (!ui.taskDraft.trim()) reasons.push('Заполните задачу брифинга')
-    if (!readiness.ready) reasons.push(readiness.issues[0] || 'Карточка персонажа не готова')
-    if (completionBlocked) reasons.push('Нет умения-доказательства для обязательной проверки')
-    if (needsPreflight) reasons.push('Сначала выполните «Разведку»')
+    if (!readiness.ready) reasons.push(readiness.issues[0] || 'Карточка агента не готова')
+    if (completionBlocked) reasons.push('Нет инструмента-доказательства для обязательной проверки')
+    if (needsPreflight) reasons.push('Сначала выполните предпросмотр')
     return { ok: reasons.length === 0, reasons, readiness, completionBlocked, needsPreflight }
   }
   function questBriefGuidanceHtml(active, cursor) {
@@ -565,13 +565,13 @@ export function createQuestRuntimeViews(dependencies) {
       ? (verificationMissing ? 'Квест завершён без доказательства' : 'Квест завершён')
       : (statusLabels[run.status] || run.status)
     const facts = [
-      toolFails ? countOf(toolFails, 'сбой умения', 'сбоя умений', 'сбоев умений') : '',
+      toolFails ? countOf(toolFails, 'сбой инструмента', 'сбоя инструментов', 'сбоев инструментов') : '',
       denials ? countOf(denials, 'отказ', 'отказа', 'отказов') : '',
       verificationOk ? 'проверка зафиксирована' : '',
       verificationMissing ? 'нет успешной проверки' : '',
     ].filter(Boolean)
     const fixStep = verificationMissing || denials || toolFails ? 'tools' : 'limits'
-    return `<aside class="run-quality-outcome ${tone}"><span>${tone === 'success' ? '✓' : tone === 'danger' ? '!' : '△'}</span><div><strong>${esc(title)}</strong><small>${esc(facts.join(' · ') || stopReasonLabels[diagnostics.stopReason] || 'Итог по хронике запуска')}</small></div><button type="button" class="secondary" data-action="fix-profile-step" data-step="${esc(fixStep)}">Профиль →</button></aside>`
+    return `<aside class="run-quality-outcome ${tone}"><span>${tone === 'success' ? '✓' : tone === 'danger' ? '!' : '△'}</span><div><strong>${esc(title)}</strong><small>${esc(facts.join(' · ') || stopReasonLabels[diagnostics.stopReason] || 'Итог по журналу запуска')}</small></div><button type="button" class="secondary" data-action="fix-profile-step" data-step="${esc(fixStep)}">Профиль →</button></aside>`
   }
   function historyQualitySignals(diagnostics) {
     if (!diagnostics) return ''
@@ -582,7 +582,7 @@ export function createQuestRuntimeViews(dependencies) {
     if (signals.some(signal => signal.code === 'completion_revised')) bits.push('доработка')
     if (Number(diagnostics.tools?.failed || 0) > 0) bits.push(countOf(diagnostics.tools.failed, 'сбой', 'сбоя', 'сбоев'))
     if (Number(diagnostics.approvals?.denied || 0) > 0) bits.push(countOf(diagnostics.approvals.denied, 'отказ', 'отказа', 'отказов'))
-    return bits.length ? bits.map(bit => `<span>${esc(bit)}</span>`).join('') : `<span>${countOf(diagnostics.tools?.failed || 0, 'сбой умения', 'сбоя умений', 'сбоев умений')}</span><span>${countOf(diagnostics.approvals?.denied || 0, 'отказ', 'отказа', 'отказов')}</span>`
+    return bits.length ? bits.map(bit => `<span>${esc(bit)}</span>`).join('') : `<span>${countOf(diagnostics.tools?.failed || 0, 'сбой инструмента', 'сбоя инструментов', 'сбоев инструментов')}</span><span>${countOf(diagnostics.approvals?.denied || 0, 'отказ', 'отказа', 'отказов')}</span>`
   }
   function flowStages(creating) {
     return creating ? CREATE_FLOW_STAGES : PROFILE_STEPS
@@ -600,7 +600,7 @@ export function createQuestRuntimeViews(dependencies) {
     if (!profile) return 'Карточка не загружена'
     if (step === 'class') return ''
     if (step === 'identity') {
-      if (!(profile.name || '').trim()) return 'Укажите имя персонажа'
+      if (!(profile.name || '').trim()) return 'Укажите имя агента'
       return ''
     }
     if (step === 'model') {
@@ -609,8 +609,8 @@ export function createQuestRuntimeViews(dependencies) {
     }
     if (step === 'tools') {
       const readiness = profileReadiness(profile)
-      if (profile.provider && !readiness.toolCount) return 'Выберите хотя бы одно умение или пресет'
-      if (readiness.canWrite && !readiness.hasVerifier) return 'Для правок включите умение-доказательство (Запуск команд)'
+      if (profile.provider && !readiness.toolCount) return 'Выберите хотя бы один инструмент или пресет'
+      if (readiness.canWrite && !readiness.hasVerifier) return 'Для правок включите инструмент-доказательство (Запуск команд)'
       return ''
     }
     if (step === 'limits') {
@@ -622,7 +622,7 @@ export function createQuestRuntimeViews(dependencies) {
   }
   function templateClassPreview(template) {
     if (!template) {
-      return `<aside class="create-class-preview empty"><span class="quest-label">ОСНОВНОЙ ПРОФИЛЬ</span><strong>Выберите специалиста слева</strong><p>Справа появятся его постоянная роль, навыки, умения, лимиты и правила. Для проекта будет создана отдельная адаптация.</p></aside>`
+      return `<aside class="create-class-preview empty"><span class="quest-label">Основной профиль</span><strong>Выберите агента слева</strong><p>Справа появятся его постоянная роль, навыки, инструменты, лимиты и правила. Для проекта будет создана отдельная адаптация.</p></aside>`
     }
     const tools = template.allowedTools || []
     const catalog = ui.state.boot?.toolCatalog || []
@@ -632,20 +632,20 @@ export function createQuestRuntimeViews(dependencies) {
       const verifies = toolProvidesVerification(tool || { name })
       return `<span class="${verifies ? 'proof' : ''}">${esc(toolName(name))}${verifies ? ' · proof' : ''}</span>`
     }).join('')
-    return `<aside class="create-class-preview"><span class="quest-label">ОСНОВНОЙ ПРОФИЛЬ</span><header><strong>${esc(template.name)}</strong><em>${countOf(tools.length, 'tool', 'tools', 'tools')} · ${countOf(template.maxSteps || 30, 'шаг', 'шага', 'шагов')}</em></header><p>${esc(template.roleDescription || template.description)}</p><div class="create-preview-facts"><span><small>ЛИМИТ</small><b>${esc(template.maxSteps || 30)}</b></span><span><small>ТАЙМ-АУТ</small><b>${esc(template.maxDurationSeconds || 600)}с</b></span><span><small>PROOF</small><b>${hasVerifier ? 'есть' : 'нет'}</b></span><span><small>ПОДТВЕРЖД.</small><b>${template.approvalMode === 'always' ? 'всегда' : 'опасные'}</b></span></div><div class="create-preview-tools">${chips || '<em>Tools не выбраны</em>'}</div>${(template.goals || []).length ? `<ul>${template.goals.slice(0, 3).map(goal => `<li>${esc(goal)}</li>`).join('')}</ul>` : ''}<button type="button" class="primary" data-action="use-template" data-template="${esc(template.id)}">Подключить к проекту →</button>${blueprintById(template.id) ? `<button type="button" class="secondary" data-action="delete-blueprint" data-id="${esc(template.id)}">Удалить профиль</button>` : ''}</aside>`
+    return `<aside class="create-class-preview"><span class="quest-label">Основной профиль</span><header><strong>${esc(template.name)}</strong><em>${countOf(tools.length, 'tool', 'tools', 'tools')} · ${countOf(template.maxSteps || 30, 'шаг', 'шага', 'шагов')}</em></header><p>${esc(template.roleDescription || template.description)}</p><div class="create-preview-facts"><span><small>Лимит</small><b>${esc(template.maxSteps || 30)}</b></span><span><small>Тайм-аут</small><b>${esc(template.maxDurationSeconds || 600)}с</b></span><span><small>PROOF</small><b>${hasVerifier ? 'есть' : 'нет'}</b></span><span><small>Подтвержд.</small><b>${template.approvalMode === 'always' ? 'всегда' : 'опасные'}</b></span></div><div class="create-preview-tools">${chips || '<em>Tools не выбраны</em>'}</div>${(template.goals || []).length ? `<ul>${template.goals.slice(0, 3).map(goal => `<li>${esc(goal)}</li>`).join('')}</ul>` : ''}<button type="button" class="primary" data-action="use-template" data-template="${esc(template.id)}">Подключить к проекту →</button>${blueprintById(template.id) ? `<button type="button" class="secondary" data-action="delete-blueprint" data-id="${esc(template.id)}">Удалить профиль</button>` : ''}</aside>`
   }
   function templatePickerHtml(templates, { compact = false, interactive = false } = {}) {
     if (!templates?.length) return ''
     if (!interactive) {
-      return `<section class="template-picker ${compact ? 'compact' : ''}">${compact ? '' : `<header><strong>Шаг 0 · Выберите основного специалиста</strong><span>${templates.length}</span></header><p>Основной профиль переносится между проектами и хранит роль, навыки, умения, инструкции и права. Здесь создаётся только его проектная адаптация.</p>`}<div>${templates.map(template => `<button type="button" data-action="use-template" data-template="${esc(template.id)}"><b>${esc(template.name)}</b><small>${esc(template.description)}</small><em>${countOf((template.allowedTools || []).length, 'tool', 'tools', 'tools')} · ${countOf(template.maxSteps || 30, 'шаг', 'шага', 'шагов')}</em></button>`).join('')}</div></section>`
+      return `<section class="template-picker ${compact ? 'compact' : ''}">${compact ? '' : `<header><strong>Шаг 0 · Выберите основного агента</strong><span>${templates.length}</span></header><p>Основной профиль переносится между проектами и хранит роль, навыки, инструменты, инструкции и права. Здесь создаётся только его проектная адаптация.</p>`}<div>${templates.map(template => `<button type="button" data-action="use-template" data-template="${esc(template.id)}"><b>${esc(template.name)}</b><small>${esc(template.description)}</small><em>${countOf((template.allowedTools || []).length, 'tool', 'tools', 'tools')} · ${countOf(template.maxSteps || 30, 'шаг', 'шага', 'шагов')}</em></button>`).join('')}</div></section>`
     }
     const selectedId = ui.hirePreviewTemplateId || templates[0]?.id || ''
     if (!ui.hirePreviewTemplateId && templates[0]) ui.hirePreviewTemplateId = templates[0].id
     const preview = templates.find(item => item.id === selectedId) || templates[0]
-    return `<section class="create-class-picker template-picker"><header><div><span class="quest-label">КОМАНДА / ПРОФИЛЬ</span><strong>Выберите постоянного специалиста</strong><p>Профиль задаёт переносимую основу агента. На следующих шагах вы адаптируете её к текущему проекту.</p></div><em>${templates.length}</em></header><div class="create-class-layout"><div class="create-class-grid">${templates.map(template => {
+    return `<section class="create-class-picker template-picker"><header><div><span class="quest-label">Команда / профиль</span><strong>Выберите постоянного агента</strong><p>Профиль задаёт переносимую основу агента. На следующих шагах вы адаптируете её к текущему проекту.</p></div><em>${templates.length}</em></header><div class="create-class-layout"><div class="create-class-grid">${templates.map(template => {
       const on = template.id === (ui.hirePreviewTemplateId || preview?.id)
       const toolCount = (template.allowedTools || []).length
-      return `<button type="button" class="create-class-card ${on ? 'selected' : ''}" data-action="preview-template" data-template="${esc(template.id)}"><span>✦</span><div><b>${esc(template.name)}</b><small>${esc(template.description)}</small><em>${countOf(toolCount, 'умение', 'умения', 'умений')} · ${countOf(template.maxSteps || 30, 'ход', 'хода', 'ходов')}</em></div></button>`
+      return `<button type="button" class="create-class-card ${on ? 'selected' : ''}" data-action="preview-template" data-template="${esc(template.id)}"><span>✦</span><div><b>${esc(template.name)}</b><small>${esc(template.description)}</small><em>${countOf(toolCount, 'инструмент', 'инструмента', 'инструментов')} · ${countOf(template.maxSteps || 30, 'ход', 'хода', 'ходов')}</em></div></button>`
     }).join('')}</div>${templateClassPreview(preview)}</div></section>`
   }
   function hireLiveChecklist(profile) {
@@ -653,7 +653,7 @@ export function createQuestRuntimeViews(dependencies) {
     const checks = [
       { ok: Boolean((profile?.name || '').trim()), label: 'Имя' },
       { ok: Boolean((profile?.model || '').trim()), label: 'Модель' },
-      { ok: readiness.toolCount > 0, label: 'Умения' },
+      { ok: readiness.toolCount > 0, label: 'Инструменты' },
       { ok: !readiness.canWrite || readiness.hasVerifier, label: 'Доказательство' },
       { ok: Number(profile?.maxSteps || 0) >= 1, label: 'Лимит' },
     ]
@@ -664,12 +664,12 @@ export function createQuestRuntimeViews(dependencies) {
   function hireSummaryPanel(profile, readiness) {
     const preset = providerPreset(profile)
     const tools = (profile?.allowedTools || []).map(toolName)
-    return `<section class="create-hire-summary"><header><span class="quest-label">СВОДКА ПЕРЕД НАЙМОМ</span><strong>${esc(profile?.name || 'Новый агент')}</strong><small>${esc(agentClass(profile))} · ${esc(preset?.name || profile?.provider || 'провайдер')}</small></header><div class="create-summary-grid"><span><small>МОДЕЛЬ</small><b>${esc(profile?.model || '—')}</b></span><span><small>ХОДЫ</small><b>${Number(profile?.maxSteps) > 0 ? esc(profile.maxSteps) : '—'}</b></span><span><small>УМЕНИЯ</small><b>${tools.length}</b></span><span><small>PROOF</small><b>${readiness.hasVerifier ? 'да' : 'нет'}</b></span></div><div class="create-summary-tools">${tools.slice(0, 8).map(tool => `<span>${esc(tool)}</span>`).join('') || '<em>Умения не выбраны</em>'}</div>${readiness.ready ? '<p class="ok">Карточка готова — наймите и отправьте в квест или откройте в ростере.</p>' : `<p class="warn">${esc(readiness.issues.join(' · '))}</p>`}</section>`
+    return `<section class="create-hire-summary"><header><span class="quest-label">Сводка перед созданием</span><strong>${esc(profile?.name || 'Новый агент')}</strong><small>${esc(agentClass(profile))} · ${esc(preset?.name || profile?.provider || 'провайдер')}</small></header><div class="create-summary-grid"><span><small>Модель</small><b>${esc(profile?.model || '—')}</b></span><span><small>Ходы</small><b>${Number(profile?.maxSteps) > 0 ? esc(profile.maxSteps) : '—'}</b></span><span><small>Инструменты</small><b>${tools.length}</b></span><span><small>PROOF</small><b>${readiness.hasVerifier ? 'да' : 'нет'}</b></span></div><div class="create-summary-tools">${tools.slice(0, 8).map(tool => `<span>${esc(tool)}</span>`).join('') || '<em>Инструменты не выбраны</em>'}</div>${readiness.ready ? '<p class="ok">Карточка готова — создайте и отправьте в квест или откройте в списке агентов.</p>' : `<p class="warn">${esc(readiness.issues.join(' · '))}</p>`}</section>`
   }
   function readinessBanner(profile, { editAction = 'edit-roster-profile', showFixes = true } = {}) {
     const readiness = profileReadiness(profile)
     if (readiness.unknown) return `<aside class="readiness-banner"><span>?</span><div><strong>Готовность неизвестна</strong><small>Ядро не ответило на проверку — «готов» здесь было бы сказано за него. Запуск всё равно проверяется ядром.</small></div><button type="button" class="secondary" data-action="${esc(editAction)}">Открыть карточку</button></aside>`
-    if (readiness.ready) return `<aside class="readiness-banner ready"><span>✓</span><div><strong>Персонаж готов к квесту</strong><small>Модель, умения и лимит ходов в порядке.</small></div>${editAction === 'start-roster-quest' ? '<button type="button" class="secondary" data-action="start-roster-quest">К квесту →</button>' : ''}</aside>`
+    if (readiness.ready) return `<aside class="readiness-banner ready"><span>✓</span><div><strong>Агент готов к квесту</strong><small>Модель, инструменты и лимит ходов в порядке.</small></div>${editAction === 'start-roster-quest' ? '<button type="button" class="secondary" data-action="start-roster-quest">К квесту →</button>' : ''}</aside>`
     const fixes = showFixes
       ? `<div class="readiness-fixes">${readiness.blockers.map(blocker => `<button type="button" class="secondary" data-action="fix-profile-step" data-step="${esc(blockerStep(blocker))}">${esc(blocker.text)}</button>`).join('')}</div>`
       : `<button type="button" class="secondary" data-action="${esc(editAction)}">Исправить</button>`
@@ -680,10 +680,10 @@ export function createQuestRuntimeViews(dependencies) {
     const index = Math.max(0, stages.findIndex(step => step.id === activeStep))
     const progress = Math.round((index / Math.max(1, stages.length - 1)) * 100)
     const current = stages[index] || stages[0]
-    return `<nav class="profile-step-nav create-flow-nav" aria-label="Шаги карточки персонажа"><div class="create-flow-progress"><span>ШАГ 0${index + 1} / 0${stages.length}</span><div class="create-live-rail"><i ${fillAttribute(progress)}></i></div><small>${esc(current?.why || '')}</small></div><div class="create-flow-steps">${stages.map((step, i) => {
+    return `<nav class="profile-step-nav create-flow-nav" aria-label="Шаги карточки агента"><div class="create-flow-progress"><span>Шаг 0${index + 1} / 0${stages.length}</span><div class="create-live-rail"><i ${fillAttribute(progress)}></i></div><small>${esc(current?.why || '')}</small></div><div class="create-flow-steps">${stages.map((step, i) => {
       const stateClass = step.id === activeStep ? 'on' : i < index ? 'done' : ''
       return `<button type="button" class="${stateClass}" data-action="profile-step" data-step="${esc(step.id)}"><em>${i < index ? '✓' : `0${i + 1}`}</em><span><b>${esc(step.label)}</b><small>${esc(step.hint)}</small></span></button>`
-    }).join('')}</div>${creating ? '<p>Интерактивный найм: класс → личность → модель → умения → лимиты → сводка.</p>' : '<p>Правите только нужный шаг — сохранить можно с любого.</p>'}${ui.createStepError ? `<p class="create-step-error">${esc(ui.createStepError)}</p>` : ''}</nav>`
+    }).join('')}</div>${creating ? '<p>По шагам: шаблон → личность → модель → инструменты → лимиты → сводка.</p>' : '<p>Правите только нужный шаг — сохранить можно с любого.</p>'}${ui.createStepError ? `<p class="create-step-error">${esc(ui.createStepError)}</p>` : ''}</nav>`
   }
   function profileStepFooter(activeStep, creating, readiness) {
     const stages = flowStages(creating)
@@ -699,13 +699,13 @@ export function createQuestRuntimeViews(dependencies) {
         : ''
     let right = ''
     if (onClass) {
-      right = `<button type="button" class="secondary" data-action="skip-class-step">Пустая карточка →</button><button type="button" class="primary" data-action="use-template" data-template="${esc(ui.hirePreviewTemplateId || ui.state.boot?.profileTemplates?.[0]?.id || '')}" ${!(ui.hirePreviewTemplateId || ui.state.boot?.profileTemplates?.[0]) ? 'disabled' : ''}>Взять класс →</button>`
+      right = `<button type="button" class="secondary" data-action="skip-class-step">Пустая карточка →</button><button type="button" class="primary" data-action="use-template" data-template="${esc(ui.hirePreviewTemplateId || ui.state.boot?.profileTemplates?.[0]?.id || '')}" ${!(ui.hirePreviewTemplateId || ui.state.boot?.profileTemplates?.[0]) ? 'disabled' : ''}>Взять шаблон →</button>`
     } else if (next) {
       right = `<button type="button" class="secondary" data-action="advance-profile-step" data-step="${esc(next.id)}" data-dir="next">${esc(next.label)} →</button>${creating ? '' : `<button class="primary save" type="submit">Сохранить карточку</button>`}`
     } else if (creating) {
       right = readiness.ready
         ? `<button class="primary save" type="submit" data-hire-intent="card">Нанять и открыть карточку</button><button type="button" class="primary create-quest-cta" data-action="hire-and-quest">Нанять и к квесту →</button>`
-        : `<button class="primary save" type="submit" data-hire-intent="card">Нанять персонажа</button>`
+        : `<button class="primary save" type="submit" data-hire-intent="card">Создать агента</button>`
     } else {
       right = `<button class="primary save" type="submit">Сохранить карточку</button>${readiness.ready ? '<button type="button" class="secondary" data-action="start-roster-quest">К квесту →</button>' : ''}`
     }
@@ -721,7 +721,7 @@ export function createQuestRuntimeViews(dependencies) {
     return `<aside class="pending-decisions"><span>!</span><div><strong>Нужно ваше решение</strong><small>${esc(parts.join(' · ') || `${pendingApprovals.length} запросов`)}</small></div><a href="#pending-decision">К решению ↓</a></aside>`
   }
   function patchStatusLabel(value) {
-    return ({ proposed: 'ЖДЁТ РЕШЕНИЯ', applied: 'ПРИМЕНЁН', rejected: 'ОТКЛОНЁН', reverted: 'ОТКАЧЕН', pending: 'ЖДЁТ РЕШЕНИЯ' })[value] || value
+    return ({ proposed: 'Ждёт решения', applied: 'Применён', rejected: 'Отклонён', reverted: 'Откачен', pending: 'Ждёт решения' })[value] || value
   }
   function questPayload() {
     return {
@@ -733,6 +733,8 @@ export function createQuestRuntimeViews(dependencies) {
   }
   function composeQuestTask() {
     const payload = questPayload()
+    // Заголовки прописными — не оформление, а формат ядра (internal/agent/quest.go):
+    // по «КРИТЕРИИ ГОТОВНОСТИ:» оно находит критерии в тексте задачи.
     return [`ЗАДАЧА:\n${payload.task}`, payload.goal?`ЦЕЛЬ:\n${payload.goal}`:'', payload.acceptanceCriteria.length?`КРИТЕРИИ ГОТОВНОСТИ:\n- ${payload.acceptanceCriteria.join('\n- ')}`:'', payload.constraints.length?`ОГРАНИЧЕНИЯ:\n- ${payload.constraints.join('\n- ')}`:''].filter(Boolean).join('\n\n')
   }
   function formatTime(value) { return value ? new Date(value).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'}) : '' }
@@ -805,7 +807,7 @@ export function createQuestRuntimeViews(dependencies) {
     if (!profile) return ''
     const progress = agentProgress(profile)
     if (progress.xp !== 0 || progress.completed === 0) return ''
-    return `<aside class="level-up-badge" role="status"><span>▲</span><div><strong>Уровень ${progress.level}</strong><small>Только подтверждённые квесты дают опыт персонажа.</small></div></aside>`
+    return `<aside class="level-up-badge" role="status"><span>▲</span><div><strong>Уровень ${progress.level}</strong><small>Только подтверждённые квесты дают опыт агента.</small></div></aside>`
   }
   /** Shared allowlist overlap — factual synergy, not invented stats. */
   function agentSynergy(profile, profiles) {
@@ -838,7 +840,7 @@ export function createQuestRuntimeViews(dependencies) {
     const progress = agentProgress(profile)
     const abilities = (profile?.allowedTools || []).slice(0, 4)
     const reliability = progress.reliability === undefined ? '—' : `${progress.reliability}%`
-    return `<section class="character-card"><header><div class="character-avatar" aria-hidden="true"><span>✦</span></div><div><small>КАРТОЧКА ПЕРСОНАЖА</small><strong>${esc(profile?.name || 'Новый агент')}</strong><p>${esc(agentClass(profile))}</p></div><em>УР ${progress.level}</em></header><div class="character-bars"><label><span>ОПЫТ · ${progress.completed} завершено</span><b>${progress.xp} / ${progress.xpTarget}</b><progress value="${progress.xp}" max="${progress.xpTarget}"></progress></label><label><span>НАДЁЖНОСТЬ</span><b>${reliability}</b><progress class="vital" value="${progress.reliability || 0}" max="100"></progress></label></div><div class="character-facts"><span><small>КВЕСТЫ</small><b>${progress.quests}</b></span><span><small>ЛИМИТ ХОДОВ</small><b>${esc(profile?.maxSteps || '—')}</b></span></div><div class="ability-chips">${abilities.map(tool=>`<span>${esc(toolName(tool))}</span>`).join('') || '<span class="muted">Умения не выбраны</span>'}</div><footer>Уровень и надёжность рассчитаны по фактическим квестам этого профиля.</footer></section>`
+    return `<section class="character-card"><header><div class="character-avatar" aria-hidden="true"><span>✦</span></div><div><small>Карточка агента</small><strong>${esc(profile?.name || 'Новый агент')}</strong><p>${esc(agentClass(profile))}</p></div><em>Ур ${progress.level}</em></header><div class="character-bars"><label><span>Опыт · ${progress.completed} завершено</span><b>${progress.xp} / ${progress.xpTarget}</b><progress value="${progress.xp}" max="${progress.xpTarget}"></progress></label><label><span>Надёжность</span><b>${reliability}</b><progress class="vital" value="${progress.reliability || 0}" max="100"></progress></label></div><div class="character-facts"><span><small>Квесты</small><b>${progress.quests}</b></span><span><small>Лимит ходов</small><b>${esc(profile?.maxSteps || '—')}</b></span></div><div class="ability-chips">${abilities.map(tool=>`<span>${esc(toolName(tool))}</span>`).join('') || '<span class="muted">Инструменты не выбраны</span>'}</div><footer>Уровень и надёжность рассчитаны по фактическим квестам этого профиля.</footer></section>`
   }
   function activeQuestCard(details) {
     if (!details?.run) return ''
@@ -859,7 +861,7 @@ export function createQuestRuntimeViews(dependencies) {
     const trace = execution
       ? `<div class="quest-trace"><small>TRACE</small><span>Execution · ${esc(execution.id)}</span>${quest ? `<span>Quest · ${esc(quest.title || quest.id)}</span>` : ''}${execution.flowRunId ? `<span>Flow · ${esc(flow?.name || execution.flowRunId)}</span>` : ''}${execution.flowNodeId ? `<span>Node · ${esc(flowNode?.name || execution.flowNodeId)}</span>` : ''}</div>`
       : ''
-    return `<section class="active-quest"><header><span>АКТИВНЫЙ КВЕСТ</span>${status(run.status)}</header><h3>${esc(run.task)}</h3><div class="quest-agent"><span>✦</span><div><small>ПЕРСОНАЖ</small><strong>${esc(profile?.name || run.profileId)} · ${esc(agentClass(profile))}</strong></div></div>${trace}<div class="quest-progress"><label><span>ПРОГРЕСС</span><b>${progress}%</b></label><progress value="${progress}" max="100"></progress><small>ход ${esc(run.step)} из лимита ${maxSteps}</small></div>${runControls}${changed.length?`<div class="quest-artifacts"><small>ЗАТРОНУТЫЕ АРТЕФАКТЫ</small>${changed.slice(0,5).map(path=>`<span>◇ ${esc(path)}</span>`).join('')}</div>`:''}${terminal?`<footer><small>НАГРАДА</small><strong>${run.status==='completed'?'Результат зафиксирован':'Опыт сохранён'} · ${countOf(changed.length, 'файл', 'файла', 'файлов')}</strong></footer>`:''}</section>`
+    return `<section class="active-quest"><header><span>Активный квест</span>${status(run.status)}</header><h3>${esc(run.task)}</h3><div class="quest-agent"><span>✦</span><div><small>Агент</small><strong>${esc(profile?.name || run.profileId)} · ${esc(agentClass(profile))}</strong></div></div>${trace}<div class="quest-progress"><label><span>Прогресс</span><b>${progress}%</b></label><progress value="${progress}" max="100"></progress><small>ход ${esc(run.step)} из лимита ${maxSteps}</small></div>${runControls}${changed.length?`<div class="quest-artifacts"><small>Затронутые файлы</small>${changed.slice(0,5).map(path=>`<span>◇ ${esc(path)}</span>`).join('')}</div>`:''}${terminal?`<footer><small>Результат</small><strong>${run.status==='completed'?'Результат зафиксирован':'Опыт сохранён'} · ${countOf(changed.length, 'файл', 'файла', 'файлов')}</strong></footer>`:''}</section>`
   }
   function formatDuration(value) {
     const milliseconds = Math.max(0, Number(value || 0))
@@ -876,7 +878,7 @@ export function createQuestRuntimeViews(dependencies) {
     if (signal?.code === 'stale_edit_prevented') return `Point остановил правку по устаревшему содержимому файла: ${value}.`
     if (signal?.code === 'provider_retried') return `Провайдер временно не ответил; безопасных повторов: ${value}.`
     if (signal?.code === 'agent_stalled') return 'Агент повторял одинаковый план инструментов и был безопасно остановлен.'
-    if (signal?.code === 'context_compacted') return `Оперативная память освобождена без удаления хроники: ≈ ${value.toLocaleString('ru-RU')} токенов.`
+    if (signal?.code === 'context_compacted') return `Оперативная память освобождена без удаления журнала: ≈ ${value.toLocaleString('ru-RU')} токенов.`
     if (signal?.code === 'retrieval_truncated') return `Неполных поисковых выдач: ${value}. Агенту нужно уточнить символ или путь.`
     if (signal?.code === 'completion_revised') return `Финал был исправлен после локальной проверки доказательств (${value}).`
     if (signal?.code === 'completion_evidence_missing') return 'Агент не подтвердил готовность реальным успешным результатом проверки.'
@@ -974,7 +976,7 @@ export function createQuestRuntimeViews(dependencies) {
     const items = Array.isArray(tools.items) ? tools.items : []
     const signals = Array.isArray(diagnostics.signals) ? diagnostics.signals : []
     const breakdown = items.length ? `<details><summary>По инструментам · ${items.length}</summary><div class="diagnostic-tools">${items.map(item=>`<span><b>${esc(toolName(item.name))}</b><small>${esc(item.succeeded||0)} успешно · ${esc(countOf(item.failed||0, 'ошибка', 'ошибки', 'ошибок'))} · ${formatDuration(item.durationMs)}</small></span>`).join('')}</div></details>` : ''
-    return `<section class="run-diagnostics health-${esc(diagnostics.health)}"><header><div><strong>Свиток состояния</strong><small>Факты из неизменяемой хроники квеста</small></div><span>${esc(healthLabels[diagnostics.health] || diagnostics.health)}</span></header><div class="diagnostic-grid"><span><small>ВРЕМЯ</small><b>${formatDuration(diagnostics.durationMs)}</b></span><span><small>МОДЕЛЬ</small><b>${esc(model.requests||0)} запр. · ${formatDuration(model.averageLatencyMs)}</b></span><span><small>МАНА / ТОКЕНЫ</small><b>${esc(tokenValue)}</b></span><span><small>ПАМЯТЬ</small><b>${esc(context.compactions||0)} сжат. · ${Number(context.releasedTokens||0).toLocaleString('ru-RU')}</b></span><span><small>РАЗВЕДКА</small><b>${esc(retrieval.searches||0)} поиск. · ${esc(retrieval.relatedFiles||0)} связ.</b></span><span><small>УМЕНИЯ</small><b>${esc(tools.succeeded||0)} ✓ · ${esc(tools.failed||0)} !</b></span><span><small>РЕШЕНИЯ</small><b>${esc(approvals.allowed||0)} ✓ · ${esc(approvals.denied||0)} ×</b></span><span><small>ОЖИДАНИЕ</small><b>${formatDuration(approvals.waitMs)}</b></span><span><small>АРТЕФАКТЫ</small><b>${esc(patches.applied||0)} / ${esc(patches.proposed||0)}</b></span><span><small>ЖУРНАЛ КОМАНД</small><b>${esc(workspace.recordedChanges||0)} ↶ · ${esc(workspace.nonRevertibleChanges||0)} !</b></span><span><small>ФИНАЛ</small><b>${esc(stopReasonLabels[diagnostics.stopReason] || diagnostics.stopReason)}</b></span></div>${breakdown}${signals.length?`<div class="diagnostic-signals">${signals.map(signal=>`<p class="signal-${esc(signal.severity)}">${signal.severity==='success'?'✓':signal.severity==='error'?'!':signal.severity==='warning'?'△':'i'} ${esc(diagnosticSignalText(signal))}</p>`).join('')}</div>`:''}<footer>Показатели рассчитаны только по реальным событиям локального ядра.</footer></section>`
+    return `<section class="run-diagnostics health-${esc(diagnostics.health)}"><header><div><strong>Состояние</strong><small>Факты из неизменяемого журнала квеста</small></div><span>${esc(healthLabels[diagnostics.health] || diagnostics.health)}</span></header><div class="diagnostic-grid"><span><small>Время</small><b>${formatDuration(diagnostics.durationMs)}</b></span><span><small>Модель</small><b>${esc(model.requests||0)} запр. · ${formatDuration(model.averageLatencyMs)}</b></span><span><small>Токены</small><b>${esc(tokenValue)}</b></span><span><small>Память</small><b>${esc(context.compactions||0)} сжат. · ${Number(context.releasedTokens||0).toLocaleString('ru-RU')}</b></span><span><small>Предпросмотр</small><b>${esc(retrieval.searches||0)} поиск. · ${esc(retrieval.relatedFiles||0)} связ.</b></span><span><small>Инструменты</small><b>${esc(tools.succeeded||0)} ✓ · ${esc(tools.failed||0)} !</b></span><span><small>Решения</small><b>${esc(approvals.allowed||0)} ✓ · ${esc(approvals.denied||0)} ×</b></span><span><small>Ожидание</small><b>${formatDuration(approvals.waitMs)}</b></span><span><small>Файлы</small><b>${esc(patches.applied||0)} / ${esc(patches.proposed||0)}</b></span><span><small>Журнал команд</small><b>${esc(workspace.recordedChanges||0)} ↶ · ${esc(workspace.nonRevertibleChanges||0)} !</b></span><span><small>Финал</small><b>${esc(stopReasonLabels[diagnostics.stopReason] || diagnostics.stopReason)}</b></span></div>${breakdown}${signals.length?`<div class="diagnostic-signals">${signals.map(signal=>`<p class="signal-${esc(signal.severity)}">${signal.severity==='success'?'✓':signal.severity==='error'?'!':signal.severity==='warning'?'△':'i'} ${esc(diagnosticSignalText(signal))}</p>`).join('')}</div>`:''}<footer>Показатели рассчитаны только по реальным событиям локального ядра.</footer></section>`
   }
   function runComparison(runs, diagnosticsByRun) {
     const comparable = runs.filter(run=>diagnosticsByRun.has(run.id) && runIsFinished(run)).slice(0,2)
@@ -1034,11 +1036,11 @@ export function createQuestRuntimeViews(dependencies) {
     if (flowApprovals) return { tone: 'alert', label: 'Нужно решение', detail: `${countOf(flowApprovals, 'этап ждёт', 'этапа ждут', 'этапов ждут')} вашего решения`, tab: 'flows', action: 'Решить →' }
     if (pending.length) return { tone: 'alert', label: 'Ревью изменений', detail: `${countOf(pending.length, 'набор ждёт', 'набора ждут', 'наборов ждут')} применения`, tab: 'changesets', action: 'Открыть наборы →' }
     if (reviews) return { tone: 'alert', label: 'Ревью компаньона', detail: `${countOf(reviews, 'предложение', 'предложения', 'предложений')} ${plural(reviews, 'ждёт', 'ждут', 'ждут')} Start / Ignore`, tab: 'overview', action: 'К ревью →' }
-    if (executions.some(item => item.status === 'waiting_approval')) return { tone: 'alert', label: 'Подтвердите умение', detail: 'Запуск ждёт вашего решения', tab: 'quests', action: 'К квесту →' }
+    if (executions.some(item => item.status === 'waiting_approval')) return { tone: 'alert', label: 'Подтвердите инструмент', detail: 'Запуск ждёт вашего решения', tab: 'quests', action: 'К квесту →' }
     if (executions.some(item => item.status === 'pending')) return { tone: 'next', label: 'Всё готово к запуску', detail: `${countOf(executions.filter(item => item.status === 'pending').length, 'агент готов', 'агента готовы', 'агентов готовы')} начать работу`, tab: 'overview', action: '' }
     if (executions.length) return { tone: 'live', label: 'Идёт работа', detail: `${countOf(executions.length, 'активный запуск', 'активных запуска', 'активных запусков')}`, tab: 'quests', action: 'Следить →' }
     if (quest) return { tone: 'ready', label: compactQuestTitle(quest.title), detail: questStatusLabels[quest.status] || quest.status || 'квест', tab: 'quests', action: 'К брифингу →' }
-    if (!hubAgents().length) return { tone: 'next', label: 'Соберите гильдию', detail: 'Сначала агент, потом квест', tab: 'agents', action: 'К ростеру →' }
+    if (!hubAgents().length) return { tone: 'next', label: 'Соберите гильдию', detail: 'Сначала агент, потом квест', tab: 'agents', action: 'К агентам →' }
     if (!ui.state.boot?.orchestrator?.id && !ui.onboardingDraft.orchestratorFinished) return { tone: 'next', label: 'Настройте, как мастер распоряжается', detail: 'Системный агент квестов ещё не выбран', tab: 'onboarding', action: 'К настройке →' }
     return { tone: 'idle', label: 'Гильдия готова', detail: 'Поставьте квест или спросите компаньона', tab: 'quests', action: 'Новый квест →' }
   }
@@ -1103,9 +1105,9 @@ export function createQuestRuntimeViews(dependencies) {
     const terminals = Array.isArray(data.terminals) ? data.terminals : []
     const cards = terminals.map(item => `<article class="point-terminal-card ${item.active ? 'active' : ''}"><i>›_</i><div><strong>${esc(item.name || 'Терминал')}</strong><small>${item.exitStatus == null ? (item.active ? 'активный' : 'открыт') : `завершён · ${esc(item.exitStatus)}`}</small></div></article>`).join('')
     return shell(`<main class="point-tool-page point-terminal-tool">
-      ${toolWindowHeading('ТЕРМИНАЛ', 'Запуск и консоли', 'Shell, задачи проекта и конфигурации запуска.', `${terminals.length}`)}
+      ${toolWindowHeading('Терминал', 'Запуск и консоли', 'Shell, задачи проекта и конфигурации запуска.', `${terminals.length}`)}
       <div class="point-tool-actions primary-row">${toolCommandButton('localAgent.openTerminal', 'Новый терминал', 'primary')}${toolCommandButton('localAgent.runAnything', 'Run Anything')}${toolCommandButton('localAgent.newConsoleChannel', 'Новый канал')}</div>
-      <section class="point-run-card"><span>ТЕКУЩАЯ ЦЕЛЬ</span><strong>${esc(data.run || 'Конфигурация не выбрана')}</strong>${data.failure ? `<p class="danger-copy">${esc(data.failure)}</p>` : '<p>Shift+F10 запускает текущую цель без отладчика.</p>'}<footer>${toolCommandButton('localAgent.selectRunConfiguration', 'Выбрать цель')}${toolCommandButton('localAgent.runWithoutDebug', 'Запустить', 'primary')}${toolCommandButton('localAgent.startDebug', 'Отладка')}</footer></section>
+      <section class="point-run-card"><span>Текущая цель</span><strong>${esc(data.run || 'Конфигурация не выбрана')}</strong>${data.failure ? `<p class="danger-copy">${esc(data.failure)}</p>` : '<p>Shift+F10 запускает текущую цель без отладчика.</p>'}<footer>${toolCommandButton('localAgent.selectRunConfiguration', 'Выбрать цель')}${toolCommandButton('localAgent.runWithoutDebug', 'Запустить', 'primary')}${toolCommandButton('localAgent.startDebug', 'Отладка')}</footer></section>
       <section class="point-tool-list"><header><strong>Консоли</strong><small>${terminals.length ? 'состояние IDE' : 'нет открытых'}</small></header>${cards || toolWindowEmpty('Консолей пока нет', 'Откройте терминал или запустите задачу.', '', true)}</section>
     </main>`)
   }
@@ -1116,8 +1118,8 @@ export function createQuestRuntimeViews(dependencies) {
     const lines = source.filter(item => ui.toolLogFilter === 'all' || item.level === ui.toolLogFilter)
     const rows = lines.map(item => `<article class="point-log-row level-${esc(item.level)}"><span>${esc(item.time || '')}</span><b>${esc(item.level || 'info')}</b><em>${esc(item.source || 'core')}</em><p>${esc(item.message || '')}</p></article>`).join('')
     return shell(`<main class="point-tool-page point-logs-tool">
-      ${toolWindowHeading('ЛОГИ', 'Диагностика Point', 'События сгруппированы по уровню и источнику.', `${source.length}`)}
-      <section class="point-tool-metrics"><button data-action="set-log-filter" data-filter="error" class="danger"><small>ОШИБКИ</small><b>${Number(counts.error || 0)}</b></button><button data-action="set-log-filter" data-filter="warning"><small>ПРЕДУПРЕЖДЕНИЯ</small><b>${Number(counts.warning || 0)}</b></button><button data-action="set-log-filter" data-filter="info"><small>INFO</small><b>${Number(counts.info || 0)}</b></button><button data-action="set-log-filter" data-filter="all" class="${ui.toolLogFilter === 'all' ? 'active' : ''}"><small>ВСЕ</small><b>${source.length}</b></button></section>
+      ${toolWindowHeading('Логи', 'Диагностика Point', 'События сгруппированы по уровню и источнику.', `${source.length}`)}
+      <section class="point-tool-metrics"><button data-action="set-log-filter" data-filter="error" class="danger"><small>Ошибки</small><b>${Number(counts.error || 0)}</b></button><button data-action="set-log-filter" data-filter="warning"><small>Предупреждения</small><b>${Number(counts.warning || 0)}</b></button><button data-action="set-log-filter" data-filter="info"><small>INFO</small><b>${Number(counts.info || 0)}</b></button><button data-action="set-log-filter" data-filter="all" class="${ui.toolLogFilter === 'all' ? 'active' : ''}"><small>Все</small><b>${source.length}</b></button></section>
       <div class="point-tool-actions">${toolCommandButton('localAgent.showCoreChronicle', 'Открыть файл лога')}${toolCommandButton('localAgent.openLogChat', 'Отдельный чат по логам', 'primary')}${toolCommandButton('localAgent.rebuildIndex', 'Перестроить индекс')}</div>
       ${data.error ? `<div class="error-banner"><span>!</span><p>${esc(data.error)}</p></div>` : ''}
       <section class="point-log-stream" aria-label="Лента логов">${rows || toolWindowEmpty('Событий этого уровня нет', 'Выберите «Все» или обновите ленту.', '', true)}</section>
@@ -1147,14 +1149,14 @@ export function createQuestRuntimeViews(dependencies) {
       setTimeout(() => vscode.postMessage({ type: 'loadDecisions' }), 0)
     }
     const connected = ui.state.service?.state === 'running'
-    const subtitle = ui.state.workspaceTrusted === false ? `БЕЗОПАСНЫЙ РЕЖИМ · ${esc(ui.state.workspace)}` : connected ? `ЛОКАЛЬНО · ${esc(ui.state.workspace)}` : 'ЛОКАЛЬНОЕ ЯДРО'
+    const subtitle = ui.state.workspaceTrusted === false ? `Безопасный режим · ${esc(ui.state.workspace)}` : connected ? `Локально · ${esc(ui.state.workspace)}` : 'Локальное ядро'
     const index = ui.state.boot?.indexStatus
     // Состояния индекса перечислены полностью и намеренно: раньше всё, кроме
     // четырёх известных, показывалось как «БЕЗ ИНДЕКСА» — и отказ индексации
     // (error), и отсутствие открытой папки (no_workspace) выглядели так, будто
     // индекс просто не построен. Строка состояния IDE эти случаи различает
     // давно (formatIndexStatus), а заголовок Чертога с ней расходился.
-    const indexLabel = index?.state==='ready'?(index.partial?`ИНДЕКС ЧАСТИЧНЫЙ · ${index.files}`:`ИНДЕКС ${index.files}`):index?.state==='indexing'?'ИНДЕКСАЦИЯ…':index?.state==='pending'?'ОБНОВЛЕНИЕ…':index?.state==='stale'?'ИНДЕКС УСТАРЕЛ':index?.state==='error'?'ИНДЕКС · ОШИБКА':index?.state==='no_workspace'?'ПАПКА НЕ ОТКРЫТА':index?.state==='not_built'?'БЕЗ ИНДЕКСА':'ИНДЕКС НЕИЗВЕСТЕН'
+    const indexLabel = index?.state==='ready'?(index.partial?`Индекс частичный · ${countOf(index.files, 'файл', 'файла', 'файлов')}`:`Индекс · ${countOf(index.files, 'файл', 'файла', 'файлов')}`):index?.state==='indexing'?'Индексация…':index?.state==='pending'?'Обновление индекса…':index?.state==='stale'?'Индекс устарел':index?.state==='error'?'Индекс · ошибка':index?.state==='no_workspace'?'Папка не открыта':index?.state==='not_built'?'Без индекса':'Индекс неизвестен'
     if (isToolWindow()) {
       return `<div class="point-tool-app tool-${esc(toolWindowKind())}">
         ${ui.transientError ? `<div class="error-banner"><span>!</span><p>${esc(ui.transientError)}</p><button data-action="dismiss-error">×</button></div>` : ''}
@@ -1164,21 +1166,21 @@ export function createQuestRuntimeViews(dependencies) {
     }
     if (isConnectionsView()) {
       return `<div class="app connections-app">
-        <header class="brand"><div class="brand-mark ${connected ? 'live' : ''}"><span>P</span><i></i></div><div><strong>POINT / ПОДКЛЮЧЕНИЯ</strong><small>${subtitle}</small></div><div class="brand-actions"><button class="icon-button" data-action="show-output" title="Открыть хронику ядра">≡</button></div></header>
+        <header class="brand"><div class="brand-mark ${connected ? 'live' : ''}"><span>P</span><i></i></div><div><strong>Подключения</strong><small>${subtitle}</small></div><div class="brand-actions"><button class="icon-button" data-action="show-output" title="Открыть журнал ядра">≡</button></div></header>
         ${ui.transientError ? `<div class="error-banner"><span>!</span><p>${esc(ui.transientError)}</p><button data-action="dismiss-error">×</button></div>` : ''}
         ${content}
       </div>`
     }
     if (isStatisticsView()) {
       return `<div class="app statistics-app">
-        <header class="brand"><div class="brand-mark ${connected ? 'live' : ''}"><span>P</span><i></i></div><div><strong>POINT / СТАТИСТИКА</strong><small>${subtitle}</small></div><div class="brand-actions"><button type="button" class="secondary" data-action="focus-hub">← Гильдия</button><button class="icon-button" data-action="show-output" title="Открыть хронику ядра">≡</button></div></header>
+        <header class="brand"><div class="brand-mark ${connected ? 'live' : ''}"><span>P</span><i></i></div><div><strong>Статистика</strong><small>${subtitle}</small></div><div class="brand-actions"><button type="button" class="secondary" data-action="focus-hub">← Гильдия</button><button class="icon-button" data-action="show-output" title="Открыть журнал ядра">≡</button></div></header>
         ${ui.transientError ? `<div class="error-banner"><span>!</span><p>${esc(ui.transientError)}</p><button data-action="dismiss-error">×</button></div>` : ''}
         ${content}
       </div>`
     }
     if (isDockerView()) {
       return `<div class="app docker-app">
-        <header class="brand"><div class="brand-mark ${connected ? 'live' : ''}"><span>P</span><i></i></div><div><strong>POINT / DOCKER</strong><small>${subtitle}</small></div><div class="brand-actions"><button type="button" class="secondary" data-action="focus-hub">← Гильдия</button><button class="icon-button" data-action="show-output" title="Открыть хронику ядра">≡</button></div></header>
+        <header class="brand"><div class="brand-mark ${connected ? 'live' : ''}"><span>P</span><i></i></div><div><strong>Docker</strong><small>${subtitle}</small></div><div class="brand-actions"><button type="button" class="secondary" data-action="focus-hub">← Гильдия</button><button class="icon-button" data-action="show-output" title="Открыть журнал ядра">≡</button></div></header>
         ${ui.transientError ? `<div class="error-banner"><span>!</span><p>${esc(ui.transientError)}</p><button data-action="dismiss-error">×</button></div>` : ''}
         ${content}
       </div>`
@@ -1230,42 +1232,64 @@ export function createQuestRuntimeViews(dependencies) {
         </main>
       </div>`
     }
-    // Всё остальное — настройки проекта: та же рейка, что была, минус «Мастер»,
-    // плюс возврат в чат первым элементом шапки.
+    // Всё остальное — настройки проекта: рейка с возвратом в чат и разделами,
+    // шапка с названием раздела и строка вкладок подраздела под ней.
     return `<div class="hall is-setup">
-      <div class="hall-scan"></div>
       <aside class="hall-rail">
         <div class="hall-rail-head">
-          <div class="hall-mark">◇</div>
           ${projectSwitcherChipHtml()}
         </div>
-        <nav class="hall-nav" aria-label="Разделы Чертога">${HALL_SECTIONS.map(section => {
+        ${/* Возврат в чат — первая строка рейки, а не кнопка перед заголовком:
+             там он сдвигал название раздела с края содержимого под ним. */''}
+        <button type="button" class="hall-rail-back" data-action="tab" data-tab="master" aria-label="Вернуться к разговору с Мастером" title="Вернуться к разговору с Мастером"><i aria-hidden="true">←</i><span>Чат с Мастером</span></button>
+        <nav class="hall-nav" aria-label="Разделы проекта">${HALL_SECTIONS.map(section => {
           const locked = lockHub
           const badge = hallSectionBadge(section.id, pendingSets, waiting)
-          return `<button class="${hallActiveSection() === section.id ? 'is-active' : ''}${section.id === 'decisions' && waiting ? ' is-urgent' : ''}" data-action="tab" data-tab="${section.tabs[0]}" title="${locked ? 'Сначала закончите компаньона и мастера' : esc(section.label + ' — ' + section.title)}" ${locked ? 'disabled' : ''}><i></i><em class="hall-glyph" aria-hidden="true">${esc(section.icon || '·')}</em><span>${section.label}</span><b>${badge}</b></button>`
+          return `<button class="${hallActiveSection() === section.id ? 'is-active' : ''}${section.id === 'decisions' && waiting ? ' is-urgent' : ''}" data-action="tab" data-tab="${section.tabs[0]}" title="${locked ? 'Сначала закончите компаньона и мастера' : esc(section.title)}" ${hallActiveSection() === section.id ? 'aria-current="page"' : ''} ${locked ? 'disabled' : ''}><em class="hall-glyph" aria-hidden="true">${esc(section.icon || '·')}</em><span>${section.label}</span><b>${badge}</b></button>`
         }).join('')}</nav>
         <div class="hall-rail-foot">
-          <div class="row"><i></i><b>${esc(indexLabel)}</b></div>
+          <div class="row"><i class="${index?.state === 'ready' ? 'is-live' : ''}"></i><b>${esc(indexLabel)}</b></div>
           <small>${esc(subtitle)}</small>
         </div>
       </aside>
       <main class="hall-main">
         <header class="hall-head">
-          <button type="button" class="hall-btn is-sm" data-action="tab" data-tab="master" title="Вернуться к разговору с мастером">← В чат</button>
-          <div class="hall-crumb">ПРОЕКТ · ${esc(ui.state.workspace || 'без мира')} / ${esc(hallCrumb())}</div>
-          ${/* На Обзоре расход показан отдельной карточкой с «ПОДРОБНО» и
+          <div class="hall-crumb">${esc(hallCrumb())}</div>
+          ${/* На Обзоре расход показан отдельной карточкой с «Подробно» и
                примечанием про запуски без цены; датчик здесь был третьим
                показом одной и той же цифры на одном экране. */''}
-          ${spend && hallActiveSection() !== 'overview' ? `<dl class="hall-gauge"><dt>РАСХОД</dt><dd>${esc(spend)}</dd></dl>` : ''}
+          ${spend && hallActiveSection() !== 'overview' ? `<dl class="hall-gauge"><dt>Расход</dt><dd>${esc(spend)}</dd></dl>` : ''}
           ${hallAlarmHtml(waiting)}
           ${hallChangesAlarmHtml(pendingSets)}
-          <button class="hall-btn is-sm" data-action="tab" data-tab="statistics" title="Расход, запуски и бюджет проекта">СТАТИСТИКА</button>
-          <button class="hall-btn is-sm" data-action="show-output" title="Открыть хронику ядра">≡</button>
+          <button type="button" class="hall-btn is-sm hall-head-quiet" data-action="tab" data-tab="statistics" title="Расход, запуски и бюджет проекта">Статистика</button>
+          <button type="button" class="hall-btn is-sm hall-head-icon" data-action="show-output" aria-label="Журнал ядра" title="Открыть журнал ядра">${icon('list')}</button>
         </header>
+        ${lockHub ? '' : hallSubtabsHtml()}
         ${ui.transientError ? `<div class="error-banner"><span>!</span><p>${esc(ui.transientError)}</p><button data-action="dismiss-error">×</button></div>` : ''}
         <div class="hall-body">${content}</div>
       </main>
     </div>`
+  }
+
+  // Строка вкладок подраздела. Раньше подразделы жили без собственной навигации:
+  // в Гильдии их девять, а попасть в каждый можно было только кнопками «ПЕРЕЙТИ»
+  // внизу чужой страницы, и где ты находишься, говорила одна крошка. Теперь
+  // подраздел — выделенная вкладка, а переход — один клик из любого места раздела.
+  // Это навигация, а не виджет вкладок: у каждой свой экран, поэтому nav и
+  // aria-current, а не tablist со стрелками.
+  function hallSubtabsHtml() {
+    const section = HALL_SECTIONS.find(item => item.id === hallActiveSection())
+    if (!section?.subtabs) return ''
+    const current = section.tabs.includes(ui.state.selectedTab) ? ui.state.selectedTab : ''
+    const selected = section.subtabs.find(([tab]) => tab === current || (tab === 'quests' && current === 'quest'))?.[0]
+    // Схемы — экран уборки старых Flow: запуск идёт через карточку наряда, и
+    // пустой раздел не зовут. Вкладка видна, пока схемы есть или открыта она сама.
+    const flows = (ui.state.boot?.flows || []).length
+    const visible = section.subtabs.filter(([tab]) => tab !== 'flows' || flows || tab === selected)
+    return `<nav class="hall-tabs" aria-label="${esc(section.label)}">${visible.map(([tab, label]) => {
+      const active = tab === selected
+      return `<button type="button" class="${active ? 'is-active' : ''}" data-action="tab" data-tab="${tab}"${active ? ' aria-current="page"' : ''}>${esc(label)}</button>`
+    }).join('')}</nav>`
   }
   
   // Пять разделов настроек проекта. Прежние вкладки не исчезли — они стали
@@ -1276,11 +1300,17 @@ export function createQuestRuntimeViews(dependencies) {
   // один — кнопка «← В чат» в шапке; второй вход с рейки разошёлся бы с ним
   // подсветкой активного раздела.
   const HALL_SECTIONS = [
-    { id: 'overview', icon: '◇', label: 'ОБЗОР', title: 'Что требует внимания прямо сейчас', tabs: ['overview'] },
-    { id: 'decisions', icon: '!', label: 'РЕШЕНИЯ', title: 'Всё, что ждёт вашего решения', tabs: ['decisions'] },
-    { id: 'changes', icon: '±', label: 'ИЗМЕНЕНИЯ', title: 'Наборы, журнал правок и откат', tabs: ['changesets', 'filehistory', 'journal', 'changes'] },
-    { id: 'quests', icon: '⚑', label: 'КВЕСТЫ', title: 'Активные квесты и хроника прогонов', tabs: ['quests', 'quest', 'history'] },
-    { id: 'guild', icon: '⬡', label: 'ГИЛЬДИЯ', title: 'Разовая настройка: агенты, отряды, навыки, связи', tabs: ['agents', 'teams', 'skills', 'memory', 'connections', 'databases', 'tools', 'onboarding', 'flows'] },
+    { id: 'overview', icon: '◇', label: 'Обзор', title: 'Что требует внимания прямо сейчас', tabs: ['overview'] },
+    { id: 'decisions', icon: '!', label: 'Решения', title: 'Всё, что ждёт вашего решения', tabs: ['decisions'] },
+    { id: 'changes', icon: '±', label: 'Изменения', title: 'Наборы на ревью, журнал правок и откат',
+      tabs: ['changesets', 'journal', 'filehistory', 'changes'],
+      subtabs: [['changesets', 'Наборы'], ['journal', 'Журнал правок'], ['filehistory', 'По файлу'], ['changes', 'Правки агентов']] },
+    { id: 'quests', icon: '⚑', label: 'Квесты', title: 'Квесты проекта, их история и схемы',
+      tabs: ['quests', 'quest', 'history', 'flows'],
+      subtabs: [['quests', 'Квесты'], ['history', 'История'], ['flows', 'Схемы']] },
+    { id: 'guild', icon: '⬡', label: 'Гильдия', title: 'Агенты, отряды, навыки, инструменты и связи',
+      tabs: ['agents', 'teams', 'skills', 'tools', 'memory', 'connections', 'databases', 'onboarding'],
+      subtabs: [['agents', 'Агенты'], ['teams', 'Отряды'], ['skills', 'Навыки'], ['tools', 'Инструменты'], ['memory', 'Память'], ['connections', 'Связи'], ['databases', 'Базы'], ['onboarding', 'Настройка']] },
   ]
   
   // Незнакомая вкладка не подсвечивает ни одного раздела. Раньше запасным

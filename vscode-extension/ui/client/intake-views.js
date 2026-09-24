@@ -55,7 +55,7 @@ export function intakePanelHtml({ boot, esc, selectedIntakeId, intakeBusy, intak
   }
 
   return `<section class="hub-current-quest accent-mana">
-    <header class="section-title"><span>ЗАДАЧА ПО ССЫЛКЕ</span></header>
+    <header class="section-title"><span>Задача по ссылке</span></header>
     ${form}
     ${intakeError ? `<p class="muted">${esc(intakeError)}</p>` : ''}
     <div class="hub-overview-secondary">

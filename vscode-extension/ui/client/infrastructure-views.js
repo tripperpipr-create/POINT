@@ -32,7 +32,7 @@ export function createInfrastructureViews({
       <article class="hub-card ${item.id === selected?.id ? 'selected' : ''}">
         <header>
           <strong>${esc(item.displayName || item.database)}</strong>
-          <span>${esc(connectionStatusLabels[item.status] || item.status || 'НЕИЗВЕСТНО')}</span>
+          <span>${esc(connectionStatusLabels[item.status] || item.status || 'Неизвестно')}</span>
         </header>
         <small>${esc(dbDriverLabel(item.driver))} · ${esc(item.host || item.database || '')}${item.secretRef ? ' · пароль в SecretStorage' : ''}</small>
         ${item.lastError ? `<p class="create-step-error">${esc(item.lastError)}</p>` : ''}
@@ -124,16 +124,13 @@ export function createInfrastructureViews({
       ? `<form id="db-query-form" class="connection-form"><h3>SQL · ${esc(selected.displayName || selected.database)}</h3>${writeGate}<label>Запрос<textarea id="db-sql" rows="5" placeholder="SELECT * FROM ..."></textarea></label><div class="hub-card-footer"><button class="primary" type="submit">Выполнить</button><button type="button" class="secondary" data-action="schema-db" data-id="${esc(selected.id)}">Схема</button></div></form>`
       : ''
     return shell(`<main class="hub-databases hub-page">
-      ${toolPageHeading('БАЗЫ ДАННЫХ', 'Подключения и SQL', 'SQLite, PostgreSQL и MySQL. Пароли только в SecretStorage. Запись — только после явного «Выполнить».', String(items.length))}
+      ${toolPageHeading('Базы данных', 'Подключения и SQL', 'SQLite, PostgreSQL и MySQL. Пароли только в SecretStorage. Запись — только после явного «Выполнить».', String(items.length))}
       <aside class="connection-secret-note"><span>i</span><div><strong>Поддерживаются sqlite · postgres · mysql</strong><small>Для удалённых хостов агенту нужен <code>network:&lt;host&gt;=ALLOW</code>. Инструменты: db_list_connections, db_schema, db_query, db_exec.</small></div></aside>
       ${databaseCards(items, selected)}
       ${databaseConnectionForm(items)}
       ${queryForm}
       ${databaseResult(databaseState)}
       ${databaseSchema(databaseState)}
-      ${/* Переход по вкладкам Хаба внутри окна инструментов вёл бы в никуда:
-            вкладок там нет. */''}
-      ${isToolWindow() ? '' : '<footer class="hub-transitional" aria-label="Смежные разделы"><b>ПЕРЕЙТИ</b><button type="button" class="secondary" data-action="tab" data-tab="connections">← Связи</button><button type="button" class="secondary" data-action="tab" data-tab="overview">Обзор</button></footer>'}
     </main>`)
   }
 
@@ -150,7 +147,7 @@ export function createInfrastructureViews({
     }
     return `<section class="connection-list">${servers.map(item => `
       <article class="hub-card">
-        <header><strong>${esc(item.displayName || item.host)}</strong><span>${esc(connectionStatusLabels[item.status] || item.status || 'НЕИЗВЕСТНО')}</span></header>
+        <header><strong>${esc(item.displayName || item.host)}</strong><span>${esc(connectionStatusLabels[item.status] || item.status || 'Неизвестно')}</span></header>
         <small>${esc(item.user || '')}@${esc(item.host || '')}:${esc(item.port || 22)} · ${esc(item.authMethod || 'agent')}${item.secretRef ? ' · пароль в SecretStorage' : ''}</small>
         ${item.lastError ? `<p class="create-step-error">${esc(item.lastError)}</p>` : ''}
         <footer class="hub-card-footer">
@@ -217,14 +214,14 @@ export function createInfrastructureViews({
     const servers = state.boot?.serverProfiles || []
     if (isConnectionsView()) {
       return shell(`<main class="hub-connections hub-page">
-        <header class="hub-page-head"><div><span>ПОДКЛЮЧЕНИЯ</span><h1>Модели и ключи</h1><p>Подключений может быть сколько угодно: рабочий ключ, личный, локальный сервер, Claude Code на этой машине. Адрес, ключ и каталог моделей живут здесь, а Помощник, Мастер и агенты ссылаются на подключение по идентификатору и берут из него модель.</p></div><em>${connections.length}</em></header>
+        <header class="hub-page-head"><div><h1>Модели и ключи</h1><p>Подключений может быть сколько угодно: рабочий ключ, личный, локальный сервер, Claude Code на этой машине. Адрес, ключ и каталог моделей живут здесь, а Помощник, Мастер и агенты ссылаются на подключение по идентификатору и берут из него модель.</p></div><em>${connections.length}</em></header>
         ${connectionManagerHtml({ editingId: getEditingState().connectionId || '' })}
       </main>`)
     }
     return shell(`<main class="hub-connections hub-page">
-      <header class="hub-page-head"><div><span>СВЯЗИ</span><h1>Серверы проекта</h1><p>Модели и ключи переехали в своё окно — <button type="button" class="linkish" data-action="open-connections">Подключения</button>. Здесь остаются серверы SSH. Базы данных — отдельный раздел <button type="button" class="linkish" data-action="tab" data-tab="databases">Базы</button>.</p></div><em>${servers.length}</em></header>
+      <header class="hub-page-head"><div><h1>Серверы проекта</h1><p>Модели и ключи переехали в своё окно — <button type="button" class="linkish" data-action="open-connections">Подключения</button>. Здесь остаются серверы SSH. Базы данных — отдельный раздел <button type="button" class="linkish" data-action="tab" data-tab="databases">Базы</button>.</p></div><em>${servers.length}</em></header>
       <aside class="connection-secret-note"><span>i</span><div><strong>Подключений к моделям: ${connections.length}</strong><small>Завести новое, сменить ключ или посмотреть каталог моделей — в окне «Подключения». Оттуда же их выбирают в разговоре с Помощником и Мастером.</small><div class="hub-card-footer"><button type="button" class="secondary" data-action="open-connections">Открыть подключения</button></div></div></aside>
-      <header class="hub-page-head is-stacked"><div><span>SSH-СЕРВЕРЫ</span><h2>Подключение к серверу</h2><p>Проверка, терминал, навигация по каталогам и безопасный предпросмотр UTF-8 файлов через OpenSSH.</p></div><em>${servers.length}</em></header>
+      <header class="hub-page-head is-stacked"><div><span>SSH-серверы</span><h2>Подключение к серверу</h2><p>Проверка, терминал, навигация по каталогам и безопасный предпросмотр UTF-8 файлов через OpenSSH.</p></div><em>${servers.length}</em></header>
       ${serverCards(servers)}
       ${serverForm(servers)}
     </main>`)

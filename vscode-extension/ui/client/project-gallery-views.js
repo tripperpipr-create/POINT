@@ -61,8 +61,8 @@ export function createProjectGalleryViews(dependencies) {
   }
 
   function coreLabel(core) {
-    if (core === 'running') return 'ЯДРО РАБОТАЕТ'
-    if (core === 'warm') return 'ЯДРО ТЁПЛОЕ'
+    if (core === 'running') return 'Ядро работает'
+    if (core === 'warm') return 'Ядро тёплое'
     return ''
   }
 
@@ -83,7 +83,7 @@ export function createProjectGalleryViews(dependencies) {
     const marks = [
       project.branch ? `<em class="point-gallery-branch">${esc(project.branch)}</em>` : '',
       core ? `<em class="point-gallery-core is-${esc(project.core)}">${esc(core)}</em>` : '',
-      project.slow ? '<em class="point-gallery-slow">ДИСК НЕ ОТВЕЧАЕТ</em>' : '',
+      project.slow ? '<em class="point-gallery-slow">Диск не отвечает</em>' : '',
       `<em class="point-gallery-when">${esc(whenLabel(project.lastOpenedAt))}</em>`,
     ].filter(Boolean).join('')
     return `<li class="point-gallery-row${active ? ' is-active' : ''}${project.pinned ? ' is-pinned' : ''}">
@@ -115,7 +115,7 @@ export function createProjectGalleryViews(dependencies) {
       <header class="point-gallery-head">
         <div class="point-gallery-brand">
           <span class="point-gallery-mark" aria-hidden="true">◇</span>
-          <span class="point-gallery-title"><b>POINT</b><small>ГАЛЕРЕЯ МИРОВ</small></span>
+          <span class="point-gallery-title"><b>POINT</b><small>Галерея миров</small></span>
         </div>
         <div class="point-gallery-head-actions">
           ${hasProject ? '<button type="button" class="point-gallery-btn" data-action="gallery-close">Вернуться в мир</button>' : ''}
@@ -145,7 +145,7 @@ export function createProjectGalleryViews(dependencies) {
       <div class="point-gallery-switch-head">
         <span class="point-gallery-mark" aria-hidden="true">◇</span>
         <strong>${esc(name)}</strong>
-        <small>ПОДКЛЮЧАЕМ МИР…</small>
+        <small>Подключаем мир…</small>
       </div>
       <div class="point-gallery-skeleton" aria-hidden="true">
         <span></span><span></span><span></span><span></span>
@@ -157,8 +157,8 @@ export function createProjectGalleryViews(dependencies) {
   function projectSwitcherChipHtml() {
     const name = String(ui.state.workspace || '')
     return `<button type="button" class="hall-wordmark point-gallery-chip" data-action="gallery-toggle" title="Сменить мир — Ctrl+Alt+P">
-      <b>${esc(name || 'ЧЕРТОГ')}</b>
-      <span>${ui.state.workspaceTrusted === false ? 'БЕЗОПАСНЫЙ РЕЖИМ' : 'СМЕНИТЬ МИР'}</span>
+      <b>${esc(name || 'Чертог')}</b>
+      <span>${ui.state.workspaceTrusted === false ? 'Безопасный режим' : 'Сменить мир'}</span>
     </button>`
   }
 

@@ -60,7 +60,7 @@ listeners['window:message']({
     boot: undefined, details: undefined,
   }
 })
-if (!root.innerHTML.includes('Умения агентов пока запечатаны') || !root.innerHTML.includes('Настроить доступ') || root.innerHTML.includes('Гильдия отдыхает')) {
+if (!root.innerHTML.includes('Инструменты агентов пока недоступны') || !root.innerHTML.includes('Настроить доступ') || root.innerHTML.includes('Ядро остановлено')) {
   throw new Error('Safe-mode agent surface was not rendered')
 }
 
@@ -176,11 +176,11 @@ listeners['window:message']({
     boot: { profiles: [baseProfile], profileTemplates: [reviewer], toolCatalog, providerCatalog, workflows: [], indexStatus: { state: 'not_built' }, runs: [] }, details: undefined,
   }
 })
-for (const required of ['Point Agent Hub', 'Подключение Мастера', 'Мастер', 'Движок Point', 'ШАГ 01 / 02']) {
+for (const required of ['Point Agent Hub', 'Подключение Мастера', 'Мастер', 'Движок Point', 'Шаг 01 / 02']) {
   if (!root.innerHTML.includes(required)) throw new Error(`Onboarding is missing: ${required}`)
 }
 click('onboarding-step', { step: 'orchestrator-choose' })
-if (!root.innerHTML.includes('Настройте Мастера') || !root.innerHTML.includes('ШАГ 02 / 02')) {
+if (!root.innerHTML.includes('Настройте Мастера') || !root.innerHTML.includes('Шаг 02 / 02')) {
   throw new Error('Master-first onboarding did not reach its policy step')
 }
 click('complete-master-onboarding')
@@ -199,7 +199,7 @@ if (false) {
 // Рейка «Чертога»: шесть разделов вместо восьми вкладок. Настройка свёрнута в
 // ГИЛЬДИЮ, а освободившееся место отдано РЕШЕНИЯМ и ИЗМЕНЕНИЯМ — тому, что
 // требует внимания во время работы, а не при обустройстве.
-for (const section of ['ОБЗОР', 'МАСТЕР', 'РЕШЕНИЯ', 'ИЗМЕНЕНИЯ', 'КВЕСТЫ', 'ГИЛЬДИЯ']) {
+for (const section of ['Обзор', 'Мастер', 'Решения', 'Изменения', 'Квесты', 'Гильдия']) {
   if (!root.innerHTML.includes(section)) throw new Error(`Hall rail is missing section: ${section}`)
 }
 if (!root.innerHTML.includes('hall-nav')) {
@@ -224,7 +224,7 @@ if ((root.innerHTML.match(/data-companion-personality/g) || []).length !== 6 || 
   throw new Error('Onboarding companion config does not expose all six personality traits')
 }
 click('onboarding-step', { step: 'first-agent' })
-if (root.innerHTML.includes('Подключите первого специалиста') || root.innerHTML.includes('КАРТОЧКА ПЕРСОНАЖА') || root.innerHTML.includes('Личность персонажа')) {
+if (root.innerHTML.includes('Добавьте первого агента') || root.innerHTML.includes('Карточка агента') || root.innerHTML.includes('Личность агента')) {
   throw new Error('Agent setup opened before companion onboarding was finished')
 }
 click('onboarding-step', { step: 'companion-brain' })
@@ -235,7 +235,7 @@ if (!root.innerHTML.includes('Мозг компаньона') || !root.innerHTML
   throw new Error('Onboarding companion brain step is missing')
 }
 click('onboarding-step', { step: 'first-agent' })
-if (root.innerHTML.includes('Подключите первого специалиста') || root.innerHTML.includes('КАРТОЧКА ПЕРСОНАЖА')) {
+if (root.innerHTML.includes('Добавьте первого агента') || root.innerHTML.includes('Карточка агента')) {
   throw new Error('Agent setup opened before orchestrator onboarding was finished')
 }
 click('onboarding-step', { step: 'orchestrator-choose' })
@@ -243,7 +243,7 @@ if (!root.innerHTML.includes('Выберите мастера') || !root.innerHT
   throw new Error('Onboarding orchestrator choose step is missing')
 }
 click('onboarding-step', { step: 'first-agent' })
-if (root.innerHTML.includes('Подключите первого специалиста')) {
+if (root.innerHTML.includes('Добавьте первого агента')) {
   throw new Error('First agent opened before orchestrator brain was finished')
 }
 click('onboarding-step', { step: 'orchestrator-brain' })
@@ -251,7 +251,7 @@ if (!root.innerHTML.includes('Мозг мастера') || !root.innerHTML.inclu
   throw new Error('Onboarding orchestrator brain step is missing')
 }
 click('onboarding-step', { step: 'first-agent' })
-if (!root.innerHTML.includes('Подключите первого специалиста') || !root.innerHTML.includes('КОМПАНЬОН') || !root.innerHTML.includes('Подключить') || !root.innerHTML.includes('Настроить профиль')) {
+if (!root.innerHTML.includes('Добавьте первого агента') || !root.innerHTML.includes('КОМПАНЬОН') || !root.innerHTML.includes('Подключить') || !root.innerHTML.includes('Настроить профиль')) {
   throw new Error('First agent step did not show the Companion proposal card')
 }
 click('onboarding-step', { step: 'welcome' })
@@ -259,7 +259,7 @@ if (!root.innerHTML.includes('Продолжить') || !root.innerHTML.includes
   throw new Error('Onboarding welcome did not offer resume after system agents were finished')
 }
 click('onboarding-step', { step: 'first-agent' })
-if (!root.innerHTML.includes('Подключите первого специалиста')) {
+if (!root.innerHTML.includes('Добавьте первого агента')) {
   throw new Error('Resume from welcome did not return to the first-agent step')
 }
 const onboardingOrchestratorSave = posted.find(message => message.type === 'saveOrchestratorConfig')
@@ -267,7 +267,7 @@ if (!onboardingOrchestratorSave?.config || onboardingOrchestratorSave.config.pre
   throw new Error('Onboarding did not save the orchestrator config on Next')
 }
 click('onboarding-edit-agent')
-if (!root.innerHTML.includes('ПРОФИЛЬ СПЕЦИАЛИСТА') || root.innerHTML.includes('Выберите компаньона')) {
+if (!root.innerHTML.includes('Профиль агента') || root.innerHTML.includes('Выберите компаньона')) {
   throw new Error('Companion first-agent edit did not open the constructor')
 }
 click('constructor-step', { step: 'tools' })
@@ -293,7 +293,7 @@ if (!root.innerHTML.includes('IDENTITY:') || !root.innerHTML.includes('execution
   throw new Error('Constructor review did not render the runtime system message')
 }
 click('close-agent-constructor')
-if (!root.innerHTML.includes('Подключите первого специалиста') || root.innerHTML.includes('КАРТОЧКА ПЕРСОНАЖА')) {
+if (!root.innerHTML.includes('Добавьте первого агента') || root.innerHTML.includes('Карточка агента')) {
   throw new Error('Constructor did not return to companion first-agent step')
 }
 const onboardingCompanionSave = posted.find(message => message.type === 'saveCompanionConfig')
@@ -324,7 +324,7 @@ listeners['window:message']({
     }, details: undefined,
   }
 })
-if (!root.innerHTML.includes('ГРАНИЦА SANDBOX') || !root.innerHTML.includes('filtered-copy') || !root.innerHTML.includes('без egress-границы') || !root.innerHTML.includes('не является OS-контейнером')) {
+if (!root.innerHTML.includes('Граница sandbox') || !root.innerHTML.includes('filtered-copy') || !root.innerHTML.includes('без egress-границы') || !root.innerHTML.includes('не является OS-контейнером')) {
   throw new Error('Truthful sandbox capability boundary was not rendered')
 }
 listeners['window:message']({
@@ -342,18 +342,20 @@ listeners['window:message']({
 if (!root.innerHTML.includes('docker · 27.1.0 · point-agent-sandbox:1.2.2 · sha256:0123456789ab') || !root.innerHTML.includes('точный TLS FQDN:port')) {
   throw new Error('Strong sandbox version attribution was not rendered')
 }
-if (!root.innerHTML.includes('ЖУРНАЛ ИЗМЕНЕНИЙ')) {
+// Журнал правок — вкладка раздела «Изменения»; с Обзора туда ведёт рейка.
+// Что журнал действительно вкладка раздела, проверяется ниже, на его экране.
+if (!/<nav class="hall-nav"[\s\S]*data-tab="changesets"[\s\S]*<\/nav>/.test(root.innerHTML)) {
   throw new Error('Overview is missing the Change Journal entry')
 }
 // Системные роли не сливаются: Компаньон наблюдает, Мастер распоряжается, а
 // Архивариус выпускает файлы на модели Мастера со своим системным промптом.
-if (!root.innerHTML.includes('СИСТЕМНЫЕ АГЕНТЫ') || !root.innerHTML.includes('КОМПАНЬОН') || !root.innerHTML.includes('open-companion-setup')) {
+if (!root.innerHTML.includes('Системные агенты') || !root.innerHTML.includes('<small>Компаньон</small>') || !root.innerHTML.includes('open-companion-setup')) {
   throw new Error('Overview is missing the Companion system agent')
 }
-if (!root.innerHTML.includes('МАСТЕР') || !root.innerHTML.includes('open-orchestrator-setup')) {
+if (!root.innerHTML.includes('<small>Мастер</small>') || !root.innerHTML.includes('open-orchestrator-setup')) {
   throw new Error('Overview is missing the Master system agent')
 }
-if (!root.innerHTML.includes('АРХИВАРИУС') || !root.innerHTML.includes('MD, HTML и XLSX')) {
+if (!root.innerHTML.includes('<small>Архивариус</small>') || !root.innerHTML.includes('MD, HTML и XLSX')) {
   throw new Error('Overview is missing the report system agent or its formats')
 }
 if (!root.innerHTML.includes('Подробная статистика')) {
@@ -390,7 +392,7 @@ listeners['window:message']({
     }
   }
 })
-if (!root.innerHTML.includes('ОБЕЩАНО И ПОЛУЧЕНО') || !root.innerHTML.includes('1/3')) {
+if (!root.innerHTML.includes('Обещано и получено') || !root.innerHTML.includes('1/3')) {
   throw new Error('Quest outcome must reconcile the definition of done with recorded facts')
 }
 if (!root.innerHTML.includes('успешной проверки в хронике прогонов нет')) {
@@ -434,7 +436,7 @@ if (!masterVisible.includes('Анализ проекта') || !masterVisible.inc
 if (!root.innerHTML.includes('Запустить агента') || !root.innerHTML.includes('Разработчик 1') || !root.innerHTML.includes('Разработчик 2')) {
   throw new Error('Pending launch or duplicate agents are still ambiguous')
 }
-if (root.innerHTML.includes('flowrun_internal_123') || masterVisible.includes('РЕШЕНИЯ FLOW') || masterVisible.includes('ОБЕЩАНО И ПОЛУЧЕНО')) {
+if (root.innerHTML.includes('flowrun_internal_123') || masterVisible.includes('РЕШЕНИЯ FLOW') || masterVisible.includes('Обещано и получено')) {
   throw new Error('Internal Flow state or premature quest outcome leaked into the active handoff')
 }
 if (masterVisible.includes('Party ·') || masterVisible.includes('Создай квест на анализ проекта')) {
@@ -465,7 +467,7 @@ listeners['window:message']({
     }
   }
 })
-if (!root.innerHTML.includes('ПЕРЕДАЧА МЕЖДУ АГЕНТАМИ') || !root.innerHTML.includes('ФОРДЖ')) {
+if (!root.innerHTML.includes('Передача между агентами') || !root.innerHTML.includes('ФОРДЖ')) {
   throw new Error('Handoff chain must show who passed work to whom')
 }
 if (!root.innerHTML.includes('engine.go')) {
@@ -496,7 +498,7 @@ listeners['window:message']({
   }
 })
 if (posted.some(message => message.type === 'capabilityDelta')) {
-  if (!root.innerHTML.includes('ЧТО ИЗМЕНИТСЯ') || !root.innerHTML.includes('Снимется препятствие')) {
+  if (!root.innerHTML.includes('Что изменится') || !root.innerHTML.includes('Снимется препятствие')) {
     throw new Error('Equipping a skill must state what the agent will gain')
   }
 }
@@ -857,7 +859,7 @@ listeners['window:message']({ data: { type: 'master', master: {
   configured: true, config: { model: 'qwen:7b' },
   history: [{ id: 't1', role: 'assistant', content: 'Подобрал двух исполнителей.', actionProposalId: 'ht-1' }],
 } } })
-if (!root.innerHTML.includes('ЧЕРНОВИК ОТРЯДА') || !root.innerHTML.includes('Локальный агент') || !root.innerHTML.includes('Ревьюер')) {
+if (!root.innerHTML.includes('Черновик отряда') || !root.innerHTML.includes('Локальный агент') || !root.innerHTML.includes('Ревьюер')) {
   throw new Error('Master team choice must show the proposed members in the conversation')
 }
 click('companion-action-modify', { id: 'ht-1' })
@@ -870,11 +872,11 @@ const teamModifyRequest = posted.slice(teamModifyCount).find(message => message.
 if (teamModifyRequest?.action !== 'modify' || teamModifyRequest.origin !== 'master') {
   throw new Error(`Edited Master team was not saved in place: ${JSON.stringify(teamModifyRequest)}`)
 }
-if (!root.innerHTML.includes('СОХРАНЯЕМ…')) {
+if (!root.innerHTML.includes('Сохраняем…')) {
   throw new Error('Team editor must visibly wait for the core while saving')
 }
 listeners['window:message']({ data: { type: 'error', request: '/api/companion/actions/decide', message: 'ядро временно недоступно' } })
-if (!root.innerHTML.includes('Название отряда') || root.innerHTML.includes('СОХРАНЯЕМ…')) {
+if (!root.innerHTML.includes('Название отряда') || root.innerHTML.includes('Сохраняем…')) {
   throw new Error('Failed team save must keep the editor open and retryable')
 }
 const teamRetryCount = posted.length
@@ -979,10 +981,10 @@ listeners['window:message']({
     details: { run: asideRun, events: [], approvals: [], patches: [], diagnostics: { health: 'active', signals: [] } },
   }
 })
-if (!root.innerHTML.includes('ЧТО АГЕНТ ВИДЕЛ') || !root.innerHTML.includes('internal/engine/engine.go')) {
+if (!root.innerHTML.includes('Что агент видел') || !root.innerHTML.includes('internal/engine/engine.go')) {
   throw new Error('Quest aside is missing the context the agent actually saw')
 }
-if (!root.innerHTML.includes('ИСТОРИЯ ПРОГОНОВ') || !root.innerHTML.includes('без доказательства')) {
+if (!root.innerHTML.includes('История прогонов') || !root.innerHTML.includes('без доказательства')) {
   throw new Error('Quest aside must carry the verification verdict of previous runs')
 }
 if (!root.innerHTML.includes('data-exec-form="forbid"')) {
@@ -1023,10 +1025,10 @@ listeners['window:message']({
     }
   }
 })
-if (!root.innerHTML.includes('ИСТОРИЯ ФАЙЛА') || !root.innerHTML.includes('internal/engine/engine.go')) {
+if (!root.innerHTML.includes('История файла') || !root.innerHTML.includes('internal/engine/engine.go')) {
   throw new Error('File history screen did not render the requested file')
 }
-if (!root.innerHTML.includes('ОТКАТИТЬ') || !root.innerHTML.includes('необратимо')) {
+if (!root.innerHTML.includes('Откатить') || !root.innerHTML.includes('необратимо')) {
   throw new Error('File history must offer revert only where the server said it is possible')
 }
 if (!root.innerHTML.includes('применено') || !root.innerHTML.includes('откачено')) {
@@ -1047,7 +1049,7 @@ listeners['window:message']({
     },
   }
 })
-if (!root.innerHTML.includes('ЗАВЕРШЁН С ДОКАЗАТЕЛЬСТВОМ') || !root.innerHTML.includes('успешных команд: 2')) {
+if (!root.innerHTML.includes('Завершён с доказательством') || !root.innerHTML.includes('успешных команд: 2')) {
   throw new Error('A verified run must state the recorded evidence, not just "completed"')
 }
 listeners['window:message']({
@@ -1060,7 +1062,7 @@ listeners['window:message']({
     },
   }
 })
-if (!root.innerHTML.includes('ЗАВЕРШЁН БЕЗ ДОКАЗАТЕЛЬСТВА')) {
+if (!root.innerHTML.includes('Завершён без доказательства')) {
   throw new Error('A run without a successful verifier must say so explicitly')
 }
 
@@ -1080,12 +1082,12 @@ listeners['window:message']({
       total: 2, blocking: 1, oldestMs: 725000, byKind: { approval: 1, quest: 1 },
       items: [
         {
-          id: 'ap-1', kind: 'approval', label: 'КОМАНДА', title: 'rm -rf ./tmp/cache', detail: 'run_command',
+          id: 'ap-1', kind: 'approval', label: 'Команда', title: 'rm -rf ./tmp/cache', detail: 'run_command',
           risk: 'CRITICAL', who: 'ГОНЕЦ', runId: 'run-48', waitingMs: 725000, blocking: true,
           resolve: { path: '/api/approvals/ap-1/resolve', field: 'decision', accept: 'approve', reject: 'deny' }
         },
         {
-          id: 'qp-1', kind: 'quest', label: 'ПРЕДЛОЖЕНИЕ', title: 'Собрать регресс-набор', detail: 'девять падений за неделю',
+          id: 'qp-1', kind: 'quest', label: 'Предложение', title: 'Собрать регресс-набор', detail: 'девять падений за неделю',
           risk: 'LOW', waitingMs: 61000, blocking: false,
           resolve: { path: '/api/quest-proposals/decide', field: 'decision', accept: 'start', reject: 'ignore' }
         },
@@ -1093,7 +1095,7 @@ listeners['window:message']({
     }
   }
 })
-if (!root.innerHTML.includes('ОЧЕРЕДЬ · 2') || !root.innerHTML.includes('rm -rf ./tmp/cache')) {
+if (!root.innerHTML.includes('Очередь · 2') || !root.innerHTML.includes('rm -rf ./tmp/cache')) {
   throw new Error('Decision queue did not render the server-provided items')
 }
 if (!root.innerHTML.includes('12м 05с')) {
@@ -1102,7 +1104,7 @@ if (!root.innerHTML.includes('12м 05с')) {
 if (!root.innerHTML.includes('агент простаивает')) {
   throw new Error('A blocking decision must say that an agent is idling')
 }
-if (!root.innerHTML.includes('ЧЕМ РИСКУЕТ') || !root.innerHTML.includes('критический')) {
+if (!root.innerHTML.includes('Чем рискует') || !root.innerHTML.includes('критический')) {
   throw new Error('Decision detail is missing the risk facet')
 }
 click('resolve-decision', { id: 'ap-1', path: '/api/approvals/ap-1/resolve', field: 'decision', value: 'approve' })
@@ -1128,7 +1130,7 @@ listeners['window:message']({
     boot: { profiles: [baseProfile], runs: [], usageRecords: [] }, details: undefined,
   }
 })
-if (!root.innerHTML.includes('POINT / СТАТИСТИКА') || !root.innerHTML.includes('Саморазвитие, качество и AI-расходы') || root.innerHTML.includes('hall-nav')) {
+if (!root.innerHTML.includes('<strong>Статистика</strong>') || !root.innerHTML.includes('Саморазвитие, качество и AI-расходы') || root.innerHTML.includes('hall-nav')) {
   throw new Error('Dedicated Statistics view still uses the Hall rail')
 }
 listeners['window:message']({
@@ -1167,19 +1169,19 @@ listeners['window:message']({
     },
   },
 })
-if (!root.innerHTML.includes('ДОКАЗАТЕЛЬСТВА КАЧЕСТВА') || !root.innerHTML.includes('2 запуска из 2') || !root.innerHTML.includes('Разобрано запусков: 1')) {
+if (!root.innerHTML.includes('Доказательства качества') || !root.innerHTML.includes('2 запуска из 2') || !root.innerHTML.includes('Разобрано запусков: 1')) {
   throw new Error('Statistics view did not render evidence-backed agent quality coverage')
 }
-if (!root.innerHTML.includes('СЛЕДУЮЩИЙ ШАГ РАЗВИТИЯ') || !root.innerHTML.includes('Усилить навык верификации') || !root.innerHTML.includes('Открыть навыки агента')) {
+if (!root.innerHTML.includes('Следующий шаг развития') || !root.innerHTML.includes('Усилить навык верификации') || !root.innerHTML.includes('Открыть навыки агента')) {
   throw new Error('Statistics view did not render an evidence-backed agent improvement recommendation')
 }
-if (!root.innerHTML.includes('АВТОНОМНОЕ РАЗВИТИЕ') || !root.innerHTML.includes('Проверенная разведка') || !root.innerHTML.includes('КАНДИДАТ · 1/2 ПРОЕКТОВ') || !root.innerHTML.includes('КАНДИДАТ ПАМЯТИ · 1/2') || !root.innerHTML.includes('ПОСТОЯННАЯ ИНСТРУКЦИЯ') || !root.innerHTML.includes('Откатить версию')) {
+if (!root.innerHTML.includes('Автономное развитие') || !root.innerHTML.includes('Проверенная разведка') || !root.innerHTML.includes('Кандидат · 1/2 проектов') || !root.innerHTML.includes('Кандидат памяти · 1/2') || !root.innerHTML.includes('Постоянная инструкция') || !root.innerHTML.includes('Откатить версию')) {
   throw new Error('Statistics view did not render the versioned autonomous learning journal')
 }
-if (!root.innerHTML.includes('CANARY / REGRESSION GATE') || !root.innerHTML.includes('ГЕЙТ ПРОЙДЕН') || !root.innerHTML.includes('candidate revision 1') || !root.innerHTML.includes('explicit promotion is available') || !root.innerHTML.includes('Продвинуть в Blueprint')) {
+if (!root.innerHTML.includes('CANARY / REGRESSION GATE') || !root.innerHTML.includes('Гейт пройден') || !root.innerHTML.includes('candidate revision 1') || !root.innerHTML.includes('explicit promotion is available') || !root.innerHTML.includes('Продвинуть в Blueprint')) {
   throw new Error('Statistics view did not render transparent canary evidence and exact Skill attribution')
 }
-if (!root.innerHTML.includes('ПЕРСОНАЛЬНЫЕ ПРОВЕРКИ') || !root.innerHTML.includes('Backend boundaries') || !root.innerHTML.includes('before revision 7 → after revision 7') || !root.innerHTML.includes('REGRESSION GATE: 1 кейс(а) ухудшились') || !root.innerHTML.includes('status is failed; expected completed')) {
+if (!root.innerHTML.includes('Персональные проверки') || !root.innerHTML.includes('Backend boundaries') || !root.innerHTML.includes('before revision 7 → after revision 7') || !root.innerHTML.includes('REGRESSION GATE: 1 кейс(а) ухудшились') || !root.innerHTML.includes('status is failed; expected completed')) {
   throw new Error('Statistics view did not render exact before/after benchmark evidence')
 }
 click('rollback-agent-improvement', { id: 'improvement-1' })
@@ -1211,8 +1213,13 @@ listeners['window:message']({
     }, details: undefined,
   }
 })
-if (!root.innerHTML.includes('ЖУРНАЛ ИЗМЕНЕНИЙ') || !root.innerHTML.includes('Google OAuth') || !root.innerHTML.includes('Откатить квест') || !root.innerHTML.includes('Откатить запуск') || !root.innerHTML.includes('Откатить узел Flow') || !root.innerHTML.includes('Откатить действие')) {
+if (!root.innerHTML.includes('<h1>Журнал правок</h1>') || !root.innerHTML.includes('Google OAuth') || !root.innerHTML.includes('Откатить квест') || !root.innerHTML.includes('Откатить запуск') || !root.innerHTML.includes('Откатить узел Flow') || !root.innerHTML.includes('Откатить действие')) {
   throw new Error('Change Journal did not group Quest → Execution → Action with revert controls')
+}
+// Подраздел виден строкой вкладок: журнал выделен, соседние наборы — в один клик.
+if (!/<nav class="hall-tabs"[^>]*>[\s\S]*class="is-active" data-action="tab" data-tab="journal" aria-current="page"[\s\S]*<\/nav>/.test(root.innerHTML)
+  || !/<nav class="hall-tabs"[\s\S]*data-tab="changesets"/.test(root.innerHTML)) {
+  throw new Error('Change Journal is not the selected tab of the Changes section')
 }
 click('revert-flow-node', { flowRunId: 'flow-1', nodeId: 'node-backend' })
 if (!posted.some(message => message.type === 'revertFlowNode' && message.flowRunId === 'flow-1' && message.nodeId === 'node-backend')) {
@@ -1234,7 +1241,7 @@ listeners['window:message']({
 // Граф зависимостей перестал быть самостоятельной секцией с заголовком того же
 // уровня, что и карточки наборов: он описывает цепочку набора над ним и теперь
 // оформлен как её продолжение. Проверяем сам блок и его подпись.
-for (const required of ['НАБОРЫ ИЗМЕНЕНИЙ', 'hall-panel is-graph is-continuation', 'порядок применения · откат в обратном порядке', 'Применить цепочку · 2', 'auth/callback.go · правка']) {
+for (const required of ['<h1>Ревью перед применением</h1>', 'hall-panel is-graph is-continuation', 'порядок применения · откат в обратном порядке', 'Применить цепочку · 2', 'auth/callback.go · правка']) {
   if (!root.innerHTML.includes(required)) throw new Error(`Change Set review module is missing: ${required}`)
 }
 click('apply-changeset-chain', { id: 'cs-next' })
@@ -1266,7 +1273,7 @@ click('companion-setup-step', { step: 'role' })
 for (const required of ['Выберите роль компаньона', 'Техлид', 'Наставник', 'Так компаньон будет вести себя', 'Логи и проблемы', 'Написание кода', 'Создать агента', 'Поставить квест']) {
   if (!root.innerHTML.includes(required)) throw new Error(`Companion Studio is missing: ${required}`)
 }
-if (root.innerHTML.includes('ТЕКУЩИЙ КВЕСТ') || root.innerHTML.includes('Создать отряд') || root.innerHTML.includes('КАРТОЧКА ПЕРСОНАЖА') || root.innerHTML.includes('Личность персонажа')) {
+if (root.innerHTML.includes('Текущий квест') || root.innerHTML.includes('Создать отряд') || root.innerHTML.includes('Карточка агента') || root.innerHTML.includes('Личность агента')) {
   throw new Error('Agent or quest chrome leaked into Companion Studio')
 }
 click('companion-setup-preset', { preset: 'mentor' })
@@ -1608,10 +1615,10 @@ listeners['window:message']({
 // Узкая раскладка рендерит редактор класса. После снятия моста «профиль ↔
 // чертёж» он правит именно класс — то, из чего нанимают, — и говорит об этом
 // своими словами; персонажей правит конструктор в Гильдии.
-if (!root.innerHTML.includes('КАРТОЧКА ПЕРСОНАЖА') || !root.innerHTML.includes('＋ Нанять') || !root.innerHTML.includes('Личность класса')) {
+if (!root.innerHTML.includes('Карточка агента') || !root.innerHTML.includes('>Новый агент<') || !root.innerHTML.includes('Личность агента')) {
   throw new Error('Agent Studio main controls were not rendered')
 }
-if ((root.innerHTML.match(/name="allowed-tool"/g) || []).length !== 8 || !root.innerHTML.includes('Имя, роль и правила класса') || !root.innerHTML.includes('Модель и подключение')) {
+if ((root.innerHTML.match(/name="allowed-tool"/g) || []).length !== 8 || !root.innerHTML.includes('Имя, роль и правила — с чем агент начнёт работу') || !root.innerHTML.includes('Модель и подключение')) {
   throw new Error('Tool catalog controls are incomplete')
 }
 if (!root.innerHTML.includes('id="context-window-tokens"')) throw new Error('Context-window control is missing')
@@ -1670,7 +1677,7 @@ for (const required of ['Tool calls', 'JSON / schema', 'Inspection → edit', 'V
 if (/model\s+score/i.test(root.innerHTML)) throw new Error('Capability probe rendered a synthetic aggregate score')
 
 click('new-profile')
-if (!root.innerHTML.includes('Выберите постоянного специалиста') || !root.innerHTML.includes('Подключить к проекту')) {
+if (!root.innerHTML.includes('Выберите постоянного агента') || !root.innerHTML.includes('Подключить к проекту')) {
   throw new Error('New-profile flow did not expose templates')
 }
 click('use-template', { template: 'reviewer' })
@@ -1729,7 +1736,7 @@ if (!root.innerHTML.includes('＋ Артефакт') || !root.innerHTML.includes
 if (!root.innerHTML.includes('Контекст готов') || !root.innerHTML.includes('≈ 454 токенов') || !root.innerHTML.includes('MARKDOWN')) {
   throw new Error('Typed context preview and token estimate were not rendered')
 }
-if (!root.innerHTML.includes('data-action="preview-run"') || !root.innerHTML.includes('Разведка') || !root.innerHTML.includes('<span>Принять квест</span>') || !root.innerHTML.includes('КРИТЕРИИ') || !root.innerHTML.includes('точный промпт')) {
+if (!root.innerHTML.includes('data-action="preview-run"') || !root.innerHTML.includes('Предпросмотр') || !root.innerHTML.includes('<span>Принять квест</span>') || !root.innerHTML.includes('Критерии') || !root.innerHTML.includes('точный промпт')) {
   throw new Error('Agent run preflight control was not rendered')
 }
 listeners['window:message']({
@@ -1827,10 +1834,10 @@ listeners['window:message']({
     },
   }
 })
-if (!root.innerHTML.includes('Снаряжение квеста') || !root.innerHTML.includes('Неизменяемый снимок Point 0.4.0') || !root.innerHTML.includes('АКТИВНЫЙ КВЕСТ')) {
+if (!root.innerHTML.includes('Снаряжение квеста') || !root.innerHTML.includes('Неизменяемый снимок Point 0.4.0') || !root.innerHTML.includes('Активный квест')) {
   throw new Error('Immutable run configuration snapshot was not rendered')
 }
-if (!root.innerHTML.includes('Свиток состояния') || !root.innerHTML.includes('Без сбоев') || !root.innerHTML.includes('150') || !root.innerHTML.includes('реальным событиям') || !root.innerHTML.includes('ЖУРНАЛ КОМАНД') || !root.innerHTML.includes('РАЗВЕДКА')) {
+if (!root.innerHTML.includes('Факты из неизменяемого журнала квеста') || !root.innerHTML.includes('Без сбоев') || !root.innerHTML.includes('150') || !root.innerHTML.includes('реальным событиям') || !root.innerHTML.includes('Журнал команд') || !root.innerHTML.includes('Предпросмотр')) {
   throw new Error('Auditable run diagnostics card was not rendered')
 }
 if (!root.innerHTML.includes('безопасных повторов: 1') || !root.innerHTML.includes('Провайдер временно недоступен') || !root.innerHTML.includes('повторный выполненный вызов заблокирован')) {
@@ -1902,7 +1909,7 @@ listeners['window:message']({
     },
   }
 })
-if (!root.innerHTML.includes('ПРОГРАММА') || !root.innerHTML.includes('ARGV · 2') || !root.innerHTML.includes('&quot;./...&quot;')) {
+if (!root.innerHTML.includes('Программа') || !root.innerHTML.includes('ARGV · 2') || !root.innerHTML.includes('&quot;./...&quot;')) {
   throw new Error('Process approval did not render exact argv elements')
 }
 
@@ -1925,7 +1932,7 @@ listeners['window:message']({
     boot: { profiles: [baseProfile], profileTemplates: [reviewer], toolCatalog: [...toolCatalog, { name: customTool.id, displayName: customTool.displayName, description: customTool.description, risk: 'approval', requiresApproval: true }], customTools: [customTool], customToolTemplates: [processToolTemplate], runs: [] }, details: undefined,
   }
 })
-if (!root.innerHTML.includes('АРСЕНАЛ') || !root.innerHTML.includes('go test ./internal/httpapi') || !root.innerHTML.includes('Доказательство готовности') || !root.innerHTML.includes('id="custom-tool-verification" type="checkbox" checked') || !root.innerHTML.includes('Python-скрипт') || !root.innerHTML.includes('⇧ Импорт') || !root.innerHTML.includes('Сохранить') || !root.innerHTML.includes('Сеть · запрещена по умолчанию')) {
+if (!root.innerHTML.includes('Свои инструменты') || !root.innerHTML.includes('go test ./internal/httpapi') || !root.innerHTML.includes('Доказательство готовности') || !root.innerHTML.includes('id="custom-tool-verification" type="checkbox" checked') || !root.innerHTML.includes('Python-скрипт') || !root.innerHTML.includes('⇧ Импорт') || !root.innerHTML.includes('Сохранить') || !root.innerHTML.includes('Сеть · запрещена по умолчанию')) {
   throw new Error('Custom tool builder did not render the saved command')
 }
 click('import-custom-tool')
@@ -2062,7 +2069,7 @@ listeners['window:message']({
     boot: { profiles: [baseProfile], profileTemplates: [reviewer], toolCatalog, customTools: [customTool], workflows: [workflow], workflowRuns: [workflowRun], runs: [] },
   }
 })
-if (!root.innerHTML.includes('hub-legacy-redirect') || !root.innerHTML.includes('карточку наряда') || root.innerHTML.includes('КАМПАНИИ / ФЛОУ')) {
+if (!root.innerHTML.includes('hub-legacy-redirect') || !root.innerHTML.includes('карточку наряда') || root.innerHTML.includes('Редактор схем')) {
   throw new Error('Legacy workflow route did not stay behind the Hub v2 Master redirect')
 }
 
@@ -2098,7 +2105,7 @@ if (root.innerHTML.includes('companion-studio')) {
   throw new Error('Companion setup survived a section change and kept holding the shell')
 }
 const crumbAfterSwitch = (root.innerHTML.match(/class="hall-crumb">([^<]*)</) || [])[1] || ''
-if (!/ГИЛЬДИЯ/.test(crumbAfterSwitch)) {
+if (!/^Гильдия$/.test(crumbAfterSwitch)) {
   throw new Error(`Section did not change while companion setup was open: crumb=${crumbAfterSwitch}`)
 }
 
@@ -2119,7 +2126,7 @@ listeners['window:message']({
     }, details: undefined,
   }
 })
-for (const required of ['КВЕСТЫ ПРОЕКТА', 'Починить оплату подписки', 'Убрать дубли в журнале']) {
+for (const required of ['Квесты проекта', 'Починить оплату подписки', 'Убрать дубли в журнале']) {
   if (!root.innerHTML.includes(required)) {
     throw new Error(`Quest board does not list existing quests: ${required}`)
   }
@@ -2169,7 +2176,7 @@ listeners['window:message']({
     boot: { profiles: [baseProfile], providerCatalog, connections: [], serverProfiles: [sshProfile], runs: [] },
   }
 })
-for (const required of ['SSH-СЕРВЕРЫ', 'prod-api', 'deploy@prod.example:2222', 'Проверить', 'SSH-терминал', 'Файлы /srv/prod-api', 'безопасный предпросмотр', 'Новый SSH-профиль', 'только в SecretStorage']) {
+for (const required of ['SSH-серверы', 'prod-api', 'deploy@prod.example:2222', 'Проверить', 'SSH-терминал', 'Файлы /srv/prod-api', 'безопасный предпросмотр', 'Новый SSH-профиль', 'только в SecretStorage']) {
   if (!root.innerHTML.includes(required)) throw new Error(`SSH surface is missing: ${required}`)
 }
 click('probe-server', { id: sshProfile.id })
@@ -2221,7 +2228,7 @@ listeners['window:message']({
     boot: { profiles: [baseProfile], dbConnections: [dbConnection], runs: [] },
   }
 })
-for (const required of ['БАЗЫ ДАННЫХ', 'fixture-db', 'SQLite', 'Новое подключение', 'PostgreSQL', 'MySQL', 'Пароли только в SecretStorage', 'SQL · fixture-db']) {
+for (const required of ['Базы данных', 'fixture-db', 'SQLite', 'Новое подключение', 'PostgreSQL', 'MySQL', 'Пароли только в SecretStorage', 'SQL · fixture-db']) {
   if (!root.innerHTML.includes(required)) throw new Error(`Database surface is missing: ${required}`)
 }
 click('test-db', { id: dbConnection.id })

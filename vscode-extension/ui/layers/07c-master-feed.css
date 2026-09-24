@@ -497,34 +497,100 @@
   .hall-dialogue .hall-live-row.is-running .hall-step-icon { animation: none; }
 }
 
-.hall-dialogue .hall-stream {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-4);
-  padding: 0;
+/* Ранние строки следа — под «ещё N»: пока идёт ход, видно три последних.
+   Та же тихая строка, что у сводки готового хода, только без значков. */
+.hall-dialogue .hall-live-earlier > summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-sm);
+  margin-left: calc(var(--s-3) * -1);
+  padding: 0 var(--s-3);
+  border-radius: var(--r-1);
+  font: var(--fw-normal) var(--t-small) / 1 var(--font-ui);
+  color: var(--hub-muted);
+  cursor: pointer;
+  list-style: none;
 }
-.hall-dialogue .hall-stream > small {
+.hall-dialogue .hall-live-earlier > summary::-webkit-details-marker { display: none; }
+.hall-dialogue .hall-live-earlier > summary:hover,
+.hall-dialogue .hall-live-earlier > summary:focus-visible { background: var(--hub-selected); color: var(--hub-text); }
+.hall-dialogue .hall-live-earlier + .hall-live { margin-top: var(--s-1); }
+
+/* —— Ход, который ещё идёт (master-stream-view.js) ——
+   Блок устроен как готовый ход: сводка следа, реплика, подвал. На месте
+   подвала стоит строка состояния той же высоты, поэтому на финише, когда
+   блок сменяется записью истории, ответ не сдвигается ни на пиксель.
+   Селектор строки длиннее нужного: подвал хода прячет детей до наведения
+   правилом (0,4,0), а строка состояния видна всегда. */
+.hall-dialogue .hall-turn-foot.hall-stream-foot > .hall-stream-status {
   display: inline-flex;
   align-items: center;
   gap: var(--s-3);
-  font: var(--fw-normal) var(--t-body) / 1.4 var(--font-ui);
+  opacity: 1;
+  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui);
   color: var(--hub-muted);
 }
-.hall-dialogue .hall-stream > small::before {
+.hall-dialogue .hall-stream-status:not(:empty)::before {
   content: '';
-  width: 6px;
-  height: 6px;
+  width: var(--s-3);
+  height: var(--s-3);
   border-radius: 50%;
-  background: var(--ember);
+  background: var(--hub-muted);
   animation: hall-live-pulse 1.2s var(--ease) infinite;
 }
-.hall-dialogue .hall-stream-text {
-  font: var(--fw-normal) var(--t-base) / 1.6 var(--font-ui);
-  color: var(--hub-text);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
+.hall-dialogue .hall-trail.is-running .hall-trail-icons .hall-icon:last-child {
+  animation: hall-live-pulse 1.2s var(--ease) infinite;
 }
-.hall-dialogue .hall-stream-text:empty { display: none; }
+/* Курсор потока. Разбор ставит его в конец последнего блока — абзаца, пункта
+   или строки кода. Пока текст идёт, каждая правка тела рисует курсор заново, и
+   мигание начинается сначала: курсор горит ровно, пока модель пишет, и мигает,
+   когда она задумалась. */
+.hall-dialogue .hall-stream-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1.1em;
+  margin-left: var(--s-1);
+  vertical-align: text-bottom;
+  background: var(--hub-text-2);
+  animation: hall-caret-blink 1s steps(1) infinite;
+}
+@keyframes hall-caret-blink {
+  0%, 55% { opacity: 1; }
+  56%, 100% { opacity: 0; }
+}
+
+/* Ответ прервался: написанное остаётся над строкой, а строка называет причину
+   и даёт повторить. Кромка — цвет отказа, как у отката ответа — предупреждения. */
+.hall-dialogue .hall-turn-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-4);
+  padding: var(--s-3) var(--s-4);
+  border-left: var(--edge-accent) solid var(--wound);
+  border-radius: var(--r-1);
+  background: var(--wound-wash);
+  font: var(--fw-normal) var(--t-body) / 1.45 var(--font-ui);
+  color: var(--hub-text-2);
+}
+.hall-dialogue .hall-turn-error > .hall-icon { width: 14px; height: 14px; color: var(--wound); }
+.hall-dialogue .hall-turn-error > span:first-of-type { flex: 1 1 16rem; min-width: 0; overflow-wrap: anywhere; }
+.hall-dialogue .hall-turn-error b { font-weight: var(--fw-medium); color: var(--hub-text); }
+.hall-dialogue .hall-turn-error-acts { display: inline-flex; gap: var(--s-2); }
+/* Остановленный ответ — не сбой: тихая строка без краски. */
+.hall-dialogue .hall-turn-note {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui);
+  color: var(--hub-muted);
+}
+.hall-dialogue .hall-turn-note > .hall-icon { width: 12px; height: 12px; }
+@media (prefers-reduced-motion: reduce) {
+  .hall-dialogue .hall-stream-status::before,
+  .hall-dialogue .hall-trail.is-running .hall-trail-icons .hall-icon:last-child,
+  .hall-dialogue .hall-stream-caret { animation: none; }
+}
 
 /* —— Поиск по разговору ——
    Свёрнутый поиск — значок в шапке; раскрытый — строка над лентой. */

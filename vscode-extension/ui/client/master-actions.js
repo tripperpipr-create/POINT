@@ -248,11 +248,20 @@ export function handleMasterClickAction({ action, target, ui, applyMasterFind, f
     // срабатывал, и кнопка только снимала local-замок. Теперь ход гасится и в ядре.
     vscode.postMessage({ type: 'stopMasterChat', turnId: masterClient.turns[masterClient.active]?.id || '' })
     ui.masterSending = false
-    forgetMasterSent()
+    // Отправленная реплика не забывается здесь: остановленный ход остаётся в
+    // ленте с тем, что успел написать, и реплика человека над ним должна
+    // дожить до истории. Забудет её конец хода (turnFinished).
     stopMasterWaitClock()
     // Честно: отмена ушла, но ядро могло успеть довести ход до конца.
     ui.masterComposeNote = 'Ядро могло довести его до конца. Частичный текст останется в разговоре.'
     render()
+    return true
+  }
+  // Ответ прервался — тот же вопрос заново. Не «ответить иначе» (retry): ход не
+  // был плохим, он не дошёл, и просить у модели другой путь было бы неправдой.
+  if (action === 'master-retry-turn') {
+    const text = String(target.dataset.message || '').trim()
+    if (text && !ui.masterSending) sendMasterMessage(text)
     return true
   }
   if (action === 'master-send') {

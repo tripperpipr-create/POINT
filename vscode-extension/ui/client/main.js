@@ -51,6 +51,7 @@ import { handleMasterHiringAction } from './master-hiring-card.js'
 import { handleMasterAgentCardAction, masterAgentCardsAll, masterAgentConsent, readMasterAgentCardInput, releaseMasterAgentCards } from './master-agent-card.js'
 import { MASTER_MESSAGE_LIMIT_BYTES, masterComposeCountClass, masterComposeCountState, masterComposeFormClass, masterAnswerRows, masterComposeRows, masterMessageBytes, masterWaitSuffix, oversizedMasterMessageNote } from './master-compose.js'
 import { createMasterFeedRuntime, threadNearBottom } from './master-feed.js'
+import { createMasterStreamView } from './master-stream-view.js'
 import { COMPANION_EXAMPLES, COMPANION_MESSAGE_LIMIT_BYTES, COMPANION_SETUP_STEPS, COMPANION_SETUP_STEP_ALIAS, applyLocalSourceFields, companionBrainMode, companionConfigForBrain, normalizeBrainMode, companionSpendCaveats, companionSceneById, companionModeCardsHtml, companionLocalReadyHtml, companionComposeActionsHtml, companionComposeMetaHtml, companionMessageBytes, companionWaitSuffix, oversizedCompanionMessageNote } from './companion-compose.js'
 // Счётчик отправок нужен защите форм от повторной отправки: обработчик формы
 // может выйти раньше, ничего не отправив (не заполнено поле, не пройдена
@@ -2290,6 +2291,8 @@ const applyMasterMessage = createMasterInbox({
   persistDraft: (...args) => persistDraft(...args),
   masterClient, masterSessionDrafts,
   masterTraceMindPatch: (...args) => masterTraceMindPatch(...args),
+  masterStream: { accept: type => masterStreamView.accept(type) },
+  masterSentText: () => masterSentText(),
   acceptMasterMentionItems: (...args) => acceptMasterMentionItems(...args),
   receiveMasterContext: (...args) => receiveMasterContext(...args),
   clearMasterContext: (...args) => clearMasterContext(...args),
@@ -2520,6 +2523,9 @@ const {
 } = createMasterThreadViews({
   masterBriefPanelHtml: (...args) => masterBriefPanelHtml(...args),
   masterBriefTabHtml: (...args) => masterBriefTabHtml(...args),
+  masterStreamBlockHtml: () => masterStreamView.html(),
+  masterStreamPhaseNow: () => masterStreamView.phase(),
+  masterTurnErrorHtml: turn => masterStreamView.errorHtml(turn),
   taskBriefReady,
   agentById: (...args) => agentById(...args), agentClass: (...args) => agentClass(...args),
   agentWorkTranscriptHtml: (...args) => agentWorkTranscriptHtml(...args),
@@ -2542,6 +2548,11 @@ const {
 })
 
 ;({ applyMasterFind, updateMasterScrollCue, applyMasterComposeReserve, replaceMasterThreadHtml, afterMasterFeedPaint } = createMasterFeedRuntime({ root, ui: modularUiState, threadHtml: () => masterThreadContentHtml() }))
+const masterStreamView = createMasterStreamView({
+  root, ui: modularUiState, esc, countOf,
+  formatStreaming: (text, options) => formatCompanionMarkdown.streaming(text, options),
+  replaceThread: () => replaceMasterThreadHtml(),
+})
 
 function captureUi() {
   const active = document.activeElement

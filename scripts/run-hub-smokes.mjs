@@ -76,6 +76,7 @@ const checks = [
   'smoke-master-quest-strip.mjs',
   'smoke-master-inspector.mjs',
   'smoke-master-stream.cjs',
+  'smoke-master-stream-view.mjs',
   'smoke-master-message-actions.js',
   'smoke-master-questions.js',
   'smoke-master-quest-path.js',

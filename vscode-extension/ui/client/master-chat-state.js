@@ -1,5 +1,4 @@
-import { masterToolNameNow } from './master-tool-names.js'
-import { masterTraceAccept, masterTraceHtml } from './master-live-trace.js'
+import { masterTraceAccept } from './master-live-trace.js'
 
 export function createMasterChatState(saved = {}) {
   return {
@@ -20,7 +19,16 @@ export function createMasterChatState(saved = {}) {
     // оставленное в DOM, схлопывалось бы прямо под читающим.
     openLive: new Set(),
     remember(id, draft, scroll) {if (!id) return;this.drafts[id]=draft;if (Number.isFinite(scroll)) this.scroll[id]=scroll},
-    acceptTurn(turn) {this.turns[turn.conversationId]=turn},
+    // Повторный приход того же хода (переподключение потока, ответ на
+    // отправку) не стирает собранный след и отметку «осел»: без них ход,
+    // уже лежащий в истории, показался бы в ленте второй раз.
+    acceptTurn(turn) {const prev=this.turns[turn.conversationId];this.turns[turn.conversationId]=prev&&prev.id===turn.id?{...turn,trace:turn.trace||prev.trace,settled:prev.settled||turn.settled,streamError:turn.streamError||prev.streamError,ask:prev.ask}:turn},
+    // История пришла — ход больше не живёт в ленте своим блоком.
+    settle(id=this.active) {const turn=this.turns[id];if(turn)turn.settled=true},
+    // Поток оборвался. Ход перестаёт считаться идущим — иначе следующий ответ
+    // ядра снова запер бы отправку, — а причина и вопрос остаются при нём:
+    // строка сбоя показывает первое и повторяет второе.
+    fail(id,message,ask) {const turn=this.turns[id];if(!turn)return;turn.status='failed';turn.streamError=String(message||'');turn.ask=String(ask||'');for(const item of turn.trace||[])item.running=false},
     acceptEvent(event) {
       const turn=this.turns[event.conversationId] ||= {id:event.turnId,conversationId:event.conversationId,reply:''}
       if (turn.id!==event.turnId) return
@@ -45,18 +53,10 @@ export function createMasterChatState(saved = {}) {
       // След хода в снимок не идёт: он про происходящее сейчас, а к
       // следующему открытию панели ход уже закончится своей репликой — с
       // теми же шагами и рассуждением, сохранёнными ядром.
-      const lean=values=>Object.fromEntries(Object.entries(durable(values)).map(([id,turn])=>[id,{...turn,trace:undefined}]))
+      // Не идущий ход в снимке помечен осевшим: после перезапуска панели его
+      // текст придёт историей, и блок потока показал бы его дважды.
+      const lean=values=>Object.fromEntries(Object.entries(durable(values)).map(([id,turn])=>[id,{...turn,trace:undefined,settled:turn.settled||!['preparing','waiting','streaming','tools'].includes(turn.status)}]))
       return {historyHidden:this.historyHidden,active:this.active.startsWith('temporary')?'':this.active,drafts:durable(this.drafts),scroll:durable(this.scroll),attachments:durable(this.attachments),turns:lean(this.turns),questionDrafts:durable(this.questionDrafts),questionCursor:durable(this.questionCursor),briefPanel:durable(this.briefPanel),cardOpen:durable(this.cardOpen)}
     },
   }
-}
-// Строка ожидания. Ядро шлёт в событии `tools` сырое имя инструмента (call.Name),
-// и оно уезжало на экран как есть: посреди русского разговора висело «read_file».
-// Незнакомое имя не выдаём за знакомое — берём общую подпись состояния.
-export function masterStreamHtml(turn, esc, open) {
-  const labels={preparing:'Подготавливаю контекст…',waiting:'Ожидаю модель…',streaming:'Отвечаю…',tools:'Изучаю проект…'}
-  const progress=turn?.status==='tools' ? masterToolNameNow(turn?.progress) : String(turn?.progress || '')
-  const status=progress ? `${progress}…` : labels[turn?.status] || 'Ожидаю модель…'
-  const trace=masterTraceHtml(turn,esc,open)
-  return `<div class="hall-stream" data-master-stream>${trace}<small role="status">${esc(status)}</small><div class="hall-stream-text">${esc(turn?.reply || '')}</div></div>`
 }

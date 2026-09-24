@@ -523,6 +523,65 @@ if (process.argv[2] === 'master') {
     // Ядро уже сообщило, чем занято: событие `tools` несёт сырое имя
     // инструмента, и русскую подпись строки ожидания без него не увидеть.
     listeners['window:message']({ data: { type: 'masterTurn', turn: { id: 'turn-tools', conversationId: '', status: 'tools', progress: 'read_file', reply: '' } } })
+  } else if (/^(streaming-|stream-error$|turn-failed$|turn-cancelled$)/.test(variant)) {
+    // Ход Мастера по фазам: ожидание, след, текст с открытым блоком кода,
+    // конец хода до прихода истории, оборванный поток — и сохранённые ядром
+    // сорванный и остановленный ходы. Каждая фаза — отдельный облик одного и
+    // того же блока, и прыжок между ними виден только при сравнении страниц.
+    const sessions = { active: 'db', mode: 'auto', workMode: 'discuss', items: [{ id: 'db', title: 'Миграция базы' }] }
+    const ask = 'Проверь миграцию заказов и поправь повтор вебхука'
+    const history = [
+      { id: 'u0', role: 'user', content: 'Что в проекте с базой?', createdAt: today(9, 40) },
+      { id: 'a0', role: 'assistant', mode: 'model', model: 'qwen2.5-coder:7b', content: 'Миграции лежат в `internal/storage/migrations`, последняя — **0008_orders**.', createdAt: today(9, 41) },
+    ]
+    const partial = 'Начал с проверки схемы: таблица **orders** уже перенесена, а'
+    if (variant === 'turn-failed' || variant === 'turn-cancelled') {
+      history.push({ id: 'u1', role: 'user', content: ask, createdAt: today(10, 2) }, {
+        id: 'a1', role: 'assistant', createdAt: today(10, 3), content: partial,
+        mode: variant === 'turn-failed' ? 'failed' : 'cancelled',
+        fallbackReason: variant === 'turn-failed' ? 'модель вернула 502 Bad Gateway' : 'Ответ остановлен',
+      })
+      listeners['window:message']({ data: { type: 'master', master: { configured: true, config: boot.orchestrator, sessions, history } } })
+    } else {
+      listeners['window:message']({ data: { type: 'master', master: { configured: true, config: boot.orchestrator, sessions, history } } })
+      listeners['root:input']({ target: { id: 'master-input', value: ask, closest: () => null, matches: () => false } })
+      click({ action: 'master-send' })
+      const turnId = [...posted].reverse().find(message => message.type === 'masterChat')?.turnId
+      const event = (type, text, detail) => listeners['window:message']({ data: { type: 'masterEvent', event: {
+        turnId, conversationId: 'db', type, text: text || '', detail: detail ? JSON.stringify(detail) : '',
+      } } })
+      let status = 'waiting'
+      let progress = ''
+      let reply = ''
+      if (variant !== 'streaming-wait') {
+        event('reasoning', '', { round: 1, delta: 'Посмотрю миграции и обработчик вебхука, потом сверю тесты.' })
+        const files = ['internal/storage/migrations/0008_orders.sql', 'internal/billing/webhook.go', 'internal/billing/webhook_test.go', 'internal/storage/sqlite.go', 'internal/billing/retry.go']
+        files.forEach((file, index) => {
+          event('tools', 'read_file', { round: 1, tool: 'read_file', argument: file })
+          event('tool_result', '', { round: 1, tool: 'read_file', result: index === 3 ? 'нет файла: internal/storage/sqlite.go' : `${[42, 118, 64, 0, 37][index]} строк`, failed: index === 3 })
+        })
+        event('tools', 'search_text', { round: 2, tool: 'search_text', argument: 'RetryDelivery' })
+        status = 'tools'
+        progress = 'search_text'
+      }
+      if (['streaming-text', 'streaming-settling', 'stream-error'].includes(variant)) {
+        event('tool_result', '', { round: 2, tool: 'search_text', result: '[]' })
+        reply = variant === 'streaming-settling'
+          ? 'Нашёл причину: **повтор вебхука** не проверял ключ идемпотентности.\n\n1. Добавил проверку ключа\n2. Покрыл тестом повторную доставку\n\n```go\nif seen(key) { return nil }\n```'
+          : variant === 'stream-error' ? partial
+            : 'Нашёл причину: **повтор вебхука** не проверял ключ идемпотентности.\n\n1. Добавил проверку ключа\n2. Покрыл тестом\n\n```go\nif seen(key) {\n  return nil'
+        event('reply', reply)
+        status = 'streaming'
+      }
+      if (variant === 'streaming-settling') { event('done', 'completed'); status = 'completed' }
+      if (variant === 'stream-error') {
+        listeners['window:message']({ data: { type: 'masterStreamError', conversationId: 'db', message: 'соединение с ядром потеряно' } })
+        status = 'failed'
+      }
+      // Стенд рисует разметку разделом целиком, а точечные правки ленты у него
+      // некуда применять: повторный приход того же хода просит полную отрисовку.
+      listeners['window:message']({ data: { type: 'masterTurn', turn: { id: turnId, conversationId: 'db', status, progress, reply } } })
+    }
   } else if (variant === 'markdown') {
     // Разметка ответа целиком: заголовки, списки со вложением и задачами,
     // таблица шире колонки, цитата, ссылки и блок кода с длинной строкой. По

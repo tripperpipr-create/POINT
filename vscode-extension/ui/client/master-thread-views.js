@@ -1,4 +1,3 @@
-import { masterStreamHtml } from './master-chat-state.js'
 import { masterUsedMemoryHtml } from './master-memory-ui.js'
 import { masterContextAddHtml, masterContextHtml, masterMessageAttachmentsHtml } from './master-context-ui.js'
 import { masterSessionHtml, masterComposerHtml } from './master-session-ui.js'
@@ -51,6 +50,9 @@ export function createMasterThreadViews(dependencies) {
     masterBriefPanelHtml,
     masterWorkOrderCardsHtml,
     masterBriefTabHtml,
+    masterStreamBlockHtml,
+    masterStreamPhaseNow,
+    masterTurnErrorHtml,
     taskBriefCardHtml,
     taskBriefReady,
     taskProposalById,
@@ -389,24 +391,25 @@ export function createMasterThreadViews(dependencies) {
     // сперва то, что сказано, потом то, что спрошено.
     const questions = mine ? '' : masterTurnQuestionsHtml(item, answered)
     const stamp = time ? `<time class="hall-turn-stamp" aria-hidden="true">${esc(time)}</time>` : ''
-    const foot = `${mine ? '' : masterAnswerBadgeHtml(item)}${pending ? '' : masterMessageToolsHtml(item, mine, previousAsk)}${stamp}${mine ? '' : masterTurnTimeHtml(item)}${masterUsedMemoryHtml(item.memoryIds,ui.masterData?.sessions?.memoryEntries,esc,item.id,ui.masterOpenReasoning.has('memory:'+item.id))}`
-    const attached = `${masterMessageAttachmentsHtml(item.attachments,esc)}${trail}${article}${questions}${foot ? `<div class="hall-turn-foot">${foot}</div>` : ''}${masterFactsHtml(facts)}${showProposal === false ? '' : `${masterThreadProposalHtml(item.proposalId)}${masterThreadActionProposalHtml(item.actionProposalId)}`}`
+    // Ход, сорванный или остановленный, ядро сохраняет с режимом `failed` или
+    // `cancelled` и причиной в поле отката. Метка «ответил движок Point» врала
+    // бы о нём: движок не отвечал, ответ просто не дошёл до конца.
+    const broken = !mine && ['failed', 'cancelled'].includes(String(item.mode || ''))
+    const brokenHtml = !broken ? '' : item.mode === 'failed'
+      ? masterTurnErrorHtml({ streamError: item.fallbackReason, ask: previousAsk })
+      : `<div class="hall-turn-note">${icon('stop')}<span>Ответ остановлен</span></div>`
+    const foot = `${mine || broken ? '' : masterAnswerBadgeHtml(item)}${pending ? '' : masterMessageToolsHtml(item, mine, previousAsk)}${stamp}${mine ? '' : masterTurnTimeHtml(item)}${masterUsedMemoryHtml(item.memoryIds,ui.masterData?.sessions?.memoryEntries,esc,item.id,ui.masterOpenReasoning.has('memory:'+item.id))}`
+    const attached = `${masterMessageAttachmentsHtml(item.attachments,esc)}${trail}${String(item.content || '').trim() || !broken ? article : ''}${brokenHtml}${questions}${foot ? `<div class="hall-turn-foot">${foot}</div>` : ''}${masterFactsHtml(facts)}${showProposal === false ? '' : `${masterThreadProposalHtml(item.proposalId)}${masterThreadActionProposalHtml(item.actionProposalId)}`}`
     return `<div class="hall-turn${mine ? ' is-user-turn' : ' is-master-turn'}${pending ? ' is-pending-turn' : ''}">${attached}</div>`
   }
 
   // Пока ядро не вернуло историю, своя реплика уже стоит в ленте — иначе
   // кажется, что сообщение «пропало», пока модель думает.
-  // Чем Мастер занят прямо сейчас. Ядро шлёт имя инструмента событием ,
-  // и строка ожидания обязана называть его по-русски: «Смотрю проект…» верно,
-  // но беднее, чем «Читаю файл…», а сырое  на экране — чужое слово.
-  function masterWaitingLabel() {
-    if (ui.masterTurn?.status !== 'tools') return 'Думаю…'
-    const tool = masterToolNameNow(ui.masterTurn?.progress)
-    return tool ? `${tool[0].toUpperCase()}${tool.slice(1)}…` : 'Смотрю проект…'
-  }
-
   function masterPendingUserHtml() {
-    if (!ui.masterSending) return ''
+    // Держится, пока ход виден в ленте своим блоком, а не только пока он идёт:
+    // между концом хода и приходом истории реплика иначе пропадала вместе с
+    // ответом и возвращалась через мгновение.
+    if (!ui.masterSending && !['settling', 'failed'].includes(masterStreamPhaseNow())) return ''
     const pending = String(ui.masterSentText || '').trim()
     if (!pending) return ''
     const history = ui.masterData?.history || []
@@ -906,11 +909,9 @@ export function createMasterThreadViews(dependencies) {
         ${thread}
         ${questionsShown || ui.masterSending ? '' : masterLiveQuestionsHtml(response)}
         ${masterPendingUserHtml()}
-        ${/* Пока идёт ход, лента показывает его след: что Мастер думает и чем
-             смотрит проект. Карточка «Думаю…» остаётся только на то время,
-             пока рассказывать ещё нечего. */''}
-        ${ui.masterSending && (ui.masterTurn?.reply || (ui.masterTurn?.trace || []).length) ? masterStreamHtml(ui.masterTurn,esc,ui.masterOpenLive) : ''}
-        ${ui.masterSending && !ui.masterTurn?.reply && !(ui.masterTurn?.trace || []).length ? `<div class="hall-turn is-master-turn is-waiting-turn"><article class="hall-msg hall-msg-waiting"><span class="who hall-sr"><span class="hall-speaker-name">Мастер</span><time>сейчас</time></span><div class="body is-muted"><span class="agent-work-thinking"><i></i><span>${esc(masterWaitingLabel())}</span></span></div></article></div>` : ''}
+        ${/* Идущий ход — одним блоком (master-stream-view.js): «Думаю…», след,
+             живой ответ, а после конца — тот же ответ, пока не придёт история. */''}
+        ${masterStreamBlockHtml()}
         ${factsShown ? '' : masterFactsHtml(response?.facts)}
         ${proposalShown ? '' : masterThreadProposalHtml(response?.proposal?.id)}
         ${actionProposalShown ? '' : masterThreadActionProposalHtml(response?.actionProposal?.id)}

@@ -30,6 +30,48 @@
       ]
     },
     {
+      "page": "master-streaming-trace",
+      "surface": "master",
+      "args": [
+        "streaming-trace"
+      ]
+    },
+    {
+      "page": "master-streaming-text",
+      "surface": "master",
+      "args": [
+        "streaming-text"
+      ]
+    },
+    {
+      "page": "master-streaming-settling",
+      "surface": "master",
+      "args": [
+        "streaming-settling"
+      ]
+    },
+    {
+      "page": "master-stream-error",
+      "surface": "master",
+      "args": [
+        "stream-error"
+      ]
+    },
+    {
+      "page": "master-turn-failed",
+      "surface": "master",
+      "args": [
+        "turn-failed"
+      ]
+    },
+    {
+      "page": "master-turn-cancelled",
+      "surface": "master",
+      "args": [
+        "turn-cancelled"
+      ]
+    },
+    {
       "page": "master-origin",
       "surface": "master",
       "args": [

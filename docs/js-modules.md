@@ -87,6 +87,13 @@ webview. У них нет ни `require`, ни `vscode` — только объ�
 (`vscode-extension/ui/client/html-escape.js`), склонение и единицы — в другом
 (`vscode-extension/ui/client/format-units.js`). Оба вынесены потому, что уже
 расходились копиями, и смоуки экранировали слабее продукта.
+Метку, пришедшую из ядра прописными («КОМАНДА»), к обычному регистру приводит
+`sentenceLabel()` оттуда же, из `format-units.js`.
+Оболочку окна Хаба — рейку разделов, шапку и строку вкладок подраздела — рисует
+`shell()` в `vscode-extension/ui/client/quest-runtime-views.js`. Разделы и их
+вкладки перечислены там же в `HALL_SECTIONS`; новая вкладка раздела — одна
+строка в его `subtabs`, а не кнопка «перейти» на чужой странице. Название
+раздела в шапке даёт `hallCrumb()` из `vscode-extension/ui/client/hall-onboarding-views.js`.
 Значки интерфейса — встроенные SVG из `vscode-extension/ui/client/ui-icons.js`
 (`icon(имя)`); значок декоративен, смысл кнопке дают её `aria-label` и `title`.
 Лента разговора с Мастером оформляется одним слоем

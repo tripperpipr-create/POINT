@@ -8,6 +8,8 @@
 //
 // Состояние приходит общим мешком `ui`, как в `companion-transport.js`.
 
+import { masterQueueAfterTurn, masterQueuePause } from './master-compose-keys.js'
+
 const MASTER_MESSAGES = new Set([
 	'masterDevelopment', 'masterDevelopmentError',
   'master', 'masterTurn', 'masterEvent',
@@ -62,7 +64,7 @@ export function createMasterInbox({
       }
       // Поток оборвался: написанное и вопрос остаются в ленте со строкой сбоя,
       // а не причиной под полем ввода — там её читали, уже потеряв ответ.
-      if (message.type==='masterStreamError' && message.conversationId===masterClient.active){masterClient.fail(masterClient.active,message.message,masterSentText());ui.masterSending=false;stopMasterWaitClock();if(!replaceMasterThreadHtml())render();syncMasterComposeState()}
+      if (message.type==='masterStreamError' && message.conversationId===masterClient.active){masterClient.fail(masterClient.active,message.message,masterSentText());masterQueuePause(masterClient,masterClient.active,'failed');ui.masterSending=false;stopMasterWaitClock();if(!replaceMasterThreadHtml())render();syncMasterComposeState()}
       if (message.type==='masterWorkOrder') {
         // Наблюдение за живым квестом продолжается и после перехода в другой
         // разговор: его обновление не должно подкладывать чужую карточку.
@@ -110,7 +112,9 @@ export function createMasterInbox({
         if(message.turn) masterClient.acceptTurn(message.turn)
         for(const turn of message.master?.activeTurns || []) masterClient.acceptTurn(turn)
         const incomingConversation=message.master?.sessions?.active
-        if(message.turnFinished && incomingConversation && incomingConversation!==masterClient.active) {persistDraft();return}
+        // Ход кончился в другом разговоре: его очередь ждёт человека, а не уходит
+        // сама — он её сейчас не видит.
+        if(message.turnFinished && incomingConversation && incomingConversation!==masterClient.active) {masterQueuePause(masterClient,incomingConversation,'elsewhere');persistDraft();return}
         if(message.sessionChanged || message.loaded){masterClient.restoreScroll=masterClient.scroll[incomingConversation] ?? Infinity;masterClient.query='';ui.masterFindQuery=''}
         masterClient.active=incomingConversation || masterClient.active
         if (message.turnFinished) {
@@ -144,6 +148,12 @@ export function createMasterInbox({
           ui.masterDraft = message.draft ?? (masterSessionDrafts[ui.masterData?.sessions?.active] ?? (message.loaded ? ui.masterDraft : ''))
         }
         if (message.turnFinished || message.turn?.status === 'done') forgetMasterSent()
+        // Очередь: следующая реплика уходит сама, если ход кончился как надо;
+        // после уточнений, остановки и сбоя она ждёт кнопки (master-compose-keys.js).
+        const queued = message.turnFinished ? masterQueueAfterTurn(masterClient, masterClient.active, {
+          status: String(masterClient.turns[masterClient.active]?.status || ''), last: (ui.masterData?.history || []).slice(-1)[0],
+        }) : null
+        if (queued) setTimeout(() => sendMasterMessage(queued.text), 0)
         persistDraft()
         // Причины полной отрисовки перечислены явно. Незаданный Мастер меняет весь
         // раздел, а не ленту; отсутствие ленты означает, что человек смотрит другой

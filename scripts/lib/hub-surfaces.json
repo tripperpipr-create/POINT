@@ -100,6 +100,27 @@
       ]
     },
     {
+      "page": "master-queue",
+      "surface": "master",
+      "args": [
+        "queue"
+      ]
+    },
+    {
+      "page": "master-queue-paused",
+      "surface": "master",
+      "args": [
+        "queue-paused"
+      ]
+    },
+    {
+      "page": "master-slash",
+      "surface": "master",
+      "args": [
+        "slash"
+      ]
+    },
+    {
       "page": "master-sessions",
       "surface": "master",
       "args": [

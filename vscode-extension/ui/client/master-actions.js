@@ -11,6 +11,7 @@
 import { closeMasterMention, masterMentionState } from './master-mention-ui.js'
 import { masterAgentConsent } from './master-agent-card.js'
 import { icon } from './ui-icons.js'
+import { masterQueuePause } from './master-compose-keys.js'
 
 export function handleMasterClickAction({ action, target, ui, applyMasterFind, forgetMasterSent, masterAskBefore, masterClient, masterMessageById, persistDraft, pickMasterMention, render, root, sendMasterMessage, stopMasterWaitClock, updateMasterScrollCue, vscode }) {
 	if (['master-development-load','master-development-toggle','master-development-rollback'].includes(action)) {
@@ -248,6 +249,7 @@ export function handleMasterClickAction({ action, target, ui, applyMasterFind, f
     // срабатывал, и кнопка только снимала local-замок. Теперь ход гасится и в ядре.
     vscode.postMessage({ type: 'stopMasterChat', turnId: masterClient.turns[masterClient.active]?.id || '' })
     ui.masterSending = false
+    masterQueuePause(masterClient, masterClient.active, 'stopped')
     // Отправленная реплика не забывается здесь: остановленный ход остаётся в
     // ленте с тем, что успел написать, и реплика человека над ним должна
     // дожить до истории. Забудет её конец хода (turnFinished).

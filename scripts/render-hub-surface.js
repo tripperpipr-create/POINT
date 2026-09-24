@@ -582,6 +582,32 @@ if (process.argv[2] === 'master') {
       // некуда применять: повторный приход того же хода просит полную отрисовку.
       listeners['window:message']({ data: { type: 'masterTurn', turn: { id: turnId, conversationId: 'db', status, progress, reply } } })
     }
+  } else if (variant === 'queue' || variant === 'queue-paused' || variant === 'slash') {
+    // Композер: очередь реплик во время хода, она же на паузе после уточнений,
+    // и список команд «/» над полем.
+    const sessions = { active: 'db', mode: 'auto', workMode: 'discuss', items: [{ id: 'db', title: 'Миграция базы' }] }
+    const history = [{ id: 'u0', role: 'user', content: 'Что в проекте с базой?', createdAt: today(9, 40) },
+      { id: 'a0', role: 'assistant', mode: 'model', model: 'qwen2.5-coder:7b', content: 'Миграции лежат в `internal/storage/migrations`.', createdAt: today(9, 41) }]
+    listeners['window:message']({ data: { type: 'master', master: { configured: true, config: boot.orchestrator, sessions, history } } })
+    const type = value => listeners['root:input']({ target: { id: 'master-input', value, selectionStart: value.length, closest: () => null, matches: () => false } })
+    if (variant === 'slash') {
+      type('/')
+    } else {
+      type('Проверь миграцию заказов')
+      click({ action: 'master-send' })
+      type('И заодно посмотри логи вебхука за вчера')
+      click({ action: 'master-send' })
+      type('Потом обнови README')
+      click({ action: 'master-send' })
+      if (variant === 'queue-paused') {
+        listeners['window:message']({ data: { type: 'master', turnFinished: true, master: { configured: true, config: boot.orchestrator, sessions, history: [...history,
+          { id: 'u1', role: 'user', content: 'Проверь миграцию заказов', createdAt: today(10, 2) },
+          { id: 'a1', role: 'assistant', mode: 'model', model: 'qwen2.5-coder:7b', content: 'Уточню, прежде чем трогать данные.', questions: ['Можно ли блокировать таблицу orders на время переноса?'], createdAt: today(10, 3) }] } } })
+      } else {
+        const turnId = [...posted].reverse().find(message => message.type === 'masterChat')?.turnId
+        listeners['window:message']({ data: { type: 'masterTurn', turn: { id: turnId, conversationId: 'db', status: 'waiting', reply: '' } } })
+      }
+    }
   } else if (variant === 'markdown') {
     // Разметка ответа целиком: заголовки, списки со вложением и задачами,
     // таблица шире колонки, цитата, ссылки и блок кода с длинной строкой. По

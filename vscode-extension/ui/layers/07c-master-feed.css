@@ -542,17 +542,21 @@
 .hall-dialogue .hall-trail.is-running .hall-trail-icons .hall-icon:last-child {
   animation: hall-live-pulse 1.2s var(--ease) infinite;
 }
-/* Курсор потока. Разбор ставит его в конец последнего блока — абзаца, пункта
-   или строки кода. Пока текст идёт, каждая правка тела рисует курсор заново, и
-   мигание начинается сначала: курсор горит ровно, пока модель пишет, и мигает,
-   когда она задумалась. */
+/* Курсор потока — приглушённый блок в полсимвола, как в терминале (выбор
+   владельца по снимкам: тонкая полоса терялась в тексте, блок в цвет текста
+   спорил с ответом). Разбор ставит его в конец последнего блока — абзаца,
+   пункта или строки кода. Пока текст идёт, каждая правка тела рисует курсор
+   заново, и мигание начинается сначала: курсор горит ровно, пока модель
+   пишет, и мигает, когда она задумалась. */
 .hall-dialogue .hall-stream-caret {
   display: inline-block;
-  width: 2px;
-  height: 1.1em;
+  width: .5em;
+  height: 1.05em;
   margin-left: var(--s-1);
   vertical-align: text-bottom;
-  background: var(--hub-text-2);
+  /* Приглушение — в самой краске, а не в opacity: мигание правит opacity
+     кадрами и перебило бы её. */
+  background: color-mix(in srgb, var(--hub-muted) 55%, transparent);
   animation: hall-caret-blink 1s steps(1) infinite;
 }
 @keyframes hall-caret-blink {

@@ -90,7 +90,15 @@ export function createMasterFeedRuntime ({ root, ui, threadHtml = () => '' }) {
     }
     const below = parseFloat(getComputedStyle(form).marginBottom) || 0
     const height = Math.round(form.getBoundingClientRect().height + below)
-    if (height > 0) dialogue.style?.setProperty('--hall-compose-reserve', height + 'px')
+    // Сверяем с самим узлом, а не с запомненным числом: полная отрисовка
+    // создаёт раздел заново, и переменная на нём пропадает.
+    if (!(height > 0) || dialogue.style?.getPropertyValue?.('--hall-compose-reserve') === height + 'px') return
+    // Карточка выросла (встала очередь, пришли уточнения) — у читающего хвост
+    // ленты не должен уйти под неё: кто стоял внизу, остаётся внизу.
+    const thread = root.querySelector?.('#master-thread')
+    const follow = Boolean(thread) && (ui.masterAutoFollow || threadNearBottom(thread))
+    dialogue.style?.setProperty('--hall-compose-reserve', height + 'px')
+    if (follow) thread.scrollTop = thread.scrollHeight
   }
 
   // Якорь прячется классом, а не атрибутом hidden: кнопка липкая, и hidden

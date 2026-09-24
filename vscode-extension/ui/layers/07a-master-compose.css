@@ -73,7 +73,7 @@
   font: inherit;
   letter-spacing: normal;
   text-transform: none;
-  min-height: 26px;
+  min-height: var(--control-sm);
   padding: var(--s-2) var(--s-3);
   border: 0;
   border-radius: 2px;
@@ -348,8 +348,11 @@
 .hall-dialogue .hall-composer-controls details[open] > summary {
   background: var(--hall-slot-fill-hover);
   color: var(--hub-text);
-  outline: none;
 }
+/* Фокус с клавиатуры — кольцом темы, как у кнопки отправки и всей ленты
+   (`.hall-dialogue :focus-visible`). Жетоны гасили кольцо и отмечали фокус
+   одной заливкой — той же, что у наведения, и с клавиатуры было не понять,
+   где фокус, пока рядом лежит указатель. */
 
 /* Исключение из устава — здесь же, где устав: оно переопределяет его отступ
    и опирается на его заливку, а значит обязано стоять ниже него. Пока оба
@@ -651,9 +654,6 @@
      4.32 при пороге 4.5 — обе поймал аудит на трёх страницах стенда. */
   color: var(--hub-muted);
 }
-.hall-dialogue .hall-compose-actions .hall-compose-send:disabled {
-  opacity: var(--disabled-opacity);
-}
 /* Режим — жетон с заливкой, подробность ответа — просто текст: у эталона
    залито только левое меню, второе стоит голым. Два одинаковых жетона подряд
    читаются как переключатель из двух положений, а это два разных выбора. */
@@ -740,7 +740,6 @@
 .hall-dialogue .hall-answer-style > div .hall-chip:focus-visible {
   background: var(--hall-slot-fill-hover);
   color: var(--hub-text);
-  outline: none;
 }
 /* Выбранное названо в свёрнутом меню — в раскрытом его видно там же, где ищут:
    в строке, а не в подписи сверху. */
@@ -1041,3 +1040,63 @@
 @media (prefers-reduced-motion: reduce) {
   .hall-dialogue .hall-quest-strip.is-live .hall-quest-strip-state > i { animation: none; }
 }
+
+/* ——— Очередь реплик ———
+   Над полем стоит то, что уйдёт следующим (master-compose-keys.js): строка на
+   реплику — значок часов, текст в одну строку, «Отправить» у первой и два
+   тихих значка. На паузе подпись под очередью называет причину. Устав жетонов
+   композера тот же: заливка белым, ни рамки, ни акцента. Имя `hall-outbox`,
+   а не «queue»: `.hall-queue-item` — сетка очереди решений в 05, и её правила
+   ложились на строки этой очереди. */
+.hall-dialogue #master-queue:empty { display: none; }
+.hall-dialogue .hall-outbox { display: flex; flex-direction: column; gap: var(--s-1); }
+.hall-dialogue .hall-outbox > ol { display: flex; flex-direction: column; gap: var(--s-1); margin: 0; padding: 0; list-style: none; }
+.hall-dialogue .hall-outbox-item {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: var(--control-sm);
+  padding: 0 var(--s-1) 0 var(--s-3);
+  border-radius: var(--r-1);
+  background: var(--hall-slot-fill);
+}
+.hall-dialogue .hall-outbox-mark { display: inline-flex; color: var(--hub-muted); }
+.hall-dialogue .hall-outbox-mark .hall-icon,
+.hall-dialogue .hall-outbox-icon .hall-icon { width: 14px; height: 14px; }
+.hall-dialogue .hall-outbox-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: var(--fw-normal) var(--t-body) / 1.4 var(--font-ui);
+  color: var(--hub-text-2);
+}
+.hall-dialogue .hall-outbox-send,
+.hall-dialogue .hall-outbox-icon {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  min-width: var(--control-sm);
+  height: var(--control-sm);
+  padding: 0 var(--s-2);
+  border: 0;
+  border-radius: var(--r-1);
+  background: transparent;
+  color: var(--hub-muted);
+  font: var(--fw-medium) var(--t-small) / 1 var(--font-ui);
+  cursor: pointer;
+  transition: background-color var(--motion-fast) var(--ease), color var(--motion-fast) var(--ease);
+}
+.hall-dialogue .hall-outbox-icon { padding: 0; }
+.hall-dialogue .hall-outbox-send { color: var(--hub-text); }
+.hall-dialogue .hall-outbox-send:hover,
+.hall-dialogue .hall-outbox-send:focus-visible,
+.hall-dialogue .hall-outbox-icon:hover,
+.hall-dialogue .hall-outbox-icon:focus-visible { background: var(--hall-slot-fill-hover); color: var(--hub-text); }
+.hall-dialogue .hall-outbox-note {
+  padding-left: var(--s-3);
+  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui);
+  color: var(--ui-faint);
+}
+.hall-dialogue .hall-outbox.is-paused .hall-outbox-note { color: var(--caution); }

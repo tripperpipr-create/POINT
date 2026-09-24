@@ -52,6 +52,7 @@ import { handleMasterAgentCardAction, masterAgentCardsAll, masterAgentConsent, r
 import { MASTER_MESSAGE_LIMIT_BYTES, masterComposeCountClass, masterComposeCountState, masterComposeFormClass, masterAnswerRows, masterComposeRows, masterMessageBytes, masterWaitSuffix, oversizedMasterMessageNote } from './master-compose.js'
 import { createMasterFeedRuntime, threadNearBottom } from './master-feed.js'
 import { createMasterStreamView } from './master-stream-view.js'
+import { closeMasterMenus, closeMasterSlash, handleMasterComposeKey, handleMasterQueueAction, masterQueueHtml, masterQueueOf, masterQueuePush, masterSlashInput, masterSlashOpen, pickMasterSlash } from './master-compose-keys.js'
 import { COMPANION_EXAMPLES, COMPANION_MESSAGE_LIMIT_BYTES, COMPANION_SETUP_STEPS, COMPANION_SETUP_STEP_ALIAS, applyLocalSourceFields, companionBrainMode, companionConfigForBrain, normalizeBrainMode, companionSpendCaveats, companionSceneById, companionModeCardsHtml, companionLocalReadyHtml, companionComposeActionsHtml, companionComposeMetaHtml, companionMessageBytes, companionWaitSuffix, oversizedCompanionMessageNote } from './companion-compose.js'
 // Счётчик отправок нужен защите форм от повторной отправки: обработчик формы
 // может выйти раньше, ничего не отправив (не заполнено поле, не пройдена
@@ -1495,7 +1496,9 @@ function syncMasterComposeState() {
   // ввода теперь живут уточнения со своей кнопкой отправки, и она стояла бы
   // в разметке раньше — то есть забирала бы себе запирание на время хода.
   const send = root.querySelector('.hall-compose .hall-compose-send')
-  if (send) send.disabled = masterSending
+  if (send) send.disabled = masterSending && !String(masterDraft || '').trim()
+  const queue = root.querySelector('#master-queue')
+  if (queue) queue.innerHTML = masterQueueHtml(masterQueueOf(masterClient, masterClient.active), esc, { sending: masterSending })
   // Строка под полем меняется вместе с ходом: в ней появляется «Остановить»,
   // подсказка меняет смысл, счётчик пересчитывается. Собирает её тот же код,
   // что и полная отрисовка, — двух источников у одной строки быть не должно.
@@ -1881,6 +1884,8 @@ function patchMasterComposeForm() {
   // читалке нужен признак на том узле, который нажимают.
   const send = form.querySelector('.hall-compose-send')
   if (send) send.setAttribute('aria-disabled', String(!String(masterDraft || '').trim()))
+  // Во время хода стрелка ставит в очередь и оживает, как только есть что ставить.
+  if (send) send.disabled = masterSending && !String(masterDraft || '').trim()
   applyMasterComposeReserve()
 }
 // Отказ по длине снимается вместе с правкой: объяснение, висящее над уже
@@ -1913,6 +1918,16 @@ function pickMasterMention(item, at, query) {
   render()
 }
 
+// Всё, что нужно клавишам и командам поля ввода (master-compose-keys.js).
+function masterComposeKeyDeps() {
+  return {
+    root, client: masterClient, id: () => masterClient.active, history: () => masterData?.history || [],
+    draft: () => masterDraft, setDraft: text => { masterDraft = text; masterCaretToEnd = true },
+    post: message => vscode.postMessage(message), openFind: () => { masterFindOpen = true },
+    render, persist: persistDraft, mentionOpen: masterMentionOpen,
+  }
+}
+
 function sendMasterMessage(forcedText = '', options = {}) {
   const input = root.querySelector('#master-input')
   const text = String(forcedText || (input ? input.value : masterDraft)).trim()
@@ -1924,7 +1939,14 @@ function sendMasterMessage(forcedText = '', options = {}) {
   }
   // Ход ещё идёт: поле открыто, но реплика уйдёт следующей. Молчать об этом
   // нельзя — нажатие выглядит как проглоченное.
-  if (masterSending) { masterComposeNote = 'Мастер ещё отвечает. Набранное останется в поле — отправьте его, когда ход закончится.'; render(); return }
+  // Ход ещё идёт: реплика из поля встаёт в очередь и уйдёт после ответа
+  // (master-compose-keys.js). Готовый текст кнопок ленты в очередь не ставится.
+  if (masterSending) {
+    if (forcedText) { masterComposeNote = 'Мастер ещё отвечает — повторите после ответа.'; render(); return }
+    if (masterQueuePush(masterClient, masterClient.active, text)) masterDraft = ''
+    else masterComposeNote = 'В очереди уже пять реплик — дождитесь ответа или уберите лишнее.'
+    persistDraft(); render(); return
+  }
   const workMode = masterData?.sessions?.workMode || 'discuss'
   if (workMode === 'agent') {
     const profile = agentById(selectedProfileId) || hubAgents()[0] || (state.boot?.profiles || [])[0]
@@ -2185,6 +2207,7 @@ const modularUiState = {
   get hiringReloadFor() { return hiringReloadFor }, set hiringReloadFor(value) { hiringReloadFor = value },
   get masterComposeNote() { return masterComposeNote }, set masterComposeNote(value) { masterComposeNote = value },
   get masterTurn() { return masterClient.turns[masterClient.active] },
+  get masterClient() { return masterClient },
   get masterData() { return masterData }, set masterData(value) { masterData = value },
   get masterOpenReasoning() { return masterOpenReasoning },
   get masterOpenLive() { return masterClient.openLive },
@@ -2876,12 +2899,16 @@ root.addEventListener('click', event => {
     render()
   }
   if (closeModelPickerOutside(event)) render()
+  closeMasterMenus(root, event.target)
   const target = event.target.closest('[data-action]')
   if (!target) return
   const action = target.dataset.action
   if (handleChatDirectoryAction(action, target)) { render(); return }
   if (handleProjectGalleryAction(action, target)) { render(); return }
   if (handleMasterContextAction({action,target,vscode,sending:masterSending})) {persistDraft();return}
+  if (action === 'master-slash-pick') { pickMasterSlash(target.dataset.index, masterComposeKeyDeps()); return }
+  if (handleMasterQueueAction(action, target, { client: masterClient, id: masterClient.active, sending: masterSending,
+    send: text => sendMasterMessage(text), setDraft: text => { masterDraft = text; masterCaretToEnd = true }, render, persist: persistDraft })) return
   if (handleMasterBriefAction({ action, target, root, persist: persistDraft })) return
   if (handleMasterSessionAction({
     action, target, root, vscode, sending: masterSending, send: sendMasterMessage,
@@ -3365,7 +3392,8 @@ root.addEventListener('input', event => {
     // у ошибок сборки, git diff и буфера терминала нет пути в дереве.
     const askedFor = masterSending ? (closeMasterMention(), null) : masterMentionInput(event.target.value, event.target.selectionStart)
     if (askedFor !== null) askMasterMention(askedFor)
-    if (askedFor !== null || masterMentionOpen()) render()
+    const slashChanged = !masterSending && masterSlashInput(event.target.value, event.target.selectionStart)
+    if (askedFor !== null || masterMentionOpen() || slashChanged) render()
     else patchMasterCompose(event.target)
   }
   // Набор в поиске не перерисовывает ленту: пометка ходов делается по DOM, и
@@ -3525,6 +3553,13 @@ root.addEventListener('keydown', event => {
     if(event.shiftKey && event.key.toLowerCase()==='n'){event.preventDefault();vscode.postMessage({type:'masterSession',action:'new'});return}
   }
   if(state.selectedTab==='master'&&event.key==='Escape'&&masterClient.historyOpen){event.preventDefault();masterClient.historyOpen=false;render();return}
+  // Escape закрывает открытое меню разговора и список моделей — раньше панели
+  // задания: меню лежит поверх неё, и закрываться первым должно оно.
+  if (state.selectedTab === 'master' && event.key === 'Escape') {
+    const menu = closeMasterMenus(root)
+    if (menu) { event.preventDefault(); menu.querySelector?.('summary')?.focus?.(); return }
+    if (closeModelPickerOutside({ target: {} })) { event.preventDefault(); render(); return }
+  }
   // Escape закрывает панель задания — но не тогда, когда набирают в её полях:
   // в открытой панели правят бриф, и закрытие потеряло бы набранный критерий.
   if (state.selectedTab === 'master' && event.key === 'Escape' && !event.target.closest?.('input, textarea, select')
@@ -3598,8 +3633,14 @@ root.addEventListener('keydown', event => {
     event.preventDefault()
     return
   }
+  // Команды «/» и «↑» в пустом поле — до отправки по Enter, по той же причине.
+  if (event.target.id === 'master-input' && handleMasterComposeKey(event, masterComposeKeyDeps())) {
+    event.preventDefault()
+    return
+  }
   if (event.key === 'Enter' && !event.shiftKey && !event.isComposing && event.target.id === 'master-input') {
     event.preventDefault()
+    closeMasterSlash()
     sendMasterMessage()
   }
   // Enter в ответе листает пакет, а не отправляет его.

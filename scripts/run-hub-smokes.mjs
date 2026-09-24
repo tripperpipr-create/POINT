@@ -67,6 +67,7 @@ const checks = [
   'smoke-master-answer-origin.js',
   'smoke-master-brief-panel.js',
   'smoke-master-compose.js',
+  'smoke-master-compose-keys.mjs',
   'smoke-master-context.js',
   'smoke-master-editor-context.cjs',
   'smoke-master-feed.js',

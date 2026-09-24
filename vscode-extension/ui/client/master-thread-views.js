@@ -4,7 +4,8 @@ import { masterSessionHtml, masterComposerHtml } from './master-session-ui.js'
 import { masterDayKey, masterDayLabel, masterTimeLabel } from './master-feed.js'
 import { masterComposeActionsHtml, masterComposeCountHtml, masterComposeFormClass, masterComposeMetaHtml, masterComposeRows, masterWaitSuffix } from './master-compose.js'
 import { createMasterQuestionsViews, masterParseAnswers } from './master-questions-views.js'
-import { masterMentionActiveId, masterMentionHtml } from './master-mention-ui.js'
+import { masterMentionActiveId, masterMentionHtml, masterMentionOpen } from './master-mention-ui.js'
+import { masterQueueHtml, masterQueueOf, masterSlashActiveId, masterSlashHtml, masterSlashOpen } from './master-compose-keys.js'
 import { questPlanRows } from './master-plan-views.js'
 import { questChecklistHtml, questMenuHtml } from './master-quest-views.js'
 import { masterToolNameNow } from './master-tool-names.js'
@@ -829,8 +830,13 @@ export function createMasterThreadViews(dependencies) {
           <div id="master-discussion-context">${masterDiscussionContextHtml()}</div>
           ${masterContextHtml(ui.masterConversationId, esc, ui.masterSending, ui.masterData?.contextBudgetChars)}
         </div>
-        ${masterMentionHtml(esc)}
-        <textarea id="master-input" rows="${masterComposeRows(ui.masterDraft)}" aria-label="Сообщение Мастеру"${masterMentionActiveId() ? ` aria-activedescendant="${masterMentionActiveId()}"` : ''} placeholder="Что хотите сделать в проекте?">${esc(ui.masterDraft)}</textarea>
+        ${/* Очередь реплик — над полем: это то, что уйдёт следующим. */''}
+        <div id="master-queue">${masterQueueHtml(masterQueueOf(ui.masterClient, ui.masterConversationId), esc, { sending: ui.masterSending })}</div>
+        ${masterMentionHtml(esc)}${masterSlashHtml(esc)}
+        ${/* Поле — комбобокс, пока над ним открыт список «@» или «/»: читалка
+             узнаёт о выбранной строке через aria-activedescendant, фокус при
+             этом остаётся в поле. */''}
+        <textarea id="master-input" rows="${masterComposeRows(ui.masterDraft)}" aria-label="Сообщение Мастеру" role="combobox" aria-autocomplete="list" aria-expanded="${masterMentionOpen() || masterSlashOpen()}"${masterSlashOpen() ? ' aria-controls="master-slash-list"' : masterMentionOpen() ? ' aria-controls="master-mention-list"' : ''}${masterSlashActiveId() || masterMentionActiveId() ? ` aria-activedescendant="${masterSlashActiveId() || masterMentionActiveId()}"` : ''} placeholder="Что хотите сделать в проекте? «/» — команды, «@» — файлы">${esc(ui.masterDraft)}</textarea>
         <small class="hall-compose-note${ui.masterComposeNote ? '' : ' is-hidden'}" role="alert">${esc(ui.masterComposeNote)}</small>
         <div class="hall-compose-actions">${masterComposeActionsInnerHtml()}</div>
       </form>`}

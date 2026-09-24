@@ -14,6 +14,10 @@ export function createMasterChatState(saved = {}) {
     // Значение трёхзначное: отсутствие ключа значит «не трогали», и тогда
     // работает умолчание вида (master-card-open.js).
     cardOpen: saved.cardOpen || {},
+    // Очередь реплик по разговору (master-compose-keys.js). Переживает
+    // перезапуск панели, но после него никогда не уходит сама: реплика ждёт
+    // второго взгляда.
+    queue: Object.fromEntries(Object.entries(saved.queue || {}).map(([id, queue]) => [id, { items: Array.isArray(queue?.items) ? queue.items : [], paused: queue?.items?.length ? 'reload' : '' }])),
     // Раскрытые строки живого следа. Набор живёт при разговоре, а не в
     // разметке: лента перерисовывается на каждое событие хода, и раскрытие,
     // оставленное в DOM, схлопывалось бы прямо под читающим.
@@ -56,7 +60,7 @@ export function createMasterChatState(saved = {}) {
       // Не идущий ход в снимке помечен осевшим: после перезапуска панели его
       // текст придёт историей, и блок потока показал бы его дважды.
       const lean=values=>Object.fromEntries(Object.entries(durable(values)).map(([id,turn])=>[id,{...turn,trace:undefined,settled:turn.settled||!['preparing','waiting','streaming','tools'].includes(turn.status)}]))
-      return {historyHidden:this.historyHidden,active:this.active.startsWith('temporary')?'':this.active,drafts:durable(this.drafts),scroll:durable(this.scroll),attachments:durable(this.attachments),turns:lean(this.turns),questionDrafts:durable(this.questionDrafts),questionCursor:durable(this.questionCursor),briefPanel:durable(this.briefPanel),cardOpen:durable(this.cardOpen)}
+      return {historyHidden:this.historyHidden,active:this.active.startsWith('temporary')?'':this.active,drafts:durable(this.drafts),scroll:durable(this.scroll),attachments:durable(this.attachments),turns:lean(this.turns),questionDrafts:durable(this.questionDrafts),questionCursor:durable(this.questionCursor),briefPanel:durable(this.briefPanel),cardOpen:durable(this.cardOpen),queue:durable(this.queue)}
     },
   }
 }

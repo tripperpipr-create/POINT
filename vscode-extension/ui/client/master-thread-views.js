@@ -8,13 +8,14 @@ import { createMasterQuestionsViews, masterParseAnswers } from './master-questio
 import { masterMentionActiveId, masterMentionHtml } from './master-mention-ui.js'
 import { questPlanRows } from './master-plan-views.js'
 import { questChecklistHtml, questMenuHtml } from './master-quest-views.js'
-import { masterToolIcon, masterToolName, masterToolNameNow } from './master-tool-names.js'
+import { masterToolNameNow } from './master-tool-names.js'
 import { icon } from './ui-icons.js'
 import { masterQuestStripHtml, masterQuestStripModel } from './master-quest-strip.js'
 import { masterHiringCardsHtml } from './master-hiring-card.js'
 import { masterAgentCardFromAction, masterAgentCardHtml, masterAgentCardsFor, masterAgentCardsHtml } from './master-agent-card.js'
 import { masterCardMoreAttrs } from './master-card-open.js'
 import { monogram } from './master-agent-sheet.js'
+import { createMasterTrail, trailModelFromItem } from './master-trail.js'
 
 // Диалог с Мастером: лента, реплика и всё, что к ней приложено.
 //
@@ -65,6 +66,7 @@ export function createMasterThreadViews(dependencies) {
     masterQuestionsOf,
     masterTurnQuestionsHtml,
   } = createMasterQuestionsViews({ esc, countOf, ui })
+  const { masterTrailHtml } = createMasterTrail({ esc, countOf, ui })
 
   // ── Диалог с Мастером ──────────────────────────────────────────────────────
   // Собственная поверхность диспетчера, а не переиспользование чата компаньона.
@@ -314,46 +316,6 @@ export function createMasterThreadViews(dependencies) {
   // уточняющие вопросы принадлежат конкретному ходу, а не концу разговора: висели
   // они внизу ленты и относились к последнему ответу молча — прокрутив выше, понять,
   // на чём основан старый ответ, было нельзя.
-  // Модель часто рвёт рассуждение мягкими переносами («All\\nquestions»).
-  // Собираем в читаемую прозу: одиночные переносы → пробел, абзацы и списки
-  // оставляем. Иначе при white-space:pre-wrap лента выглядит столбиком слов.
-  function masterReasoningProse(raw) {
-    const lines = String(raw || '').replace(/\r\n?/g, '\n').split('\n')
-    const out = []
-    for (const line of lines) {
-      const trimmed = line.replace(/[ \t]+/g, ' ').trimEnd()
-      if (!trimmed.trim()) {
-        if (out.length && out[out.length - 1] !== '') out.push('')
-        continue
-      }
-      const body = trimmed.trimStart()
-      const list = /^(?:[-*•]|\d+[.)])\s/.test(body)
-      const prev = out[out.length - 1]
-      if (prev === undefined || prev === '' || list) out.push(body)
-      else out[out.length - 1] = `${prev} ${body}`
-    }
-    while (out.length && out[out.length - 1] === '') out.pop()
-    return out.join('\n').replace(/\n{3,}/g, '\n\n')
-  }
-
-  // Как Мастер пришёл к ответу.
-  //
-  // Раскрыто по умолчанию рассуждение быть не должно: это черновик модели, и
-  // он длиннее самого ответа. Прежнее правило открывало всё до четырёх тысяч
-  // знаков — то есть почти всегда, — и ответ уезжал под простыню размышлений.
-  // У эталона это одна тусклая строка «Thought 6s», раскрываемая по нажатию.
-  // Текст экранирован: это недоверенный вывод модели.
-  function masterReasoningHtml(item) {
-    const raw = String(item?.reasoning || '').trim()
-    if (!raw) return ''
-    const text = masterReasoningProse(raw)
-    const open = ui.masterOpenReasoning.has(item.id) ? ' open' : ''
-    return `<details class="hall-reason" data-master-open="reasoning" data-id="${esc(item.id)}"${open}>
-      <summary><span class="hall-step-icon">${icon('think')}</span><span class="hall-reason-label">Ход мысли</span></summary>
-      <div class="hall-reason-body">${esc(text)}</div>
-    </details>`
-  }
-
   // Сколько шёл ход. Аналог «Worked for 14m 22s» у эталона: одна служебная
   // строка вместо молчания о полутора минутах ожидания. Задержку ядро
   // сохраняет вместе с репликой — выдумывать её не приходится.
@@ -368,119 +330,6 @@ export function createMasterThreadViews(dependencies) {
       ? `${seconds} с`
       : `${Math.floor(seconds / 60)} мин ${seconds % 60} с`
     return `<span class="hall-turn-time" title="Сколько шёл ход">${icon('clock')}${esc(label)}</span>`
-  }
-  // Что Мастер посмотрел в проекте, прежде чем ответить.
-  //
-  // Обрезанный результат назван обрезанным: ответ по первым 16 КБ файла читается
-  // иначе, чем ответ по файлу целиком, и молчать об этом нельзя. Длинное можно
-  // раскрыть кнопкой — title не заменяет чтение на месте.
-  function masterStepClip(value, limit = 96) {
-    const text = String(value || '').replace(/\s+/g, ' ').trim()
-    if (text.length <= limit) return text
-    return `${[...text].slice(0, limit - 1).join('')}…`
-  }
-
-  function masterStepPretty(value) {
-    const raw = String(value || '').trim()
-    if (!raw) return ''
-    if (!(raw.startsWith('{') || raw.startsWith('['))) return raw
-    try { return JSON.stringify(JSON.parse(raw), null, 2) } catch { return raw }
-  }
-
-  function masterStepResultLabel(step, { expanded = false } = {}) {
-    const raw = String(step?.result || '').trim()
-    if (expanded) return masterStepPretty(raw) || 'пусто'
-    if (step?.failed) {
-      const short = raw.replace(/^GetFileAttributesEx\s+/i, 'нет файла: ').replace(/:\s*The system.*$/i, '')
-      return masterStepClip(short || 'инструмент не отработал', 120)
-    }
-    if (!raw) return 'пусто'
-    if (raw === '[]' || raw === 'null') return 'ничего не найдено'
-    if (raw.startsWith('{') || raw.startsWith('[')) {
-      try {
-        const parsed = JSON.parse(raw)
-        if (Array.isArray(parsed)) return parsed.length ? countOf(parsed.length, 'запись', 'записи', 'записей') : 'ничего не найдено'
-        if (parsed && typeof parsed === 'object') {
-          if (parsed.count === 0 || parsed.candidateChunks === 0) return 'ничего не найдено'
-          if (typeof parsed.count === 'number') return `${parsed.count} совпадений`
-          if (Array.isArray(parsed.chunks) && parsed.chunks.length === 0) return 'ничего не найдено'
-          if (Array.isArray(parsed.topDirectories) && parsed.topDirectories.length === 0 && Array.isArray(parsed.symbols) && parsed.symbols.length === 0) {
-            return parsed.status?.state ? `карта · ${parsed.status.state}` : 'карта пуста'
-          }
-        }
-      } catch { /* keep raw */ }
-    }
-    return masterStepClip(raw, 96)
-  }
-
-  function masterStepRowHtml(item, step, index) {
-    const key = `${item.id}:${index}`
-    const expanded = ui.masterExpandedSteps.has(key)
-    const name = masterToolName(step.tool)
-    const fullArg = String(step.argument || '').trim()
-    const fullResult = String(step.result || '').trim()
-    const clippedArg = masterStepClip(fullArg, 64)
-    const shortResult = masterStepResultLabel(step)
-    const canExpand = Boolean(step.truncated)
-      || fullArg.length > 64
-      || fullResult.length > 96
-      || shortResult.endsWith('…')
-    const more = canExpand
-      ? `<button type="button" class="hall-step-more${expanded ? ' is-open' : ''}" data-action="master-step-expand" data-key="${esc(key)}" aria-label="${expanded ? 'Свернуть' : 'Показать полностью'}" title="${expanded ? 'Свернуть' : 'Показать полностью'}">${icon('chevron-down')}</button>`
-      : ''
-    // Полный вывод — в отдельном <pre>, не в span/small: иначе nowrap/line-clamp
-    // переживают «раскрытие» и режут JSON многоточием прямо под кнопкой «Свернуть».
-    const collapsed = expanded ? `<span class="hall-step-arg"></span>` : `<span class="hall-step-arg" title="${esc(fullArg)}">${esc(clippedArg || '—')}</span>
-      <small title="${esc(fullResult)}">${esc(shortResult)}${step.truncated ? ' · обрезано' : ''}</small>`
-    const payload = expanded
-      ? `<pre class="hall-step-payload">${esc([fullArg && `→ ${fullArg}`, masterStepPretty(fullResult) || 'пусто'].filter(Boolean).join('\n\n'))}</pre>`
-      : ''
-    return `<div class="hall-step${step.failed ? ' is-failed' : ''}${expanded ? ' is-expanded' : ''}">
-      <span class="hall-step-icon">${icon(step.failed ? 'warning' : masterToolIcon(step.tool))}</span>
-      <b title="${esc(step.tool || '')}">${esc(name)}</b>
-      ${collapsed}
-      ${more}
-      ${payload}
-    </div>`
-  }
-
-  // Что Мастер делал, прежде чем ответить, — одна свёрнутая строка.
-  //
-  // Шаги стояли строками над ответом: последние три всегда, ранние за «ещё N»,
-  // и ответ на простой вопрос начинался с пяти строк служебного вывода. Теперь
-  // это одна строка сводки — какими средствами смотрел, сколько раз, была ли
-  // ошибка, — а весь перечень с подробностями раскрывается по нажатию. Ход
-  // мысли — первая строка того же перечня: это тоже путь к ответу, а не ответ.
-  //
-  // Неудачное обращение прятать нельзя: ответ, собранный с ошибкой инструмента,
-  // читается иначе. Упавшие строки стоят под сводкой всегда и в перечне не
-  // повторяются: одна строка на обращение, где бы её ни искали.
-  const MASTER_ACTION_ICONS_MAX = 4
-
-  function masterTurnActionsHtml(item) {
-    const steps = Array.isArray(item?.steps) ? item.steps : []
-    const reasoning = masterReasoningHtml(item)
-    if (!steps.length && !reasoning) return ''
-    const indexed = steps.map((step, index) => [step, index])
-    const rows = indexed.filter(([step]) => !step.failed).map(([step, index]) => masterStepRowHtml(item, step, index)).join('')
-    const failed = indexed.filter(([step]) => step.failed)
-    const kinds = [...new Set(steps.map(step => masterToolIcon(step.tool)))].slice(0, MASTER_ACTION_ICONS_MAX)
-    const icons = steps.length ? kinds.map(name => icon(name)).join('') : icon('think')
-    const label = steps.length ? countOf(steps.length, 'действие', 'действия', 'действий') : 'Ход мысли'
-    const fail = failed.length
-      ? `<span class="hall-trail-fail">${icon('warning')}${esc(countOf(failed.length, 'ошибка', 'ошибки', 'ошибок'))}</span>`
-      : ''
-    const open = ui.masterOpenSteps.has(item.id) ? ' open' : ''
-    const failedRows = failed.length
-      ? `<div class="hall-trail-failed">${failed.map(([step, index]) => masterStepRowHtml(item, step, index)).join('')}</div>`
-      : ''
-    return `<div class="hall-trail${failed.length ? ' is-failed' : ''}">
-      <details class="hall-trail-group" data-master-open="steps" data-id="${esc(item.id)}"${open}>
-        <summary><span class="hall-trail-icons">${icons}</span><span class="hall-trail-label">${esc(label)}</span>${fail}<span class="hall-trail-chevron">${icon('chevron-right')}</span></summary>
-        ${reasoning || rows ? `<div class="hall-trail-list">${reasoning}${rows}</div>` : ''}
-      </details>
-      ${failedRows}
-    </div>`
   }
   // Что можно сделать с готовой репликой.
   //
@@ -535,7 +384,7 @@ export function createMasterThreadViews(dependencies) {
       <div class="body">${body}</div>
     </article>`
     // Путь к ответу стоит над ним: сначала что делал, потом вывод.
-    const trail = mine ? '' : masterTurnActionsHtml(item)
+    const trail = mine ? '' : masterTrailHtml(trailModelFromItem(item))
     // Уточнения принадлежат ходу, который их задал, и стоят сразу под ответом:
     // сперва то, что сказано, потом то, что спрошено.
     const questions = mine ? '' : masterTurnQuestionsHtml(item, answered)

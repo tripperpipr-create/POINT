@@ -91,7 +91,7 @@
 
 /* Разметка ответа. Текст модели проходит через разбор markdown
    (companion-markdown.js); блоки кода оформляет 45-hub-overhaul.css вместе с
-   их кнопками, здесь — только голый `pre`. */
+   их кнопками и обёрткой — голого `pre` разбор не выдаёт. */
 .hall-dialogue .hall-msg .body p { margin-block: var(--s-4); }
 .hall-dialogue .hall-msg .body ul,
 .hall-dialogue .hall-msg .body ol {
@@ -115,16 +115,6 @@
   padding: 0 var(--s-2);
   border-radius: var(--r-1);
   background: var(--hub-selected);
-  font: var(--fw-normal) var(--t-body) / 1.5 var(--font-mono);
-}
-.hall-dialogue .hall-msg .body > pre {
-  max-width: 100%;
-  max-height: 320px;
-  overflow: auto;
-  padding: var(--s-4) var(--s-5);
-  border: 1px solid var(--hub-border-soft);
-  border-radius: var(--r-2);
-  background: var(--vscode-textCodeBlock-background, var(--hub-raised));
   font: var(--fw-normal) var(--t-body) / 1.5 var(--font-mono);
 }
 .hall-dialogue .hall-msg .body table {
@@ -173,9 +163,16 @@
 }
 .hall-dialogue .hall-turn:hover > .hall-turn-foot > *,
 .hall-dialogue .hall-turn:focus-within > .hall-turn-foot > * { opacity: 1; }
+/* Селектор повторяет скрывающий целиком: короткий `.hall-turn-foot > *`
+   весил (0,2,0) против (0,4,0) и на сенсорном экране не показывал ничего. */
 @media (hover: none) {
-  .hall-dialogue .hall-turn-foot > * { opacity: 1; }
+  .hall-dialogue .hall-turn-foot > :not(.is-fallback):not(.is-marked) { opacity: 1; }
 }
+/* Раскрытая память ответа остаётся на виду, когда указатель ушёл: её открыли,
+   чтобы прочитать. Отдельным правилом, а не `:not([open])` в скрывающем —
+   лишнее условие подняло бы его вес выше наведения, и подвал перестал бы
+   проявляться. */
+.hall-dialogue .hall-turn-foot > .hall-message-context[open] { opacity: 1; }
 
 .hall-dialogue .hall-msg-tools {
   display: inline-flex;
@@ -262,7 +259,9 @@
 /* —— Разделитель дня и служебные строки —— */
 .hall-dialogue .hall-day {
   position: sticky;
-  top: 0;
+  /* Ниже маски верхнего края ленты (07a-master-compose.css): у самого края
+     липкая дата растворялась вместе с уезжающим текстом. */
+  top: var(--s-6);
   z-index: 1;
   display: flex;
   align-items: center;
@@ -577,6 +576,7 @@
   cursor: pointer;
 }
 .hall-dialogue .hall-thread-cue:hover { border-color: var(--hub-border-loud); color: var(--hub-text); }
+.hall-dialogue .hall-thread-cue .hall-icon { width: 14px; height: 14px; }
 .hall-dialogue .hall-thread-cue.is-hidden { display: none; }
 
 /* —— Пустые состояния: приветствие, загрузка, сбой ——

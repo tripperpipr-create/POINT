@@ -2661,6 +2661,7 @@ function restoreUi(snapshot) {
     const follow = snapshot.masterThread ? Boolean(snapshot.masterThread.follow) : true
     masterAutoFollow = follow
     masterThread.scrollTop = follow ? masterThread.scrollHeight : snapshot.masterThread.top
+    updateMasterScrollCue()
   }
   if (snapshot.focus?.id) {
     const el = root.querySelector(`#${CSS.escape(snapshot.focus.id)}`)

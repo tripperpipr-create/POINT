@@ -461,9 +461,14 @@
   background: var(--hall-slot-fill-hover);
   color: var(--hub-text);
 }
+/* Список открывается вверх. Карточка обрезает всё, что выходит за её край, а
+   у ленты своя маска — отдельный контекст наложения, и вниз от последней
+   карточки список уходил под карточку ввода: меню «···» раскрывалось, а
+   пунктов было не видно. */
+.hall-dialogue .hall-deck:has(.hall-deck-menu[open]) { overflow: visible; }
 .hall-dialogue .hall-deck-menu > div {
   position: absolute;
-  top: calc(100% + var(--s-2));
+  bottom: calc(100% + var(--s-2));
   left: 0;
   z-index: 4;
   display: grid;
@@ -473,7 +478,7 @@
   border: 1px solid var(--hub-border);
   border-radius: var(--r-2);
   background: var(--hub-raised);
-  box-shadow: var(--e-pop, none);
+  box-shadow: var(--e-2);
 }
 .hall-dialogue .hall-deck-menu > div .hall-btn {
   justify-content: flex-start;

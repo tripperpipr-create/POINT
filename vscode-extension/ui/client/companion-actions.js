@@ -54,12 +54,21 @@ export function handleCompanionClickAction({
   if (action === 'stop-companion-chat') stopCompanionChat()
   if (action === 'companion-scroll-latest') scrollCompanionThread(true)
   if (action === 'copy-companion-message' || action === 'copy-companion-code') {
-    const source = action === 'copy-companion-code'
+    const code = action === 'copy-companion-code'
+    const source = code
       ? target.closest?.('.companion-code-wrap')?.querySelector?.('code')
       : target.closest?.('.companion-msg')?.querySelector?.('.companion-msg-body, p')
-    const text = String(source?.innerText || source?.textContent || '').trim()
+    // У кода срезаются только пустые строки по краям: `trim()` съедал и
+    // отступ первой строки, и вставленный фрагмент съезжал влево.
+    // Код берётся как есть (textContent), текст реплики — как его видно глазу:
+    // innerText ставит переносы между абзацами, textContent склеил бы их.
+    const raw = String((code ? source?.textContent : source?.innerText || source?.textContent) || '')
+    const text = code ? raw.replace(/^\n+|\s+$/g, '') : raw.trim()
     if (text) {
-      vscode.postMessage({ type: 'copyCompanionText', text })
+      // Блок кода рисуется и в ленте Мастера, и у компаньона; строка состояния
+      // IDE называет, откуда скопировано, и чужое имя там врало.
+      const master = Boolean(target.closest?.('.hall-dialogue'))
+      vscode.postMessage({ type: master ? 'copyMasterText' : 'copyCompanionText', text })
       const previous = target.textContent
       target.textContent = 'Скопировано ✓'
       setTimeout(() => { if (target.isConnected) target.textContent = previous }, 1400)

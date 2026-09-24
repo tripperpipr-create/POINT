@@ -540,7 +540,7 @@ export function createMasterThreadViews(dependencies) {
     // сперва то, что сказано, потом то, что спрошено.
     const questions = mine ? '' : masterTurnQuestionsHtml(item, answered)
     const stamp = time ? `<time class="hall-turn-stamp" aria-hidden="true">${esc(time)}</time>` : ''
-    const foot = `${mine ? '' : masterAnswerBadgeHtml(item)}${pending ? '' : masterMessageToolsHtml(item, mine, previousAsk)}${stamp}${mine ? '' : masterTurnTimeHtml(item)}${masterUsedMemoryHtml(item.memoryIds,ui.masterData?.sessions?.memoryEntries,esc)}`
+    const foot = `${mine ? '' : masterAnswerBadgeHtml(item)}${pending ? '' : masterMessageToolsHtml(item, mine, previousAsk)}${stamp}${mine ? '' : masterTurnTimeHtml(item)}${masterUsedMemoryHtml(item.memoryIds,ui.masterData?.sessions?.memoryEntries,esc,item.id,ui.masterOpenReasoning.has('memory:'+item.id))}`
     const attached = `${masterMessageAttachmentsHtml(item.attachments,esc)}${trail}${article}${questions}${foot ? `<div class="hall-turn-foot">${foot}</div>` : ''}${masterFactsHtml(facts)}${showProposal === false ? '' : `${masterThreadProposalHtml(item.proposalId)}${masterThreadActionProposalHtml(item.actionProposalId)}`}`
     return `<div class="hall-turn${mine ? ' is-user-turn' : ' is-master-turn'}${pending ? ' is-pending-turn' : ''}">${attached}</div>`
   }
@@ -949,7 +949,10 @@ export function createMasterThreadViews(dependencies) {
            растягивал его на всю колонку — вместо жетона получалась полоса.
            Снаружи он держится над карточкой ввода и переживает перерисовку
            ленты, потому что больше не выкидывается вместе с её содержимым. */''}
-      <button type="button" class="hall-thread-cue is-hidden" id="master-scroll-cue" data-action="master-scroll-latest">К новым ↓</button>
+      ${/* Видимость якоря считается от следования за лентой, а не вписана
+           скрытой: полная отрисовка (ответ ядра, чужое состояние) иначе
+           прятала его у человека, который как раз читает выше. */''}
+      <button type="button" class="hall-thread-cue${ui.masterAutoFollow ? ' is-hidden' : ''}" id="master-scroll-cue" data-action="master-scroll-latest" aria-label="К новым сообщениям">К новым${icon('chevron-down')}</button>
       ${ui.masterData?.configured===false ? `<div class="hall-compose"><p>История доступна. Чтобы продолжить разговор, настройте модель мастера.</p><button type="button" class="hall-btn" data-action="open-orchestrator-setup">Настроить модель</button></div>` : `<form class="${masterComposeFormClass(ui.masterDraft)}">
         ${/* Неотвеченные уточнения спрашивают здесь, а не в ленте: там они
              уезжали вверх с каждым следующим ходом, и человек отвечал не на то,

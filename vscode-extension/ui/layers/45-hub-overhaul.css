@@ -157,7 +157,7 @@
 .companion-msg-body p:last-child { margin-bottom: 0; }
 .companion-msg-body ul, .companion-msg-body ol { margin: 0 0 var(--s-4); padding-left: 18px; }
 .companion-msg-body code { font-family: "JetBrains Mono", Consolas, monospace; font-size: var(--t-body); padding: 1px var(--s-2); border: 1px solid var(--border); background: color-mix(in srgb, var(--void) 70%, var(--panel)); }
-.companion-code-wrap { display: grid; margin: var(--s-4) 0; border: 1px solid var(--border); background: var(--void); }
+.companion-code-wrap { display: grid; grid-template-columns: minmax(0, 1fr); margin: var(--s-4) 0; border: 1px solid var(--border); background: var(--void); }
 .companion-code-actions { display: flex; justify-content: flex-end; gap: var(--s-3); padding: var(--s-3); border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--panel) 88%, var(--mana)); }
 .companion-code-actions .companion-open-file { margin: 0 auto 0 0; }
 .companion-code-actions button { min-height: 23px; padding: var(--s-1) var(--s-4); font-size: var(--t-micro); }
@@ -727,7 +727,8 @@
   50% { opacity: .45; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .brand-mark.live i, .party-status.running, .party-status.waiting_approval { animation: none; }
+  .brand-mark.live i, .party-status.running, .party-status.waiting_approval,
+  .companion-stream-cursor, .companion-msg.thinking p::after { animation: none; }
 }
 .cursor-login { display: flex; align-items: center; justify-content: space-between; gap: var(--s-4h); padding: var(--s-4) var(--s-4h); border: 1px solid var(--mana); border-radius: var(--r-1); background: color-mix(in srgb, var(--mana) 7%, var(--panel)); }
 .cursor-login strong, .cursor-login small { display: block; }
@@ -772,7 +773,9 @@
    Правила живут здесь, а не в слое тихого регистра: имя `companion-code-*`
    принадлежит этому слою, и оттуда его перебило бы !important. */
 .hall-dialogue .companion-code-wrap {
+  overflow: hidden;
   border-color: color-mix(in srgb, var(--hub-border) 70%, transparent);
+  border-radius: var(--r-2);
 }
 .hall-dialogue .companion-code-actions {
   padding: var(--s-2) var(--s-3);
@@ -796,14 +799,26 @@
 }
 /* Рамка у блока одна. Обёртка уже очерчена, а `pre` в ленте Мастера приносил
    свою: вокруг кода получалась двойная линия с полосой фона между ними. */
-/* Селектор длиннее нужного намеренно: рамку `pre` в ленте Мастера ставит
-   05-hall.css правилом той же силы, и правило короче этого не выигрывает —
-   двойная линия оставалась на месте. Имя `.body` сюда брать нельзя: оно
-   принадлежит слою Чертога, и сборка ловит такой захват. Равную силу добирает
-   тег `pre` с классом, а спор равных решает порядок слоёв. */
+/* Селектор длиннее нужного намеренно: `pre` в ленте Мастера оформляет и
+   05-hall.css, и правило короче этого проигрывало ему по счёту. Имя `.body`
+   сюда брать нельзя: оно принадлежит слою Чертога, и сборка ловит такой
+   захват. Равную силу добирает тег `pre` с классом, а спор равных решает
+   порядок слоёв.
+
+   Длинная строка кода прокручивается внутри блока, а не выталкивает его за
+   колонку: без `minmax(0, 1fr)` у обёртки и `overflow-x` здесь сетка брала
+   ширину самой длинной строки, шапка с кнопкой копирования уезжала за край
+   ленты, а браузерный отступ `pre` в 13 пикселей стоял над кодом и под ним.
+   Вертикальной прокрутки у блока нет намеренно: окно в окне внутри ленты
+   читается хуже, чем длинный ответ (то же решение в 08-master-work-order.css). */
 .hall-dialogue .hall-msg pre.companion-code {
+  margin: 0;
+  overflow-x: auto;
   padding: var(--s-4) var(--s-5);
   border: 0;
   background: transparent;
   font-size: var(--t-small);
+  white-space: pre;
+  tab-size: 2;
+  scrollbar-width: thin;
 }

@@ -10,6 +10,7 @@
 
 import { closeMasterMention, masterMentionState } from './master-mention-ui.js'
 import { masterAgentConsent } from './master-agent-card.js'
+import { icon } from './ui-icons.js'
 
 export function handleMasterClickAction({ action, target, ui, applyMasterFind, forgetMasterSent, masterAskBefore, masterClient, masterMessageById, persistDraft, pickMasterMention, render, root, sendMasterMessage, stopMasterWaitClock, updateMasterScrollCue, vscode }) {
 	if (['master-development-load','master-development-toggle','master-development-rollback'].includes(action)) {
@@ -125,7 +126,22 @@ export function handleMasterClickAction({ action, target, ui, applyMasterFind, f
   }
   if (action === 'copy-master-message') {
     const item = masterMessageById(target.dataset.id)
-    if (item) vscode.postMessage({ type: 'copyMasterText', text: String(item.content || '') })
+    if (!item) return true
+    vscode.postMessage({ type: 'copyMasterText', text: String(item.content || '') })
+    // Отклик на месте нажатия: строка в строке состояния IDE далеко от
+    // реплики, и без галочки второе нажатие казалось нужным.
+    const label = target.getAttribute?.('aria-label')
+    target.innerHTML = icon('check')
+    target.classList?.add('is-done')
+    target.setAttribute?.('aria-label', 'Скопировано')
+    target.setAttribute?.('title', 'Скопировано')
+    setTimeout(() => {
+      if (!target.isConnected) return
+      target.innerHTML = icon('copy')
+      target.classList.remove('is-done')
+      target.setAttribute('aria-label', label || 'Копировать')
+      target.setAttribute('title', label || 'Копировать')
+    }, 1400)
     return true
   }
   if (action === 'regenerate-master-message') {

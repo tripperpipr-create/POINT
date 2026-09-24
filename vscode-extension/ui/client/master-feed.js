@@ -18,7 +18,8 @@ export function masterDayKey (value) {
 // Подпись разделителя. «Сегодня» и «вчера» — то, как человек и думает о своём
 // разговоре; дальше уже нужна дата, потому что «три дня назад» ничего не
 // находит. Год добавляется только когда он не текущий: в разговоре этого года
-// он был бы шумом в каждой строке.
+// он был бы шумом в каждой строке. Дата набрана обычным регистром, как и
+// «Сегодня» рядом: прописные были голосом прежнего Чертога.
 export function masterDayLabel (value, now = new Date()) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return ''
@@ -28,7 +29,7 @@ export function masterDayLabel (value, now = new Date()) {
   yesterday.setDate(yesterday.getDate() - 1)
   if (key === masterDayKey(yesterday)) return 'Вчера'
   const day = `${date.getDate()} ${MONTHS[date.getMonth()]}`
-  return (date.getFullYear() === now.getFullYear() ? day : `${day} ${date.getFullYear()}`).toUpperCase()
+  return date.getFullYear() === now.getFullYear() ? day : `${day} ${date.getFullYear()}`
 }
 
 // Время реплики — часы и минуты. Дата живёт в разделителе: повторять её у

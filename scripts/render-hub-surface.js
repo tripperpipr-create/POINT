@@ -523,6 +523,45 @@ if (process.argv[2] === 'master') {
     // Ядро уже сообщило, чем занято: событие `tools` несёт сырое имя
     // инструмента, и русскую подпись строки ожидания без него не увидеть.
     listeners['window:message']({ data: { type: 'masterTurn', turn: { id: 'turn-tools', conversationId: '', status: 'tools', progress: 'read_file', reply: '' } } })
+  } else if (variant === 'markdown') {
+    // Разметка ответа целиком: заголовки, списки со вложением и задачами,
+    // таблица шире колонки, цитата, ссылки и блок кода с длинной строкой. По
+    // отдельности каждая вещь где-нибудь да встречается, а переполнение колонки
+    // и спор отступов видны только вместе.
+    const answer = [
+      '## План миграции',
+      'Сначала **сверю схему**, потом _перенесу данные_ и ~~удалю~~ отключу старые таблицы. Подробности — в [документации Postgres](https://www.postgresql.org/docs/current/ddl-alter.html) и в `internal/storage/sqlite.go:412`.',
+      '### Шаги',
+      '1. Снять дамп',
+      '2. Применить миграции:',
+      '   - `0007_users.sql`',
+      '   - `0008_orders.sql`',
+      '3. Прогнать тесты',
+      '',
+      '- [x] Резервная копия',
+      '- [ ] Проверка на стенде',
+      '',
+      '> Миграция необратима без дампа: откат сделает только восстановление.',
+      '',
+      '| Таблица | Строк | Размер | Индексы | Владелец | Комментарий к переносу |',
+      '| :--- | ---: | ---: | :---: | --- | --- |',
+      '| users | 12 480 | 3,1 МБ | 4 | auth | переносится первой, от неё зависят заказы и платежи |',
+      '| orders | 318 002 | 96 МБ | 7 | billing | переносится пачками по 10 000 строк, чтобы не держать блокировку |',
+      '',
+      '---',
+      '```go',
+      'func migrate(ctx context.Context, db *sql.DB, steps []Step) error { for _, step := range steps { if err := step.Apply(ctx, db); err != nil { return fmt.Errorf("шаг %s: %w", step.Name, err) } }; return nil }',
+      '```',
+      'Готово к запуску после вашего подтверждения.',
+    ].join('\n')
+    listeners['window:message']({ data: { type: 'master', master: {
+      configured: true, config: boot.orchestrator,
+      sessions: { active: 'db', mode: 'auto', workMode: 'discuss', items: [{ id: 'db', title: 'Миграция базы' }] },
+      history: [
+        { id: 'mu-1', role: 'user', content: 'Распиши план миграции базы', createdAt: today(10, 2) },
+        { id: 'ma-1', role: 'assistant', mode: 'model', model: 'qwen2.5-coder:7b', content: answer, createdAt: today(10, 3) },
+      ],
+    } } })
   } else if (variant === 'composer') {
     // Композер со всеми слотами сразу: обсуждаемое задание, вложенные файлы,
     // уточнение модели и длинная реплика в поле. По отдельности каждый слот

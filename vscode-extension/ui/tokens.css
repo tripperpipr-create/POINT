@@ -34,6 +34,21 @@
      нашёл шесть таких подписей в дереве Git. 90% проходит на обоих фонах
      регистра — панели (5.17) и карточке (4.84), — оставаясь тише основного. */
   --ui-faint: color-mix(in srgb, var(--ui-muted) 90%, transparent);
+  /* Действие и состояния темы. Снимаются здесь, на :root, до того как окно
+     Хаба подменит переменные темы своей палитрой (99-hall-canon.css): свойство
+     наследуется вычисленным, поэтому регистр разговора читает отсюда настоящую
+     тему пользователя, а не её подмену. */
+  --ui-accent: var(--vscode-button-background, #FF8A4C);
+  --ui-accent-hover: var(--vscode-button-hoverBackground, #FF7626);
+  --ui-accent-fg: var(--vscode-button-foreground, #171717);
+  --ui-link: var(--vscode-textLink-foreground, #FF9A63);
+  --ui-focus: var(--vscode-focusBorder, #FF8A4C);
+  --ui-input: var(--vscode-input-background, #1a1a1a);
+  --ui-input-border: var(--vscode-input-border, #2b2b2b);
+  --ui-code: var(--vscode-textCodeBlock-background, #202020);
+  --ui-success: var(--vscode-testing-iconPassed, #5BCB8A);
+  --ui-error: var(--vscode-errorForeground, #EE6873);
+  --ui-warning: var(--vscode-editorWarning-foreground, #E0A24A);
 
   /* --- Палитра Хаба: «Чертог» ----------------------------------------------
      Нейтральный уголь с тёплым текстом. Границы задаются прозрачным белым,
@@ -224,39 +239,6 @@
   --hall-portrait-bg: #0D0D0F;
   --hall-scanlines: repeating-linear-gradient(to bottom, rgba(255, 255, 255, .022) 0 1px, transparent 1px 3px);
   --hall-track: rgba(255, 255, 255, .07);
-
-  /* Тихий регистр разговора.
-     ------------------------------------------------------------------
-     Экран разговора с Мастером живёт в собственном регистре: он один
-     открыт часами подряд, и та же яркость, что уместна на странице
-     статистики, здесь утомляет. Ступени тише канонических на шаг, тон
-     остаётся тёплым, лесенка сохраняет всю длину — иерархию в плотном
-     интерфейсе держит тон, а не размер.
-
-     Раньше этот регистр занимал ступени у оболочки (--ui-*). Причина
-     была настоящей: тёплые приглушённые ступени давали на светлых
-     поверхностях оболочки 2.95–4.3 при пороге 4.5. Но заём схлопывал
-     десять ступеней в три и перемешивал лесенку — подменялись не все, и
-     холодный #e9e9e9 оказывался в одном ряду с тёплым #C9C5BD.
-
-     Причину снимает фон: на поверхностях ниже нижняя приглушённая
-     ступень даёт 4.80 на самой светлой плашке и 5.02 на карточке. */
-  --quiet-void: #0A0A0B;
-  --quiet-panel: #0D0D0F;
-  --quiet-raised: #121214;
-  --quiet-selected: #17171A;
-
-  --quiet-text: #D8D5CE;
-  --quiet-text-2: #CBC7BF;
-  --quiet-text-3: #BDB9B2;
-  --quiet-text-4: #ADA9A2;
-  --quiet-muted: #9E9B94;
-  --quiet-muted-2: #918E87;
-  --quiet-faint: #8D8A83;
-  --quiet-faint-2: #8A8780;
-  --quiet-faint-3: #878480;
-  /* Четвёртая ступень — линии и разделители, а не буквы. */
-  --quiet-faint-4: #3A3835;
 }
 
 /* Полностраничный Хаб переключает семантические алиасы на свой регистр.
@@ -328,6 +310,96 @@ body[data-layout="docker"] {
      Внешний Google Fonts режется CSP — обещать Space Grotesk без файла нельзя. */
   --font-ui: Inter, "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
   --font-sans: var(--font-ui);
+}
+
+/* Регистр разговора с Мастером — тема IDE.
+   ----------------------------------------------------------------------------
+   Разговор открыт часами рядом с редактором, и собственная палитра Хаба делала
+   его чужим окном: светлая тема IDE оставляла чат чёрным, чужой акцент спорил
+   с кнопками редактора. Здесь ступени Хаба переназначены на мост --ui-*, то
+   есть на цвета активной темы VS Code. Слои чата продолжают писать --hub-*,
+   поэтому переезжают все сразу, а остальные экраны Хаба остаются в «Чертоге».
+
+   Промежуточные поверхности и ступени текста выводятся смешением переднего и
+   заднего плана темы, а не её выделением: activeSelectionBackground у многих
+   тем насыщенно-синий и превратил бы каждую плашку разговора в выделение.
+   Всё, что ниже --ui-muted, остаётся на нём: descriptionForeground — самый
+   тихий цвет, который тема обещает читаемым, и тише мы не опускаемся.
+
+   Акцент — кнопка темы: главное действие в разговоре выглядит так же, как
+   главное действие редактора. Для текста акцентом служит ссылка темы: цвет
+   кнопки как цвет букв на фоне бывает нечитаем (#0078d4 на #1f1f1f — 3.9). */
+body[data-layout="wide"] .is-chat {
+  --hub-void: var(--ui-void);
+  --hub-panel: var(--ui-panel);
+  --hub-raised: color-mix(in srgb, var(--ui-text) 4%, var(--ui-void));
+  --hub-selected: color-mix(in srgb, var(--ui-text) 8%, var(--ui-void));
+  --hub-border: color-mix(in srgb, var(--ui-text) 11%, transparent);
+  --hub-border-soft: color-mix(in srgb, var(--ui-text) 7%, transparent);
+  --hub-border-strong: color-mix(in srgb, var(--ui-text) 16%, transparent);
+  --hub-border-loud: color-mix(in srgb, var(--ui-text) 24%, transparent);
+
+  --hub-text: var(--ui-text);
+  --hub-text-2: color-mix(in srgb, var(--ui-text) 88%, var(--ui-muted));
+  --hub-text-3: color-mix(in srgb, var(--ui-text) 70%, var(--ui-muted));
+  --hub-text-4: color-mix(in srgb, var(--ui-text) 45%, var(--ui-muted));
+  --hub-muted: var(--ui-muted);
+  --hub-muted-2: var(--ui-muted);
+  --hub-faint: var(--ui-muted);
+  --hub-faint-2: var(--ui-muted);
+  --hub-faint-3: var(--ui-muted);
+  /* Линии, не буквы. */
+  --hub-faint-4: color-mix(in srgb, var(--ui-text) 14%, transparent);
+  --hub-dot: var(--hub-faint-4);
+  --hub-counter: var(--ui-muted);
+
+  --surface-void: var(--hub-void);
+  --surface-panel: var(--hub-panel);
+  --surface-raised: var(--hub-raised);
+  --surface-selected: var(--hub-selected);
+  --surface-border: var(--hub-border);
+  --surface-border-soft: var(--hub-border-soft);
+  --text-primary: var(--hub-text);
+  --text-muted: var(--hub-muted);
+  --text-faint: var(--hub-faint);
+  --text-size-base: var(--t-base);
+
+  --ember: var(--ui-accent);
+  --ember-hover: var(--ui-accent-hover);
+  --ember-pressed: var(--ember);
+  --ember-fg: var(--ui-accent-fg);
+  --ember-light: var(--ui-link);
+  --ember-wash: color-mix(in srgb, var(--ember) 8%, transparent);
+  --ember-wash-strong: color-mix(in srgb, var(--ember) 14%, transparent);
+  --ember-line: color-mix(in srgb, var(--ember) 35%, transparent);
+  --ember-line-soft: color-mix(in srgb, var(--ember) 20%, transparent);
+  --ember-line-loud: color-mix(in srgb, var(--ember) 45%, transparent);
+  --ember-prose: color-mix(in srgb, var(--ember-light) 55%, var(--ui-text));
+  --ember-code: var(--ember-light);
+
+  --mana: var(--ui-link);
+  --vital: var(--ui-success);
+  --wound: var(--ui-error);
+  --caution: var(--ui-warning);
+  --mana-wash: color-mix(in srgb, var(--mana) 10%, transparent);
+  --vital-wash: color-mix(in srgb, var(--vital) 10%, transparent);
+  --wound-wash: color-mix(in srgb, var(--wound) 10%, transparent);
+  --caution-wash: color-mix(in srgb, var(--caution) 10%, transparent);
+
+  --e-focus: 0 0 0 1px var(--ui-focus);
+
+  /* Геометрия редактора, а не чертежа: малые скругления у контролов,
+     заметнее — у карточек и поля ввода. */
+  --r-1: 4px;
+  --r-2: 8px;
+  --r-3: 8px;
+
+  --hall-portrait-bg: var(--hub-selected);
+  --hall-track: color-mix(in srgb, var(--ui-text) 10%, transparent);
+  --hall-stripes: none;
+  --hall-scanlines: none;
+
+  color-scheme: normal;
 }
 
 /* Уважение к системной настройке — не украшение, а требование доступности. */

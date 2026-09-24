@@ -26,15 +26,15 @@ body { color: var(--point-primary); background: var(--point-panel); }
 }
 .brand strong, .tabs, .section-title, .quest-label, .character-card small, .active-quest small,
 .status, .run-heading, .composer > small, .tool-section > header, .workflow-steps > header {
-  font-family: "JetBrains Mono", Consolas, monospace;
+  font-family: var(--font-ui);
 }
-.brand strong { color: var(--point-primary); font-size: var(--t-body); letter-spacing: .08em; }
-.brand small { color: var(--point-muted); font-size: var(--t-micro); letter-spacing: .08em; }
+.brand strong { color: var(--point-primary); font-size: var(--t-body); }
+.brand small { color: var(--point-muted); font-size: var(--t-small); }
 .brand-mark { width: 28px; height: 28px; border: 1px solid var(--point-border); border-radius: var(--r-1); box-shadow: none; }
 .brand-mark i { right: 3px; top: 3px; width: 5px; height: 5px; border-radius: 0; background: var(--point-vital); box-shadow: none; transform: rotate(45deg); }
 
 .tabs { gap: var(--s-1); padding: var(--s-2) var(--s-4) var(--s-3); background: var(--point-void); border-bottom: 1px solid var(--point-border); }
-.tabs > button, .more-tabs > summary { min-height: 28px; border: 1px solid transparent; border-radius: var(--r-1); font-size: var(--t-tiny); letter-spacing: .02em; }
+.tabs > button, .more-tabs > summary { min-height: 28px; border: 1px solid transparent; border-radius: var(--r-1); font-size: var(--t-small); }
 .tabs > button:hover, .more-tabs > summary:hover { color: var(--point-primary); background: var(--point-raised); border-color: var(--point-border); }
 .tabs > button.active, .more-tabs.active > summary { color: var(--point-ember); background: var(--point-raised); border-color: var(--point-border); box-shadow: inset 0 -2px 0 var(--point-ember); }
 .more-tabs > div { top: 37px; padding: var(--s-2); background: var(--point-panel); border: 1px solid var(--point-border); border-radius: var(--r-1); box-shadow: none; }
@@ -65,8 +65,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--point-ember); bo
 .settings form > label > small,
 .settings .section-title {
   color: var(--point-muted);
-  font: 650 var(--t-micro)/1.2 "JetBrains Mono", Consolas, monospace;
-  letter-spacing: .06em;
+  font: 650 var(--t-small)/1.2 var(--font-ui);
 }
 .settings .tool-toggle {
   gap: var(--s-3);
@@ -88,9 +87,9 @@ input:focus, select:focus, textarea:focus { border-color: var(--point-ember); bo
 .composer { gap: var(--s-4); padding: var(--s-4) var(--s-4) var(--s-4h); background: var(--point-void); border-top-color: var(--point-border); }
 .composer .preflight-button { color: var(--point-mana); background: rgba(70,216,232,.07); border-color: rgba(70,216,232,.48); }
 .composer .preflight-button:hover { background: rgba(70,216,232,.13); }
-.composer > small { color: var(--point-muted); font-size: var(--t-tiny); line-height: 1.45; }
+.composer > small { color: var(--point-muted); font-size: var(--t-small); line-height: 1.45; }
 
-.quest-label { color: var(--point-ember); font-size: var(--t-micro); font-weight: 700; letter-spacing: .12em; }
+.quest-label { color: var(--point-ember); font-size: var(--t-small); font-weight: 700; }
 .orbit { border-color: var(--point-arcane); border-radius: var(--r-1); color: var(--point-arcane); transform: rotate(45deg); }
 .orbit::before { inset: 8px; border-color: rgba(150,118,255,.5); border-radius: 0; transform: none; }
 .orbit::after { top: 3px; right: 3px; border-radius: 0; background: var(--point-vital); box-shadow: 0 0 0 3px var(--point-panel); }
@@ -102,10 +101,10 @@ input:focus, select:focus, textarea:focus { border-color: var(--point-ember); bo
 .quest-board > p { margin: 0; color: var(--point-muted); font-size: var(--t-small); line-height: 1.4; }
 .examples { max-width: 310px; gap: var(--s-2); }
 .examples button { display: grid; grid-template-columns: 74px minmax(0,1fr) auto; min-height: 32px; padding: var(--s-3) var(--s-4); background: var(--point-void); border-color: var(--point-border); }
-.examples button span { color: var(--point-ember); font: 650 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace; letter-spacing: .06em; text-transform: uppercase; }
+.examples button span { color: var(--point-ember); font: 650 var(--t-small)/1 var(--font-ui); }
 .examples button:hover { background: var(--point-raised); border-color: var(--point-ember); transform: none; }
 
-.status { gap: var(--s-3); padding: var(--s-1) var(--s-3); border: 1px solid currentColor; border-radius: var(--r-1); font-size: var(--t-micro); font-weight: 650; letter-spacing: .035em; line-height: 1.4; }
+.status { gap: var(--s-3); padding: var(--s-1) var(--s-3); border: 1px solid currentColor; border-radius: var(--r-1); font-size: var(--t-small); font-weight: 650; line-height: 1.4; }
 .status i { width: 5px; height: 5px; border-radius: 0; transform: rotate(45deg); }
 /* Значок состояния прогона стоит и в канонной строке исполнения — с цикла 30,
    когда два списка исполнений на Обзоре свелись в один. По краям строки ничего
@@ -126,26 +125,26 @@ input:focus, select:focus, textarea:focus { border-color: var(--point-ember); bo
   border-radius: var(--r-1);
 }
 .active-quest > header { display: flex; align-items: center; justify-content: space-between; gap: var(--s-4); }
-.active-quest > header > span:first-child { color: var(--point-ember); font: 700 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace; letter-spacing: .08em; }
+.active-quest > header > span:first-child { color: var(--point-ember); font: 700 var(--t-small)/1 var(--font-ui); }
 .active-quest h3 { margin: 0; color: var(--point-primary); font-size: var(--t-base); line-height: 1.3; }
 .quest-agent { display: grid; grid-template-columns: 24px minmax(0,1fr); align-items: center; gap: var(--s-3); padding: var(--s-3) var(--s-3); background: var(--point-panel); border: 1px solid var(--point-border); }
 .quest-agent > span { display: grid; place-items: center; width: 22px; height: 22px; color: var(--point-arcane); border: 1px solid var(--point-arcane); font-size: var(--t-small); }
 .quest-agent small, .quest-agent strong { display: block; }
-.quest-agent small { color: var(--point-muted); font-size: var(--t-micro); letter-spacing: .06em; }
-.quest-agent strong { margin-top: 1px; font-size: var(--t-tiny); }
+.quest-agent small { color: var(--point-muted); font-size: var(--t-small); }
+.quest-agent strong { margin-top: 1px; font-size: var(--t-small); }
 .quest-progress { display: grid; gap: var(--s-2); }
-.quest-progress label { display: flex; justify-content: space-between; color: var(--point-muted); font: 600 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace; }
+.quest-progress label { display: flex; justify-content: space-between; color: var(--point-muted); font: 600 var(--t-small)/1 var(--font-ui); }
 .quest-progress label b { color: var(--point-primary); }
-.quest-progress small { color: var(--point-muted); font-size: var(--t-micro); text-align: right; }
+.quest-progress small { color: var(--point-muted); font-size: var(--t-small); text-align: right; }
 .quest-trace { display: flex; flex-wrap: wrap; gap: var(--s-2); padding: var(--s-3) var(--s-3); border: 1px solid var(--point-border); background: var(--point-void); }
-.quest-trace small { width: 100%; color: var(--point-muted); font-size: var(--t-micro); letter-spacing: .06em; }
-.quest-trace span { padding: var(--s-1) var(--s-2); color: var(--text-muted); border: 1px solid var(--point-border); font: var(--t-micro)/1.2 "JetBrains Mono", Consolas, monospace; }
+.quest-trace small { width: 100%; color: var(--point-muted); font-size: var(--t-small); }
+.quest-trace span { padding: var(--s-1) var(--s-2); color: var(--text-muted); border: 1px solid var(--point-border); font: var(--t-small)/1.2 var(--font-ui); }
 .quest-artifacts { display: grid; gap: var(--s-2); padding-top: var(--s-3); border-top: 1px solid var(--point-border); }
-.quest-artifacts > small { color: var(--point-muted); font-size: var(--t-micro); letter-spacing: .06em; }
-.quest-artifacts > span { overflow: hidden; color: var(--text-muted); font: var(--t-micro)/1.3 "JetBrains Mono", Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
+.quest-artifacts > small { color: var(--point-muted); font-size: var(--t-small); }
+.quest-artifacts > span { overflow: hidden; color: var(--text-muted); font: var(--t-small)/1.3 var(--font-ui); text-overflow: ellipsis; white-space: nowrap; }
 .active-quest > footer { display: grid; gap: var(--s-1); padding: var(--s-3) var(--s-3); color: var(--point-vital); background: rgba(91,203,138,.06); border: 1px solid rgba(91,203,138,.38); }
-.active-quest > footer small { font-size: var(--t-micro); letter-spacing: .06em; }
-.active-quest > footer strong { font-size: var(--t-tiny); }
+.active-quest > footer small { font-size: var(--t-small); }
+.active-quest > footer strong { font-size: var(--t-small); }
 
 progress { display: block; width: 100%; height: 5px; overflow: hidden; border: 0; border-radius: 0; background: var(--surface-selected); color: var(--point-ember); }
 progress::-webkit-progress-bar { background: var(--surface-selected); }
@@ -171,25 +170,25 @@ progress.mana::-webkit-progress-value { background: var(--point-mana); }
   border: 1px solid var(--point-mana); border-radius: var(--r-1); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--point-void) 70%, transparent); }
 .character-avatar span { font-size: var(--t-title); }
 .character-card header small, .character-card header strong, .character-card header p { display: block; margin: 0; }
-.character-card header small { color: var(--point-muted); font-size: var(--t-micro); letter-spacing: .06em; }
+.character-card header small { color: var(--point-muted); font-size: var(--t-small); }
 .character-card header strong { margin-top: 2px; color: var(--point-primary); font-size: var(--t-lead); }
-.character-card header p { margin-top: 2px; color: var(--point-mana); font-size: var(--t-tiny); }
-.character-card header em { align-self: start; padding: var(--s-1) var(--s-3); color: var(--point-mana); border: 1px solid var(--point-mana); border-radius: var(--r-1); font: normal 650 var(--t-micro)/1.4 var(--font-mono); }
+.character-card header p { margin-top: 2px; color: var(--point-mana); font-size: var(--t-small); }
+.character-card header em { align-self: start; padding: var(--s-1) var(--s-3); color: var(--point-mana); border: 1px solid var(--point-mana); border-radius: var(--r-1); font: normal 650 var(--t-small)/1.4 var(--font-ui); }
 .character-bars { display: grid; gap: var(--s-4); }
-.character-bars label { display: grid; grid-template-columns: 1fr auto; gap: var(--s-2); color: var(--point-muted); font: 600 var(--t-micro)/1 var(--font-mono); }
+.character-bars label { display: grid; grid-template-columns: 1fr auto; gap: var(--s-2); color: var(--point-muted); font: 600 var(--t-small)/1 var(--font-ui); }
 .character-bars label b { color: var(--point-primary); }
 .character-bars progress { grid-column: 1 / -1; }
 /* Две колонки, а не три: третья была шире прочих под текст класса, а класс
    переехал в шапку карточки — единственное место, где он не обрезается. */
 .character-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); background: var(--point-border); gap: 1px; border: 1px solid var(--point-border); }
 .character-facts > span { display: grid; gap: var(--s-1); min-width: 0; padding: var(--s-3); background: var(--point-panel); }
-.character-facts small { color: var(--point-muted); font-size: var(--t-micro); letter-spacing: .05em; }
-.character-facts b { overflow: hidden; color: var(--point-primary); font-size: var(--t-micro); text-overflow: ellipsis; white-space: nowrap; }
+.character-facts small { color: var(--point-muted); font-size: var(--t-small); }
+.character-facts b { overflow: hidden; color: var(--point-primary); font-size: var(--t-small); text-overflow: ellipsis; white-space: nowrap; }
 .ability-chips { display: flex; flex-wrap: wrap; gap: var(--s-2); }
-.ability-chips span { padding: var(--s-2) var(--s-3); color: var(--point-mana); border: 1px solid rgba(70,216,232,.45); border-radius: var(--r-1); font: 600 var(--t-micro)/1.3 "JetBrains Mono", Consolas, monospace; text-transform: uppercase; }
+.ability-chips span { padding: var(--s-2) var(--s-3); color: var(--point-mana); border: 1px solid rgba(70,216,232,.45); border-radius: var(--r-1); font: 600 var(--t-small)/1.3 var(--font-ui); }
 .ability-chips span:nth-child(2n) { color: var(--point-arcane); border-color: rgba(150,118,255,.48); }
 .ability-chips .muted { color: var(--point-muted); border-color: var(--point-border); }
-.character-card > footer { color: var(--point-muted); font-size: var(--t-micro); line-height: 1.4; }
+.character-card > footer { color: var(--point-muted); font-size: var(--t-small); line-height: 1.4; }
 
 .message, .run-snapshot, .run-diagnostics, .run-comparison, .run, .approval, .patch,
 .agent-preflight, .provider-probe, .template-picker, .tool-section, .custom-tool-presets,
@@ -203,10 +202,10 @@ progress.mana::-webkit-progress-value { background: var(--point-mana); }
 .avatar { color: var(--point-arcane); background: rgba(150,118,255,.08); border: 1px solid var(--point-arcane); border-radius: var(--r-1); }
 .tool { background: var(--point-void); border-left-color: var(--point-mana); }
 .notice { border: 1px solid currentColor; border-radius: var(--r-1); }
-.run-heading { font-size: var(--t-tiny); }
+.run-heading { font-size: var(--t-small); }
 .run-diagnostics { background: var(--point-void); border-left-width: var(--edge-accent); }
 .diagnostic-grid > span, .diagnostic-tools span { background: var(--point-panel); border-radius: 0; }
-.section-title { color: var(--point-primary); font-size: var(--t-tiny); letter-spacing: .08em; }
+.section-title { color: var(--point-primary); font-size: var(--t-small); }
 .section-title::before { content: none; margin: 0; }
 .section-title span { margin-right: auto; }
 .run { background: var(--point-void); border-color: var(--point-border); }

@@ -137,7 +137,7 @@ export function createChangeSetViews({
   function changeSetsView() {
     const sets = getState().boot?.changeSets || []
     const pending = pendingChangeSets().length
-    return shell(`<main class="hub-changesets-page"><header class="changes-heading"><div><span>НАБОРЫ ИЗМЕНЕНИЙ</span><h1>Ревью перед применением</h1><p>Sandbox-изменения агентов. Применение записывает файлы в рабочую копию.</p></div><div><strong>${sets.length}</strong><small>всего</small><b>${pending}</b><small>на ревью</small></div></header>${sets.length ? sets.map(set => changeSetCardHtml(set, false) + changeSetGraphHtml(set)).join('') : `<div class="empty compact point-frame"><span class="empty-glyph">▣</span><h3>Наборов пока нет</h3><p>После изолированных запусков здесь появятся diff для ревью.</p><div class="empty-next"><button type="button" class="secondary" data-action="tab" data-tab="quests">К квестам →</button><button type="button" class="secondary" data-action="tab" data-tab="overview">← Обзор</button></div></div>`}<footer class="hub-transitional" aria-label="Смежные разделы"><b>ПЕРЕЙТИ</b><button type="button" class="secondary" data-action="tab" data-tab="journal">Журнал изменений</button><button type="button" class="secondary" data-action="tab" data-tab="changes">Только изменённые файлы</button><button type="button" class="secondary" data-action="tab" data-tab="overview">← Обзор</button></footer></main>`)
+    return shell(`<main class="hub-changesets-page"><header class="changes-heading"><div><h1>Ревью перед применением</h1><p>Sandbox-изменения агентов. Применение записывает файлы в рабочую копию.</p></div><div><strong>${sets.length}</strong><small>всего</small><b>${pending}</b><small>на ревью</small></div></header>${sets.length ? sets.map(set => changeSetCardHtml(set, false) + changeSetGraphHtml(set)).join('') : `<div class="empty compact point-frame"><span class="empty-glyph">▣</span><h3>Наборов пока нет</h3><p>После изолированных запусков здесь появятся diff для ревью.</p><div class="empty-next"><button type="button" class="secondary" data-action="tab" data-tab="quests">К квестам →</button><button type="button" class="secondary" data-action="tab" data-tab="overview">← Обзор</button></div></div>`}</main>`)
   }
 
   function journalActionHtml(change) {
@@ -181,7 +181,7 @@ export function createChangeSetViews({
       const title = key === '_none' ? 'Без квеста' : key === '_files' ? 'Файловые diff без execution' : (quest?.title || 'Квест')
       // Метка группы называла всё «КВЕСТОМ», включая группы «Без квеста» и
       // «Файловые diff»: заголовок и метка над ним противоречили друг другу.
-      const kicker = key === '_none' ? 'ВНЕ КВЕСТА' : key === '_files' ? 'ФАЙЛОВЫЕ DIFF' : 'КВЕСТ'
+      const kicker = key === '_none' ? 'Вне квеста' : key === '_files' ? 'Файловые diff' : 'Квест'
       const questRevert = quest && quest.status !== 'cancelled'
         ? `<button type="button" class="danger-button" data-action="revert-quest" data-id="${esc(quest.id)}">Откатить квест</button>`
         : ''
@@ -211,7 +211,7 @@ export function createChangeSetViews({
       return `<section class="journal-quest"><header><div><span>${kicker}</span><h2>${esc(title)}</h2>${note}</div>${questRevert}</header>${body || fileOnly || '<p class="muted">Пока нет запусков и действий.</p>'}</section>`
     }).join('')
     const empty = !keys.length ? '<div class="empty compact point-frame"><span class="empty-glyph">≡</span><h3>Журнал пуст</h3><p>После квестов и sandbox-изменений здесь появятся откаты уровня Quest → Execution → Action.</p><div class="empty-next"><button type="button" class="secondary" data-action="tab" data-tab="quests">Новый квест →</button><button type="button" class="secondary" data-action="tab" data-tab="overview">← Обзор</button></div></div>' : ''
-    return shell(`<main class="hub-journal"><header class="changes-heading"><div><span>ЖУРНАЛ ИЗМЕНЕНИЙ</span><h1>Летопись правок</h1><p>Собственная летопись агентов, не Git. Откат действия, запуска, узла Flow или квеста. Откат квеста откатывает связанные запуски; отдельного отката Flow нет — откатывайте узел или квест.</p></div></header>${sections || empty}<footer class="hub-transitional" aria-label="Смежные разделы"><b>ПЕРЕЙТИ</b><button type="button" class="secondary" data-action="tab" data-tab="changesets">Наборы на ревью</button><button type="button" class="secondary" data-action="tab" data-tab="changes">Только изменённые файлы</button><button type="button" class="secondary" data-action="tab" data-tab="overview">← Обзор</button></footer></main>`)
+    return shell(`<main class="hub-journal"><header class="changes-heading"><div><h1>Журнал правок</h1><p>Собственный журнал правок агентов, не Git. Откат действия, запуска, узла Flow или квеста. Откат квеста откатывает связанные запуски; отдельного отката Flow нет — откатывайте узел или квест.</p></div></header>${sections || empty}</main>`)
   }
 
   return {

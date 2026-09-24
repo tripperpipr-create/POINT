@@ -3,10 +3,10 @@
 .onboarding-nav, .constructor-nav { display: grid; gap: var(--s-4h); padding: var(--s-5); background: var(--point-panel); border: 1px solid var(--point-border); align-self: start; position: sticky; top: 0; }
 .onboarding-step-rail { display: grid; gap: var(--s-4h); }
 .onboarding-chapter { display: grid; gap: var(--s-2); }
-.onboarding-chapter > small { color: var(--point-muted); font: 650 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace; letter-spacing: .1em; }
+.onboarding-chapter > small { color: var(--point-muted); font: 650 var(--t-small)/1 var(--font-ui); }
 .onboarding-chapter.current > small { color: var(--point-ember); }
 .onboarding-chapter.done > small { color: var(--point-vital); }
-.onboarding-step-rail button { min-height: 28px; padding: var(--s-3) var(--s-4); color: var(--point-muted); background: transparent; border: 1px solid var(--point-border); text-align: left; font-size: var(--t-tiny); }
+.onboarding-step-rail button { min-height: 28px; padding: var(--s-3) var(--s-4); color: var(--point-muted); background: transparent; border: 1px solid var(--point-border); text-align: left; font-size: var(--t-small); }
 /* Девять шагов рейки — самый первый экран продукта, и на наведение они не
    отвечали ничем: прозрачный фон, тусклая рамка, курсор-стрелка. Понять, что
    по ним кликают, было неоткуда.
@@ -29,7 +29,7 @@
 .onboarding-step-rail button.locked,
 .onboarding-step-rail button:disabled { opacity: var(--disabled-opacity); cursor: not-allowed; }
 .onboarding-step-rail button.locked { display: flex; justify-content: space-between; gap: var(--s-3); }
-.onboarding-step-rail button.locked::after { content: '⊘'; color: var(--point-muted); font-size: var(--t-tiny); }
+.onboarding-step-rail button.locked::after { content: '⊘'; color: var(--point-muted); font-size: var(--t-small); }
 .onboarding-lock-note {
   margin: 0;
   padding: var(--s-3) var(--s-4);
@@ -60,7 +60,7 @@
   .companion-act-compare,
   .companion-scene-picker { grid-template-columns: minmax(0, 1fr); }
 }
-.onboarding-panel h2 { margin: 0 0 var(--s-4); font: 520 var(--t-title)/1.2 "JetBrains Mono", Consolas, monospace; }
+.onboarding-panel h2 { margin: 0 0 var(--s-4); font: 520 var(--t-title)/1.2 var(--font-ui); }
 .onboarding-panel p { margin: 0 0 var(--s-5); color: var(--point-muted); font-size: var(--t-body); line-height: 1.45; }
 .onboarding-facts { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--s-3); }
 /* Строка факта — поток, а не сетка из двух колонок.
@@ -91,20 +91,20 @@
 .companion-preset-card { display: grid; gap: var(--s-2); padding: var(--s-4h); text-align: left; background: var(--point-void); border: 1px solid var(--point-border); }
 .companion-preset-card.selected { border-color: var(--point-arcane); box-shadow: inset 2px 0 0 var(--point-arcane); }
 .companion-preset-card strong { font-size: var(--t-small); }
-.companion-preset-card small { color: var(--point-muted); font-size: var(--t-micro); }
+.companion-preset-card small { color: var(--point-muted); font-size: var(--t-small); }
 .onboarding-list { margin: 0 0 var(--s-4h); padding-left: 18px; color: var(--point-muted); font-size: var(--t-body); }
-.onboarding-perm-chip { display: inline-grid; gap: var(--s-1); padding: var(--s-3) var(--s-4); margin: 0 var(--s-3) var(--s-3) 0; border: 1px solid var(--point-border); background: var(--point-void); font-size: var(--t-tiny); }
+.onboarding-perm-chip { display: inline-grid; gap: var(--s-1); padding: var(--s-3) var(--s-4); margin: 0 var(--s-3) var(--s-3) 0; border: 1px solid var(--point-border); background: var(--point-void); font-size: var(--t-small); }
 .onboarding-perm-chip.on { border-color: var(--point-ember); box-shadow: inset 2px 0 0 var(--point-ember); }
 .companion-agent-proposal { display: grid; gap: var(--s-4); padding: var(--s-4h); border: 1px solid var(--point-border); background: var(--point-void); }
 .companion-agent-proposal ul { margin: 0; padding-left: 18px; color: var(--point-muted); font-size: var(--t-body); }
 .companion-proposal-tools { display: flex; flex-wrap: wrap; gap: var(--s-2); }
-.companion-proposal-tools em { padding: var(--s-1) var(--s-3); border: 1px solid var(--point-border); font-style: normal; font-size: var(--t-tiny); }
+.companion-proposal-tools em { padding: var(--s-1) var(--s-3); border: 1px solid var(--point-border); font-style: normal; font-size: var(--t-small); }
 .companion-inline footer { display: flex; flex-wrap: wrap; gap: var(--s-3); margin-top: 8px; }
-.tool-policy-legend { display: flex; flex-wrap: wrap; gap: var(--s-4); margin: 0 0 var(--s-4h); color: var(--point-muted); font-size: var(--t-tiny); }
+.tool-policy-legend { display: flex; flex-wrap: wrap; gap: var(--s-4); margin: 0 0 var(--s-4h); color: var(--point-muted); font-size: var(--t-small); }
 .tool-policy-legend b { color: var(--point-ember); }
 .tool-policy-grid { display: grid; gap: var(--s-3); }
 .tool-policy-row { display: grid; grid-template-columns: minmax(0, 1fr) 72px 110px; gap: var(--s-4); align-items: center; padding: var(--s-3); border: 1px solid var(--point-border); }
-.tool-policy-row em { font-style: normal; font-size: var(--t-tiny); letter-spacing: .06em; color: var(--point-muted); }
+.tool-policy-row em { font-style: normal; font-size: var(--t-small); color: var(--point-muted); }
 .tool-toggle.risk-LOW, .tool-policy-row.risk-LOW { border-color: color-mix(in srgb, var(--point-vital) 35%, var(--point-border)); }
 .tool-toggle.risk-HIGH, .tool-policy-row.risk-HIGH { border-color: color-mix(in srgb, var(--point-ember) 40%, var(--point-border)); }
 .tool-toggle.risk-CRITICAL, .tool-policy-row.risk-CRITICAL { border-color: color-mix(in srgb, var(--wound) 45%, var(--point-border)); }
@@ -119,6 +119,6 @@
    нужен, чтобы начать работать: чертёж уже выдаёт агенту умения. Одиннадцать
    шагов до первого квеста — это не тщательность, а препятствие. */
 .onboarding-later { display: grid; gap: var(--s-3); margin: var(--s-5) 0 0; padding-top: var(--s-5); border-top: 1px solid var(--point-border); }
-.onboarding-later > span { color: var(--point-muted); font: 650 var(--t-micro)/1 "JetBrains Mono", Consolas, monospace; letter-spacing: .08em; text-transform: uppercase; }
+.onboarding-later > span { color: var(--point-muted); font: 650 var(--t-small)/1 var(--font-ui); }
 .onboarding-later > div { display: flex; flex-wrap: wrap; gap: var(--s-3); }
 .onboarding-later small { color: var(--point-muted); font-size: var(--t-small); line-height: 1.4; }

@@ -54,9 +54,9 @@ if (!root.innerHTML.includes('Опыт команды и факты проект
     !root.innerHTML.includes('Основной профиль') ||
     !root.innerHTML.includes('QA Engineer') ||
     !root.innerHTML.includes('все проекты') ||
-    !root.innerHTML.includes('ПОИСК ПО ОПЫТУ') ||
-    !root.innerHTML.includes('РУЧНОЕ ОБУЧЕНИЕ') ||
-    !root.innerHTML.includes('2 ШАГА')) {
+    !root.innerHTML.includes('Поиск по опыту') ||
+    !root.innerHTML.includes('Ручное обучение') ||
+    !root.innerHTML.includes('2 Шага')) {
   throw new Error('Portable profile memory is not distinguished from project memory in the Hub')
 }
 
@@ -91,7 +91,7 @@ listeners['window:message']({ data: {
     confirmationToken: 'confirm-exact-preview',
   },
 } })
-if (!root.innerHTML.includes('РУЧНОЕ ОБУЧЕНИЕ · PREVIEW') ||
+if (!root.innerHTML.includes('Ручное обучение · preview') ||
     !root.innerHTML.includes('Подтвердить и обучить')) {
   throw new Error('Manual learning does not expose the confirmation step')
 }

@@ -139,7 +139,7 @@ for (const [name, extra] of Object.entries(cases)) {
   if (!root.innerHTML.includes('Соберите гильдию')) {
     throw new Error('Empty Hub does not tell the newcomer what to do first')
   }
-  if (root.innerHTML.includes('ВСЁ СПОКОЙНО')) {
+  if (/всё спокойно/i.test(root.innerHTML)) {
     throw new Error('Empty Hub claims calm while nothing can happen without an agent')
   }
   // Состояние индекса называется по-русски: набор состояний закрыт ядром.
@@ -156,11 +156,11 @@ for (const [name, extra] of Object.entries(cases)) {
 {
   const broken = [
     { имя: 'ядро остановлено', world: { service: { state: 'stopped' }, workspaceTrusted: true },
-      ждём: ['Гильдия отдыхает', 'Пробудить ядро'] },
+      ждём: ['Ядро остановлено', 'Запустить ядро'] },
     { имя: 'ядро упало', world: { service: { state: 'error', error: 'exit status 1' }, workspaceTrusted: true },
-      ждём: ['Ядро не поднялось', 'Повторить запуск', 'Хроника ядра'] },
+      ждём: ['Ядро не поднялось', 'Повторить запуск', 'Журнал ядра'] },
     { имя: 'папка не доверена', world: { service: { state: 'running' }, workspaceTrusted: false },
-      ждём: ['БЕЗОПАСНЫЙ РЕЖИМ', 'Настроить доступ'] },
+      ждём: ['Безопасный режим', 'Настроить доступ'] },
   ]
   for (const кейс of broken) {
     const listeners = {}
@@ -443,7 +443,7 @@ for (const [name, extra] of Object.entries(cases)) {
 
   push([])
   answer(0)
-  if (badge() !== '·') throw new Error('Empty world should show an empty decisions badge')
+  if (badge() !== '') throw new Error('Empty world should show an empty decisions badge')
 
   // Агент начинает ждать уже после того, как очередь загрузилась.
   push([{ id: 'r1', status: 'waiting_approval', task: 'Команда', startedAt: new Date().toISOString() }])

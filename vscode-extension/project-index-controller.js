@@ -278,13 +278,13 @@ function createProjectIndex({
             `Индексация: ${detail}`,
             'Перестроить снова',
             'Проблемы',
-            'Хроника ядра',
+            'Журнал ядра',
           )
           if (choice === 'Перестроить снова') {
             void runRebuild({ notify: true }).catch(() => {})
           } else if (choice === 'Проблемы') {
             await vscode.commands.executeCommand('workbench.actions.view.problems')
-          } else if (choice === 'Хроника ядра') {
+          } else if (choice === 'Журнал ядра') {
             await vscode.commands.executeCommand('localAgent.showCoreChronicle')
           }
           if (wantNotify) throw error

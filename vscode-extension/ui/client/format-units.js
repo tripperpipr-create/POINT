@@ -42,6 +42,17 @@ export function shortLabel(name, limit) {
   return runes.length > limit ? runes.slice(0, limit - 1).join('').trimEnd() + '\u2026' : text
 }
 
+// Метка, пришедшая из ядра прописными («КОМАНДА», «ПРАВКА»), показывается
+// обычным регистром: прописные — регистр прежнего «Чертога», а в тихом регистре
+// Хаба они кричат громче заголовка рядом. Смешанный регистр не трогается —
+// в нём могут быть имена и аббревиатуры, которые задал человек.
+export function sentenceLabel(value) {
+  const text = String(value ?? '')
+  if (!/\p{Lu}/u.test(text) || text !== text.toUpperCase()) return text
+  const lower = text.toLowerCase()
+  return lower.charAt(0).toUpperCase() + lower.slice(1)
+}
+
 // Список, каким бы он ни пришёл из ядра.
 //
 // Хаб обязан держаться на неполных данных, а `null` вместо списка — штатный ответ.

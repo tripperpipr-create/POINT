@@ -66,20 +66,20 @@ const check = (name, ok, detail) => { if (!ok) failures.push(`${name}: ${detail}
 // Без мира — галерея, а не заглушка. Проверяется по содержимому, а не по
 // классу: класс можно переименовать, а обещание «здесь видно все миры» — нет.
 const empty = surface()
-check('без мира рисуется галерея', /ГАЛЕРЕЯ МИРОВ/.test(empty.text()), empty.text().slice(0, 160))
+check('без мира рисуется галерея', /Галерея миров/.test(empty.text()), empty.text().slice(0, 160))
 check('видны все миры', ['ai-ide', 'frontend', 'go-health'].every(name => empty.text().includes(name)), empty.text().slice(0, 200))
 check('видна ветка', empty.text().includes('feature/hall'), 'ветка не показана')
-check('видно тёплое ядро', /ЯДРО Т/.test(empty.text()), 'состояние ядра не показано')
-check('медленный диск назван', /ДИСК НЕ ОТВЕЧАЕТ/.test(empty.text()), 'мир на спящем диске не помечен')
+check('видно тёплое ядро', /Ядро т/.test(empty.text()), 'состояние ядра не показано')
+check('медленный диск назван', /Диск не отвечает/.test(empty.text()), 'мир на спящем диске не помечен')
 check('счётчик склоняется', /3 мира/.test(empty.text()), empty.text().slice(0, 200))
 check('нет старой заглушки', !/Agent Hub, индекс, терминалы/.test(empty.text()), 'вместо галереи показана прежняя заглушка')
 
 // Ядру здесь делать нечего: экран обязан жить и при остановленном ядре, и в
 // безопасном режиме — выбрать другой мир это ровно то действие, которым из
 // недоверенной папки и уходят.
-check('экран не требует ядра', !/Гильдия отдыхает|Пробудить ядро/.test(empty.text()), 'без мира показан экран службы')
+check('экран не требует ядра', !/Ядро остановлено|Запустить ядро/.test(empty.text()), 'без мира показан экран службы')
 const untrusted = surface({ trusted: false })
-check('безопасный режим не прячет галерею', /ГАЛЕРЕЯ МИРОВ/.test(untrusted.text()), untrusted.text().slice(0, 160))
+check('безопасный режим не прячет галерею', /Галерея миров/.test(untrusted.text()), untrusted.text().slice(0, 160))
 
 // Клик по миру — переключение на месте, а не выпадайка оболочки.
 const picked = surface()
@@ -103,21 +103,21 @@ check('мир открывается в редакторе', pinned.posted.some(
 
 // Галерея доступна и с открытым миром: это переключатель, а не только заглушка.
 const inWorld = surface({ workspace: 'ai-ide', workspacePath: 'C:\\worlds\\ai-ide', service: { state: 'running' }, gallery: false })
-check('с миром галерея закрыта', !/ГАЛЕРЕЯ МИРОВ/.test(inWorld.text()), 'галерея открылась поверх рабочего мира')
+check('с миром галерея закрыта', !/Галерея миров/.test(inWorld.text()), 'галерея открылась поверх рабочего мира')
 inWorld.send({ type: 'projectGallery', open: true })
-check('галерея открывается командой', /ГАЛЕРЕЯ МИРОВ/.test(inWorld.text()), inWorld.text().slice(0, 160))
+check('галерея открывается командой', /Галерея миров/.test(inWorld.text()), inWorld.text().slice(0, 160))
 check('есть выход обратно в мир', /Вернуться в мир/.test(inWorld.text()), 'из галереи некуда вернуться')
 inWorld.click({ action: 'gallery-close' })
-check('выход работает', !/ГАЛЕРЕЯ МИРОВ/.test(inWorld.text()), 'кнопка возврата не закрыла галерею')
+check('выход работает', !/Галерея миров/.test(inWorld.text()), 'кнопка возврата не закрыла галерею')
 
 // Пока мир подключается, экран свой. «Пробудить ядро» здесь было бы ложью:
 // ядро не отдыхает, оно поднимается.
 const switching = surface({ workspace: 'ai-ide', workspacePath: 'C:\\worlds\\ai-ide', service: { state: 'stopped' }, gallery: false })
 switching.send({ type: 'projectSwitch', phase: 'start', path: 'C:\\worlds\\frontend', name: 'frontend' })
-check('скелет назван по миру', /ПОДКЛЮЧАЕМ МИР/.test(switching.text()) && switching.text().includes('frontend'), switching.text().slice(0, 160))
-check('скелет не предлагает будить ядро', !/Пробудить ядро/.test(switching.text()), 'во время переключения показан экран службы')
+check('скелет назван по миру', /Подключаем мир/.test(switching.text()) && switching.text().includes('frontend'), switching.text().slice(0, 160))
+check('скелет не предлагает будить ядро', !/Запустить ядро/.test(switching.text()), 'во время переключения показан экран службы')
 switching.send({ type: 'projectSwitch', phase: 'done', path: 'C:\\worlds\\frontend', name: 'frontend' })
-check('скелет уходит', !/ПОДКЛЮЧАЕМ МИР/.test(switching.text()), 'скелет остался после конца переключения')
+check('скелет уходит', !/Подключаем мир/.test(switching.text()), 'скелет остался после конца переключения')
 
 // Пустой список — не ошибка и не пустой экран.
 const nothing = surface({ projects: [] })

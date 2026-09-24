@@ -94,7 +94,7 @@ function emptyTranscriptText(stall, stages) {
   if (stall && !stages.some(stage => stage.runId)) return 'Работа не начиналась: агент ждёт.'
   if (stall) return 'Работа остановлена; результат агента остался в изоляции.'
   if (!stages.some(stage => stage.runId)) return 'Работа ещё не начиналась.'
-  return 'Загружаем хронику работы агента…'
+  return 'Загружаем журнал работы агента…'
 }
 
 // Один экран: что стоит, из чего работа состоит и что агент уже сделал.
@@ -146,7 +146,7 @@ export function workOrderExecutionHtml(order, ui, deps = {}) {
   // выше, а «ВЫПОЛНЕНИЕ · Квест выполняется» под ними читалось как второе,
   // другое состояние.
   const head = deps.headless ? '' : `<header class="work-order-exec-head">
-        <small>ВЫПОЛНЕНИЕ</small>
+        <small>Выполнение</small>
         <span class="work-order-exec-status">${esc(deps.statusText || '')}</span>
       </header>`
   return `<section class="work-order-exec" data-work-order-execution="${esc(order.id)}" data-quest-id="${esc(runtime.questId || '')}">

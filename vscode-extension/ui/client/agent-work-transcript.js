@@ -35,9 +35,9 @@ export function createAgentWorkTranscript(dependencies) {
       ? `Инструмент «${args.displayName}» требует подтверждения`
       : 'Команда требует подтверждения'
     const operation = args.kind === 'process' && Array.isArray(args.arguments)
-      ? `<div class="process-approval"><span>ПРОГРАММА</span><code>${esc(args.program)}</code><span>ARGV · ${args.arguments.length}</span><ol>${args.arguments.map((argument, index) => `<li><b>${index}</b><code>${esc(JSON.stringify(argument))}</code></li>`).join('') || '<li><em>без аргументов</em></li>'}</ol></div>`
+      ? `<div class="process-approval"><span>Программа</span><code>${esc(args.program)}</code><span>ARGV · ${args.arguments.length}</span><ol>${args.arguments.map((argument, index) => `<li><b>${index}</b><code>${esc(JSON.stringify(argument))}</code></li>`).join('') || '<li><em>без аргументов</em></li>'}</ol></div>`
       : `<pre>${esc(args.command || JSON.stringify(args, null, 2))}</pre>`
-    return `<section class="approval agent-work-card ${pending ? 'is-pending' : ''} ${!pending && approval.status === 'denied' ? 'was-denied' : ''}" ${anchor ? 'id="pending-decision"' : ''}><header><span>!</span><div><strong>${esc(title)}</strong><p>${esc(args.reason || approval.reason)}</p>${pending ? '<em class="decision-mark">Ожидает решения</em>' : ''}</div></header>${operation}${args.cwd ? `<small>${esc(args.cwd)}${args.timeoutSeconds ? ` · тайм-аут ${esc(args.timeoutSeconds)} сек` : ''}</small>` : ''}${pending ? `<footer><button class="danger-button" data-action="resolve" data-id="${esc(approval.id)}" data-allow="false">Отклонить</button><button class="primary small-button" data-action="resolve" data-id="${esc(approval.id)}" data-allow="true">Разрешить один раз</button></footer>` : `<div class="resolved ${approval.status === 'denied' ? 'denied' : ''}">${approval.status === 'allowed' ? 'Разрешено' : 'Отклонено · агент продолжит без этого умения'}</div>`}</section>`
+    return `<section class="approval agent-work-card ${pending ? 'is-pending' : ''} ${!pending && approval.status === 'denied' ? 'was-denied' : ''}" ${anchor ? 'id="pending-decision"' : ''}><header><span>!</span><div><strong>${esc(title)}</strong><p>${esc(args.reason || approval.reason)}</p>${pending ? '<em class="decision-mark">Ожидает решения</em>' : ''}</div></header>${operation}${args.cwd ? `<small>${esc(args.cwd)}${args.timeoutSeconds ? ` · тайм-аут ${esc(args.timeoutSeconds)} сек` : ''}</small>` : ''}${pending ? `<footer><button class="danger-button" data-action="resolve" data-id="${esc(approval.id)}" data-allow="false">Отклонить</button><button class="primary small-button" data-action="resolve" data-id="${esc(approval.id)}" data-allow="true">Разрешить один раз</button></footer>` : `<div class="resolved ${approval.status === 'denied' ? 'denied' : ''}">${approval.status === 'allowed' ? 'Разрешено' : 'Отклонено · агент продолжит без этого инструмента'}</div>`}</section>`
   }
 
   function patchCard(patch, approval, anchor = false, sandboxOnly = false) {
@@ -79,10 +79,10 @@ export function createAgentWorkTranscript(dependencies) {
         const learningBadge = payload.learningIntent === 'correction'
           ? '<div class="run-context"><span title="Это уточнение явно разрешено использовать как проверяемый обучающий сигнал">◎ разрешено как урок</span></div>'
           : ''
-        items.push(`<article class="message user agent-work-msg"><small>УТОЧНЕНИЕ · ХОД ${event.step}</small><div class="agent-work-body">${bodyHtml(payload.content)}</div>${learningBadge}</article>`)
+        items.push(`<article class="message user agent-work-msg"><small>Уточнение · ход ${event.step}</small><div class="agent-work-body">${bodyHtml(payload.content)}</div>${learningBadge}</article>`)
       }
       if (event.type === 'model.responded' && payload.content) {
-        items.push(`<article class="message agent agent-work-msg"><div class="avatar" aria-hidden="true">✦</div><div><small>АГЕНТ · ХОД ${event.step}</small><div class="agent-work-body">${bodyHtml(payload.content)}</div></div></article>`)
+        items.push(`<article class="message agent agent-work-msg"><div class="avatar" aria-hidden="true">✦</div><div><small>Агент · ход ${event.step}</small><div class="agent-work-body">${bodyHtml(payload.content)}</div></div></article>`)
       }
       if (event.type === 'model.retrying') {
         items.push(`<div class="notice warning agent-work-notice">↻ Провайдер временно недоступен · попытка ${esc(payload.attempt || '?')}${payload.delayMs ? ` через ${formatDuration(payload.delayMs)}` : ''}</div>`)

@@ -10,7 +10,7 @@ export const CONSTRUCTOR_STEPS = [
   { id: 'rules', label: 'Правила', hint: 'Ограничения', why: 'Жёсткие правила, которые нельзя нарушать' },
   { id: 'brain', label: 'Мозг', hint: 'Модель', why: 'Провайдер, модель и параметры рассуждения' },
   { id: 'skills', label: 'Навыки', hint: 'Модули каталога', why: 'Подключаемые модули инструкций из каталога' },
-  { id: 'tools', label: 'Инструменты', hint: 'Умения и права', why: 'Какие умения агент может вызывать в квесте' },
+  { id: 'tools', label: 'Инструменты', hint: 'Инструменты и права', why: 'Какие инструменты агент может вызывать в квесте' },
   { id: 'memory', label: 'Память', hint: 'Правила проекта', why: 'Проектные инструкции и ограничения workspace' },
   { id: 'permissions', label: 'Разрешения', hint: 'Политики', why: 'Подтверждения, лимиты ходов и политики инструментов' },
   { id: 'review', label: 'Обзор', hint: 'Проверка', why: 'Проверьте собранный промпт перед сохранением' },
@@ -315,7 +315,7 @@ export function createAgentConstructor({
   function companionSuggestionChipsHtml(step, draft) {
     const suggestions = companionInlineSuggestions(step, draft)
     if (!suggestions.length) return ''
-    return `<aside class="companion-inline"><header><span>КОМПАНЬОН</span><small>Контекстные подсказки · не блокируют работу</small></header>${suggestions.map(item => `<div class="companion-chip" data-suggest-id="${esc(item.id)}"><p>${esc(item.text)}</p><footer><button type="button" class="primary" data-action="companion-suggest-add" data-suggest-id="${esc(item.id)}" data-kind="${esc(item.kind)}" data-tool="${esc(item.tool || '')}" data-tab="${esc(item.tab || '')}">Добавить</button><button type="button" class="secondary" data-action="companion-suggest-ignore" data-suggest-id="${esc(item.id)}">Игнорировать</button></footer></div>`).join('')}</aside>`
+    return `<aside class="companion-inline"><header><span>Компаньон</span><small>Контекстные подсказки · не блокируют работу</small></header>${suggestions.map(item => `<div class="companion-chip" data-suggest-id="${esc(item.id)}"><p>${esc(item.text)}</p><footer><button type="button" class="primary" data-action="companion-suggest-add" data-suggest-id="${esc(item.id)}" data-kind="${esc(item.kind)}" data-tool="${esc(item.tool || '')}" data-tab="${esc(item.tab || '')}">Добавить</button><button type="button" class="secondary" data-action="companion-suggest-ignore" data-suggest-id="${esc(item.id)}">Игнорировать</button></footer></div>`).join('')}</aside>`
   }
 
   // Записывается только то, что человек выбрал сам.
@@ -426,7 +426,7 @@ export function createAgentConstructor({
     const index = Math.max(0, CONSTRUCTOR_STEPS.findIndex(step => step.id === activeStep))
     const progress = Math.round((index / Math.max(1, CONSTRUCTOR_STEPS.length - 1)) * 100)
     const current = CONSTRUCTOR_STEPS[index] || CONSTRUCTOR_STEPS[0]
-    return `<nav class="profile-step-nav constructor-nav" aria-label="Шаги конструктора агента"><div class="create-flow-progress"><span>ШАГ ${String(index + 1).padStart(2, '0')} / ${String(CONSTRUCTOR_STEPS.length).padStart(2, '0')}</span><div class="create-live-rail"><i ${fillAttribute(progress)}></i></div><small>${esc(current.why || '')}</small></div><div class="create-flow-steps constructor-steps">${CONSTRUCTOR_STEPS.map((step, i) => {
+    return `<nav class="profile-step-nav constructor-nav" aria-label="Шаги конструктора агента"><div class="create-flow-progress"><span>Шаг ${String(index + 1).padStart(2, '0')} / ${String(CONSTRUCTOR_STEPS.length).padStart(2, '0')}</span><div class="create-live-rail"><i ${fillAttribute(progress)}></i></div><small>${esc(current.why || '')}</small></div><div class="create-flow-steps constructor-steps">${CONSTRUCTOR_STEPS.map((step, i) => {
       const stateClass = step.id === activeStep ? 'on' : i < index ? 'done' : ''
       return `<button type="button" class="${stateClass}" data-action="constructor-step" data-step="${esc(step.id)}"><em>${i < index ? '✓' : String(i + 1).padStart(2, '0')}</em><span><b>${esc(step.label)}</b><small>${esc(step.hint)}</small></span></button>`
     }).join('')}</div>${ui.createStepError ? `<p class="create-step-error">${esc(ui.createStepError)}</p>` : ''}</nav>`

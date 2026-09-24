@@ -94,7 +94,7 @@ function createNdjsonReader({ newRequestId, describeCoreFailure }) {
         cancel.cancelled = true
         throw cancel
       }
-      throw new Error(`Локальное ядро не ответило за ${Math.round(timeoutMs / 1000)} с. Откройте «Хроника ядра».`)
+      throw new Error(`Локальное ядро не ответило за ${Math.round(timeoutMs / 1000)} с. Откройте «Журнал ядра».`)
     }
     throw new Error(describeCoreFailure(error))
   } finally {

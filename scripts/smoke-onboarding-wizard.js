@@ -57,7 +57,7 @@ if (!root.innerHTML.includes('onboarding-wizard')) {
 
 // Hub v2 оставляет в первом запуске только подключение и Мастера. Проверяем
 // сам пользовательский путь, включая атомарное сохранение последнего шага.
-if (!root.innerHTML.includes('ШАГ 01 / 02') || !root.innerHTML.includes('Подключение Мастера')) {
+if (!root.innerHTML.includes('Шаг 01 / 02') || !root.innerHTML.includes('Подключение Мастера')) {
   throw new Error('Fresh Hub v2 must start at Master connection, step 1 of 2')
 }
 for (const forbidden of ['data-step="companion-choose"', 'data-step="first-agent"', 'data-step="model-connection"']) {
@@ -75,7 +75,7 @@ if (!root.innerHTML.includes('companion-mode-card selected') || !root.innerHTML.
   throw new Error('Fresh Master onboarding must default to the credential-free Point engine')
 }
 click('onboarding-step', { step: 'orchestrator-choose' })
-if (!root.innerHTML.includes('ШАГ 02 / 02') || !root.innerHTML.includes('Настройте Мастера')) {
+if (!root.innerHTML.includes('Шаг 02 / 02') || !root.innerHTML.includes('Настройте Мастера')) {
   throw new Error('Master policy step did not open')
 }
 if (!posted.some(message => message.type === 'saveOrchestratorConfig')) {
@@ -133,7 +133,7 @@ if (!root.innerHTML.includes('onboarding-lock-note')) {
 if (!root.innerHTML.includes('Сначала закончите')) {
   throw new Error('Lock explanation did not say what to finish first')
 }
-if (!root.innerHTML.includes('ШАГ 01')) {
+if (!root.innerHTML.includes('Шаг 01')) {
   throw new Error('A locked step must not become the current step')
 }
 
@@ -142,7 +142,7 @@ click('onboarding-step', { step: 'companion-choose' })
 if (root.innerHTML.includes('onboarding-lock-note')) {
   throw new Error('Lock explanation survived a successful step change')
 }
-if (!root.innerHTML.includes('ШАГ 02')) {
+if (!root.innerHTML.includes('Шаг 02')) {
   throw new Error('An allowed step did not open')
 }
 

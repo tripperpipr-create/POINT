@@ -5,6 +5,8 @@
 // решений ничего, кроме того, как их показать. Путь разрешения тоже серверный
 // — интерфейс пересылает то, что ему дали, и не строит маршрутов сам.
 
+import { sentenceLabel } from './format-units.js'
+
 export function createDecisionViews({ ui, vscode, render, esc, data, state, shell, masterProposalHtml, taskProposalById }) {
   // ── Экран «Решения» ────────────────────────────────────────────────────────
   // Единственное место, где агент физически стоит и ждёт человека. Порядок и
@@ -26,10 +28,10 @@ export function createDecisionViews({ ui, vscode, render, esc, data, state, shel
   // последствия несопоставимы — и понять, что именно произойдёт, можно было
   // только прочитав карточку целиком.
   const DECISION_VERBS = {
-    apply: 'ПРИМЕНИТЬ', approve: 'РАЗРЕШИТЬ', start: 'ЗАПУСТИТЬ',
-    deny: 'ЗАПРЕТИТЬ', reject: 'ОТКЛОНИТЬ', ignore: 'ПРОПУСТИТЬ',
+    apply: 'Применить', approve: 'Разрешить', start: 'Запустить',
+    deny: 'Запретить', reject: 'Отклонить', ignore: 'Пропустить',
     // Конфликт слияния не «применяют» — его разбирают, выбирая итоговые файлы.
-    resolve: 'РАЗОБРАТЬ',
+    resolve: 'Разобрать',
   }
   function decisionVerb(value, fallback) {
     return DECISION_VERBS[String(value || '').trim().toLowerCase()] || fallback
@@ -83,7 +85,7 @@ export function createDecisionViews({ ui, vscode, render, esc, data, state, shel
   function decisionQueueItemHtml(item, active) {
     return `<button class="hall-queue-item ${active ? 'is-active' : ''}" data-action="pick-decision" data-id="${esc(item.id)}"${active ? ' aria-current="true"' : ''}>
       <div class="hall-spread">
-        <span class="hall-chip ${decisionIsHot(item) ? 'is-hot' : ''}">${esc(item.label)}</span>
+        <span class="hall-chip ${decisionIsHot(item) ? 'is-hot' : ''}">${esc(sentenceLabel(item.label))}</span>
         <span class="hall-wait ${item.blocking ? 'is-blocking' : ''}">${decisionWaitLabel(item.waitingMs)}</span>
       </div>
       <span class="title">${esc(item.title || item.detail || item.id)}</span>
@@ -167,7 +169,7 @@ export function createDecisionViews({ ui, vscode, render, esc, data, state, shel
       // после отказа панель уверяла, что никто не ждёт решения, и тут же
       // добавляла, что это не отсутствие данных, — рядом с сообщением об отказе.
       if (ui.decisionsStatus === 'error') {
-        return `<div class="hall-page"><div class="hall-title"><span class="kicker">ОЧЕРЕДЬ НЕ ЗАГРУЖЕНА</span><h1>Неизвестно, кто ждёт решения</h1></div>
+        return `<div class="hall-page"><div class="hall-title"><span class="kicker">Очередь не загружена</span><h1>Неизвестно, кто ждёт решения</h1></div>
         <p class="hall-note">Запрос к ядру не удался: ${esc(ui.decisionsError)}. Здесь не пусто — здесь неизвестно. Нажмите «Повторить», чтобы спросить ядро снова.</p></div>`
       }
       // Тот же водораздел, что и у отказа, но для ещё не пришедшего ответа: пока
@@ -176,10 +178,10 @@ export function createDecisionViews({ ui, vscode, render, esc, data, state, shel
       // ждёт решения, — и это было первое, что видел человек, пришедший сюда по
       // тревоге «2 ждёт вас» с Обзора.
       if (ui.decisionsStatus === 'loading' || ui.decisionsStatus === 'idle') {
-        return `<div class="hall-page"><div class="hall-title"><span class="kicker">ОЧЕРЕДЬ ЗАГРУЖАЕТСЯ</span><h1>Спрашиваю ядро</h1></div>
+        return `<div class="hall-page"><div class="hall-title"><span class="kicker">Очередь загружается</span><h1>Спрашиваю ядро</h1></div>
         <p class="hall-note">Пока ответ не пришёл, неизвестно, кто ждёт решения. Список появится здесь сам.</p></div>`
       }
-      return `<div class="hall-page"><div class="hall-title"><span class="kicker">ОЧЕРЕДЬ ПУСТА</span><h1>Никто не ждёт решения</h1></div>
+      return `<div class="hall-page"><div class="hall-title"><span class="kicker">Очередь пуста</span><h1>Никто не ждёт решения</h1></div>
         <p class="hall-note">Пока агенты не упираются в подтверждение, здесь пусто. Это нормальное состояние, а не отсутствие данных.</p></div>`
     }
     if (item.brief) return masterProposalHtml(taskProposalById(item.id) || item)
@@ -188,21 +190,21 @@ export function createDecisionViews({ ui, vscode, render, esc, data, state, shel
       <div class="hall-detail-body">
         <div class="hall-title">
           <div class="hall-item">
-            <span class="hall-chip ${decisionIsHot(item) ? 'is-hot' : ''}">${esc(item.label)}</span>
+            <span class="hall-chip ${decisionIsHot(item) ? 'is-hot' : ''}">${esc(sentenceLabel(item.label))}</span>
             <span class="hall-wait ${item.blocking ? 'is-blocking' : ''}">ждёт ${decisionWaitLabel(item.waitingMs)}${item.blocking ? ' · агент простаивает' : ''}</span>
           </div>
           <h1>${esc(item.title || item.id)}</h1>
         </div>
         <div class="hall-triad">
-          <dl class="hall-facet"><dt>ЧТО ПРОСЯТ</dt><dd>${esc(item.detail || item.title || '—')}</dd></dl>
-          <dl class="hall-facet is-risk"><dt>ЧЕМ РИСКУЕТ</dt><dd>${esc(decisionRiskLabel(item.risk))}${item.blocking ? ' · пока решение не принято, работа стоит' : ''}</dd></dl>
-          <dl class="hall-facet"><dt>ОТКУДА</dt><dd>${esc(item.who || item.runId || item.flowRunId || '—')}</dd></dl>
+          <dl class="hall-facet"><dt>Что просят</dt><dd>${esc(item.detail || item.title || '—')}</dd></dl>
+          <dl class="hall-facet is-risk"><dt>Чем рискует</dt><dd>${esc(decisionRiskLabel(item.risk))}${item.blocking ? ' · пока решение не принято, работа стоит' : ''}</dd></dl>
+          <dl class="hall-facet"><dt>Откуда</dt><dd>${esc(item.who || item.runId || item.flowRunId || '—')}</dd></dl>
         </div>
       </div>
       <div class="hall-verdict">
         ${!item.resolve?.path ? `<div class="hall-verdict-dead">Это решение нельзя принять отсюда: ядро не назвало способ. Откройте раздел, к которому оно относится.</div>` : ''}
-        <button class="hall-btn is-primary" ${intents.accept.path ? '' : 'disabled'} data-action="resolve-decision" data-id="${esc(item.id)}" data-intent="accept">${esc(decisionVerb(intents.accept.code, 'ПРИНЯТЬ'))} · A</button>
-        <button class="hall-btn" ${intents.reject.path ? '' : 'disabled'} data-action="resolve-decision" data-id="${esc(item.id)}" data-intent="reject">${esc(decisionVerb(intents.reject.code, 'ОТКЛОНИТЬ'))} · R</button>
+        <button class="hall-btn is-primary" ${intents.accept.path ? '' : 'disabled'} data-action="resolve-decision" data-id="${esc(item.id)}" data-intent="accept">${esc(decisionVerb(intents.accept.code, 'Принять'))} · A</button>
+        <button class="hall-btn" ${intents.reject.path ? '' : 'disabled'} data-action="resolve-decision" data-id="${esc(item.id)}" data-intent="reject">${esc(decisionVerb(intents.reject.code, 'Отклонить'))} · R</button>
         <small>${esc(decisionReversibilityNote(item.kind))}</small>
         <span class="hall-verdict-keys"><kbd>J</kbd><kbd>K</kbd><kbd>↑</kbd><kbd>↓</kbd><em>перебор</em></span>
       </div>
@@ -219,12 +221,12 @@ export function createDecisionViews({ ui, vscode, render, esc, data, state, shel
     return shell(`<div class="hall-split">
       <div class="hall-queue">
         <header>
-          <b>ОЧЕРЕДЬ · ${items.length}</b>
+          <b>Очередь · ${items.length}</b>
           <small>${ui.decisionsStatus === 'loading' ? 'загрузка…' : ui.decisionsStatus === 'error' ? 'не удалось' : 'по времени ожидания'}</small>
         </header>
         ${ui.decisionsStatus === 'error' ? `<div class="hall-strip">
           <span>Очередь не обновилась: ${esc(ui.decisionsError)}</span>
-          <button class="hall-btn" data-action="retry-decisions">ПОВТОРИТЬ</button>
+          <button class="hall-btn" data-action="retry-decisions">Повторить</button>
         </div>` : ''}
         <div class="hall-queue-list" id="decision-queue" data-keynav="column" aria-label="Очередь решений">
           ${items.map(item => decisionQueueItemHtml(item, active && item.id === active.id)).join('')}

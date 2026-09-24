@@ -159,8 +159,9 @@ try {
     footer: document.querySelector('.hall-rail-foot')?.innerText.replace(/\\s+/g, ' ').trim() || '',
     bodyOverflow: Math.max(0, document.body.scrollWidth - document.body.clientWidth),
   }))()`);
-  const expectedNavigation = ['ОБЗОР', 'МАСТЕР', 'РЕШЕНИЯ', 'ИЗМЕНЕНИЯ', 'КВЕСТЫ', 'ГИЛЬДИЯ'];
-  if (hall.wordmark !== 'ЧЕРТОГ' || !hall.rail || !hall.main || !hall.footer ||
+  // Мастер — дом в чате, а не раздел рейки; словесный знак — имя мира.
+  const expectedNavigation = ['Обзор', 'Решения', 'Изменения', 'Квесты', 'Гильдия'];
+  if (!hall.wordmark || !hall.rail || !hall.main || !hall.footer ||
       JSON.stringify(hall.navigation) !== JSON.stringify(expectedNavigation) || hall.bodyOverflow > 1) {
     throw new Error(`Point Agent Hub shell verification failed: ${JSON.stringify(hall)}`);
   }
@@ -313,15 +314,15 @@ try {
         selectedLevel: detail?.querySelector(':scope > header em')?.textContent?.trim() || '',
         hasRoster: Boolean(surface.querySelector('.roster-list')),
         hasDetail: Boolean(detail),
-        hasProgression: Boolean(surface.querySelector('.roster-progression')),
+        hasProgression: Boolean(detail?.querySelector('.level-track')),
         canRecruit: Boolean(surface.querySelector('[data-action="new-profile"]')),
-        canConstruct: Boolean(surface.querySelector('[data-action="open-agent-constructor"]')),
+        canConstruct: Boolean(surface.querySelector('[data-action^="open-agent-constructor"]')),
         canStartQuest: Boolean(surface.querySelector('[data-action="start-roster-quest"]')),
         horizontalOverflow: Math.max(0, surface.scrollWidth - surface.clientWidth),
       };
     })()`));
     if (guild.heading !== 'Команда текущего проекта' || guild.rosterCount < 1 || !guild.selectedName ||
-        !guild.selectedClass || !guild.selectedLevel.startsWith('УР ') || !guild.hasRoster ||
+        !guild.selectedClass || !guild.selectedLevel.startsWith('Ур ') || !guild.hasRoster ||
         !guild.hasDetail || !guild.hasProgression || !guild.canRecruit || !guild.canConstruct ||
         !guild.canStartQuest || guild.horizontalOverflow > 1) {
       throw new Error(`Point agent guild verification failed: ${JSON.stringify(guild)}`);

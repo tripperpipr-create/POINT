@@ -467,20 +467,20 @@ if (persisted.companionSetupDraft && typeof persisted.companionSetupDraft === 'o
   }
 }
 const PROFILE_STEPS = [
-  { id: 'identity', label: 'Личность', hint: 'Имя и миссия', why: 'Как зовут персонажа, в чём он эксперт и какие правила не нарушает' },
+  { id: 'identity', label: 'Личность', hint: 'Имя и миссия', why: 'Как зовут агента, в чём он эксперт и какие правила не нарушает' },
   { id: 'model', label: 'Модель', hint: 'Провайдер и ID', why: 'Откуда берётся интеллект — проверьте подключение до первого квеста' },
-  { id: 'tools', label: 'Умения', hint: 'Разрешения', why: 'В модель уходят только включённые схемы; для правок нужен верификатор' },
+  { id: 'tools', label: 'Инструменты', hint: 'Разрешения', why: 'В модель уходят только включённые схемы; для правок нужен верификатор' },
   { id: 'limits', label: 'Лимиты', hint: 'Ходы и контроль', why: 'Потолок ходов, тайм-аут и когда спрашивать подтверждение' },
 ]
 const CREATE_FLOW_STAGES = [
-  { id: 'class', label: 'Класс', hint: 'Шаблон роли', why: 'Класс подставляет роль, умения и безопасные лимиты — дальше останется модель' },
+  { id: 'class', label: 'Класс', hint: 'Шаблон роли', why: 'Шаблон подставляет роль, инструменты и безопасные лимиты — дальше останется модель' },
   ...PROFILE_STEPS,
 ]
 const TOOL_PRESETS = [
   { id: 'observer', label: 'Наблюдатель', hint: 'Только чтение и индекс', tools: ['project_map', 'search_code', 'list_files', 'read_file', 'search_text', 'git_diff'] },
   { id: 'editor', label: 'Редактор', hint: 'Правки + верификатор', tools: ['project_map', 'search_code', 'list_files', 'read_file', 'search_text', 'git_diff', 'propose_patch', 'run_command'] },
-  { id: 'developer', label: 'Разработчик', hint: 'Все умения + верификатор', tools: null },
-  { id: 'none', label: 'Без умений', hint: 'Только ответы модели', tools: [] },
+  { id: 'developer', label: 'Разработчик', hint: 'Все инструменты + верификатор', tools: null },
+  { id: 'none', label: 'Без инструментов', hint: 'Только ответы модели', tools: [] },
 ]
 // Жизненный цикл прогона — одним набором на весь интерфейс.
 //
@@ -734,18 +734,18 @@ function persistDraft() {
 // одного требования читаются как два разных требования.
 const EMPTY_TASK_REASON = 'Сформулируйте задачу — без неё квест не стартует'
 const questStatusLabels = {
-  draft:'ЧЕРНОВИК', proposed:'ПРЕДЛОЖЕН', awaiting_approval:'ЖДЁТ ПОДТВЕРЖДЕНИЯ',
-  preflight:'ПРОВЕРКА СРЕДЫ', active:'АКТИВЕН', running:'ВЫПОЛНЯЕТСЯ',
-  awaiting_user:'НУЖНО РЕШЕНИЕ', paused:'ПАУЗА', verifying:'ПРОВЕРЯЕТСЯ', applying:'ПРИМЕНЯЕТСЯ',
-  needs_review:'НУЖНА ПРИЁМКА', blocked:'ЗАБЛОКИРОВАН', completed:'ЗАВЕРШЁН',
-  failed:'ПРОВАЛЕН', cancelled:'ОТМЕНЁН',
+  draft:'Черновик', proposed:'Предложен', awaiting_approval:'Ждёт подтверждения',
+  preflight:'Проверка среды', active:'Активен', running:'Выполняется',
+  awaiting_user:'Нужно решение', paused:'Пауза', verifying:'Проверяется', applying:'Применяется',
+  needs_review:'Нужна приёмка', blocked:'Заблокирован', completed:'Завершён',
+  failed:'Провален', cancelled:'Отменён',
 }
-const changeSetStatusLabels = { pending:'ОЖИДАЕТ', approved:'ОДОБРЕН', applied:'ПРИМЕНЁН', reverted:'ОТКАЧЕН', rejected:'ОТКЛОНЁН', conflict:'КОНФЛИКТ', superseded:'ВКЛЮЧЁН В СЛИЯНИЕ' }
+const changeSetStatusLabels = { pending:'Ожидает', approved:'Одобрен', applied:'Применён', reverted:'Откачен', rejected:'Отклонён', conflict:'Конфликт', superseded:'Включён в слияние' }
 // disconnected ядро объявляет (domain/hub.go), но пока не присваивает. Подпись
 // нужна заранее: без неё карточка напечатала бы сырое английское слово среди
 // русских — при отсутствии подписи здесь показывается само значение статуса.
 // probing — состояние клиента на время опроса, у ядра его нет.
-const connectionStatusLabels = { connected:'ПОДКЛЮЧЕН', unknown:'НЕИЗВЕСТНО', error:'ОШИБКА', probing:'ПРОВЕРКА', disconnected:'ОТКЛЮЧЁН' }
+const connectionStatusLabels = { connected:'Подключен', unknown:'Неизвестно', error:'Ошибка', probing:'Проверка', disconnected:'Отключён' }
 
 // Состояние связи в списках выбора показывалось одним цветом: шарик с классом
 // статуса, без единого слова рядом. Цвет — не единственный способ читать экран:
@@ -951,7 +951,7 @@ function onboardingStepNav(activeStep) {
     }).join('')
     return `<div class="onboarding-chapter${currentChapter ? ' current' : ''}${done ? ' done' : ''}"><small>${esc(chapter.label)}</small>${buttons}</div>`
   }).join('')
-  return `<nav class="onboarding-nav" aria-label="Шаги онбординга"><div class="create-flow-progress"><span>ШАГ ${String(index + 1).padStart(2, '0')} / ${String(ONBOARDING_STEPS.length).padStart(2, '0')}</span><div class="create-live-rail"><i ${fillAttribute(progress)}></i></div><small>${esc(current.why || '')}</small></div><div class="onboarding-step-rail">${rail}</div>${onboardingLockNotice
+  return `<nav class="onboarding-nav" aria-label="Шаги онбординга"><div class="create-flow-progress"><span>Шаг ${String(index + 1).padStart(2, '0')} / ${String(ONBOARDING_STEPS.length).padStart(2, '0')}</span><div class="create-live-rail"><i ${fillAttribute(progress)}></i></div><small>${esc(current.why || '')}</small></div><div class="onboarding-step-rail">${rail}</div>${onboardingLockNotice
     ? `<p class="onboarding-lock-note" role="status">${esc(onboardingLockNotice)}</p>`
     : ''}</nav>`
 }
@@ -1038,21 +1038,21 @@ function questAsideHtml(details) {
   const task = details.run.task || ''
   return `<aside class="hall-quest-aside">
     <section>
-      <header><b>ЧТО АГЕНТ ВИДЕЛ</b></header>
+      <header><b>Что агент видел</b></header>
       <div class="hall-aside-stack">
         ${questContextBarsHtml(details)}
-        <button class="hall-btn is-sm" data-action="load-context-inspector" data-run-id="${esc(details.run.id)}">РАЗБОР КОНТЕКСТА</button>
+        <button class="hall-btn is-sm" data-action="load-context-inspector" data-run-id="${esc(details.run.id)}">Разбор контекста</button>
         ${runIsActiveNow(details.run)
           ? `<form class="exec-inline-form" data-exec-form="forbid" data-run-id="${esc(details.run.id)}"><input type="text" placeholder="Запретить путь…"><button type="submit" class="small-button" title="Запретить файл">⊘</button></form>`
           : ''}
       </div>
     </section>
     <section>
-      <header><b>ИСТОРИЯ ПРОГОНОВ</b></header>
+      <header><b>История прогонов</b></header>
       <div>${questRunHistoryHtml(details)}</div>
       <div class="hall-aside-stack is-tight">
-        <button class="hall-btn is-sm" data-action="tab" data-tab="history">СРАВНИТЬ 2 ПОСЛЕДНИХ</button>
-        <button class="hall-btn is-sm is-dashed" data-action="repeat-quest" data-task="${esc(task)}">ПОВТОРИТЬ НА ДРУГОЙ МОДЕЛИ</button>
+        <button class="hall-btn is-sm" data-action="tab" data-tab="history">Сравнить 2 последних</button>
+        <button class="hall-btn is-sm is-dashed" data-action="repeat-quest" data-task="${esc(task)}">Повторить на другой модели</button>
       </div>
     </section>
   </aside>`
@@ -1084,7 +1084,7 @@ function fileHistoryEntryHtml(entry) {
       <small>${origin}</small>
     </div>
     ${entry.revertible
-      ? `<button class="hall-btn is-sm" data-action="revert-file-entry" data-path="${esc(entry.revertPath)}" data-id="${esc(entry.id)}">ОТКАТИТЬ</button>`
+      ? `<button class="hall-btn is-sm" data-action="revert-file-entry" data-path="${esc(entry.revertPath)}" data-id="${esc(entry.id)}">Откатить</button>`
       : `<span class="hall-item-flag">необратимо</span>`}
   </div>`
 }
@@ -1100,7 +1100,7 @@ function fileHistoryView() {
   return shell(`<div class="hall-split">
     <div class="hall-queue">
       <header>
-        <b>ФАЙЛЫ · ${files.length}</b>
+        <b>Файлы · ${files.length}</b>
         <small>тронуты агентами</small>
       </header>
       <div class="hall-queue-list" data-keynav="column" aria-label="Файлы с историей правок">
@@ -1110,14 +1110,14 @@ function fileHistoryView() {
     </div>
     <div class="hall-page">
       <div class="hall-title">
-        <span class="kicker">ИСТОРИЯ ФАЙЛА</span>
+        <span class="kicker">История файла</span>
         <h1 class="is-mono">${esc(fileHistoryPath || '—')}</h1>
       </div>
       ${fileHistoryData ? `<div class="hall-tally">
         <span>всего ${fileHistoryData.total}</span><span>применено ${fileHistoryData.applied}</span><span>откачено ${fileHistoryData.reverted}</span><span>ждёт ${fileHistoryData.pending}</span>
       </div>` : ''}
       <section class="hall-panel">
-        <header><b>ЖУРНАЛ ПРАВОК</b><small>неизменяемая история</small></header>
+        <header><b>Журнал правок</b><small>неизменяемая история</small></header>
         ${entries.length ? entries.map(fileHistoryEntryHtml).join('')
           : `<div class="hall-panel-row"><p class="hall-note">${fileHistoryStatus === 'loading' ? 'Спрашиваю ядро — правки этого файла ещё не пришли.' : fileHistoryStatus === 'error' ? 'Не удалось получить историю файла — правки неизвестны, а не отсутствуют.' : 'По этому файлу правок нет.'}</p></div>`}
       </section>
@@ -1132,7 +1132,7 @@ function statisticsPanelHtml() {
   const runs = boot.runs || []
   const completed = runs.filter(item => item.status === 'completed').length
   const agents = hubAgents()
-  return `<section class="hub-statistics accent-mana"><header class="section-title"><span>СТАТИСТИКА</span><em>${countOf(usage.count, 'запись', 'записи', 'записей')}</em></header><div class="hub-stat-grid"><span><small>АГЕНТЫ</small><b>${agents.length}</b></span><span><small>КВЕСТЫ</small><b>${(boot.quests || []).length || runs.length}</b></span><span><small>ЗАВЕРШЕНО</small><b>${completed}</b></span><span><small>ТОКЕНЫ</small><b>${usage.totalTokens.toLocaleString('ru-RU')}</b></span><span><small>ПОТОЛОК КВЕСТА</small><b>${quest?.budgetTokens ? `${Number(quest.budgetTokens).toLocaleString('ru-RU')} ток.` : quest?.budgetCents ? formatCents(quest.budgetCents) : '—'}</b></span></div>${questBudgetPhasesHtml(quest, usage)}<footer class="hub-card-footer"><button type="button" class="secondary" data-action="tab" data-tab="statistics">Подробная статистика →</button><button type="button" class="secondary" data-action="tab" data-tab="history">Хроника запусков</button></footer></section>`
+  return `<section class="hub-statistics accent-mana"><header class="section-title"><span>Статистика</span><em>${countOf(usage.count, 'запись', 'записи', 'записей')}</em></header><div class="hub-stat-grid"><span><small>Агенты</small><b>${agents.length}</b></span><span><small>Квесты</small><b>${(boot.quests || []).length || runs.length}</b></span><span><small>Завершено</small><b>${completed}</b></span><span><small>Токены</small><b>${usage.totalTokens.toLocaleString('ru-RU')}</b></span><span><small>Потолок квеста</small><b>${quest?.budgetTokens ? `${Number(quest.budgetTokens).toLocaleString('ru-RU')} ток.` : quest?.budgetCents ? formatCents(quest.budgetCents) : '—'}</b></span></div>${questBudgetPhasesHtml(quest, usage)}<footer class="hub-card-footer"><button type="button" class="secondary" data-action="tab" data-tab="statistics">Подробная статистика →</button><button type="button" class="secondary" data-action="tab" data-tab="history">История запусков</button></footer></section>`
 }
 const changeSetViews = createChangeSetViews({
   getState: () => state,
@@ -1157,13 +1157,13 @@ function completionProofHtml(details) {
   const verification = details?.diagnostics?.verification
   if (!verification) return ''
   if (!verification.required) {
-    return `<div class="hall-proof"><b>ПРОВЕРКА НЕ ТРЕБОВАЛАСЬ</b><span>Квест не просил тестов и агент не менял файлы при доступном верификаторе.</span></div>`
+    return `<div class="hall-proof"><b>Проверка не требовалась</b><span>Квест не просил тестов и агент не менял файлы при доступном верификаторе.</span></div>`
   }
   if (verification.recorded) {
     const count = Number(verification.successfulCommands || 0)
-    return `<div class="hall-proof is-verified"><b>ЗАВЕРШЁН С ДОКАЗАТЕЛЬСТВОМ</b><span>Успешная проверка зафиксирована после последнего принятого изменения${count ? ` · успешных команд: ${count}` : ''}.</span></div>`
+    return `<div class="hall-proof is-verified"><b>Завершён с доказательством</b><span>Успешная проверка зафиксирована после последнего принятого изменения${count ? ` · успешных команд: ${count}` : ''}.</span></div>`
   }
-  return `<div class="hall-proof"><b>ЗАВЕРШЁН БЕЗ ДОКАЗАТЕЛЬСТВА</b><span>Проверка требовалась, но успешного запуска верификатора после последнего изменения не зафиксировано. Текстовое утверждение агента доказательством не считается.</span></div>`
+  return `<div class="hall-proof"><b>Завершён без доказательства</b><span>Проверка требовалась, но успешного запуска верификатора после последнего изменения не зафиксировано. Текстовое утверждение агента доказательством не считается.</span></div>`
 }
 
 function questImportanceLabel(value) {
@@ -1194,7 +1194,7 @@ function companionActionFooter(item, applyLabel) {
   const applying = companionActionApplying.has(item.id)
   const modifying = companionActionModifying.has(item.id)
   const busy = applying || modifying
-  return `<footer><button type="button" class="primary" data-action="companion-action-apply" data-id="${esc(item.id)}" ${busy ? 'disabled' : ''}>${applying ? 'СОЗДАЁМ…' : esc(applyLabel)}</button><button type="button" class="secondary" data-action="companion-action-modify" data-id="${esc(item.id)}" ${busy ? 'disabled' : ''}>${modifying ? 'СОХРАНЯЕМ…' : editing ? 'Сохранить черновик' : 'Изменить'}</button><button type="button" class="secondary" data-action="companion-action-ignore" data-id="${esc(item.id)}" ${busy ? 'disabled' : ''}>Игнорировать</button></footer>`
+  return `<footer><button type="button" class="primary" data-action="companion-action-apply" data-id="${esc(item.id)}" ${busy ? 'disabled' : ''}>${applying ? 'Создаём…' : esc(applyLabel)}</button><button type="button" class="secondary" data-action="companion-action-modify" data-id="${esc(item.id)}" ${busy ? 'disabled' : ''}>${modifying ? 'Сохраняем…' : editing ? 'Сохранить черновик' : 'Изменить'}</button><button type="button" class="secondary" data-action="companion-action-ignore" data-id="${esc(item.id)}" ${busy ? 'disabled' : ''}>Игнорировать</button></footer>`
 }
 // Карточки предложений компаньона: панель Хаба, его же классы и его регистр.
 //
@@ -1215,7 +1215,7 @@ function companionActionProposalHtml(item) {
       mission: pending.mission !== undefined ? pending.mission : agent.mission,
     } : agent
     const editor = editing ? `<div class="companion-action-editor"><label>Имя агента<input data-companion-action-field="name" data-id="${esc(item.id)}" maxlength="120" value="${esc(shownAgent.name || '')}"></label><label>Роль<textarea data-companion-action-field="roleDescription" data-id="${esc(item.id)}" rows="2" maxlength="1000">${esc(shownAgent.roleDescription || '')}</textarea></label><label>Миссия<textarea data-companion-action-field="mission" data-id="${esc(item.id)}" rows="3" maxlength="4096">${esc(shownAgent.mission || '')}</textarea></label></div>` : ''
-    return `<article class="quest-proposal-card companion-action-card"><header><strong>${esc(item.title)}</strong><em>ЧЕРНОВИК АГЕНТА</em></header><p>${esc(item.rationale || '')}</p><div class="companion-flow-preview"><span><small>ШАБЛОН</small><b>${esc(agent.blueprintId || '—')}</b></span><span><small>МОДЕЛЬ</small><b>${esc(agent.primaryModel || 'auto')}</b></span><span><small>ИНСТРУМЕНТЫ</small><b>${(agent.allowedTools || []).length}</b></span></div><div class="companion-agent-summary"><strong>${esc(agent.roleDescription || 'Роль не указана')}</strong><small>${esc(agent.mission || '')}</small><p>${(agent.allowedTools || []).map(tool => `<code>${esc(tool)}</code>`).join(' ') || 'Без инструментов'}</p></div>${editor}${companionActionFooter(item, 'Создать агента')}</article>`
+    return `<article class="quest-proposal-card companion-action-card"><header><strong>${esc(item.title)}</strong><em>Черновик агента</em></header><p>${esc(item.rationale || '')}</p><div class="companion-flow-preview"><span><small>Шаблон</small><b>${esc(agent.blueprintId || '—')}</b></span><span><small>Модель</small><b>${esc(agent.primaryModel || 'auto')}</b></span><span><small>Инструменты</small><b>${(agent.allowedTools || []).length}</b></span></div><div class="companion-agent-summary"><strong>${esc(agent.roleDescription || 'Роль не указана')}</strong><small>${esc(agent.mission || '')}</small><p>${(agent.allowedTools || []).map(tool => `<code>${esc(tool)}</code>`).join(' ') || 'Без инструментов'}</p></div>${editor}${companionActionFooter(item, 'Создать агента')}</article>`
   }
   if (item.kind === 'create_team') {
     const team = item.team || {}
@@ -1230,7 +1230,7 @@ function companionActionProposalHtml(item) {
     const selected = new Set(shownTeam.agentIds || [])
     const members = (shownTeam.agentIds || []).map(id => agentById(id)).filter(Boolean)
     const editor = editing ? `<div class="companion-action-editor"><label>Название отряда<input data-companion-action-field="name" data-id="${esc(item.id)}" maxlength="120" value="${esc(shownTeam.name || '')}"></label><label>Описание<textarea data-companion-action-field="description" data-id="${esc(item.id)}" rows="3" maxlength="4096">${esc(shownTeam.description || '')}</textarea></label><fieldset><legend>Состав</legend><small>Выберите от 1 до 8 исполнителей.</small><div class="check-grid">${hubAgents().map(agent => `<label><input type="checkbox" data-companion-action-field="agentId" data-id="${esc(item.id)}" value="${esc(agent.id)}" ${selected.has(agent.id) ? 'checked' : ''}> ${esc(agent.name)}</label>`).join('')}</div></fieldset></div>` : ''
-    return `<article class="quest-proposal-card companion-action-card"><header><strong>${esc(item.title)}</strong><em>ЧЕРНОВИК ОТРЯДА</em></header><p>${esc(item.rationale || '')}</p><div class="companion-team-members">${members.map(agent => `<span><b>${esc(agent.name)}</b><small>${esc(agent.roleDescription || agentClass(agent))}</small></span>`).join('') || '<small>Состав не выбран</small>'}</div>${editor}${companionActionFooter(item, 'Создать отряд')}</article>`
+    return `<article class="quest-proposal-card companion-action-card"><header><strong>${esc(item.title)}</strong><em>Черновик отряда</em></header><p>${esc(item.rationale || '')}</p><div class="companion-team-members">${members.map(agent => `<span><b>${esc(agent.name)}</b><small>${esc(agent.roleDescription || agentClass(agent))}</small></span>`).join('') || '<small>Состав не выбран</small>'}</div>${editor}${companionActionFooter(item, 'Создать отряд')}</article>`
   }
   if (item.kind === 'create_skill') {
     const skill = item.skill || {}
@@ -1248,10 +1248,10 @@ function companionActionProposalHtml(item) {
     const permissions = Object.entries(skill.permissionDelta || {})
     const catalog = (state.boot?.toolCatalog || []).slice(0, 24)
     const toolEditor = catalog.length
-      ? `<fieldset><legend>Требуемые умения</legend><div class="check-grid skill-tool-grid">${catalog.map(tool => `<label><input type="checkbox" data-companion-action-field="requiredTool" data-id="${esc(item.id)}" value="${esc(tool.name)}" ${selectedTools.has(tool.name) ? 'checked' : ''}> ${esc(tool.displayName || tool.name)}</label>`).join('')}</div><small>Skill не расширяет permissions агента — tools должны уже быть в allowlist.</small></fieldset>`
-      : `<label>Требуемые умения — по одному на строку<textarea data-companion-action-field="requiredTools" data-id="${esc(item.id)}" rows="4">${esc(requiredTools.join('\n'))}</textarea></label>`
+      ? `<fieldset><legend>Требуемые инструменты</legend><div class="check-grid skill-tool-grid">${catalog.map(tool => `<label><input type="checkbox" data-companion-action-field="requiredTool" data-id="${esc(item.id)}" value="${esc(tool.name)}" ${selectedTools.has(tool.name) ? 'checked' : ''}> ${esc(tool.displayName || tool.name)}</label>`).join('')}</div><small>Skill не расширяет permissions агента — tools должны уже быть в allowlist.</small></fieldset>`
+      : `<label>Требуемые инструменты — по одному на строку<textarea data-companion-action-field="requiredTools" data-id="${esc(item.id)}" rows="4">${esc(requiredTools.join('\n'))}</textarea></label>`
     const editor = editing ? `<div class="companion-action-editor"><label>Название Skill<input data-companion-action-field="name" data-id="${esc(item.id)}" maxlength="120" value="${esc(shownSkill.name || '')}"></label><label>Описание<textarea data-companion-action-field="description" data-id="${esc(item.id)}" rows="2" maxlength="4096">${esc(shownSkill.description || '')}</textarea></label><label>Инструкции<textarea data-companion-action-field="instructions" data-id="${esc(item.id)}" rows="7" maxlength="32768">${esc(shownSkill.instructions || '')}</textarea></label>${toolEditor}</div>` : ''
-    return `<article class="quest-proposal-card companion-action-card"><header><strong>${esc(item.title)}</strong><em>SKILL DRAFT</em></header><p>${esc(item.rationale || '')}</p><div class="companion-flow-preview"><span><small>TOOLS</small><b>${requiredTools.length}</b></span><span><small>SCRIPTS</small><b>${(skill.scripts || []).length}</b></span><span><small>PERMISSIONS</small><b>${permissions.length ? permissions.length : 'НЕ РАСШИРЯЕТ'}</b></span></div><div class="companion-agent-summary"><strong>${esc(skill.description || 'Описание не указано')}</strong><small class="companion-skill-instructions">${esc(skill.instructions || '')}</small><p>${requiredTools.map(tool => `<code>${esc(tool)}</code>`).join(' ') || 'Без обязательных tools'}</p>${permissions.length ? `<ul>${permissions.map(([key, value]) => `<li>${esc(key)} = ${esc(value)}</li>`).join('')}</ul>` : '<p>Скрытых требований доступа нет. Tool grants агента не изменяются.</p>'}<p class="muted">После Apply definition попадёт в каталог и будет подключён к проекту. Чтобы агент использовал Skill — отметьте его в конструкторе.</p></div>${editor}${companionActionFooter(item, 'Создать и подключить Skill')}</article>`
+    return `<article class="quest-proposal-card companion-action-card"><header><strong>${esc(item.title)}</strong><em>SKILL DRAFT</em></header><p>${esc(item.rationale || '')}</p><div class="companion-flow-preview"><span><small>TOOLS</small><b>${requiredTools.length}</b></span><span><small>SCRIPTS</small><b>${(skill.scripts || []).length}</b></span><span><small>PERMISSIONS</small><b>${permissions.length ? permissions.length : 'Не расширяет'}</b></span></div><div class="companion-agent-summary"><strong>${esc(skill.description || 'Описание не указано')}</strong><small class="companion-skill-instructions">${esc(skill.instructions || '')}</small><p>${requiredTools.map(tool => `<code>${esc(tool)}</code>`).join(' ') || 'Без обязательных tools'}</p>${permissions.length ? `<ul>${permissions.map(([key, value]) => `<li>${esc(key)} = ${esc(value)}</li>`).join('')}</ul>` : '<p>Скрытых требований доступа нет. Tool grants агента не изменяются.</p>'}<p class="muted">После Apply definition попадёт в каталог и будет подключён к проекту. Чтобы агент использовал Skill — отметьте его в конструкторе.</p></div>${editor}${companionActionFooter(item, 'Создать и подключить Skill')}</article>`
   }
   const flow = item.flow || {}
   const editing = companionActionEditId === item.id
@@ -1268,7 +1268,7 @@ function companionActionProposalHtml(item) {
     return `<li><b>${esc(node.name || node.kind)}</b><small>${esc(node.kind)}${agent ? ` · ${esc(agent.name)}` : ''}</small></li>`
   }).join('')
   const editor = editing ? `<div class="companion-action-editor"><label>Название Flow<input data-companion-action-field="name" data-id="${esc(item.id)}" maxlength="200" value="${esc(shownFlow.name || '')}"></label><label>Описание<textarea data-companion-action-field="description" data-id="${esc(item.id)}" rows="3" maxlength="4096">${esc(shownFlow.description || '')}</textarea></label></div>` : ''
-  return `<article class="quest-proposal-card companion-action-card"><header><strong>${esc(item.title)}</strong><em>FLOW DRAFT</em></header><p>${esc(item.rationale || '')}</p><div class="companion-flow-preview"><span><small>УЗЛЫ</small><b>${nodes.length}</b></span><span><small>СВЯЗИ</small><b>${edges.length}</b></span><span><small>СОСТОЯНИЕ</small><b>${esc(item.status || 'pending')}</b></span></div><ol>${nodePreview}</ol>${editor}${companionActionFooter(item, 'Создать Flow')}</article>`
+  return `<article class="quest-proposal-card companion-action-card"><header><strong>${esc(item.title)}</strong><em>FLOW DRAFT</em></header><p>${esc(item.rationale || '')}</p><div class="companion-flow-preview"><span><small>Узлы</small><b>${nodes.length}</b></span><span><small>Связи</small><b>${edges.length}</b></span><span><small>Состояние</small><b>${esc(item.status || 'pending')}</b></span></div><ol>${nodePreview}</ol>${editor}${companionActionFooter(item, 'Создать Flow')}</article>`
 }
 function companionQuestionsHtml(item) {
   const questions = Array.isArray(item.questions)
@@ -1315,7 +1315,7 @@ function companionGettingStartedHtml() {
     { label: 'Обсудить код', detail: 'Открытый файл и Problems уже в контексте', prompt: discuss, send: true },
     { label: 'Создать агента', detail: 'Роль, модель и инструменты — перед созданием будет карточка', prompt: 'Создай агента для ', send: false },
     { label: 'Создать квест', detail: 'Цель, критерии готовности и подходящий исполнитель', prompt: 'Создай квест: ', send: false },
-    { label: 'Подобрать отряд', detail: 'Помощник предложит подходящих агентов из ростера', prompt: 'Собери отряд для задачи: ', send: false },
+    { label: 'Подобрать отряд', detail: 'Помощник предложит подходящих агентов из списка', prompt: 'Собери отряд для задачи: ', send: false },
     // Единственное место, где человек узнаёт о памяти: сказать «запомни» можно
     // и без подсказки, но догадаться, что это работает, — неоткуда.
     { label: 'Запомнить правило', detail: 'Факт закрепится и вернётся в следующие разговоры', prompt: 'Запомни: ', send: false },
@@ -1708,7 +1708,7 @@ function companionSetupValidation(step, value) {
     // Такой навык ядро отвергает вместе со всей настройкой, поэтому отказ
     // называется здесь — на шаге, где отметку видно и есть чем её снять.
     const blocked = companionBlockedSkills(draft)
-    if (blocked.length) return `Навык «${blocked[0].name || blocked[0].id}» требует умение вне доступа помощника. Снимите отметку — с ней настройка не сохранится.`
+    if (blocked.length) return `Навык «${blocked[0].name || blocked[0].id}» требует инструмент вне доступа помощника. Снимите отметку — с ней настройка не сохранится.`
   }
   if (step === 'brain' || step === 'connection') {
     if (!draft.connectionId) return 'Сначала создайте и проверьте подключение или выберите уже сохранённое.'
@@ -1745,7 +1745,7 @@ function saveConnectionFromFields() {
   vscode.postMessage({ type: 'saveConnection', id, provider, presetId, displayName, baseUrl, apiKey, apiVersion, defaultModel })
 }
 function connectionDrawerHtml(open) {
-  return `<details class="hire-drawer creation-drawer"${open ? ' open' : ''}><summary><span class="hire-kicker">СВЯЗИ</span> Новое подключение</summary>${connectionFormHtml('', { nested: true })}</details>`
+  return `<details class="hire-drawer creation-drawer"${open ? ' open' : ''}><summary><span class="hire-kicker">Связи</span> Новое подключение</summary>${connectionFormHtml('', { nested: true })}</details>`
 }
 function companionConnectionFieldsHtml(value) {
   const draft = sanitizeCompanionSetupDraft(value)
@@ -2104,12 +2104,12 @@ function companionDockOffline() {
   const errored = state.service?.state === 'error'
   const detail = String(state.service?.detail || '').trim()
   if (errored) {
-    return companionDockShell(`<main class="offline companion-dock-status"><span class="quest-label">ЯДРО POINT</span><h2>Ядро не поднялось</h2><p>${esc(detail || 'Откройте хронику ядра для полного лога.')}</p><div class="empty-next"><button class="primary" data-action="start-server">Повторить запуск</button><button class="secondary" data-action="show-output">Хроника ядра</button></div></main>`)
+    return companionDockShell(`<main class="offline companion-dock-status"><span class="quest-label">Ядро Point</span><h2>Ядро не поднялось</h2><p>${esc(detail || 'Откройте журнал ядра для полного лога.')}</p><div class="empty-next"><button class="primary" data-action="start-server">Повторить запуск</button><button class="secondary" data-action="show-output">Журнал ядра</button></div></main>`)
   }
-  return companionDockShell(`<main class="offline companion-dock-status"><span class="quest-label">ПОМОЩНИК POINT</span><h2>${starting ? 'Подключаем помощника…' : 'Помощник пока не подключён'}</h2><p>Запустите локальное ядро Point, чтобы начать диалог прямо в IDE.</p><button class="primary" data-action="start-server" ${starting ? 'disabled' : ''}>${starting ? 'Подключаемся…' : 'Подключить помощника'}</button></main>`)
+  return companionDockShell(`<main class="offline companion-dock-status"><span class="quest-label">Помощник Point</span><h2>${starting ? 'Подключаем помощника…' : 'Помощник пока не подключён'}</h2><p>Запустите локальное ядро Point, чтобы начать диалог прямо в IDE.</p><button class="primary" data-action="start-server" ${starting ? 'disabled' : ''}>${starting ? 'Подключаемся…' : 'Подключить помощника'}</button></main>`)
 }
 function companionDockTrust() {
-  return companionDockShell(`<main class="workspace-locked companion-dock-status"><span class="safe-mode-label">БЕЗОПАСНЫЙ РЕЖИМ</span><h2>Доступ к папке закрыт</h2><p>Разрешите доступ к проекту — тогда помощник сможет отвечать с учётом кода IDE.</p><button class="primary trust-button" data-action="manage-trust">Настроить доступ</button></main>`)
+  return companionDockShell(`<main class="workspace-locked companion-dock-status"><span class="safe-mode-label">Безопасный режим</span><h2>Доступ к папке закрыт</h2><p>Разрешите доступ к проекту — тогда помощник сможет отвечать с учётом кода IDE.</p><button class="primary trust-button" data-action="manage-trust">Настроить доступ</button></main>`)
 }
 // Пометка найденного и якорь «к свежему» правят живую ленту — см. master-feed.js.
 let applyMasterFind = () => {}
@@ -3819,7 +3819,7 @@ window.addEventListener('message', event => {
   if (message.type === 'projectSwitch') {
     // Скелет живёт до первого состояния нового мира. Своё окно ожидания здесь
     // ограничено: если ядро так и не поднялось, человек должен увидеть экран с
-    // кнопками «Повторить запуск» и «Хроника ядра», а не вечный шиммер.
+    // кнопками «Повторить запуск» и «Журнал ядра», а не вечный шиммер.
     clearTimeout(projectSwitchTimer)
     if (message.phase === 'start') {
       setProjectGalleryOpen(false)

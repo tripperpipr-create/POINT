@@ -23,8 +23,9 @@
   font-family: var(--font-ui);
 }
 
-/* Скан-линии — единственная декорация «Чертога». Не перехватывает события
-   и снимается настройкой, потому что на части матриц даёт муар. */
+/* Скан-линии были единственной декорацией «Чертога». В регистре темы IDE их
+   нет (--hall-scanlines: none в tokens.css); слой остаётся, чтобы настройка
+   `is-no-scan` и старые стенды не ломались. */
 .hall-scan {
   position: absolute;
   inset: 0;
@@ -34,7 +35,10 @@
 }
 .hall.is-no-scan .hall-scan { display: none; }
 
-/* ── Рейка ────────────────────────────────────────────────────────────────── */
+/* ── Рейка ────────────────────────────────────────────────────────────────────
+   Дерево настроек JetBrains, а не пульт: строки обычным регистром, выбранная —
+   заливкой на ступень светлее, без акцентной рамки. Акцент в рейке один — число
+   решений, которые ждут человека. */
 .hall-rail {
   position: relative;
   z-index: 2;
@@ -43,83 +47,108 @@
   flex-direction: column;
   width: var(--hall-rail-w);
   min-width: 0;
-  border-right: 1px solid var(--hub-border);
+  border-right: 1px solid var(--hub-border-soft);
   background: var(--hub-panel);
 }
 .hall-rail-head {
   display: flex;
   align-items: center;
   gap: var(--s-4);
-  padding: var(--s-6) var(--s-5) var(--s-5);
-  border-bottom: 1px solid var(--hub-border);
+  padding: var(--s-5) var(--s-5) var(--s-4);
 }
 .hall-mark {
   display: grid;
   place-items: center;
-  width: 26px;
-  height: 26px;
+  width: var(--control-sm);
+  height: var(--control-sm);
   flex: none;
-  border: 1px solid var(--ember);
-  color: var(--ember);
-  font: var(--fw-normal) var(--t-body) / 1 var(--font-mono);
+  border-radius: var(--r-1);
+  background: var(--hub-selected);
+  color: var(--hub-muted);
+  font: var(--fw-semibold) var(--t-small) / 1 var(--font-ui);
 }
 .hall-wordmark { display: flex; flex-direction: column; gap: var(--s-1); min-width: 0; }
-.hall-wordmark b { font: var(--fw-bold) var(--t-base) / 1 var(--font-ui); letter-spacing: .04em; }
+.hall-wordmark b { font: var(--fw-semibold) var(--t-base) / 1.2 var(--font-ui); }
 .hall-wordmark span {
-  font: var(--fw-medium) var(--t-micro) / 1 var(--font-mono);
-  letter-spacing: .16em;
-  color: var(--hub-faint);
+  font: var(--fw-normal) var(--t-small) / 1.2 var(--font-ui);
+  color: var(--hub-muted);
 }
 
-.hall-nav { display: flex; flex-direction: column; gap: var(--s-1); padding: var(--s-5) var(--s-4); }
+.hall-nav { display: flex; flex-direction: column; gap: var(--s-1); padding: var(--s-3) var(--s-4); }
 .hall-nav button {
   display: flex;
   align-items: center;
   gap: var(--s-4);
-  padding: var(--s-4) var(--s-5);
+  min-height: var(--control-md);
+  padding: 0 var(--s-4);
+  border: 0;
+  border-radius: var(--r-1);
   background: transparent;
-  border: 1px solid transparent;
-  color: var(--hub-muted-2);
-  font: var(--fw-medium) var(--t-small) / 1 var(--font-mono);
-  letter-spacing: .12em;
+  color: var(--hub-text-3);
+  font: var(--fw-normal) var(--t-base) / 1.3 var(--font-ui);
   cursor: pointer;
   transition: background-color var(--motion-fast) var(--ease), color var(--motion-fast) var(--ease);
 }
-.hall-nav button:hover { color: var(--hub-text-3); background: rgba(255, 255, 255, .03); }
+.hall-nav button:hover { color: var(--hub-text); background: color-mix(in srgb, var(--hub-text) 6%, transparent); }
 .hall-nav button.is-active {
-  background: rgba(255, 92, 71, .10);
-  border-color: var(--ember-line);
-  color: #FFF;
+  background: var(--hub-selected);
+  color: var(--hub-text);
+  font-weight: var(--fw-medium);
 }
-.hall-nav button:focus-visible { outline: 1px solid var(--ember); outline-offset: -2px; }
-.hall-nav i { width: 5px; height: 5px; flex: none; background: var(--hub-dot); }
-.hall-nav button.is-active i { background: var(--ember); }
+.hall-nav button:focus-visible { outline: 1px solid var(--ui-focus); outline-offset: -1px; }
+/* Запертая рейка (онбординг не закончен) — приглушённым цветом, а не
+   прозрачностью: прозрачность опускала подписи до 2.4 и прятала, какие
+   разделы появятся после настройки. */
+.hall-nav button:disabled,
+.hall-nav button:disabled:hover { opacity: 1; background: transparent; color: var(--hub-muted); cursor: default; }
+.hall-nav button:disabled b { color: var(--hub-muted); }
+/* Возврат в чат — строка над разделами, тише их: это выход из настроек, а не
+   ещё один раздел. */
+.hall-rail-back {
+  display: flex;
+  align-items: center;
+  min-height: var(--control-md);
+  margin: 0 var(--s-4);
+  padding: 0 var(--s-4);
+  border: 0;
+  border-radius: var(--r-1);
+  background: transparent;
+  color: var(--hub-muted);
+  font: var(--fw-normal) var(--t-body) / 1.3 var(--font-ui);
+  text-align: left;
+  cursor: pointer;
+}
+.hall-rail-back i { width: var(--s-6); font-style: normal; }
+.hall-rail-back:hover { background: color-mix(in srgb, var(--hub-text) 6%, transparent); color: var(--hub-text); }
+.hall-rail-back:focus-visible { outline: 1px solid var(--ui-focus); outline-offset: -1px; }
 .hall-nav span { flex: 1; text-align: left; }
-.hall-nav b { font: var(--fw-semibold) var(--t-micro) / 1 var(--font-mono); color: var(--hub-counter); }
+.hall-nav b { font: var(--fw-normal) var(--t-small) / 1 var(--font-ui); color: var(--hub-counter); }
 /* Счётчик очереди — единственное место рейки, где акцент означает «горит». */
-.hall-nav button.is-urgent b { color: var(--ember); }
+.hall-nav button.is-urgent b { color: var(--caution); font-weight: var(--fw-semibold); }
 
 .hall-rail-foot {
   display: flex;
   flex-direction: column;
-  gap: var(--s-3);
+  gap: var(--s-2);
   margin-top: auto;
-  padding: var(--s-5) var(--s-6);
-  border-top: 1px solid var(--hub-border);
+  padding: var(--s-5);
+  border-top: 1px solid var(--hub-border-soft);
 }
-.hall-rail-foot .row { display: flex; align-items: center; gap: var(--s-4); }
-.hall-rail-foot i { width: 5px; height: 5px; flex: none; background: var(--ember); }
+.hall-rail-foot .row { display: flex; align-items: center; gap: var(--s-3); }
+.hall-rail-foot i { width: 6px; height: 6px; flex: none; border-radius: 50%; background: var(--hub-faint-4); }
+.hall-rail-foot i.is-live { background: var(--vital); }
 .hall-rail-foot b {
-  font: var(--fw-medium) var(--t-micro) / 1 var(--font-mono);
-  letter-spacing: .14em;
-  color: var(--hub-muted-2);
+  font: var(--fw-normal) var(--t-small) / 1.3 var(--font-ui);
+  color: var(--hub-muted);
 }
 .hall-rail-foot small {
-  font: var(--fw-normal) var(--t-micro) / 1.5 var(--font-mono);
-  color: var(--hub-faint-2);
+  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui);
+  color: var(--hub-muted);
 }
 
-/* ── Шапка ────────────────────────────────────────────────────────────────── */
+/* ── Шапка ────────────────────────────────────────────────────────────────────
+   Одна строка: возврат в чат, название раздела и то, что ждёт человека. Своей
+   заливки у шапки нет — это край той же поверхности, отделённый чертой. */
 .hall-main {
   position: relative;
   z-index: 2;
@@ -133,11 +162,11 @@
   flex: none;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--s-4);
+  gap: var(--s-3);
   min-height: var(--hall-header-h);
-  padding: var(--s-4) var(--s-6);
-  border-bottom: 1px solid var(--hub-border);
-  background: var(--hub-panel);
+  padding: var(--s-2) var(--s-6);
+  border-bottom: 1px solid var(--hub-border-soft);
+  background: transparent;
 }
 .hall-crumb {
   flex: 1 1 120px;
@@ -145,67 +174,117 @@
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  font: var(--fw-medium) var(--t-tiny) / 1.4 var(--font-mono);
-  letter-spacing: .16em;
-  color: var(--hub-faint);
+  font: var(--fw-medium) var(--t-base) / 1.3 var(--font-ui);
+  color: var(--hub-text);
 }
 .hall-gauge {
   display: flex;
   flex: none;
-  align-items: center;
-  gap: var(--s-4);
-  padding: var(--s-3) var(--s-4);
-  border: 1px solid var(--hub-border-strong);
+  align-items: baseline;
+  gap: var(--s-3);
+  margin: 0;
+  padding: 0 var(--s-4);
 }
 .hall-gauge dt {
-  font: var(--fw-medium) var(--t-micro) / 1 var(--font-mono);
-  letter-spacing: .12em;
-  color: var(--hub-faint);
+  font: var(--fw-normal) var(--t-small) / 1 var(--font-ui);
+  color: var(--hub-muted);
 }
 .hall-gauge dd {
   margin: 0;
-  font: var(--fw-semibold) var(--t-tiny) / 1 var(--font-mono);
-  color: var(--hub-text);
+  font: var(--fw-medium) var(--t-small) / 1 var(--font-ui);
+  font-variant-numeric: tabular-nums;
+  color: var(--hub-text-2);
   white-space: nowrap;
 }
 
-/* Счётчик ожидания — намеренно самый громкий элемент шапки. */
+/* Метка очереди — кнопка: названная очередь и есть то место, куда она зовёт.
+   Цвет у неё только в точке: прописные, рамка и заливка акцента звучали громче
+   любого содержимого раздела, а срочность несёт число, а не громкость. */
 .hall-alarm {
   display: flex;
   flex: none;
   align-items: center;
-  gap: var(--s-4);
-  min-height: var(--hit);
-  padding: var(--s-3) var(--s-4);
-  border: 1px solid var(--ember-line);
-  background: var(--ember-wash);
+  gap: var(--s-3);
+  min-height: var(--control-sm);
+  padding: var(--s-1) var(--s-4);
+  border: 0;
+  border-radius: var(--r-1);
+  background: transparent;
+  cursor: pointer;
+  transition: background-color var(--motion-fast) var(--ease);
 }
-/* Тревога — кнопка: названная очередь и есть то место, куда она зовёт. Отклик
-   при наведении и кольцо фокуса обязательны именно поэтому — беззвучная кнопка
-   неотличима от надписи. */
-.hall-alarm:hover { border-color: var(--ember); }
-.hall-alarm:focus-visible { outline: 1px solid var(--ember); outline-offset: 2px; }
+.hall-alarm:hover { background: color-mix(in srgb, var(--hub-text) 8%, transparent); }
+.hall-alarm:focus-visible { outline: 1px solid var(--ui-focus); outline-offset: 1px; }
 .hall-alarm i {
   width: 6px;
   height: 6px;
   flex: none;
   border-radius: 50%;
   background: var(--ember);
-  animation: hall-blink 1.6s steps(1) infinite;
 }
-/* Прописные — регистр Чертога, и задаются они здесь, а не строкой в разметке:
-   ту же метку показывает тихая шапка чата, где кричать нечему. */
 .hall-alarm span {
-  font: var(--fw-medium) var(--t-tiny) / 1 var(--font-mono);
-  letter-spacing: .1em;
-  text-transform: uppercase;
-  color: var(--ember-light);
+  font: var(--fw-normal) var(--t-small) / 1.3 var(--font-ui);
+  color: var(--hub-text-2);
   white-space: nowrap;
 }
-@keyframes hall-blink { 0%, 49% { opacity: 1 } 50%, 100% { opacity: 0 } }
-@media (prefers-reduced-motion: reduce) {
-  .hall-alarm i { animation: none; }
+.hall-alarm:hover span { color: var(--hub-text); }
+
+/* Кнопки шапки настроек: «Статистика» и журнал ядра — тихие, без кромки, как
+   кнопки шапки разговора. Значковая — квадрат по росту контрола. */
+.hall-head .hall-head-quiet,
+.hall-head .hall-head-icon {
+  border-color: transparent;
+  color: var(--hub-muted);
 }
+.hall-head .hall-head-quiet:hover,
+.hall-head .hall-head-icon:hover { color: var(--hub-text); }
+.hall-head .hall-head-icon {
+  display: inline-grid;
+  place-items: center;
+  width: var(--control-sm);
+  padding: 0;
+}
+
+/* ── Вкладки подраздела ───────────────────────────────────────────────────────
+   Строка под шапкой: где внутри раздела человек находится и куда можно уйти
+   одним кликом. Выбранная вкладка — текст на ступень ярче и линия снизу, как у
+   вкладок редактора; акцент линии — тот же, что у активной вкладки IDE. */
+.hall-tabs {
+  display: flex;
+  flex: none;
+  gap: var(--s-2);
+  /* Текст первой вкладки стоит на крае содержимого: отступ строки плюс отступ
+     кнопки дают те же 24px, что у страниц раздела. */
+  padding: 0 var(--s-5);
+  overflow-x: auto;
+  border-bottom: 1px solid var(--hub-border-soft);
+  scrollbar-width: none;
+}
+.hall-tabs button {
+  position: relative;
+  flex: none;
+  min-height: var(--control-lg);
+  padding: 0 var(--s-4);
+  border: 0;
+  background: transparent;
+  color: var(--hub-muted);
+  font: var(--fw-normal) var(--t-body) / 1.3 var(--font-ui);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color var(--motion-fast) var(--ease);
+}
+.hall-tabs button:hover { color: var(--hub-text); }
+.hall-tabs button.is-active { color: var(--hub-text); font-weight: var(--fw-medium); }
+.hall-tabs button.is-active::after {
+  content: "";
+  position: absolute;
+  right: var(--s-4);
+  bottom: -1px;
+  left: var(--s-4);
+  height: var(--edge-accent);
+  background: var(--ember);
+}
+.hall-tabs button:focus-visible { outline: 1px solid var(--ui-focus); outline-offset: -2px; }
 
 /* ── Сфокусированный режим ────────────────────────────────────────────────
    Диалог с Мастером занимает экран целиком. Рейка и счётчики не прячутся ради
@@ -279,12 +358,11 @@
   /* Тот же отступ, что у оснований и вопросов: всё, что относится к реплике,
      стоит под её текстом, а не под меткой говорящего. */
   padding-left: var(--hall-msg-indent);
-  font: var(--fw-normal) var(--t-micro) / 1.4 var(--font-mono);
+  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui);
   color: var(--hub-faint-2);
 }
 .hall-msg-resolved b {
-  font: var(--fw-semibold) var(--t-micro) / 1.4 var(--font-mono);
-  letter-spacing: var(--tracking-label);
+  font: var(--fw-semibold) var(--t-small) / 1.4 var(--font-ui);
   color: var(--hub-muted-2);
 }
 
@@ -294,7 +372,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
-  font: var(--fw-normal) var(--t-small) / var(--lh-base) var(--font-mono);
+  font: var(--fw-normal) var(--t-small) / var(--lh-base) var(--font-ui);
   color: var(--hub-text-3);
 }
 
@@ -306,7 +384,7 @@
   text-align: center;
 }
 .hall-empty b { font: var(--fw-semibold) var(--t-lead) / 1.2 var(--font-ui); color: var(--hub-text-2); }
-.hall-empty span { font: var(--fw-normal) var(--t-small) / var(--lh-base) var(--font-mono); color: var(--hub-faint); }
+.hall-empty span { font: var(--fw-normal) var(--t-small) / var(--lh-base) var(--font-ui); color: var(--hub-faint); }
 
 /* Состав отряда с причиной. Оценка справа и приглушена: она объясняет порядок,
    но спорить человек будет с совпавшими терминами, а не с числом. */
@@ -371,27 +449,26 @@
   display: inline-flex;
   align-items: baseline;
   gap: var(--s-2);
-  font: var(--fw-semibold) var(--t-micro) / 1 var(--font-ui);
+  font: var(--fw-semibold) var(--t-small) / 1 var(--font-ui);
   color: var(--hub-muted);
   white-space: nowrap;
 }
 /* Размер задаётся явно: браузер уменьшает <small> относительно родителя, и
    заданные шкалой 10px превращались в 8.33px — ниже пола. */
-.hall-party-score > small { font-size: var(--t-micro); letter-spacing: var(--tracking-label); }
+.hall-party-score > small { font-size: var(--t-small); }
 .hall-party-score > b { color: var(--hub-muted-2); font-size: var(--t-small); }
-.hall-party-score > i { font-size: var(--t-micro); font-style: normal; }
+.hall-party-score > i { font-size: var(--t-small); font-style: normal; }
 
 /* Определение готовности — обещание, по которому потом судят результат. */
 .hall-dod { display: flex; flex-direction: column; gap: var(--s-2); }
 .hall-dod b {
-  font: var(--fw-medium) var(--t-micro) / 1 var(--font-mono);
-  letter-spacing: var(--tracking-label);
-  color: var(--ember-light);
+  font: var(--fw-medium) var(--t-small) / 1 var(--font-ui);
+  color: var(--hub-muted);
 }
 .hall-dod ul {
   margin: 0;
   padding-left: var(--s-6);
-  font: var(--fw-normal) var(--t-micro) / var(--lh-base) var(--font-mono);
+  font: var(--fw-normal) var(--t-small) / var(--lh-base) var(--font-ui);
   color: var(--hub-text-3);
 }
 
@@ -484,15 +561,14 @@
   border: 1px solid var(--vital);
   background: rgba(91, 203, 138, .06);
 }
-.hall-delta.is-breaking { border-color: var(--ember-line-loud); background: var(--ember-wash); }
+.hall-delta.is-breaking { border-color: color-mix(in srgb, var(--caution) 45%, transparent); background: var(--caution-wash); }
 .hall-delta b {
-  font: var(--fw-medium) var(--t-micro) / 1 var(--font-mono);
-  letter-spacing: var(--tracking-label);
+  font: var(--fw-medium) var(--t-small) / 1 var(--font-ui);
   color: var(--vital);
 }
-.hall-delta.is-breaking b { color: var(--ember-light); }
+.hall-delta.is-breaking b { color: var(--caution); }
 .hall-delta span {
-  font: var(--fw-normal) var(--t-micro) / var(--lh-base) var(--font-mono);
+  font: var(--fw-normal) var(--t-small) / var(--lh-base) var(--font-ui);
   color: var(--hub-text-3);
 }
 
@@ -503,21 +579,21 @@
 .hall-promise-mark {
   width: 16px;
   text-align: center;
-  font: var(--fw-semibold) var(--t-small) / 1.5 var(--font-mono);
+  font: var(--fw-semibold) var(--t-small) / 1.5 var(--font-ui);
   color: var(--hub-faint-2);
 }
 .hall-promise-mark.is-met { color: var(--vital); }
 .hall-promise-body { display: flex; flex-direction: column; gap: var(--s-1); min-width: 0; }
 .hall-promise-body .text {
-  font: var(--fw-normal) var(--t-small) / var(--lh-base) var(--font-mono);
+  font: var(--fw-normal) var(--t-small) / var(--lh-base) var(--font-ui);
   color: var(--hub-text-3);
 }
 .hall-promise-body .evidence {
-  font: var(--fw-normal) var(--t-micro) / 1.4 var(--font-mono);
+  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui);
   color: var(--hub-faint-2);
 }
 .hall-promise-honest {
-  font: var(--fw-medium) var(--t-small) / var(--lh-base) var(--font-mono);
+  font: var(--fw-medium) var(--t-small) / var(--lh-base) var(--font-ui);
   color: var(--hub-text-2);
 }
 
@@ -532,7 +608,7 @@
 }
 .hall-handoff-who span { color: var(--ember); }
 .hall-handoff-summary {
-  font: var(--fw-normal) var(--t-micro) / var(--lh-base) var(--font-mono);
+  font: var(--fw-normal) var(--t-small) / var(--lh-base) var(--font-ui);
   color: var(--hub-muted-2);
 }
 .hall-handoff-summary.is-muted { color: var(--hub-faint-2); }
@@ -540,7 +616,7 @@
 .hall-handoff-files span {
   padding: var(--s-1) var(--s-3);
   border: 1px solid var(--hub-border);
-  font: var(--fw-normal) var(--t-micro) / 1.4 var(--font-mono);
+  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-mono);
   color: var(--hub-text-3);
 }
 
@@ -548,59 +624,62 @@
    размером: и то и другое — факты о будущем поведении, а не тревога ради
    тревоги. Блокирующее набрано акцентом, потому что без него запуска не будет. */
 .hall-cap-line {
-  font: var(--fw-normal) var(--t-small) / var(--lh-base) var(--font-mono);
+  font: var(--fw-normal) var(--t-small) / var(--lh-base) var(--font-ui);
   color: var(--hub-text-3);
 }
-.hall-cap-line.is-blocking { color: var(--ember-light); }
+.hall-cap-line.is-blocking { color: var(--wound); }
 .hall-cap-line.is-warning { color: var(--caution); }
 
 
-/* ── Кнопки ───────────────────────────────────────────────────────────────── */
+/* ── Кнопки ───────────────────────────────────────────────────────────────────
+   Кнопки редактора: обычный регистр, малое скругление, тонкая кромка у
+   второстепенных и цвет главной кнопки темы у главной. Залита на экране одна. */
 .hall-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: var(--hit);
-  padding: var(--s-3) var(--s-6);
+  gap: var(--s-3);
+  min-height: var(--control-md);
+  padding: var(--s-2) var(--s-5);
+  border: 1px solid var(--hub-border-strong);
+  border-radius: var(--r-1);
   background: transparent;
-  border: 1px solid var(--hub-border-loud);
-  color: var(--hub-text-3);
-  font: var(--fw-semibold) var(--t-tiny) / 1 var(--font-mono);
-  letter-spacing: .14em;
+  color: var(--hub-text);
+  font: var(--fw-medium) var(--t-small) / 1.3 var(--font-ui);
   cursor: pointer;
   white-space: nowrap;
   transition: border-color var(--motion-fast) var(--ease), background-color var(--motion-fast) var(--ease);
 }
-.hall-btn:hover { border-color: rgba(255, 255, 255, .4); }
-.hall-btn:focus-visible { outline: 1px solid var(--ember); outline-offset: 2px; }
-.hall-btn.is-primary { background: var(--ember); border-color: var(--ember); color: var(--hub-panel); }
-.hall-btn.is-primary:hover { background: var(--ember-hover); border-color: var(--ember-hover); }
+.hall-btn:hover { border-color: var(--hub-border-loud); background: var(--hub-selected); }
+.hall-btn:focus-visible { outline: 1px solid var(--ui-focus); outline-offset: 1px; }
+.hall-btn.is-primary { border-color: transparent; background: var(--ember); color: var(--ember-fg, var(--hub-void)); }
+.hall-btn.is-primary:hover { border-color: transparent; background: var(--ember-hover); }
 .hall-btn.is-accent { border-color: var(--ember-line-loud); color: var(--ember-light); }
-.hall-btn.is-accent:hover { background: var(--ember-wash-strong); }
-.hall-btn.is-sm { padding: var(--s-3) var(--s-5); font-size: var(--t-micro); letter-spacing: .1em; }
-.hall-btn.is-dashed { border-style: dashed; color: var(--hub-muted-2); }
+.hall-btn.is-accent:hover { background: var(--ember-wash); }
+.hall-btn.is-sm { min-height: var(--control-sm); padding: var(--s-1) var(--s-4); }
+.hall-btn.is-dashed { border-style: dashed; color: var(--hub-muted); }
 /* Необратимое действие держит свой цвет: удаление квеста не должно читаться
    как соседняя кнопка «открыть». */
-.hall-btn.is-danger { border-color: color-mix(in srgb, var(--wound) 55%, var(--hub-border-loud)); color: var(--wound); }
+.hall-btn.is-danger { border-color: color-mix(in srgb, var(--wound) 45%, var(--hub-border-strong)); color: var(--wound); }
 .hall-btn.is-danger:hover { border-color: var(--wound); background: var(--wound-wash); }
+.hall-btn:disabled { opacity: var(--disabled-opacity); cursor: default; }
 
-/* ── Чипы состояния ───────────────────────────────────────────────────────── */
+/* ── Чипы состояния ──────────────────────────────────────────────────────────
+   Плашка, а не рамка: состояние читается тоном подложки, цвет у неё только
+   там, где он что-то значит. */
 .hall-chip {
-  padding: var(--s-2) var(--s-3);
+  padding: var(--s-1) var(--s-3);
   /* Фон назван, а не оставлен по умолчанию. Чип бывает и <span>, и <button>: у
-     кнопки браузер подставляет свой серый, если его не назвать, — в тёмной
-     панели это светлая плашка, на которой мелкий текст чипа не добирает
-     контраста. Кнопкой чип бывает ровно в одном месте продукта — уточняющий
-     вопрос Мастера, — поэтому промах и держался незамеченным. */
-  background: transparent;
-  border: 1px solid var(--hub-border-loud);
+     кнопки браузер подставляет свой серый, если его не назвать. */
+  border: 1px solid transparent;
+  border-radius: var(--r-1);
+  background: var(--hub-selected);
   color: var(--hub-text-3);
-  font: var(--fw-semibold) var(--t-micro) / 1 var(--font-mono);
-  letter-spacing: .08em;
+  font: var(--fw-medium) var(--t-small) / 1.3 var(--font-ui);
   white-space: nowrap;
 }
-.hall-chip.is-hot { border-color: var(--ember-line-loud); background: var(--ember-wash-strong); color: var(--ember-light); }
-.hall-chip.is-dim { border-color: rgba(255, 255, 255, .1); color: var(--hub-faint); }
+.hall-chip.is-hot { background: var(--caution-wash); color: var(--caution); }
+.hall-chip.is-dim { border-color: var(--hub-border); background: transparent; color: var(--hub-muted); }
 
 /* ── Портреты: процедурная штриховка вместо картинок ──────────────────────── */
 .hall-portrait {
@@ -616,10 +695,10 @@
 .hall-portrait.is-lg { width: 32px; height: 32px; }
 
 /* ── Индикаторы ───────────────────────────────────────────────────────────── */
-.hall-track { height: 3px; background: var(--hall-track); }
+.hall-track { height: 4px; border-radius: var(--r-full); overflow: hidden; background: var(--hall-track); }
 .hall-track.is-thick { height: 6px; }
 .hall-track > i { display: block; width: var(--fill, 0%); height: 100%; background: var(--ember); }
-.hall-track > i.is-quiet { background: var(--hub-muted-2); }
+.hall-track > i.is-quiet { background: var(--hub-muted); }
 
 /* Вложение контекста: путь, его доля и полоса под ними. Доля важнее размера в
    килобайтах — вопрос всегда «что съело контекст», а не «сколько там байт». */
@@ -638,29 +717,28 @@
   font: var(--fw-medium) var(--t-tiny) / 1 var(--font-mono);
   color: var(--hub-text-3);
 }
-.hall-context-share { font: var(--fw-medium) var(--t-micro) / 1 var(--font-mono); color: var(--hub-faint-2); }
+.hall-context-share { font: var(--fw-medium) var(--t-small) / 1 var(--font-ui); color: var(--hub-faint-2); }
 
 /* ── Панели ───────────────────────────────────────────────────────────────── */
-.hall-panel { background: var(--hub-raised); border: 1px solid var(--hub-border); }
+.hall-panel { background: var(--hub-raised); border: 1px solid var(--hub-border); border-radius: var(--r-2); }
 .hall-panel > header,
 .hall-queue > header {
   display: flex;
   align-items: center;
   gap: var(--s-4);
-  padding: var(--s-5) var(--s-6);
-  border-bottom: 1px solid var(--hub-border);
+  padding: var(--s-4) var(--s-6);
+  border-bottom: 1px solid var(--hub-border-soft);
 }
 .hall-panel > header b,
 .hall-queue > header b {
-  font: var(--fw-medium) var(--t-tiny) / 1 var(--font-mono);
-  letter-spacing: .18em;
-  color: var(--hub-muted-2);
+  font: var(--fw-semibold) var(--t-body) / 1.3 var(--font-ui);
+  color: var(--hub-text);
 }
 .hall-panel > header small,
 .hall-queue > header small {
   margin-left: auto;
-  font: var(--fw-medium) var(--t-micro) / 1 var(--font-mono);
-  color: var(--hub-faint-3);
+  font: var(--fw-normal) var(--t-small) / 1.3 var(--font-ui);
+  color: var(--hub-muted);
 }
 /* Узкое окно: название панели со счётчиком не переносится, а подсказка справа
    уступает — обрезается многоточием. Иначе шапка очереди решений на 1024px
@@ -692,7 +770,7 @@
 .hall-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-4); }
 
 /* Тревожная панель — «ждёт вас». Рамка акцентом, а не заливкой целиком. */
-.hall-panel.is-alarm { border-color: rgba(255, 92, 71, .4); background: rgba(255, 92, 71, .05); }
+.hall-panel.is-alarm { border-color: var(--ember-line); }
 .hall-panel.is-alarm > header { border-bottom-color: var(--ember-line-soft); }
 
 .hall-count {
@@ -719,14 +797,14 @@
 .hall-item-text b,
 .hall-item-text small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hall-item-text b { font: var(--fw-medium) var(--t-body) / 1.2 var(--font-ui); color: var(--hub-text-2); }
-.hall-item-text small { font: var(--fw-normal) var(--t-micro) / 1.4 var(--font-mono); color: var(--hub-faint); }
+.hall-item-text small { font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui); color: var(--hub-faint); }
 /* Путь к файлу — моноширинный: это код, а не название. */
 .hall-item.is-path .hall-item-text b { font: var(--fw-medium) var(--t-small) / 1.2 var(--font-mono); }
 /* Справа в строке бывает не кнопка, а пометка «действия нет»: «необратимо»
    стоит там же, где стояла бы «ОТКАТИТЬ», и так же не сжимается. */
 .hall-item-flag {
   flex: none;
-  font: var(--fw-normal) var(--t-micro) / 1 var(--font-mono);
+  font: var(--fw-normal) var(--t-small) / 1 var(--font-ui);
   color: var(--hub-faint-3);
 }
 
@@ -743,8 +821,8 @@ button.hall-panel-row {
   text-align: left;
   cursor: pointer;
 }
-button.hall-panel-row:hover { background: rgba(255, 255, 255, .03); }
-button.hall-panel-row:focus-visible { outline: 1px solid var(--ember); outline-offset: -2px; }
+button.hall-panel-row:hover { background: color-mix(in srgb, var(--hub-text) 4%, transparent); }
+button.hall-panel-row:focus-visible { outline: 1px solid var(--ui-focus); outline-offset: -2px; }
 
 /* Ссылка «все →» в шапке панели. Тоже была `small` с `cursor:pointer`. */
 .hall-panel > header .hall-more {
@@ -754,13 +832,12 @@ button.hall-panel-row:focus-visible { outline: 1px solid var(--ember); outline-o
   padding: var(--s-4) var(--s-3);
   border: 0;
   background: none;
-  font: var(--fw-medium) var(--t-micro) / 1 var(--font-mono);
-  letter-spacing: .1em;
-  color: var(--ember);
+  font: var(--fw-normal) var(--t-small) / 1 var(--font-ui);
+  color: var(--ember-light);
   cursor: pointer;
 }
-.hall-panel > header .hall-more:hover { color: var(--ember-light); }
-.hall-panel > header .hall-more:focus-visible { outline: 1px solid var(--ember); outline-offset: 2px; }
+.hall-panel > header .hall-more:hover { color: var(--hub-text); }
+.hall-panel > header .hall-more:focus-visible { outline: 1px solid var(--ui-focus); outline-offset: 2px; }
 
 /* Действие в шапке панели всегда прижато к правому краю. */
 .hall-panel > header > .hall-btn { margin-left: auto; }
@@ -768,12 +845,12 @@ button.hall-panel-row:focus-visible { outline: 1px solid var(--ember); outline-o
 /* Заголовок тревоги: счёт, название очереди, причина. */
 .hall-panel.is-alarm > header { gap: var(--s-7); }
 .hall-alarm-text { display: flex; flex-direction: column; gap: var(--s-3); }
-.hall-panel > header .hall-alarm-text b { color: var(--ember-light); letter-spacing: .2em; }
-.hall-panel > header .hall-alarm-text small { margin: 0; color: var(--hub-muted-2); }
+.hall-panel > header .hall-alarm-text b { color: var(--hub-text); }
+.hall-panel > header .hall-alarm-text small { margin: 0; color: var(--hub-muted); }
 
 /* Приглушённая служебная строка внутри панели: оговорка к числу, пояснение
-   к состоянию. Тише основного текста и всегда моноширинная. */
-.hall-meta { font: var(--fw-normal) var(--t-micro) / 1.4 var(--font-mono); color: var(--hub-faint-3); }
+   к состоянию. Тише основного текста; набор тот же, что у текста панели. */
+.hall-meta { font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui); color: var(--hub-faint-3); }
 
 /* Крупное число внутри строки панели — расход, счётчики сводки. */
 .hall-figure { font: var(--fw-semibold) var(--t-numeral-sm) / 1 var(--font-ui); color: var(--hub-text-2); }
@@ -799,7 +876,7 @@ button.hall-panel-row:focus-visible { outline: 1px solid var(--ember); outline-o
   display: flex;
   flex-wrap: wrap;
   gap: var(--s-6);
-  font: var(--fw-medium) var(--t-tiny) / 1 var(--font-mono);
+  font: var(--fw-medium) var(--t-small) / 1 var(--font-ui);
   color: var(--hub-faint-2);
 }
 
@@ -811,25 +888,25 @@ button.hall-panel-row:focus-visible { outline: 1px solid var(--ember); outline-o
 /* Мелкая приписка: оговорка под блоком, потолок расхода, «решение за вами».
    Не пояснение пустого состояния (.hall-note) и не подпись строки — это
    ремарка, и она везде набирается одинаково. */
-.hall-fineprint { font: var(--fw-normal) var(--t-micro) / 1.5 var(--font-mono); color: var(--hub-faint); }
+.hall-fineprint { font: var(--fw-normal) var(--t-small) / 1.5 var(--font-ui); color: var(--hub-faint); }
 /* Приписка, прижатая к правому краю ряда действий, звучит тише кнопок рядом. */
 .hall-fineprint.is-trailing { margin-left: auto; line-height: 1.4; color: var(--hub-faint-3); }
 
 /* Время ожидания. Акцент означает ровно одно: агент из-за этого простаивает. */
-.hall-wait { font: var(--fw-semibold) var(--t-tiny) / 1 var(--font-mono); color: var(--hub-faint-2); }
-.hall-wait.is-blocking { color: var(--ember); }
+.hall-wait { font: var(--fw-semibold) var(--t-small) / 1 var(--font-ui); color: var(--hub-faint-2); }
+.hall-wait.is-blocking { color: var(--caution); }
 
 /* Пояснение под заголовком пустого или неизвестного состояния. Ширина строки
    ограничена по числу знаков, а не по пикселям: так она не зависит от того,
    насколько широко разъехалась колонка. */
 .hall-note {
   max-width: 52ch;
-  font: var(--fw-normal) var(--t-small) / var(--lh-loose) var(--font-mono);
+  font: var(--fw-normal) var(--t-small) / var(--lh-loose) var(--font-ui);
   color: var(--hub-faint);
 }
 /* Пояснение под схемой шире объяснения пустого состояния: оно читается вместе
    с ней, а не вместо неё, и перенос по словам здесь важнее узкой колонки. */
-.hall-note.is-wide { max-width: none; font-size: var(--t-tiny); text-wrap: pretty; }
+.hall-note.is-wide { max-width: none; font-size: var(--t-small); text-wrap: pretty; }
 
 /* Панель, идущая под другой панелью или под заголовком: отбивка сверху нужна
    ей самой, а не месту, где её поставили. */
@@ -866,8 +943,9 @@ button.hall-panel-row:focus-visible { outline: 1px solid var(--ember); outline-o
   align-items: center;
   gap: var(--s-4);
   padding: var(--s-4) var(--s-6);
-  border: 1px solid var(--ember-line-soft);
-  background: var(--ember-wash);
+  border: 1px solid color-mix(in srgb, var(--wound) 30%, transparent);
+  border-radius: var(--r-1);
+  background: var(--wound-wash);
 }
 /* Внутри очереди полоса стоит над списком и рамку слева, справа и сверху делит
    с панелью: своя читалась бы как вторая коробка внутри первой. */
@@ -881,8 +959,8 @@ button.hall-panel-row:focus-visible { outline: 1px solid var(--ember); outline-o
 .hall-strip.is-quiet { border-color: var(--hub-border); background: var(--hub-panel); }
 .hall-strip.is-quiet > span { color: var(--hub-muted); }
 /* Значок состояния — элемент, а не класс: `hall-mark` уже занят ромбом рейки. */
-.hall-strip > i { flex: none; width: 5px; height: 5px; background: var(--ember); }
-.hall-strip.is-quiet > i { background: var(--hub-muted-2); }
+.hall-strip > i { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--wound); }
+.hall-strip.is-quiet > i { background: var(--hub-muted); }
 
 .session-keep-undo {
   flex-wrap: wrap;
@@ -919,7 +997,7 @@ button.hall-panel-row:focus-visible { outline: 1px solid var(--ember); outline-o
 }
 .session-run-pending {
   color: var(--ember);
-  font: var(--fw-normal) var(--t-micro) / 1 var(--font-ui);
+  font: var(--fw-normal) var(--t-small) / 1 var(--font-ui);
   font-style: normal;
 }
 .session-keep-undo-actions {
@@ -935,9 +1013,7 @@ button.hall-panel-row:focus-visible { outline: 1px solid var(--ember); outline-o
 .session-run-files-label {
   flex: none;
   color: var(--hub-muted);
-  font: var(--fw-medium) var(--t-micro) / 1 var(--font-ui);
-  letter-spacing: .04em;
-  text-transform: uppercase;
+  font: var(--fw-medium) var(--t-small) / 1 var(--font-ui);
 }
 .session-run-files-list {
   display: flex;
@@ -986,8 +1062,8 @@ button.hall-panel-row:focus-visible { outline: 1px solid var(--ember); outline-o
   text-align: left;
   cursor: pointer;
 }
-.hall-queue-item:hover { background: rgba(255, 255, 255, .03); }
-.hall-queue-item.is-active { border-left-color: var(--ember); background: var(--ember-wash); }
+.hall-queue-item:hover { background: color-mix(in srgb, var(--hub-text) 4%, transparent); }
+.hall-queue-item.is-active { border-left-color: var(--ember); background: var(--hub-selected); }
 .hall-queue-item .title {
   font: var(--fw-medium) var(--t-body) / 1.35 var(--font-ui);
   color: var(--hub-text);
@@ -1001,7 +1077,7 @@ button.hall-panel-row:focus-visible { outline: 1px solid var(--ember); outline-o
   font: var(--fw-medium) var(--t-small) / 1.35 var(--font-mono);
   overflow-wrap: anywhere;
 }
-.hall-queue-item .who { font: var(--fw-normal) var(--t-micro) / 1 var(--font-mono); color: var(--hub-faint-2); }
+.hall-queue-item .who { font: var(--fw-normal) var(--t-small) / 1 var(--font-ui); color: var(--hub-faint-2); }
 
 /* Подсказки клавиш: экран рассчитан на клавиатуру, мышь здесь — регресс.
    Жили отдельной полосой под очередью и повторяли A и R, уже стоящие на
@@ -1015,11 +1091,11 @@ button.hall-panel-row:focus-visible { outline: 1px solid var(--ember); outline-o
 .hall-verdict-keys kbd {
   padding: var(--s-2) var(--s-3);
   border: 1px solid var(--hub-border-loud);
-  font: var(--fw-semibold) var(--t-micro) / 1 var(--font-mono);
+  font: var(--fw-medium) var(--t-small) / 1 var(--font-mono);
   color: var(--hub-text-3);
 }
 .hall-verdict-keys em {
-  font: var(--fw-normal) var(--t-micro) / 1 var(--font-mono);
+  font: var(--fw-normal) var(--t-small) / 1 var(--font-ui);
   font-style: normal;
   color: var(--hub-faint-2);
 }
@@ -1035,23 +1111,23 @@ button.hall-panel-row:focus-visible { outline: 1px solid var(--ember); outline-o
   flex-direction: column;
   gap: var(--s-4);
   padding: var(--s-6);
-  border: 1px solid rgba(255, 255, 255, .09);
+  border: 1px solid var(--hub-border);
+  border-radius: var(--r-2);
   background: var(--hub-raised);
 }
 .hall-facet dt {
-  font: var(--fw-medium) var(--t-micro) / 1 var(--font-mono);
-  letter-spacing: .16em;
+  font: var(--fw-medium) var(--t-small) / 1 var(--font-ui);
   color: var(--hub-faint-2);
 }
 .hall-facet dd {
   margin: 0;
-  font: var(--fw-normal) var(--t-small) / 1.6 var(--font-mono);
+  font: var(--fw-normal) var(--t-small) / 1.6 var(--font-ui);
   color: var(--hub-text-3);
   text-wrap: pretty;
 }
-.hall-facet.is-risk { border-color: rgba(255, 92, 71, .3); background: rgba(255, 92, 71, .05); }
-.hall-facet.is-risk dt { color: var(--ember-light); }
-.hall-facet.is-risk dd { color: var(--ember-prose); }
+.hall-facet.is-risk { border-color: color-mix(in srgb, var(--caution) 35%, transparent); background: var(--caution-wash); }
+.hall-facet.is-risk dt { color: var(--caution); }
+.hall-facet.is-risk dd { color: var(--hub-text-2); }
 
 /* Факты осмотра — таблица «ключ → значение», значение моноширинное. */
 .hall-facts { display: grid; }
@@ -1064,8 +1140,7 @@ button.hall-panel-row:focus-visible { outline: 1px solid var(--ember); outline-o
   border-bottom: 1px solid var(--hub-border-soft);
 }
 .hall-fact dt {
-  font: var(--fw-medium) var(--t-micro) / 1.4 var(--font-mono);
-  letter-spacing: .1em;
+  font: var(--fw-medium) var(--t-small) / 1.4 var(--font-ui);
   color: var(--hub-faint-2);
 }
 .hall-fact dd {
@@ -1075,7 +1150,7 @@ button.hall-panel-row:focus-visible { outline: 1px solid var(--ember); outline-o
   overflow-wrap: anywhere;
 }
 .hall-fact dd.is-code { color: var(--hub-text-2); }
-.hall-fact dd.is-danger { color: var(--ember-light); }
+.hall-fact dd.is-danger { color: var(--wound); }
 
 /* ── Диф ──────────────────────────────────────────────────────────────────── */
 .hall-diff { padding: var(--s-5) 0; overflow-x: auto; }
@@ -1092,10 +1167,10 @@ button.hall-panel-row:focus-visible { outline: 1px solid var(--ember); outline-o
   font: var(--fw-normal) var(--t-small) / 1.7 var(--font-mono);
   color: var(--hub-muted);
 }
-.hall-diff-row.is-add { background: var(--ember-wash); }
-.hall-diff-row.is-add .l { color: var(--ember-code); }
-.hall-diff-row.is-del { background: rgba(255, 255, 255, .04); }
-.hall-diff-row.is-del .l { color: var(--hub-muted-2); }
+.hall-diff-row.is-add { background: var(--vital-wash); }
+.hall-diff-row.is-add .l { color: var(--vital); }
+.hall-diff-row.is-del { background: var(--wound-wash); }
+.hall-diff-row.is-del .l { color: var(--wound); }
 
 /* Панель решения липнет к низу: действие всегда достижимо без прокрутки. */
 .hall-verdict {
@@ -1112,7 +1187,7 @@ button.hall-panel-row:focus-visible { outline: 1px solid var(--ember); outline-o
   background: var(--hub-panel);
 }
 .hall-verdict small {
-  font: var(--fw-normal) var(--t-micro) / 1.4 var(--font-mono);
+  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui);
   color: var(--hub-faint-3);
 }
 
@@ -1124,16 +1199,16 @@ button.hall-panel-row:focus-visible { outline: 1px solid var(--ember); outline-o
   flex-direction: column;
   gap: var(--s-3);
   padding: var(--s-4) var(--s-5);
-  border: 1px solid rgba(255, 92, 71, .3);
-  background: rgba(255, 92, 71, .05);
+  border: 1px solid color-mix(in srgb, var(--caution) 35%, transparent);
+  border-radius: var(--r-1);
+  background: var(--caution-wash);
 }
 .hall-proof b {
-  font: var(--fw-medium) var(--t-micro) / 1 var(--font-mono);
-  letter-spacing: .14em;
-  color: var(--ember-light);
+  font: var(--fw-semibold) var(--t-small) / 1.3 var(--font-ui);
+  color: var(--caution);
 }
-.hall-proof span { font: var(--fw-normal) var(--t-tiny) / 1.6 var(--font-mono); color: var(--hub-text-2); }
-.hall-proof.is-verified { border-color: rgba(91, 203, 138, .35); background: rgba(91, 203, 138, .06); }
+.hall-proof span { font: var(--fw-normal) var(--t-small) / 1.6 var(--font-ui); color: var(--hub-text-2); }
+.hall-proof.is-verified { border-color: color-mix(in srgb, var(--vital) 35%, transparent); background: var(--vital-wash); }
 .hall-proof.is-verified b { color: var(--vital); }
 
 /* ── Граф наборов изменений ───────────────────────────────────────────────── */
@@ -1150,12 +1225,13 @@ button.hall-panel-row:focus-visible { outline: 1px solid var(--ember); outline-o
   min-width: 0;
   padding: var(--s-5);
   border: 1px solid var(--hub-border-strong);
+  border-radius: var(--r-1);
   background: var(--hub-panel);
 }
 .hall-node.is-pending { border-color: var(--ember-line); background: var(--ember-wash); }
-.hall-node .id { font: var(--fw-medium) var(--t-micro) / 1 var(--font-mono); color: var(--hub-faint-2); }
+.hall-node .id { font: var(--fw-medium) var(--t-small) / 1 var(--font-ui); color: var(--hub-faint-2); }
 .hall-node .name { font: var(--fw-medium) var(--t-body) / 1.2 var(--font-ui); }
-.hall-node .hall-meta { font: var(--fw-normal) var(--t-micro) / 1.3 var(--font-mono); color: var(--hub-faint); }
+.hall-node .hall-meta { font: var(--fw-normal) var(--t-small) / 1.3 var(--font-ui); color: var(--hub-faint); }
 .hall-link { width: 18px; height: 1px; flex: none; background: var(--hub-border-loud); }
 
 /* ── Сетки страниц ────────────────────────────────────────────────────────── */
@@ -1170,13 +1246,14 @@ button.hall-panel-row:focus-visible { outline: 1px solid var(--ember); outline-o
   gap: var(--s-4);
   padding: var(--s-6);
   border: 1px solid var(--hub-border);
+  border-radius: var(--r-2);
   background: var(--hub-raised);
 }
 .hall-card:hover { border-color: var(--hub-border-strong); }
-.hall-card .glyph { color: var(--ember); font: var(--fw-medium) var(--t-base) / 1 var(--font-mono); }
+.hall-card .glyph { color: var(--hub-muted); font: var(--fw-medium) var(--t-base) / 1 var(--font-ui); }
 .hall-card .name { font: var(--fw-semibold) var(--t-base) / 1 var(--font-ui); }
-.hall-card .desc { font: var(--fw-normal) var(--t-tiny) / 1.5 var(--font-mono); color: var(--hub-faint); text-wrap: pretty; }
-.hall-card .touched { font: var(--fw-normal) var(--t-micro) / 1 var(--font-mono); color: var(--hub-faint-3); }
+.hall-card .desc { font: var(--fw-normal) var(--t-small) / 1.5 var(--font-ui); color: var(--hub-faint); text-wrap: pretty; }
+.hall-card .touched { font: var(--fw-normal) var(--t-small) / 1 var(--font-ui); color: var(--hub-faint-3); }
 
 /* ── Заголовки экранов ────────────────────────────────────────────────────── */
 .hall-title { display: flex; flex-direction: column; gap: var(--s-3); min-width: 0; }
@@ -1189,8 +1266,7 @@ button.hall-panel-row:focus-visible { outline: 1px solid var(--ember); outline-o
    Цвет у обоих наборов и так один: --text-faint в широком регистре — это
    --hub-faint. */
 .hall-title .kicker {
-  font: var(--fw-semibold) var(--t-micro) / 1 var(--font-mono);
-  letter-spacing: var(--tracking-label);
+  font: var(--fw-semibold) var(--t-small) / 1 var(--font-ui);
   color: var(--hub-faint);
 }
 .hall-title h1 {
@@ -1214,13 +1290,15 @@ button.hall-panel-row:focus-visible { outline: 1px solid var(--ember); outline-o
   .hall-wordmark,
   .hall-rail-foot small,
   .hall-nav i,
-  .hall-nav span { display: none; }
+  .hall-nav span,
+  .hall-rail-back span { display: none; }
+  .hall-rail-back { justify-content: center; margin: 0 var(--s-2); padding: 0; }
   .hall-nav .hall-glyph {
     display: block;
-    font: var(--fw-semibold) var(--t-small) / 1 var(--font-mono);
+    font: var(--fw-semibold) var(--t-small) / 1 var(--font-ui);
   }
   .hall-nav button { justify-content: center; gap: var(--s-2); padding: var(--s-4) 0; }
-  .hall-nav button.is-active .hall-glyph { color: var(--ember); }
+  .hall-nav button.is-active .hall-glyph { color: var(--hub-text); }
   .hall-split { grid-template-columns: minmax(0, 1fr); }
 }
 
@@ -1251,8 +1329,7 @@ button.hall-panel-row:focus-visible { outline: 1px solid var(--ember); outline-o
   border-bottom: 1px solid var(--hub-border);
 }
 .hall-quest-aside > section > header b {
-  font: var(--fw-medium) var(--t-tiny) / 1 var(--font-mono);
-  letter-spacing: .16em;
+  font: var(--fw-medium) var(--t-small) / 1 var(--font-ui);
   color: var(--hub-muted-2);
 }
 /* Содержимое секции боковой панели: отбивка секции и вертикальный ритм в
@@ -1293,10 +1370,10 @@ button.hall-panel-row:focus-visible { outline: 1px solid var(--ember); outline-o
   border: 1px solid var(--hub-border);
   border-radius: var(--r-1);
   color: var(--hub-faint-2);
-  font: var(--fw-medium) var(--t-micro) / 1.4 var(--font-mono);
+  font: var(--fw-medium) var(--t-small) / 1.4 var(--font-mono);
 }
 .hall-hire-actions { display: flex; flex-wrap: wrap; gap: var(--s-3); margin-top: var(--s-5); }
-.hall-hire-note { display: block; margin-top: var(--s-3); color: var(--hub-faint-2); font-size: var(--t-micro); }
+.hall-hire-note { display: block; margin-top: var(--s-3); color: var(--hub-faint-2); font-size: var(--t-small); }
 
 /* ── Карточка найма ───────────────────────────────────────────────────────────
    Наблюдатель ростера показывает всю картину выбора: кто уже в наряде, кому не
@@ -1317,7 +1394,7 @@ button.hall-panel-row:focus-visible { outline: 1px solid var(--ember); outline-o
 .hall-hire-who i {
   font-style: normal;
   color: var(--hub-faint-2);
-  font: var(--fw-medium) var(--t-micro) / 1.4 var(--font-mono);
+  font: var(--fw-medium) var(--t-small) / 1.4 var(--font-ui);
 }
 .hall-hire-candidate.is-blocked .hall-hire-who i { color: var(--caution); }
 .hall-hire-candidate.is-degraded .hall-hire-who i { color: var(--hub-muted); }
@@ -1325,7 +1402,7 @@ button.hall-panel-row:focus-visible { outline: 1px solid var(--ember); outline-o
 .hall-hire-blocking li { margin-top: var(--s-2); }
 .hall-hire-form { margin-top: var(--s-4); display: grid; gap: var(--s-3); }
 .hall-hire-form label { display: grid; gap: var(--s-2); }
-.hall-hire-form label > span { color: var(--hub-faint-2); font-size: var(--t-micro); }
+.hall-hire-form label > span { color: var(--hub-faint-2); font-size: var(--t-small); }
 .hall-hire-form input,
 .hall-hire-form textarea {
   width: 100%;
@@ -1367,11 +1444,11 @@ button.hall-panel-row:focus-visible { outline: 1px solid var(--ember); outline-o
   border: 1px solid var(--hub-border-strong);
   background: var(--hub-panel);
   color: var(--hub-text);
-  font: var(--fw-normal) var(--t-small) / var(--lh-base) var(--font-mono);
+  font: var(--fw-normal) var(--t-small) / var(--lh-base) var(--font-ui);
 }
 .proposal-editor textarea { resize: vertical; }
 .proposal-editor fieldset { margin: 0; padding: var(--s-4); border: 1px solid var(--hub-border); }
-.proposal-editor fieldset > small { color: var(--hub-faint-2); font-size: var(--t-micro); }
+.proposal-editor fieldset > small { color: var(--hub-faint-2); font-size: var(--t-small); }
 .proposal-team-grid label { align-items: flex-start; }
 .proposal-team-grid label > span { display: flex; flex-direction: column; min-width: 0; }
 .proposal-team-grid label small { color: var(--hub-faint-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1411,17 +1488,16 @@ button.hall-panel-row:focus-visible { outline: 1px solid var(--ember); outline-o
   text-align: left;
   cursor: pointer;
 }
-.hall-quest-head:hover { background: rgba(255, 255, 255, .03); }
+.hall-quest-head:hover { background: color-mix(in srgb, var(--hub-text) 4%, transparent); }
 .hall-quest-head b { min-width: 0; color: var(--hub-text-2); font: var(--fw-medium) var(--t-body) / 1.3 var(--font-ui); }
 .hall-quest-head small { color: var(--hub-faint-2); font-size: var(--t-small); }
 .hall-quest-status {
   color: var(--hub-faint-2);
-  font: var(--fw-semibold) var(--t-micro) / 1 var(--font-mono);
-  letter-spacing: .1em;
+  font: var(--fw-semibold) var(--t-small) / 1 var(--font-ui);
 }
 .hall-quest-status.is-active { color: var(--ember); }
 .hall-quest-status.is-completed { color: var(--vital); }
-.hall-quest-row.is-open { background: rgba(255, 255, 255, .02); }
+.hall-quest-row.is-open { background: color-mix(in srgb, var(--hub-text) 3%, transparent); }
 
 /* Работа по квесту: прогоны и изменения рядом со сверкой обещаний.
    Раскрытый квест отвечал на «выполнено ли обещанное», но не на «как идёт
@@ -1429,10 +1505,8 @@ button.hall-panel-row:focus-visible { outline: 1px solid var(--ember); outline-o
 .hall-quest-work { display: grid; gap: var(--s-5); padding: 0 var(--s-5) var(--s-5); }
 .hall-quest-block { display: grid; gap: var(--s-3); }
 .hall-quest-block-label {
-  color: var(--hub-faint);
-  font: var(--fw-semibold) var(--t-micro) / 1 var(--font-mono);
-  letter-spacing: .12em;
-  text-transform: uppercase;
+  color: var(--hub-muted);
+  font: var(--fw-medium) var(--t-small) / 1.3 var(--font-ui);
 }
 .hall-quest-line {
   display: grid;
@@ -1442,9 +1516,9 @@ button.hall-panel-row:focus-visible { outline: 1px solid var(--ember); outline-o
   padding: var(--s-3) 0;
   border-top: 1px solid var(--hub-border);
 }
-.hall-quest-line b { color: var(--hub-faint-2); font: var(--fw-semibold) var(--t-micro) / 1.3 var(--font-mono); letter-spacing: .08em; }
+.hall-quest-line b { color: var(--hub-faint-2); font: var(--fw-semibold) var(--t-small) / 1.3 var(--font-ui); }
 .hall-quest-line span { min-width: 0; color: var(--hub-text-3); font-size: var(--t-small); }
-.hall-quest-line small { color: var(--hub-faint-2); font-size: var(--t-micro); }
+.hall-quest-line small { color: var(--hub-faint-2); font-size: var(--t-small); }
 .hall-quest-empty { color: var(--hub-faint-2); font-size: var(--t-small); }
 .hall-quest-work .hall-btn { justify-self: start; margin-top: var(--s-3); }
 
@@ -1457,18 +1531,20 @@ button.hall-panel-row:focus-visible { outline: 1px solid var(--ember); outline-o
   justify-content: space-between;
   gap: var(--s-4);
   padding: var(--s-4) var(--s-5);
-  border: 1px solid var(--ember-line);
-  background: var(--ember-wash);
+  border: 1px solid color-mix(in srgb, var(--caution) 35%, transparent);
+  border-radius: var(--r-1);
+  background: var(--caution-wash);
 }
-.hall-quest-blocker span { color: var(--ember-light); font-size: var(--t-small); }
+.hall-quest-blocker span { color: var(--hub-text-2); font-size: var(--t-small); }
 
 /* Решение без пути разрешения: кнопки заперты, причина названа. Живая кнопка,
    молча не делающая ничего, читается как поломка продукта. */
 .hall-verdict-dead {
   padding: var(--s-4);
-  border: 1px solid var(--ember-line);
-  background: var(--ember-wash);
-  color: var(--ember-light);
+  border: 1px solid color-mix(in srgb, var(--wound) 30%, transparent);
+  border-radius: var(--r-1);
+  background: var(--wound-wash);
+  color: var(--hub-text-2);
   font-size: var(--t-small);
   line-height: var(--lh-base);
 }

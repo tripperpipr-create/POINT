@@ -695,10 +695,10 @@ try {
         if (value) hubs.push(value);
       }
       const largest = hubs.sort((left, right) => right.width - left.width)[0];
-      if (!largest || largest.width < 700 || largest.agentCount !== expectedHubAgentCount || /Открываем доску квестов|Гильдия отдыхает|Пробуждаем локальное ядро/.test(largest.text)) return null;
+      if (!largest || largest.width < 700 || largest.agentCount !== expectedHubAgentCount || /Открываем доску квестов|Ядро остановлено|Запускаем локальное ядро/.test(largest.text)) return null;
       return largest;
     }, 45000);
-    if (!/Point Agent Hub|ГИЛЬДИЯ POINT|МАСТЕР/.test(hub.text) || hub.horizontalOverflow > 1) {
+    if (!/Point Agent Hub|Гильдия Point|Мастер/.test(hub.text) || hub.horizontalOverflow > 1) {
       throw new Error(`Point Agent Hub content is incomplete: ${JSON.stringify(hub)}`);
     }
     if (hub.onboarding && (hub.onboardingNextStep !== 'companion-choose'

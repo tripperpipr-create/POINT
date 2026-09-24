@@ -27,8 +27,7 @@
    определений не видит и продолжает работать с темой пользователя. */
 body[data-layout="wide"],
 body[data-layout="statistics"],
-body[data-layout="docker"],
-body[data-layout="wide"] .is-chat {
+body[data-layout="docker"] {
   --vscode-font-family: var(--font-ui);
   --vscode-editor-font-family: var(--font-mono);
 
@@ -64,11 +63,11 @@ body[data-layout="wide"] .is-chat {
   --vscode-scrollbarSlider-background: var(--hub-border-strong);
   --vscode-input-foreground: var(--hub-text);
 
-  --vscode-focusBorder: var(--ember);
+  --vscode-focusBorder: var(--ui-focus);
   --vscode-textLink-foreground: var(--ember-light);
   --vscode-button-background: var(--ember);
   --vscode-button-hoverBackground: var(--ember-hover);
-  --vscode-button-foreground: var(--hub-panel);
+  --vscode-button-foreground: var(--ember-fg);
   --vscode-button-secondaryBackground: transparent;
   --vscode-button-secondaryHoverBackground: transparent;
   --vscode-button-secondaryForeground: var(--hub-text-3);
@@ -91,11 +90,12 @@ body[data-layout="wide"] .is-chat {
   --vscode-charts-blue: var(--hub-muted);
   --vscode-charts-purple: var(--hub-text-4);
 }
-/* Разговор с Мастером живёт в теме IDE (tokens.css, `.is-chat`): его
-   ступени --hub-* уже указывают на тему, и подмена выше, повторённая на его
-   корне, возвращает старым правилам её же цвета. Поле, код и кнопка берут
-   собственные цвета темы — их лесенка Хаба не выражает. */
-body[data-layout="wide"] .is-chat {
+/* Окно Хаба живёт в теме IDE (tokens.css): его ступени --hub-* уже указывают
+   на тему, и подмена выше возвращает старым правилам её же цвета. Поле, код и
+   кнопка берут собственные цвета темы — их лесенка Хаба не выражает. */
+body[data-layout="wide"],
+body[data-layout="statistics"],
+body[data-layout="docker"] {
   --vscode-input-background: var(--ui-input);
   --vscode-input-border: var(--ui-input-border);
   --vscode-textCodeBlock-background: var(--ui-code);
@@ -118,6 +118,9 @@ body[data-layout="wide"] {
   --mana: var(--hub-muted-2);
   --arcane: var(--hub-text-4);
 }
+/* Исключение — разговор: там ссылка темы означает «идёт сейчас» у живого следа
+   работы исполнителя (86-agent-work.css), то есть несёт состояние, а не тип. */
+body[data-layout="wide"] .is-chat { --mana: var(--ui-link); }
 /* Те же две роли, вписанные литералами до появления токенов. */
 body[data-layout="wide"] .composer-meta > span,
 body[data-layout="wide"] .ability-chips span,
@@ -174,19 +177,9 @@ body[data-layout="wide"] .settings {
   padding: var(--s-6) var(--s-7) var(--s-8);
 }
 
-/* Три колонки ростера ломались на узком окне: медиазапросы считали ширину
-   окна, а колонкам достаётся ширина за вычетом рейки — на 860px запрошенный
-   минимум 660px не помещался в 624px, и правая колонка уезжала за край.
-   Пороги подняты на ширину рейки, а нижняя граница колонок снята: сжатие
-   лучше переполнения. */
-body[data-layout="wide"] .guild-layout {
-  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.45fr) minmax(0, .85fr);
-}
-@media (max-width: 1260px) {
-  body[data-layout="wide"] .guild-layout {
-    grid-template-columns: minmax(0, .9fr) minmax(0, 1.3fr);
-  }
-}
+/* Колонки ростера: список и лист агента. Медиазапрос считает ширину окна, а
+   колонкам достаётся ширина за вычетом рейки, поэтому порог поднят на её
+   ширину, а нижняя граница листа снята: сжатие лучше переполнения. */
 @media (max-width: 980px) {
   body[data-layout="wide"] .guild-layout {
     grid-template-columns: minmax(0, 1fr);
@@ -236,8 +229,7 @@ body[data-layout="wide"] .hub-page-head em,
 body[data-layout="wide"] .changes-heading em {
   align-self: center;
   color: var(--hub-muted-2);
-  font: var(--fw-medium) var(--t-small) / 1 var(--font-mono);
-  letter-spacing: var(--tracking-label);
+  font: var(--fw-medium) var(--t-small) / 1 var(--font-ui);
   white-space: nowrap;
 }
 /* Блок чисел справа — «2 всего · 1 на ревью». Числа выключены вправо, подписи
@@ -251,14 +243,12 @@ body[data-layout="wide"] .changes-heading > div + div strong,
 body[data-layout="wide"] .changes-heading > div + div b {
   justify-self: end;
   color: var(--hub-text);
-  font: var(--fw-medium) var(--t-lead) / 1 var(--font-mono);
+  font: var(--fw-medium) var(--t-lead) / 1 var(--font-ui);
 }
 body[data-layout="wide"] .changes-heading > div + div small {
   align-self: center;
   color: var(--hub-muted-2);
-  font: var(--fw-medium) var(--t-micro) / 1 var(--font-mono);
-  letter-spacing: var(--tracking-label);
-  text-transform: uppercase;
+  font: var(--fw-medium) var(--t-small) / 1 var(--font-ui);
 }
 
 /* ── Кнопки: одна семья ────────────────────────────────────────────────────
@@ -276,14 +266,13 @@ body[data-layout="wide"] .composer .preflight-button {
   align-items: center;
   justify-content: center;
   gap: var(--s-3);
-  min-height: var(--hit);
-  padding: var(--s-3) var(--s-6);
+  min-height: var(--control-md);
+  padding: var(--s-2) var(--s-5);
   background: transparent;
-  border: 1px solid var(--hub-border-loud);
-  color: var(--hub-text-3);
-  font: var(--fw-semibold) var(--t-tiny) / 1 var(--font-mono);
-  letter-spacing: .14em;
-  text-transform: uppercase;
+  border: 1px solid var(--hub-border-strong);
+  border-radius: var(--r-1);
+  color: var(--hub-text);
+  font: var(--fw-medium) var(--t-small) / 1.3 var(--font-ui);
   white-space: nowrap;
   /* Кнопка размером с надпись, а не с ячейкой сетки. Растянутая на всю колонку
      «Сохранить» у настройки агента по умолчанию выглядела главным делом
@@ -302,11 +291,11 @@ body[data-layout="wide"] .hall-panel-row .secondary,
 body[data-layout="wide"] .hall-panel-row .danger-button,
 body[data-layout="wide"] .hall-panel-row .small-button {
   padding: var(--s-3) var(--s-5);
-  font-size: var(--t-micro);
-  letter-spacing: .1em;
+  font-size: var(--t-small);
 }
 body[data-layout="wide"] .secondary:hover {
-  border-color: rgba(255, 255, 255, .4);
+  border-color: var(--hub-border-loud);
+  background: var(--hub-selected);
   background: transparent;
 }
 /* `.small-button` здесь намеренно не залит: базовое правило выше уже дало ему
@@ -315,14 +304,14 @@ body[data-layout="wide"] .secondary:hover {
 body[data-layout="wide"] .primary,
 body[data-layout="wide"] .composer .send {
   background: var(--ember);
-  border-color: var(--ember);
-  color: var(--hub-panel);
+  border-color: transparent;
+  color: var(--ember-fg);
 }
 body[data-layout="wide"] .primary:hover,
 body[data-layout="wide"] .composer .send:hover {
   background: var(--ember-hover);
-  border-color: var(--ember-hover);
-  color: var(--hub-panel);
+  border-color: transparent;
+  color: var(--ember-fg);
 }
 /* Разведка — проверка без запуска модели, поэтому она призрачная рядом с
    залитым «Принять квест». */
@@ -333,7 +322,7 @@ body[data-layout="wide"] .composer .preflight-button {
 }
 body[data-layout="wide"] .composer .preflight-button:hover {
   background: transparent;
-  border-color: rgba(255, 255, 255, .4);
+  border-color: var(--hub-border-loud);
 }
 /* Строка исполнителя: селектор, провайдер и переход к карточке — один ряд.
    В сетке на две колонки третий элемент срывался на новую строку, и шестерёнка
@@ -356,7 +345,7 @@ body[data-layout="wide"] .primary:focus-visible,
 body[data-layout="wide"] .secondary:focus-visible,
 body[data-layout="wide"] .danger-button:focus-visible,
 body[data-layout="wide"] .small-button:focus-visible {
-  outline: 1px solid var(--ember);
+  outline: 1px solid var(--ui-focus);
   outline-offset: 2px;
 }
 
@@ -371,10 +360,11 @@ body[data-layout="wide"] button.linkish,
 body[data-layout="wide"] .changeset-files button,
 body[data-layout="wide"] .change-record header button {
   color: var(--hub-text-2);
-  font-family: var(--font-mono);
   text-decoration: none;
   border-bottom: 1px solid var(--hub-border-loud);
 }
+body[data-layout="wide"] .changeset-files button,
+body[data-layout="wide"] .change-record header button { font-family: var(--font-mono); }
 body[data-layout="wide"] button.linkish:hover,
 body[data-layout="wide"] .changeset-files button:hover,
 body[data-layout="wide"] .change-record header button:hover {
@@ -478,9 +468,7 @@ body[data-layout="wide"] .memory-form > h3,
 body[data-layout="wide"] .team-form > h3 {
   margin: 0;
   color: var(--hub-text);
-  font: var(--fw-semibold) var(--t-small) / 1 var(--font-mono);
-  letter-spacing: .18em;
-  text-transform: uppercase;
+  font: var(--fw-semibold) var(--t-small) / 1 var(--font-ui);
 }
 body[data-layout="wide"] .connection-form > button,
 body[data-layout="wide"] .skill-form > button,
@@ -498,9 +486,7 @@ body[data-layout="wide"] .hall-body .settings-grid > label {
   gap: var(--s-3);
   min-width: 0;
   color: var(--hub-muted-2);
-  font: var(--fw-medium) var(--t-micro) / 1.3 var(--font-mono);
-  letter-spacing: var(--tracking-label);
-  text-transform: uppercase;
+  font: var(--fw-medium) var(--t-small) / 1.3 var(--font-ui);
 }
 /* Поле шириной в меру задачи, а не в меру окна: «Название» в 1130px под
    подписью в 60px читается как ошибка вёрстки, потому что ею и является. */
@@ -511,7 +497,7 @@ body[data-layout="wide"] .settings > form > .settings-grid {
 body[data-layout="wide"] .hall-body form label > small,
 body[data-layout="wide"] .hall-body .settings-grid > label > small {
   color: var(--hub-faint-2);
-  font: var(--fw-normal) var(--t-micro) / var(--lh-base) var(--font-ui);
+  font: var(--fw-normal) var(--t-small) / var(--lh-base) var(--font-ui);
   letter-spacing: 0;
   text-transform: none;
 }
@@ -550,10 +536,43 @@ body[data-layout="wide"] fieldset {
 body[data-layout="wide"] fieldset > legend {
   padding: 0;
   color: var(--hub-muted-2);
-  font: var(--fw-medium) var(--t-micro) / 1 var(--font-mono);
-  letter-spacing: var(--tracking-label);
-  text-transform: uppercase;
+  font: var(--fw-medium) var(--t-small) / 1 var(--font-ui);
 }
+
+/* ── Состояние: точка и слово ─────────────────────────────────────────────
+   «Печать» — рамка текущего цвета и повёрнутый квадрат перед прописной меткой —
+   была игровым штампом на каждом статусе, и в списке из пяти квестов пять
+   штампов спорили с названиями. Состояние читается точкой и словом; цвет несёт
+   смысл, а не тип: идёт — ссылка темы (как живой след в разговоре), ждёт
+   человека — предупреждение, готово — успех, сорвалось — ошибка. */
+body[data-layout="wide"] .status {
+  gap: var(--s-3);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: var(--fw-medium) var(--t-small) / 1.3 var(--font-ui);
+  white-space: nowrap;
+}
+body[data-layout="wide"] .status i,
+body[data-layout="wide"] .roster-card .roster-status i {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: currentColor;
+  transform: none;
+}
+body[data-layout="wide"] .status-running { color: var(--ember-light); }
+body[data-layout="wide"] .status-waiting,
+body[data-layout="wide"] .status-waiting_approval,
+body[data-layout="wide"] .status-paused { color: var(--caution); }
+body[data-layout="wide"] .status-completed { color: var(--vital); }
+body[data-layout="wide"] .status-failed { color: var(--wound); }
+body[data-layout="wide"] .status-cancelled,
+body[data-layout="wide"] .status-interrupted,
+body[data-layout="wide"] .status-pending { color: var(--hub-muted); }
+/* Ромб-маркер перед строкой хроники повторял точку статуса в той же строке. */
+body[data-layout="wide"] .quest-row::before { content: none; }
 
 /* ── Карточки ──────────────────────────────────────────────────────────────
    Шапка карточки клеила название со статусом: «Локальный OllamaПОДКЛЮЧЕН».
@@ -580,20 +599,21 @@ body[data-layout="wide"] .changeset-card > header:not(.section-title):has(> span
 body[data-layout="wide"] .hub-card > header:not(.section-title) > span,
 body[data-layout="wide"] .changeset-card > header:not(.section-title) > span,
 body[data-layout="wide"] .change-record > header > span {
-  padding: var(--s-2) var(--s-3);
-  border: 1px solid var(--hub-border-loud);
+  padding: var(--s-1) var(--s-3);
+  border: 1px solid transparent;
+  border-radius: var(--r-1);
+  background: var(--hub-selected);
   color: var(--hub-text-3);
-  font: var(--fw-semibold) var(--t-micro) / 1 var(--font-mono);
-  letter-spacing: var(--tracking-label);
+  font: var(--fw-semibold) var(--t-small) / 1 var(--font-ui);
   white-space: nowrap;
 }
 /* Единственный статус, который зовёт к действию, — «ждёт ревью». */
 body[data-layout="wide"] .changeset-card.status-pending > header > span,
 body[data-layout="wide"] .changeset-card.status-conflict > header > span,
 body[data-layout="wide"] .change-record.status-pending > header > span {
-  border-color: var(--ember-line-loud);
-  background: var(--ember-wash-strong);
-  color: var(--ember-light);
+  border-color: transparent;
+  background: var(--caution-wash);
+  color: var(--caution);
 }
 body[data-layout="wide"] .hub-card > header:not(.section-title) > strong,
 body[data-layout="wide"] .changeset-card > header:not(.section-title) > strong {
@@ -608,8 +628,7 @@ body[data-layout="wide"] .journal-quest > header > div > span {
   display: block;
   margin-bottom: var(--s-2);
   color: var(--hub-muted-2);
-  font: var(--fw-semibold) var(--t-micro) / 1 var(--font-mono);
-  letter-spacing: .13em;
+  font: var(--fw-semibold) var(--t-small) / 1 var(--font-ui);
 }
 /* Название запуска внутри группы было тяжелее и крупнее названия самой группы
    (15px/700 против 15px/600) — вложенный уровень звучал громче объемлющего.
@@ -637,7 +656,7 @@ body[data-layout="wide"] .journal-quest > header small,
 body[data-layout="wide"] .changeset-card > small {
   display: block;
   color: var(--hub-muted);
-  font: var(--fw-normal) var(--t-micro) / var(--lh-base) var(--font-mono);
+  font: var(--fw-normal) var(--t-small) / var(--lh-base) var(--font-ui);
 }
 
 /* Заголовок и пояснение под ним слипались в одну строку — «Обновить схему
@@ -647,20 +666,18 @@ body[data-layout="wide"] .hall-body header strong + small {
   display: block;
   margin-top: var(--s-2);
   color: var(--hub-muted);
-  font: var(--fw-normal) var(--t-micro) / var(--lh-base) var(--font-mono);
+  font: var(--fw-normal) var(--t-small) / var(--lh-base) var(--font-ui);
 }
 /* Свёрнутый блок — не ссылка: бирюза темы оболочки читалась как переход. */
 body[data-layout="wide"] .hall-body summary {
   color: var(--hub-muted);
-  font: var(--fw-medium) var(--t-small) / 1.4 var(--font-mono);
+  font: var(--fw-medium) var(--t-small) / 1.4 var(--font-ui);
 }
 body[data-layout="wide"] .hall-body summary:hover { color: var(--hub-text-2); }
 /* Род записи памяти — метка, а не заголовок карточки. */
 body[data-layout="wide"] .memory-kind-badge {
   color: var(--hub-muted-2);
-  font: var(--fw-medium) var(--t-micro) / 1 var(--font-mono);
-  letter-spacing: var(--tracking-label);
-  text-transform: uppercase;
+  font: var(--fw-medium) var(--t-small) / 1 var(--font-ui);
 }
 
 /* Заголовок секции внутри карточки — служебная метка панели «Чертога», а не
@@ -668,14 +685,11 @@ body[data-layout="wide"] .memory-kind-badge {
 body[data-layout="wide"] .section-title {
   gap: var(--s-4);
   color: var(--hub-muted-2);
-  font: var(--fw-medium) var(--t-tiny) / 1 var(--font-mono);
-  letter-spacing: .18em;
-  text-transform: uppercase;
+  font: var(--fw-medium) var(--t-small) / 1 var(--font-ui);
 }
 body[data-layout="wide"] .section-title em {
   color: var(--hub-faint-3);
-  font: var(--fw-medium) var(--t-micro) / 1 var(--font-mono);
-  letter-spacing: var(--tracking-label);
+  font: var(--fw-medium) var(--t-small) / 1 var(--font-ui);
 }
 body[data-layout="wide"] .changeset-card > footer,
 body[data-layout="wide"] .change-record > footer,
@@ -813,7 +827,7 @@ body[data-layout="wide"] .hub-journal .empty p,
 body[data-layout="wide"] .changes-history .empty p {
   max-width: var(--measure-narrow);
   color: var(--hub-faint);
-  font: var(--fw-normal) var(--t-small) / var(--lh-base) var(--font-mono);
+  font: var(--fw-normal) var(--t-small) / var(--lh-base) var(--font-ui);
 }
 
 /* ── Квесты: доска и брифинг рядом ─────────────────────────────────────────

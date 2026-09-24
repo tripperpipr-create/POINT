@@ -55,7 +55,7 @@ listeners['window:message']({ data: {
   },
 } })
 
-for (const expected of ['СОСТОЯНИЕ СИСТЕМЫ', 'ЗАБЛОКИРОВАНО', 'Digest sandbox image не совпадает с policy', 'Следующее безопасное действие', 'API 1.47', '700 MB свободно', 'Создать проверенный backup', 'Восстановить из backup']) {
+for (const expected of ['Состояние системы', 'Заблокировано', 'Digest sandbox image не совпадает с policy', 'Следующее безопасное действие', 'API 1.47', '700 MB свободно', 'Создать проверенный backup', 'Восстановить из backup']) {
   if (!root.innerHTML.includes(expected)) throw new Error(`System health omitted ${expected}`)
 }
 

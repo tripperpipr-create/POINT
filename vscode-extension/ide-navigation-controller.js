@@ -871,7 +871,7 @@ function createIdeNavigationController(dependencies) {
       // экрана.
       await vscode.window.showTextDocument(doc, { preview: true, viewColumn: vscode.ViewColumn.Active })
     } catch (error) {
-      await vscode.window.showWarningMessage(`Хроника ядра: ${error instanceof Error ? error.message : String(error)}`)
+      await vscode.window.showWarningMessage(`Журнал ядра: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
 

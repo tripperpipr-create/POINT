@@ -1,0 +1,595 @@
+/* Лента разговора с Мастером.
+   ==========================================================================
+   Единственный слой, который оформляет реплики, подвал хода, путь к ответу,
+   живой след, поиск и разметку ответа. Раньше эти же правила жили в пяти
+   слоях сразу (05, 06, 07-quiet, 45, 86) и спорили весом селекторов: правка
+   в одном месте молча проигрывала другому. Всё, что относится к ленте,
+   теперь здесь; соседние слои ленту не трогают.
+
+   Регистр — редактор, а не чертёж: цвета темы IDE (ui/tokens.css, `.is-chat`),
+   один акцент, говорящего называет форма реплики, а не подпись. */
+
+.hall-dialogue {
+  /* Мера колонки: ~100 знаков Inter 13px. Шире строка читается логом. */
+  --hall-read-col: 780px;
+  --hall-who-col: 0px;
+  --hall-msg-indent: 0px;
+}
+
+/* —— Каркас ленты —— */
+.hall-dialogue .hall-thread {
+  gap: var(--s-6);
+  padding-top: var(--s-6);
+  scrollbar-gutter: stable both-edges;
+}
+.hall-dialogue .hall-thread > * {
+  width: 100%;
+  max-width: var(--hall-read-col);
+  margin-inline: auto;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+/* Разговор растёт снизу: свободное место забирает первый узел. `auto` не
+   мешает переполнению — когда места нет, он ничего и не занимает. */
+.hall-dialogue .hall-thread > *:first-child { margin-top: auto; }
+
+/* Скрыто для глаза, доступно читалке экрана. */
+.hall-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.hall-icon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
+}
+.hall-icon.is-up { transform: rotate(180deg); }
+
+/* —— Ход и реплика —— */
+.hall-dialogue .hall-turn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.hall-dialogue .hall-msg { display: block; }
+.hall-dialogue .hall-msg .body {
+  min-width: 0;
+  font: var(--fw-normal) var(--t-base) / 1.6 var(--font-ui);
+  color: var(--hub-text);
+  overflow-wrap: anywhere;
+}
+.hall-dialogue .hall-msg .body.is-muted { color: var(--hub-muted); }
+.hall-dialogue .hall-msg .body > :first-child { margin-top: 0; }
+.hall-dialogue .hall-msg .body > :last-child { margin-bottom: 0; }
+
+/* Своя реплика — плашка во всю колонку; ответ — текст без рамки. Две формы
+   и есть подпись: кто говорит, видно без чтения имени. */
+.hall-dialogue .hall-msg.is-mine .body {
+  padding: var(--s-4) var(--s-5);
+  border: 1px solid var(--hub-border-soft);
+  border-radius: var(--r-2);
+  background: var(--hub-raised);
+}
+.hall-dialogue .hall-msg.is-pending .body { opacity: .72; }
+.hall-dialogue .hall-msg-waiting .body {
+  font-size: var(--t-body);
+  color: var(--hub-muted);
+}
+
+/* Разметка ответа. Текст модели проходит через разбор markdown
+   (companion-markdown.js); блоки кода оформляет 45-hub-overhaul.css вместе с
+   их кнопками, здесь — только голый `pre`. */
+.hall-dialogue .hall-msg .body p { margin-block: var(--s-4); }
+.hall-dialogue .hall-msg .body ul,
+.hall-dialogue .hall-msg .body ol {
+  margin-block: var(--s-4);
+  padding-left: var(--s-6);
+}
+.hall-dialogue .hall-msg .body li { margin-block: var(--s-2); }
+.hall-dialogue .hall-msg .body li::marker { color: var(--hub-muted); }
+.hall-dialogue .hall-msg .body h1,
+.hall-dialogue .hall-msg .body h2,
+.hall-dialogue .hall-msg .body h3,
+.hall-dialogue .hall-msg .body h4 {
+  margin: var(--s-6) 0 var(--s-3);
+  font: var(--fw-semibold) var(--t-base) / 1.4 var(--font-ui);
+  color: var(--hub-text);
+}
+.hall-dialogue .hall-msg .body h1 { font-size: var(--t-lead); }
+.hall-dialogue .hall-msg .body a { color: var(--ember-light); }
+.hall-dialogue .hall-msg .body strong { font-weight: var(--fw-semibold); }
+.hall-dialogue .hall-msg .body :not(pre) > code {
+  padding: 0 var(--s-2);
+  border-radius: var(--r-1);
+  background: var(--hub-selected);
+  font: var(--fw-normal) var(--t-body) / 1.5 var(--font-mono);
+}
+.hall-dialogue .hall-msg .body > pre {
+  max-width: 100%;
+  max-height: 320px;
+  overflow: auto;
+  padding: var(--s-4) var(--s-5);
+  border: 1px solid var(--hub-border-soft);
+  border-radius: var(--r-2);
+  background: var(--vscode-textCodeBlock-background, var(--hub-raised));
+  font: var(--fw-normal) var(--t-body) / 1.5 var(--font-mono);
+}
+.hall-dialogue .hall-msg .body table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: var(--t-body);
+}
+.hall-dialogue .hall-msg .body th,
+.hall-dialogue .hall-msg .body td {
+  padding: var(--s-2) var(--s-4);
+  border: 1px solid var(--hub-border);
+  text-align: left;
+}
+.hall-dialogue .hall-msg .body th { font-weight: var(--fw-semibold); background: var(--hub-raised); }
+.hall-dialogue .hall-msg .body blockquote {
+  margin: var(--s-4) 0;
+  padding-left: var(--s-5);
+  border-left: 2px solid var(--hub-border-loud);
+  color: var(--hub-muted);
+}
+.hall-dialogue .hall-msg .body hr {
+  margin: var(--s-6) 0;
+  border: 0;
+  border-top: 1px solid var(--hub-border);
+}
+
+/* —— Подвал хода: кто ответил, когда, что с этим сделать ——
+   Проявляется по наведению и фокусу: шесть постоянно видимых действий под
+   каждым ответом глаз перестаёт замечать ровно тогда, когда они нужны.
+   Остаются видимыми отметка оценки и откат на движок — прятать их нечестно. */
+.hall-dialogue .hall-turn-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-4);
+  min-height: var(--control-sm);
+  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui);
+  color: var(--hub-muted);
+}
+.hall-dialogue .is-user-turn > .hall-turn-foot { justify-content: flex-end; }
+.hall-dialogue .hall-turn-foot > :not(.is-fallback):not(.is-marked) {
+  opacity: 0;
+  transition: opacity var(--motion-base) var(--ease);
+}
+.hall-dialogue .hall-turn:hover > .hall-turn-foot > *,
+.hall-dialogue .hall-turn:focus-within > .hall-turn-foot > * { opacity: 1; }
+@media (hover: none) {
+  .hall-dialogue .hall-turn-foot > * { opacity: 1; }
+}
+
+.hall-dialogue .hall-msg-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  margin: 0;
+  padding: 0;
+}
+.hall-dialogue .hall-msg-tools > button,
+.hall-dialogue .hall-icon-btn {
+  display: inline-grid;
+  place-items: center;
+  width: var(--control-sm);
+  height: var(--control-sm);
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-1);
+  background: transparent;
+  color: var(--hub-muted);
+  cursor: pointer;
+}
+.hall-dialogue .hall-msg-tools > button:hover,
+.hall-dialogue .hall-msg-tools > button:focus-visible,
+.hall-dialogue .hall-icon-btn:hover,
+.hall-dialogue .hall-icon-btn:focus-visible {
+  background: var(--hub-selected);
+  color: var(--hub-text);
+}
+.hall-dialogue .hall-msg-tools > button.is-on {
+  background: var(--ember-wash);
+  color: var(--ember-light);
+}
+
+.hall-dialogue .hall-turn-stamp,
+.hall-dialogue .hall-turn-time {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font: var(--fw-normal) var(--t-small) / 1 var(--font-ui);
+  color: var(--hub-muted);
+  font-variant-numeric: tabular-nums;
+}
+.hall-dialogue .hall-turn-time .hall-icon { width: 12px; height: 12px; }
+
+/* Модель, которая ответила, — тихая метка; откат на движок Point — строка
+   предупреждения с выходом из него. */
+.hall-dialogue .hall-answer-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin: 0;
+  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-mono);
+  color: var(--hub-muted);
+}
+.hall-dialogue .hall-answer-badge.is-fallback {
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  padding: var(--s-3) var(--s-4);
+  border-left: 2px solid var(--caution);
+  border-radius: var(--r-1);
+  background: var(--caution-wash);
+  font-family: var(--font-ui);
+}
+.hall-dialogue .hall-answer-badge.is-fallback > .hall-icon { color: var(--caution); }
+.hall-dialogue .hall-answer-badge.is-fallback > b {
+  font-weight: var(--fw-medium);
+  color: var(--hub-text);
+}
+.hall-dialogue .hall-answer-badge.is-fallback > span { min-width: 0; overflow-wrap: anywhere; }
+.hall-dialogue .hall-answer-badge .hall-chip {
+  min-height: var(--control-sm);
+  padding: 0 var(--s-4);
+  border: 1px solid var(--hub-border-strong);
+  border-radius: var(--r-1);
+  background: transparent;
+  font: var(--fw-medium) var(--t-small) / 1 var(--font-ui);
+  color: var(--hub-text);
+  cursor: pointer;
+}
+.hall-dialogue .hall-answer-badge .hall-chip:hover,
+.hall-dialogue .hall-answer-badge .hall-chip:focus-visible { background: var(--hub-selected); }
+
+/* —— Разделитель дня и служебные строки —— */
+.hall-dialogue .hall-day {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+  padding: var(--s-3) 0;
+  background: var(--hub-void);
+  font: var(--fw-medium) var(--t-small) / 1 var(--font-ui);
+  color: var(--hub-muted);
+}
+.hall-dialogue .hall-day::before,
+.hall-dialogue .hall-day::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--hub-border-soft);
+}
+
+/* Основания ответа и строка страницы — мелкие метки, не текст. */
+.hall-dialogue .hall-facts-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-3);
+  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui);
+  color: var(--hub-muted);
+}
+.hall-dialogue .hall-facts-line > span {
+  padding: var(--s-1) var(--s-3);
+  border: 1px solid var(--hub-border-soft);
+  border-radius: var(--r-1);
+}
+.hall-dialogue .hall-facts-line .hall-btn,
+.hall-dialogue .hall-facts-line .hall-btn.is-sm {
+  min-height: var(--control-sm);
+  padding: 0 var(--s-3);
+  border: 0;
+  border-radius: var(--r-1);
+  background: transparent;
+  font: var(--fw-medium) var(--t-small) / 1 var(--font-ui);
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--ember-light);
+}
+.hall-dialogue .hall-facts-line .hall-btn:hover,
+.hall-dialogue .hall-facts-line .hall-btn:focus-visible { background: var(--hub-selected); }
+
+/* —— Путь к ответу: одна строка сводки ——
+   Сводка называет, чем смотрел, сколько раз и была ли ошибка. Перечень —
+   по нажатию. Упавшие обращения, пока сводка свёрнута, стоят под ней. */
+.hall-dialogue .hall-trail { display: flex; flex-direction: column; gap: var(--s-2); }
+.hall-dialogue .hall-trail > .hall-trail-group > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: var(--control-sm);
+  margin-left: calc(var(--s-3) * -1);
+  padding: 0 var(--s-3);
+  border-radius: var(--r-1);
+  font: var(--fw-normal) var(--t-body) / 1 var(--font-ui);
+  color: var(--hub-muted);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+.hall-dialogue .hall-trail > .hall-trail-group > summary::-webkit-details-marker { display: none; }
+.hall-dialogue .hall-trail > .hall-trail-group > summary:hover,
+.hall-dialogue .hall-trail > .hall-trail-group > summary:focus-visible {
+  background: var(--hub-selected);
+  color: var(--hub-text);
+}
+.hall-dialogue .hall-trail-icons { display: inline-flex; gap: var(--s-1); }
+.hall-dialogue .hall-trail-icons .hall-icon,
+.hall-dialogue .hall-trail-chevron .hall-icon { width: 14px; height: 14px; }
+.hall-dialogue .hall-trail-chevron { display: inline-flex; transition: transform var(--motion-fast) var(--ease); }
+.hall-dialogue .hall-trail-group[open] .hall-trail-chevron { transform: rotate(90deg); }
+.hall-dialogue .hall-trail-fail {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  color: var(--wound);
+}
+.hall-dialogue .hall-trail-fail .hall-icon { width: 14px; height: 14px; }
+.hall-dialogue .hall-trail-list,
+.hall-dialogue .hall-trail-failed,
+.hall-dialogue .hall-live {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  margin: var(--s-2) 0 0;
+  padding: 0 0 0 var(--s-4);
+  border-left: 1px solid var(--hub-border);
+  list-style: none;
+}
+.hall-dialogue .hall-trail-group[open] + .hall-trail-failed { display: none; }
+
+/* Строка обращения: значок, что сделал, над чем, чем кончилось. */
+.hall-dialogue .hall-step,
+.hall-dialogue .hall-trail-list > .hall-reason > summary,
+.hall-dialogue .hall-live-row > .hall-live-item > summary {
+  display: grid;
+  grid-template-columns: 16px auto minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--s-3);
+  min-height: var(--control-sm);
+  padding: 0 var(--s-2);
+  border-radius: var(--r-1);
+  font: var(--fw-normal) var(--t-body) / 1.4 var(--font-ui);
+  color: var(--hub-muted);
+}
+.hall-dialogue .hall-step { grid-template-columns: 16px auto minmax(0, 1fr) minmax(0, auto) auto; }
+.hall-dialogue .hall-step-icon { display: inline-flex; color: var(--hub-muted); }
+.hall-dialogue .hall-step-icon .hall-icon { width: 14px; height: 14px; }
+.hall-dialogue .hall-step > b,
+.hall-dialogue .hall-live-row > .hall-live-item > summary > b {
+  font-weight: var(--fw-normal);
+  color: var(--hub-text-2);
+  white-space: nowrap;
+}
+.hall-dialogue .hall-step-arg,
+.hall-dialogue .hall-step > small,
+.hall-dialogue .hall-live-row > .hall-live-item > summary > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-mono);
+  color: var(--hub-muted);
+}
+.hall-dialogue .hall-step > small { max-width: 32ch; }
+.hall-dialogue .hall-step.is-failed .hall-step-icon,
+.hall-dialogue .hall-step.is-failed > small,
+.hall-dialogue .hall-live-row.is-failed .hall-step-icon,
+.hall-dialogue .hall-live-row.is-failed > .hall-live-item > summary > span { color: var(--wound); }
+.hall-dialogue .hall-step-more {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-1);
+  background: transparent;
+  color: var(--hub-muted);
+  cursor: pointer;
+}
+.hall-dialogue .hall-step-more .hall-icon { width: 14px; height: 14px; transition: transform var(--motion-fast) var(--ease); }
+.hall-dialogue .hall-step-more.is-open .hall-icon { transform: rotate(180deg); }
+.hall-dialogue .hall-step-more:hover,
+.hall-dialogue .hall-step-more:focus-visible { background: var(--hub-selected); color: var(--hub-text); }
+.hall-dialogue .hall-step:hover { background: var(--hub-raised); }
+
+/* Полный вывод обращения и рассуждения — моноширинный, в своей прокрутке.
+   Текст модели и инструментов недоверенный: в разметку идёт экранированным. */
+.hall-dialogue .hall-step-payload,
+.hall-dialogue .hall-live-body,
+.hall-dialogue .hall-reason-body {
+  grid-column: 1 / -1;
+  max-height: 240px;
+  overflow: auto;
+  margin: var(--s-2) 0 var(--s-3);
+  padding: var(--s-4) var(--s-5);
+  border: 1px solid var(--hub-border-soft);
+  border-radius: var(--r-1);
+  background: var(--hub-raised);
+  font: var(--fw-normal) var(--t-small) / 1.5 var(--font-mono);
+  color: var(--hub-text-3);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.hall-dialogue .hall-reason-body { font-family: var(--font-ui); line-height: 1.6; }
+
+.hall-dialogue .hall-trail-list > .hall-reason > summary,
+.hall-dialogue .hall-live-row > .hall-live-item > summary {
+  cursor: pointer;
+  list-style: none;
+}
+.hall-dialogue .hall-trail-list > .hall-reason > summary { grid-template-columns: 16px auto; }
+.hall-dialogue .hall-trail-list > .hall-reason > summary::-webkit-details-marker,
+.hall-dialogue .hall-live-row > .hall-live-item > summary::-webkit-details-marker { display: none; }
+.hall-dialogue .hall-trail-list > .hall-reason > summary:hover,
+.hall-dialogue .hall-live-row > .hall-live-item > summary:hover { background: var(--hub-raised); color: var(--hub-text); }
+.hall-dialogue .hall-reason-label { color: var(--hub-text-2); }
+
+/* —— Живой след хода ——
+   Та же строка, что у готового хода: живой след и сводка после ответа
+   описывают одни и те же обращения. */
+.hall-dialogue .hall-live { margin-top: 0; }
+.hall-dialogue .hall-live-row > .hall-live-item > summary > em {
+  font: var(--fw-normal) var(--t-small) / 1 var(--font-ui);
+  font-style: normal;
+  color: var(--hub-muted);
+  font-variant-numeric: tabular-nums;
+}
+.hall-dialogue .hall-live-row > .hall-live-item > summary { grid-template-columns: 16px auto auto minmax(0, 1fr); }
+.hall-dialogue .hall-live-row.is-running .hall-step-icon { animation: hall-live-pulse 1.2s var(--ease) infinite; }
+.hall-dialogue .hall-live-row.is-running > .hall-live-item > summary > b { color: var(--hub-text); }
+.hall-dialogue .hall-live-row > .hall-live-item[open] > summary > span { visibility: hidden; }
+@keyframes hall-live-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .35; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hall-dialogue .hall-live-row.is-running .hall-step-icon { animation: none; }
+}
+
+.hall-dialogue .hall-stream {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding: 0;
+}
+.hall-dialogue .hall-stream > small {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  font: var(--fw-normal) var(--t-body) / 1.4 var(--font-ui);
+  color: var(--hub-muted);
+}
+.hall-dialogue .hall-stream > small::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ember);
+  animation: hall-live-pulse 1.2s var(--ease) infinite;
+}
+.hall-dialogue .hall-stream-text {
+  font: var(--fw-normal) var(--t-base) / 1.6 var(--font-ui);
+  color: var(--hub-text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.hall-dialogue .hall-stream-text:empty { display: none; }
+
+/* —— Поиск по разговору ——
+   Свёрнутый поиск — значок в шапке; раскрытый — строка над лентой. */
+.hall-dialogue .hall-find {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex: none;
+  box-sizing: border-box;
+  width: calc(100% - var(--s-7) * 2);
+  max-width: var(--hall-read-col);
+  margin-inline: auto;
+  padding-block: var(--s-3);
+}
+.hall-dialogue .hall-find input {
+  flex: 1;
+  min-width: 0;
+  height: var(--control-md);
+  padding: 0 var(--s-4);
+  border: 1px solid var(--vscode-input-border, var(--hub-border));
+  border-radius: var(--r-1);
+  background: var(--vscode-input-background, var(--hub-raised));
+  color: var(--hub-text);
+  font: var(--fw-normal) var(--t-body) / 1 var(--font-ui);
+}
+.hall-dialogue .hall-find input:focus-visible {
+  outline: none;
+  border-color: var(--vscode-focusBorder, var(--ember));
+}
+.hall-dialogue .hall-find-count {
+  padding-inline: var(--s-2);
+  font: var(--fw-normal) var(--t-small) / 1 var(--font-ui);
+  color: var(--hub-muted);
+  font-variant-numeric: tabular-nums;
+}
+.hall-dialogue .hall-find .hall-btn,
+.hall-dialogue .hall-find .hall-btn.is-sm {
+  min-height: var(--control-md);
+  padding: 0 var(--s-4);
+  border: 0;
+  border-radius: var(--r-1);
+  background: transparent;
+  font: var(--fw-normal) var(--t-body) / 1 var(--font-ui);
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--hub-muted);
+}
+.hall-dialogue .hall-find .hall-btn:hover,
+.hall-dialogue .hall-find .hall-btn:focus-visible { background: var(--hub-selected); color: var(--hub-text); }
+
+/* Найденный ход помечается целиком: ответ прошёл разбор markdown, и подсветка
+   букв внутри готовой разметки рвала бы теги. Обводка не сдвигает ленту. */
+.hall-dialogue .hall-turn.is-hit {
+  border-radius: var(--r-2);
+  outline: 1px solid var(--hub-border-strong);
+  outline-offset: var(--s-3);
+}
+.hall-dialogue .hall-turn.is-current-hit {
+  outline-color: var(--ember-line-loud);
+  background: var(--ember-wash);
+}
+
+/* —— Якорь «к новым» —— */
+.hall-dialogue .hall-thread-cue {
+  align-self: center;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: var(--control-sm);
+  padding: 0 var(--s-5);
+  border: 1px solid var(--hub-border-strong);
+  border-radius: var(--r-full);
+  background: var(--hub-raised);
+  box-shadow: var(--e-2);
+  font: var(--fw-medium) var(--t-small) / 1 var(--font-ui);
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--hub-text-2);
+  cursor: pointer;
+}
+.hall-dialogue .hall-thread-cue:hover { border-color: var(--hub-border-loud); color: var(--hub-text); }
+.hall-dialogue .hall-thread-cue.is-hidden { display: none; }
+
+/* —— Пустые состояния: приветствие, загрузка, сбой —— */
+.hall-dialogue .hall-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-3);
+  padding: var(--s-7) 0;
+  text-align: left;
+}
+.hall-dialogue .hall-empty > b {
+  font: var(--fw-semibold) var(--t-lead) / 1.3 var(--font-ui);
+  color: var(--hub-text);
+}
+.hall-dialogue .hall-empty > span {
+  max-width: var(--measure-narrow);
+  font: var(--fw-normal) var(--t-base) / 1.5 var(--font-ui);
+  color: var(--hub-muted);
+}

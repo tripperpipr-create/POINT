@@ -11,7 +11,8 @@
 // обращения и то, чем оно кончилось. Вид повторяет готовый ход (hall-reason и
 // hall-step), чтобы при завершении лента не прыгала.
 
-import { masterToolNameNow } from './master-tool-names.js'
+import { masterToolIcon, masterToolNameNow } from './master-tool-names.js'
+import { icon } from './ui-icons.js'
 
 // Сколько строк живёт в трассе. Длинный ход с десятками обращений не должен
 // вытеснять из памяти сам разговор; ранние строки всё равно вернутся готовым
@@ -135,6 +136,16 @@ function masterRetryBody (item) {
   return lines.join('\n\n')
 }
 
+// Значок строки следа — тот же, что у готового хода: живой след и сводка
+// после ответа описывают одни и те же обращения и не должны выглядеть по-разному.
+function masterTraceIcon (item) {
+  if (item.failed) return 'warning'
+  if (item.kind === 'mind') return 'think'
+  if (item.kind === 'retry') return 'retry'
+  if (item.kind === 'skill') return 'memory'
+  return masterToolIcon(item.tool)
+}
+
 // Разметка живой трассы. Раскрытие живёт снаружи, в наборе открытых ключей:
 // лента перерисовывается на каждое событие, и состояние, оставленное в DOM,
 // схлопывалось бы прямо под читающим.
@@ -160,7 +171,7 @@ export function masterTraceHtml (turn, esc, open, now = Date.now()) {
     return `<li class="${state}">
       <details class="hall-live-item" data-master-open="live" data-id="${esc(key)}"${expanded}>
         <summary>
-          <i aria-hidden="true"></i>
+          <span class="hall-step-icon">${icon(masterTraceIcon(item))}</span>
           <b>${esc(masterTraceTitle(item))}</b>
           ${duration ? `<em>${esc(duration)}</em>` : ''}
           ${hint ? `<span>${esc(hint)}</span>` : ''}

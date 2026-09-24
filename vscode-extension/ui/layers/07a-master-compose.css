@@ -247,8 +247,8 @@
      запасе 96 непрозрачная часть уходила на 109 — тринадцать пикселей текста
      оставались под краской, и доскроллить до них было нельзя. */
   background: linear-gradient(to top,
-    color-mix(in srgb, var(--hub-void) 35%, var(--hub-panel)) 0,
-    color-mix(in srgb, var(--hub-void) 35%, var(--hub-panel)) var(--hall-compose-reserve),
+    var(--hub-void) 0,
+    var(--hub-void) var(--hall-compose-reserve),
     transparent calc(var(--hall-compose-reserve) + var(--hall-compose-fade)));
 }
 /* Якорь «к свежему» вынесен из ленты (ui/client/master-thread-views.js) и

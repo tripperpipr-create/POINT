@@ -55,3 +55,26 @@ export function masterToolName(tool) {
 export function masterToolNameNow(tool) {
   return MASTER_TOOL_NAMES_NOW[String(tool || '')] || ''
 }
+
+// Род обращения — для значка строки. Значок отвечает на вопрос «чем смотрел»
+// (файл, поиск, история), и одинаковый значок у девяти строк подряд ничего бы
+// не сообщал. Незнакомое имя получает общий значок инструмента.
+const MASTER_TOOL_ICONS = {
+  project_map: 'map',
+  read_file: 'file',
+  list_files: 'folder',
+  search_text: 'search',
+  search_code: 'search',
+  git_diff: 'git',
+  git_log: 'git',
+  git_branches: 'git',
+  git_tags: 'git',
+  read_execution: 'terminal',
+  read_changeset: 'file-edit',
+  read_quest: 'quest',
+  read_roster: 'team',
+}
+
+export function masterToolIcon(tool) {
+  return MASTER_TOOL_ICONS[String(tool || '')] || 'tool'
+}

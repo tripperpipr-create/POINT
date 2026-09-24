@@ -95,14 +95,12 @@ if ((waitingHtml.match(/Собрать API/g) || []).length !== 1) {
   throw new Error('execution screen repeats the goal already shown in the card header')
 }
 
-// 3c. Запуск убирает карточку из ленты и оставляет на её месте прогон.
+// 3c. Запуск заменяет карточку предложения прогоном в том же ходе ленты.
 //
 // Карточка — предложение: её читают, правят и утверждают. После запуска решать
 // в ней нечего, и бланк над работающим квестом читался как незакрытая форма, к
-// которой надо вернуться. Запущенный квест сжимается в строку, но поток работы
-// при этом обязан лежать раскрытым: логи — то, ради чего на него и смотрят.
-// Свернуть их человек вправе сам, и его решение переживает опрос наряда
-// (master-card-open.js); умолчание вида — «раскрыто».
+// которой надо вернуться. У запущенного квеста видны и строка статуса, и
+// поток работы; для чтения хроники раскрывать отдельное окно не требуется.
 const liveRun = {
   ...base,
   runtime: {
@@ -130,10 +128,9 @@ if (!liveHtml.includes('agent-work-transcript')) throw new Error('running quest 
 if (liveHtml.includes('<details class="work-order-exec-log"')) {
   throw new Error('work log is hidden behind a disclosure on the screen built to show it')
 }
-// Строка живого квеста раскрыта по умолчанию: свёрнутый поток у идущей работы
-// означал бы, что смотреть не на что.
-if (!/<details class="hall-quest-run"[^>]* open>/.test(liveHtml)) {
-  throw new Error('running quest collapses its own work log by default')
+// Живой квест находится в ленте без отдельной раскрываемой карточки.
+if (!liveHtml.includes('hall-quest-run is-in-feed') || liveHtml.includes('<details class="hall-quest-run"')) {
+  throw new Error('running quest is still rendered as a separate disclosure card')
 }
 // Цель и исход названы один раз: шапка прогона взяла их себе, и экран
 // выполнения свою шапку больше не рисует.
@@ -156,7 +153,19 @@ if (!beforeLaunch.includes('hall-quest-check')) throw new Error('launch card los
 const failed = masterWorkOrderCardsHtml([{ ...base, runtime: { questId: 'quest-1', status: 'failed', message: 'исполнитель не запустился' } }], esc, new Set(), { ui })
 if (failed.includes('master-v2-approved is-done')) throw new Error('failed WorkOrder still reads as success')
 if (!failed.includes('✕ Провален')) throw new Error('failed WorkOrder lost its failure mark')
-if (!failed.includes('data-control="resume"')) throw new Error('failed WorkOrder cannot be retried')
+if (failed.includes('data-control="resume"') || failed.includes('data-control="cancel"')) throw new Error('failed WorkOrder offers controls the core rejects')
+
+const undelivered = masterWorkOrderCardsHtml([{ ...base, runtime: {
+  questId: 'quest-1', status: 'blocked', flowRunId: 'flowrun-1',
+  stall: { nodeName: 'Implement', waitReason: 'stage_failed', error: 'work contract forbids change to composer.json' },
+  stages: [{ id: 'node-1', name: 'Implement', status: 'failed', runId: 'run-1' }],
+} }], esc, new Set(), { ui })
+for (const expected of ['изменения не доставлены', 'work contract forbids change to composer.json', 'Этапы · 0 из 1']) {
+  if (!undelivered.includes(expected)) throw new Error(`failed delivery is hidden: ${expected}`)
+}
+if (undelivered.includes('data-control="resume"')) throw new Error('terminal failed stage still offers a no-op resume')
+if (undelivered.includes('data-control="message"')) throw new Error('blocked WorkOrder offers a message with no active agent')
+if (!undelivered.includes('data-action="revise-master-work-order-v2"')) throw new Error('failed WorkOrder has no route to a new approved version')
 
 // 5. Примечание планировщика: план мог собрать движок, а не модель.
 const templated = workOrderExecutionHtml({ ...base, runtime: { questId: 'quest-1', status: 'running', plannerNote: 'План собран движком Point: модель не ответила', stages: [] } }, ui, { esc })

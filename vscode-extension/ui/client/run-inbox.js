@@ -97,7 +97,7 @@ export function createRunInbox({
               id: 'fast_' + Date.now().toString(36),
               conversationId: masterClient.active,
               status: 'ready',
-              reply: runId ? `Агент запущен (run ${runId}). Правки появятся ниже — Keep / Undo.` : 'Агент запущен.',
+              reply: runId ? `Агент запущен (run ${runId}). Правки появятся в ленте.` : 'Агент запущен.',
             })
           }
         }

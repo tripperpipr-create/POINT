@@ -374,12 +374,27 @@ func (s *SQLite) attachWorkOrderFlowStateV2(ctx context.Context, runtime *domain
 		stage.ExecutionID, _ = state.Output["executionId"].(string)
 		stage.RunID, _ = state.Output["runId"].(string)
 		stage.WaitReason, _ = state.Output["waitReason"].(string)
-		// У идущего узла runId в состоянии ещё нет — он появляется только при
-		// завершении. Без него экрану нечего загружать, поэтому достаём из
-		// самого исполнения.
-		if strings.TrimSpace(stage.RunID) == "" && strings.TrimSpace(stage.ExecutionID) != "" {
+		if state.Status == string(domain.RunFailed) {
+			failure, _ := state.Output["error"].(string)
+			if strings.TrimSpace(failure) == "" {
+				failure = "Этап завершился ошибкой"
+			}
+			runtime.Stall = &domain.WorkOrderStall{
+				NodeID: node.ID, NodeName: node.Name,
+				WaitReason: "stage_failed", Error: failure,
+			}
+		}
+		// Flow keeps the node in waiting_agent while its execution is running.
+		// The feed must show the execution's actual state and run ID.
+		if strings.TrimSpace(stage.ExecutionID) != "" {
 			if execution, execErr := s.GetExecution(ctx, stage.ExecutionID); execErr == nil {
-				stage.RunID = execution.RunID
+				if strings.TrimSpace(stage.RunID) == "" {
+					stage.RunID = execution.RunID
+				}
+				if state.Status == "waiting_agent" && (execution.Status == domain.RunRunning || execution.Status == domain.RunPaused || execution.Status == domain.RunWaiting) {
+					stage.Status = string(execution.Status)
+					stage.WaitReason = ""
+				}
 			}
 		}
 		// Затык — любая причина ожидания, а не только провал запуска. Узел,

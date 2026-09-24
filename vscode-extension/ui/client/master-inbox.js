@@ -74,7 +74,7 @@ export function createMasterInbox({
       if (message.type==='masterWorkOrderApproved') {
         const order=message.approval?.workOrder
         if(order){ui.masterWorkOrderBusy.delete(order.id);const current=Array.isArray(ui.masterData?.workOrders)?ui.masterData.workOrders:[];ui.masterData={...(ui.masterData || {}),workOrders:[order,...current.filter(item=>item.id!==order.id)]}}
-    	ui.masterComposeNote=message.approval?.message || `Квест: ${message.approval?.status || 'preflight'}`
+		ui.masterComposeNote=''
         render()
       }
       if (message.type==='masterWorkOrderDeleted') {
@@ -84,20 +84,19 @@ export function createMasterInbox({
       if (message.type==='masterWorkOrderRevised') {
         const order=message.workOrder
         if(order){ui.masterWorkOrderBusy.delete(order.id);const current=Array.isArray(ui.masterData?.workOrders)?ui.masterData.workOrders:[];ui.masterData={...(ui.masterData || {}),workOrders:[order,...current.filter(item=>item.id!==order.id)]}}
-        ui.masterComposeNote=`Карточка сохранена как версия ${Number(order?.version)||'—'}`
+        ui.masterComposeNote=''
         render()
       }
       if (message.type==='masterWorkOrderControlled') {
         const order=message.workOrder
         if(order){ui.masterWorkOrderBusy.delete(order.id);const current=Array.isArray(ui.masterData?.workOrders)?ui.masterData.workOrders:[];ui.masterData={...(ui.masterData || {}),workOrders:[order,...current.filter(item=>item.id!==order.id)]}}
-        ui.masterComposeNote=`Квест: ${message.result?.status || order?.runtime?.status || 'обновлён'}`
+        ui.masterComposeNote=''
         render()
       }
       if (message.type==='masterApplicationControlled') {
         const order=message.workOrder
         if(order){ui.masterWorkOrderBusy.delete(order.id);const current=Array.isArray(ui.masterData?.workOrders)?ui.masterData.workOrders:[];ui.masterData={...(ui.masterData || {}),workOrders:[order,...current.filter(item=>item.id!==order.id)]}}
-        const status=message.result?.status || 'обновлено'
-        ui.masterComposeNote=status==='running'?'Приложение запущено':status==='stopped'?'Приложение остановлено':`Приложение: ${status}`
+        ui.masterComposeNote=''
         render()
       }
       if (message.type==='masterPage' && message.conversationId===masterClient.active && (message.query || '')===masterClient.query){const items=message.page.items || [];ui.masterData.history=items;ui.masterData.paginated=true;ui.masterData.before=message.page.before;ui.masterData.truncated=message.page.hasMore;ui.masterLoadingEarlier=false;replaceMasterThreadHtml();syncMasterComposeState();applyMasterFind()}

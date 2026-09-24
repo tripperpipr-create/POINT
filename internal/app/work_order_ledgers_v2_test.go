@@ -47,6 +47,17 @@ func TestWorkOrderEvidenceLedgerIsQuestScopedAndNeverCopiesSensitiveContext(t *t
 	if err = application.store.SaveExecution(context.Background(), execution); err != nil {
 		t.Fatal(err)
 	}
+	// Acceptance checks have their own Run for events, but no model call.
+	checkRun := domain.Run{ID: "run-deterministic-accept", WorkspaceID: world.ID, Status: domain.RunFailed, StartedAt: now}
+	if err = application.store.SaveRun(context.Background(), checkRun); err != nil {
+		t.Fatal(err)
+	}
+	if err = application.store.SaveExecution(context.Background(), domain.ExecutionInstance{
+		ID: "execution-deterministic-accept", WorkspaceID: world.ID, ProjectAgentID: agent.ID,
+		QuestID: root.ID, RunID: checkRun.ID, FlowNodeID: "accept", Status: domain.RunFailed, StartedAt: now,
+	}); err != nil {
+		t.Fatal(err)
+	}
 	if err = application.store.SaveSandbox(context.Background(), domain.SandboxRecord{
 		ID: execution.SandboxID, WorkspaceID: world.ID, ExecutionID: execution.ID, Kind: "copy", Backend: "docker",
 		BackendImage: "point/test:1", BackendImageDigest: "sha256:image", Path: t.TempDir(), CreatedAt: now,

@@ -56,7 +56,7 @@ Pop-Location
 node scripts/run-hub-smokes.mjs
 ```
 
-63 сценария Хаба поднимают настоящее ядро и исполняют собранный
+Смоуки Хаба поднимают настоящее ядро и исполняют собранный
 `media/main.js`. Полный прогон — `npm run check` в `vscode-extension` (см.
 раздел «Проверка»). Само приложение собирается отдельным долгим шагом:
 порядок в [distribution/README.md](distribution/README.md). Куда смотреть
@@ -229,7 +229,7 @@ request — [`.github/workflows/ci.yml`](.github/workflows/ci.yml), пять
 | `go` | ubuntu | `go vet`, `go mod verify` (подмена зависимости), `go test ./...` |
 | `sandbox` | ubuntu | Сборка образа песочницы, CycloneDX SBOM, отказ на любом HIGH/CRITICAL от Trivy и живой тест изоляции в настоящем Docker |
 | `frontend` | ubuntu | Сборка диагностического клиента и `npm audit` |
-| `extension` | **windows** | `npm run check` целиком: свежий `point-core`, сборка CSS/JS/runtime, контракты дизайн-системы, синтаксис 99 JS-файлов, сверка имён вебвью, 63 смоука Хаба |
+| `extension` | **windows** | `npm run check` целиком: свежий `point-core`, сборка CSS/JS/runtime, контракты дизайн-системы, проверка JS, сверка имён вебвью и смоуки Хаба |
 
 Windows у `extension` не прихоть: расширение поставляется с packaged Cursor
 runtime под win32-x64, а часть смоуков про терминал, SSH и пути на Linux
@@ -246,7 +246,7 @@ runtime под win32-x64, а часть смоуков про терминал, 
 
 ## Текущее состояние
 
-Проект предназначен для личного использования. Целевой план закреплён в [PRODUCT-VISION.md](docs/PRODUCT-VISION.md), актуальные проверки и оставшиеся возможности — в [PROJECT-STATUS.md](docs/PROJECT-STATUS.md), историческое воспроизведение и закрытие ошибок — в [аудите](docs/AUDIT-2026-09-05.md).
+Проект предназначен для личного использования. Целевой план закреплён в [PRODUCT-VISION.md](docs/PRODUCT-VISION.md), актуальные проверки и оставшиеся возможности — в [PROJECT-STATUS.md](docs/PROJECT-STATUS.md), датированные результаты — в [журнале разработки](docs/PROJECT-HISTORY.md).
 
 С 13 сентября работа идёт через контур v2: Мастер собирает **карточку запуска** (WorkOrder) — цель, границы, критерии приёмки, ростер, бюджет и политику доставки, — человек утверждает её целиком, и только после этого запускается исполнение. Завершение не следует из успеха Flow: квест закрывается лишь через шлюз доказательств, а доставка подтверждается распиской. Подробнее — [PROJECT-STATUS.md](docs/PROJECT-STATUS.md) и [architecture.md](docs/architecture.md). Контур v2 собран в portable-копии `.cache/VSCode-win32-x64`; установленная копия может отставать — сверяйте дату перед проверкой.
 

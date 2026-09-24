@@ -15,9 +15,15 @@ import (
 type scriptedCompletionRunner struct {
 	results  map[string]int
 	failures map[string]error
+	commands []string
+	onRun    func(string)
 }
 
 func (runner *scriptedCompletionRunner) Run(_ context.Context, _, command string) (int, string, error) {
+	runner.commands = append(runner.commands, command)
+	if runner.onRun != nil {
+		runner.onRun(command)
+	}
 	if err, ok := runner.failures[command]; ok {
 		return 0, "", err
 	}

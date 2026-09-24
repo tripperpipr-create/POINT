@@ -146,6 +146,43 @@ func TestMasterProposalBecomesSingleApprovableWorkOrderV2(t *testing.T) {
 	}
 }
 
+func TestSymfonySetupDeclaresComposerDistributionHosts(t *testing.T) {
+	setup := masterSetupPlanV2("php-symfony-7", domain.TaskBrief{})
+	grants := masterNetworkGrantsV2(domain.TaskBrief{}, nil, setup)
+	got := map[string]bool{}
+	for _, grant := range grants {
+		got[grant.Host] = true
+	}
+	for _, host := range composerDistributionHostsV2() {
+		if !got[host+":443"] {
+			t.Fatalf("Symfony setup omits Composer distribution host %s: %#v", host, grants)
+		}
+	}
+	if extra := masterNetworkGrantsV2(domain.TaskBrief{}, nil, domain.SetupPlan{}); len(extra) != 0 {
+		t.Fatalf("unrelated setup gained network grants: %#v", extra)
+	}
+}
+
+func TestSymfonySetupRespectsApprovedDependencies(t *testing.T) {
+	brief := domain.TaskBrief{
+		Goal:       "Развернуть Symfony 7 с API Platform",
+		Scope:      []string{"Подключить API Platform"},
+		OutOfScope: []string{"База данных и ORM"},
+	}
+	setup := masterSetupPlanV2("php-symfony-7", brief)
+	if len(setup.Commands) != 2 || setup.Commands[1].Command != "composer require api-platform/core --no-interaction --prefer-dist" {
+		t.Fatalf("API Platform must be installed in bootstrap: %#v", setup.Commands)
+	}
+	if len(setup.Files) != 0 {
+		t.Fatalf("setup invented database configuration: %#v", setup.Files)
+	}
+	for _, command := range setup.Commands {
+		if strings.Contains(command.Command, "orm-pack") {
+			t.Fatalf("setup installed excluded ORM: %#v", setup.Commands)
+		}
+	}
+}
+
 func TestTaskBriefFromWorkOrderV2PreservesExecutionContract(t *testing.T) {
 	order := managedWorkOrderV2()
 	order.ID, order.Version = "workorder-contract", 3

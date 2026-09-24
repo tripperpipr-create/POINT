@@ -4,7 +4,7 @@
   "scannedAt": "2026-08-31T02:58:08Z",
   "method": "docker-save-archive-no-docker-socket",
   "dockerfileSha256": "586e6754a92d06f7464b7e7fad25828f4a9003809028e0dc360bd88eaa5a2752",
-  "integrationTestSha256": "0746f8f9864ed4767cf0b76f7da7419cd7dbd26a478c65628b7313c97013aa3a",
+  "integrationTestSha256": "f6d705a370b2708d1be9b5f91a524cd596db13663b56e2d40e771598b10c8874",
   "image": {
     "tag": "point-agent-sandbox:release",
     "digest": "sha256:e0a50330e7e8f68f13b0973dcad0ab82324dfa6a7fa88392dc4f22aed7dce882",
@@ -79,7 +79,8 @@
     }
   },
   "integration": {
-    "command": "go test ./internal/sandbox -run TestDockerSandboxIntegration -count=1 -v",
+    "command": "POINT_SANDBOX_DOCKER_TEST=1 go test ./internal/sandbox -run 'TestDockerSandboxIntegration|TestDockerComposerDistributionIntegration' -count=1 -v",
+    "verifiedAt": "2026-09-24",
     "passed": true,
     "verified": [
       "uid-gid-matches-backend-request",
@@ -98,7 +99,8 @@
       "direct-ip-denied",
       "egress-resource-cleanup",
       "immutable-image-digest-execution",
-      "pinned-toolchain-login-shell"
+      "pinned-toolchain-login-shell",
+      "composer-distribution-controlled-egress"
     ]
   }
 }

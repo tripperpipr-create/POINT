@@ -197,25 +197,26 @@ export function createHubRuntimeUi({
       const status = String(patch.status || '')
       if (status !== 'applied' && status !== 'pending' && status !== 'proposed') continue
       const path = String(patch.path || patch.id || 'файл')
-      if (!groups.has(path)) groups.set(path, { path, patchIds: [], applied: 0, pending: 0 })
+      if (!groups.has(path)) groups.set(path, { path, appliedPatchIds: [], applied: 0, pending: 0 })
       const group = groups.get(path)
-      if (patch.id) group.patchIds.push(patch.id)
-      if (status === 'applied') group.applied += 1
+      if (status === 'applied') {
+        group.applied += 1
+        if (patch.id) group.appliedPatchIds.push(patch.id)
+      }
       else group.pending += 1
     }
     return [...groups.values()]
-  }
-
-  function sessionRunHasKeepUndoPatches(details) {
-    return runPatchGroups(details).length > 0
   }
 
   function sessionKeepUndoVisible(workMode) {
     const details = getState().details
     const run = details?.run
     if (!run?.id) return false
+    // Патчи исполнения Flow применены к его sandbox, а не к открытому проекту.
+    // Кнопка «Оставить всё» у такого Run обещала доставку, которой не было.
+    if ((getState().boot?.executions || []).some(item => item.runId === run.id && item.flowRunId)) return false
     if (String(getKeptRunId() || '') === String(run.id)) return false
-    if (!sessionRunHasKeepUndoPatches(details)) return false
+    if (!runPatchGroups(details).some(item => item.appliedPatchIds.length)) return false
     // Пока прогон идёт, изменённые файлы показывает лента
     // (sessionRunChangedFilesHtml): они принадлежат ходу и едут вместе с ним.
     // Композер — место для реплики человека, и список файлов, растущий в нём на
@@ -232,34 +233,39 @@ export function createHubRuntimeUi({
     if (!sessionKeepUndoVisible(workMode)) return ''
     const run = details.run
     const groups = runPatchGroups(details)
-    const appliedCount = groups.reduce((sum, item) => sum + item.applied, 0)
-    const pendingCount = groups.reduce((sum, item) => sum + item.pending, 0)
+    const appliedCount = groups.filter(item => item.applied > 0).length
+    const pendingCount = groups.filter(item => item.pending > 0).length
     const summary = [
       appliedCount ? countOf(appliedCount, 'файл применён', 'файла применены', 'файлов применено') : '',
       pendingCount ? countOf(pendingCount, 'файл ждёт', 'файла ждут', 'файлов ждут') + ' решения' : '',
     ].filter(Boolean).join(' · ')
     const fileRows = groups.slice(0, 8).map(item => {
-      const undo = item.applied && item.patchIds.length
-        ? `<button type="button" class="hall-btn is-sm" data-action="undo-run-file" data-run-id="${esc(run.id)}" data-patch-ids="${esc(item.patchIds.join(','))}" title="Откатить ${esc(item.path)}">↶</button>`
+      const undo = item.appliedPatchIds.length
+        ? `<button type="button" class="hall-btn is-sm" data-action="undo-run-file" data-run-id="${esc(run.id)}" data-patch-ids="${esc(item.appliedPatchIds.join(','))}" title="Откатить ${esc(item.path)}">↶</button>`
         : ''
       const mark = item.pending && !item.applied ? '<em class="session-run-pending">ждёт</em>' : ''
-      return `<li><button type="button" class="hall-chip" data-action="open-file" data-path="${esc(item.path)}">${esc(item.path)}</button>${mark}${undo}</li>`
+      const path = item.applied
+        ? `<button type="button" class="hall-chip" data-action="open-file" data-path="${esc(item.path)}">${esc(item.path)}</button>`
+        : `<span class="hall-chip">${esc(item.path)}</span>`
+      return `<li>${path}${mark}${undo}</li>`
     }).join('')
     const overflow = groups.length > 8 ? `<li class="session-run-more"><small>ещё ${groups.length - 8}</small></li>` : ''
-    return `<section class="hall-strip session-keep-undo" data-run-id="${esc(run.id)}"><i></i><div class="session-keep-undo-body"><span>${esc(summary || 'Изменения агента')}</span><ul class="session-keep-undo-files">${fileRows}${overflow}</ul></div><div class="session-keep-undo-actions"><button type="button" class="hall-btn is-primary" data-action="keep-run-all" data-run-id="${esc(run.id)}">Оставить всё</button><button type="button" class="hall-btn" data-action="undo-run-all" data-run-id="${esc(run.id)}">Откатить всё</button></div></section>`
+    return `<section class="hall-strip session-keep-undo" data-run-id="${esc(run.id)}"><i></i><div class="session-keep-undo-body"><span>${esc(summary || 'Изменения агента')}</span><ul class="session-keep-undo-files">${fileRows}${overflow}</ul></div><div class="session-keep-undo-actions"><button type="button" class="hall-btn" data-action="keep-run-all" data-run-id="${esc(run.id)}">Скрыть список</button><button type="button" class="hall-btn" data-action="undo-run-all" data-run-id="${esc(run.id)}">Откатить применённые</button></div></section>`
   }
 
   function sessionRunChangedFilesHtml() {
     const details = getState().details
     const run = details?.run
     if (!run?.id || !runIsLive(run)) return ''
+    if ((getState().boot?.executions || []).some(item => item.runId === run.id && item.flowRunId)) return ''
     const groups = runPatchGroups(details)
     if (!groups.length) return ''
-    const chips = groups.slice(0, 6).map(item =>
-      `<button type="button" class="hall-chip" data-action="open-file" data-path="${esc(item.path)}">${esc(item.path)}${item.pending && !item.applied ? ' · ждёт' : ''}</button>`
+    const chips = groups.slice(0, 6).map(item => item.applied
+      ? `<button type="button" class="hall-chip" data-action="open-file" data-path="${esc(item.path)}">${esc(item.path)}</button>`
+      : `<span class="hall-chip">${esc(item.path)} · ждёт</span>`
     ).join('')
     const more = groups.length > 6 ? `<small>+${groups.length - 6}</small>` : ''
-    return `<div class="hall-strip is-quiet session-run-files"><i></i><span class="session-run-files-label">Изменённые файлы</span><div class="session-run-files-list">${chips}${more}</div></div>`
+    return `<div class="hall-strip is-quiet session-run-files"><i></i><span class="session-run-files-label">${groups.some(item => item.applied) ? 'Файлы с правками' : 'Предложенные правки'}</span><div class="session-run-files-list">${chips}${more}</div></div>`
   }
 
   function questStatusStripHtml(quest) {

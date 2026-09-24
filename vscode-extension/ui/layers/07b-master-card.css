@@ -321,6 +321,13 @@
   gap: var(--s-3);
   align-items: center;
 }
+.hall-dialogue .master-v2-run .hall-quest-run-title {
+  display: grid;
+  gap: var(--s-3);
+  align-items: center;
+  margin-bottom: var(--s-3);
+}
+.hall-dialogue .master-v2-run .is-in-feed .hall-quest-row::after { content: none; }
 .hall-dialogue .hall-quest-row {
   display: flex;
   align-items: center;

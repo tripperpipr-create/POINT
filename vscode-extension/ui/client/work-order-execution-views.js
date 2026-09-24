@@ -39,6 +39,7 @@ const STAGE_NOTE = {
 // Почему узел стоит. Текст waitReason — внутреннее слово ядра, и человеку оно
 // ничего не говорит; причину надо назвать по-русски.
 const STALL_REASON = {
+  stage_failed: 'Этап завершился ошибкой; изменения не доставлены',
   start_failed: 'Исполнитель не запустился',
   waiting_api_key: 'Нужен ключ подключения',
   waiting_interactive_cursor: 'Нужна активная авторизация CLI',
@@ -75,10 +76,8 @@ function transcriptFor(order, ui, deps) {
   if (!details?.run) return ''
   const runtime = order.runtime || {}
   const stage = activeStage(list(runtime.stages))
-  const matches = (stage?.runId && details.run.id === stage.runId)
-    || (runtime.questId && details.run.questId === runtime.questId)
-  if (!matches) return ''
-  return deps.agentWorkTranscriptHtml(details, { limit: 80, compact: true })
+  if (!stage?.runId || details.run.id !== stage.runId) return ''
+  return deps.agentWorkTranscriptHtml(details, { limit: 80, compact: true, sandboxOnly: true })
 }
 
 // Что написать вместо хроники, когда её нет.
@@ -87,7 +86,8 @@ function transcriptFor(order, ui, deps) {
 // начиналась: грузить было нечего, и строка обещала то, чего не будет.
 // Загрузка идёт только когда есть запущенный прогон.
 function emptyTranscriptText(stall, stages) {
-  if (stall) return 'Работа не начиналась: агент ждёт.'
+  if (stall && !stages.some(stage => stage.runId)) return 'Работа не начиналась: агент ждёт.'
+  if (stall) return 'Работа остановлена; результат агента остался в изоляции.'
   if (!stages.some(stage => stage.runId)) return 'Работа ещё не начиналась.'
   return 'Загружаем хронику работы агента…'
 }
@@ -122,10 +122,7 @@ export function workOrderExecutionHtml(order, ui, deps = {}) {
       <b>${esc(stallTitle)}</b>
       ${stall.nodeName || stall.nodeId ? `<small>Этап «${esc(stall.nodeName || stall.nodeId)}»</small>` : ''}
       ${stall.error ? `<p>${esc(stall.error)}</p>` : ''}
-      ${/* Кнопка только там, где ядро её примет. Мёртвая кнопка «Повторить
-           запуск» у квеста в `running` отдавала отказ перехода, и снаружи это
-           выглядело как «нажал — и ничего не произошло». */''}
-      ${deps.resumable && runtime.questId ? `<div><button type="button" class="hall-btn is-primary" data-action="control-master-work-order-v2" data-control="resume" data-id="${esc(order.id)}" data-quest-id="${esc(runtime.questId)}">${esc(deps.resumeLabel || 'Повторить запуск')}</button></div>` : ''}
+      ${stall.waitReason === 'stage_failed' ? `<div><button type="button" class="hall-btn" data-action="revise-master-work-order-v2" data-id="${esc(order.id)}">Обсудить новую версию</button></div>` : ''}
     </div>` : ''
   const planRows = stages.map(stage => ({
     text: stage.name || deps.flowNodeKindLabels?.[stage.kind] || stage.id,
@@ -140,8 +137,6 @@ export function workOrderExecutionHtml(order, ui, deps = {}) {
   // Примечание планировщика: план мог собрать движок Point, а не модель. Без
   // этой строки человек читает шаблонный план как ответ модели.
   const plannerNote = runtime.plannerNote ? `<small class="work-order-exec-note">${esc(runtime.plannerNote)}</small>` : ''
-  const stageCount = stages.length
-  const doneCount = stages.filter(stage => stage.status === 'completed' || stage.status === 'skipped').length
   // Внутри прогона своей шапки у экрана нет: цель и исход уже названы строкой
   // выше, а «ВЫПОЛНЕНИЕ · Квест выполняется» под ними читалось как второе,
   // другое состояние.
@@ -155,7 +150,7 @@ export function workOrderExecutionHtml(order, ui, deps = {}) {
       ${/* В прогоне управление стоит под потоком: сперва читают, что делает
            агент, и только потом решают, вмешиваться ли. Поле «сообщение
            активному квесту» над этапами занимало верх экрана формой. */''}
-      ${deps.headless ? '' : deps.controlsHtml || ''}
+      ${deps.controlsHtml || ''}
       ${provisioning}
       ${plan}
       ${transcript ? `<div class="work-order-exec-log">${transcript}</div>`
@@ -183,7 +178,7 @@ function questOutcomeChips(order, esc) {
   if (!evidence?.id) return ''
   const checks = list(evidence.verificationChecks)
   const passed = checks.filter(item => item.satisfied).length
-  const files = list(evidence.changedFiles).length
+  const files = runtime.deliveryReceipt?.id ? list(evidence.changedFiles).length : 0
   const tokens = list(evidence.modelCalls).reduce((sum, item) => sum + Number(item.inputTokens || 0) + Number(item.outputTokens || 0), 0)
   const url = runtime.deliveryReceipt?.url
   const chips = [
@@ -204,22 +199,13 @@ export function workOrderRunHtml(order, ui, deps = {}) {
   const mark = deps.mark || '·'
   const live = ['preflight', 'running', 'verifying', 'applying'].includes(status)
   const stages = list(runtime.stages)
-  const done = stages.filter(stage => stage.status === 'completed' || stage.status === 'skipped').length
+  const done = stages.filter(stage => stage.status === 'completed').length
   const share = stages.length ? Math.round((done / stages.length) * 100) : 0
-  // Запущенный квест — строка, а не карточка.
-  //
-  // Решать в нём нечего: договор утверждён, и место в ленте нужно разговору, а
-  // не журналу работы. Строка называет квест, показывает, где он идёт, и
-  // раскрывается в то, что происходит внутри. У живого квеста раскрыто по
-  // умолчанию — поток агента и есть то, ради чего на него смотрят; у
-  // законченного закрыто, и наверху остаётся итог четырьмя фактами.
-  //
-  // Умолчание здесь именно умолчание: решение человека старше его и живёт в
-  // общей памяти карточек (master-card-open.js), поэтому свёрнутый живой квест
-  // не распахнётся обратно на следующем опросе наряда.
-  return `<section class="master-v2-run ${esc(tone)}${live ? ' is-live' : ''}" data-work-order-id="${esc(order.id)}" data-quest-id="${esc(runtime.questId || '')}">
-      <details class="hall-quest-run"${masterCardMoreAttrs(`run-live:${order.id}`, { esc, open: live })}>
-        <summary>
+  // Работающий или остановленный квест остаётся частью ленты разговора:
+  // этапы, причины ожидания и хроника видны без отдельного окна или раскрытия.
+  // Завершённый квест можно раскрыть из истории.
+  const inFeed = ['preflight', 'running', 'verifying', 'applying', 'paused', 'awaiting_user', 'blocked'].includes(status)
+  const title = `
           <span class="hall-quest-row">
             <span class="hall-quest-dot" aria-hidden="true"></span>
             <strong class="hall-quest-name">${esc(order.goal || 'Задание')}</strong>
@@ -235,19 +221,20 @@ export function workOrderRunHtml(order, ui, deps = {}) {
           ${/* Итог закончившегося квеста стоит в самой строке, а не под
                раскрытием: по нему видно, взят квест или нет, и ради этого
                раскрывать нечего. У идущего квеста итога ещё не существует. */''}
-          ${live ? '' : questOutcomeChips(order, esc)}
-        </summary>
+          ${live ? '' : questOutcomeChips(order, esc)}`
+  const body = `
         ${/* Условия готовности — первое, что видно в раскрытом квесте: у
              идущего они говорят, по чему его примут, у законченного — какие
              именно закрылись. Ниже стоит работа, которой их закрывали. */''}
         ${deps.checklistHtml || ''}
         ${deps.createdHtml || ''}
         ${workOrderExecutionHtml(order, ui, { ...deps, headless: true })}
-        ${deps.controlsHtml || ''}
         ${deps.compositionHtml || ''}
         ${deps.applicationHtml || ''}
         ${deps.reportHtml || ''}
-        ${deps.evidenceHtml || ''}
-      </details>
-    </section>`
+        ${deps.evidenceHtml || ''}`
+  return `<section class="master-v2-run ${esc(tone)}${live ? ' is-live' : ''}" data-work-order-id="${esc(order.id)}" data-quest-id="${esc(runtime.questId || '')}">
+    ${inFeed ? `<div class="hall-quest-run is-in-feed"><div class="hall-quest-run-title">${title}</div>${body}</div>`
+      : `<details class="hall-quest-run"${masterCardMoreAttrs(`run-live:${order.id}`, { esc })}><summary>${title}</summary>${body}</details>`}
+  </section>`
 }

@@ -243,7 +243,7 @@ func (a *App) scheduleWaitingAgentNodes(quest domain.Quest, flow domain.FlowGrap
 		} else if inst := orchestrator.DefaultStageInstruction(domain.FlowNodeStageRole(node)); inst != "" {
 			task = inst
 		}
-		if role := domain.FlowNodeStageRole(node); role == domain.StageRoleImplement && quest.Title != "" && !strings.Contains(task, quest.Title) {
+		if role := domain.FlowNodeStageRole(node); (role == domain.StageRoleImplement || role == domain.StageRoleIntegrate) && quest.Title != "" && !strings.Contains(task, quest.Title) {
 			task += "\n\nQuest goal: " + quest.Title
 		}
 		contract, contractErr := workContractFromNode(node)
@@ -393,8 +393,31 @@ func (a *App) scheduleWaitingAgentNodes(quest domain.Quest, flow domain.FlowGrap
 		}
 
 		role := domain.FlowNodeStageRole(node)
+		approval, approvalErr := a.store.WorkOrderApprovalByQuestV2(context.Background(), flowRun.QuestID)
+		if approvalErr == nil && hostComposeVerificationNodeV2(node, approval.WorkOrder) {
+			updated, passErr := a.completeStagePassthrough(flowRun, node, exec,
+				"approved Compose criteria deferred to host checks after delivery")
+			if passErr != nil {
+				return passErr
+			}
+			return a.continueAfterDeterministicStage(updated)
+		}
+		if approvalErr == nil && hostManualComposeNodeV2(node, approval.WorkOrder) {
+			updated, passErr := a.completeStagePassthrough(flowRun, node, exec,
+				"manual Docker acceptance requires the delivered workspace and host daemon")
+			if passErr != nil {
+				return passErr
+			}
+			return a.continueAfterDeterministicStage(updated)
+		}
 		lineage, _ := state.Output["sandboxLineage"].(string)
-		if stageAllowsLLMBypass(role, lineage) {
+		stackID := ""
+		if role == domain.StageRoleIntegrate {
+			if approval, approvalErr := a.store.WorkOrderApprovalByQuestV2(context.Background(), flowRun.QuestID); approvalErr == nil {
+				stackID = approval.WorkOrder.Stack.ID
+			}
+		}
+		if stageAllowsLLMBypass(role, lineage, stackID) {
 			updated, passErr := a.completeStagePassthrough(flowRun, node, exec,
 				"serial inherited tip already integrated; skipped redundant "+role+" LLM stage")
 			if passErr != nil {
@@ -450,10 +473,21 @@ func (a *App) scheduleWaitingAgentNodes(quest domain.Quest, flow domain.FlowGrap
 		if bindingErr != nil {
 			return fmt.Errorf("flow node %s model binding: %w", node.ID, bindingErr)
 		}
+		// Clear an earlier wait before launching. Doing this after StartRun can
+		// overwrite a fast completion with a stale Flow snapshot.
+		delete(state.Output, "waitReason")
+		delete(state.Output, "startError")
+		flowRun.NodeStates[node.ID] = state
+		if saveErr := a.store.SaveFlowRun(context.Background(), flowRun); saveErr != nil {
+			return saveErr
+		}
+		// Model-planned work nodes are implementation stages. The parent
+		// WorkOrder criteria belong to Accept, not each writer's final answer.
+		startRole := workOrderExecutionStageRoleV2(node, approvalErr == nil)
 		_, startErr := a.StartRun(StartRunRequest{
 			ProfileID: effectiveAgentID, Task: task, APIKey: apiKey,
 			QuestID: executionQuestID, FlowRunID: flowRun.ID, FlowNodeID: node.ID, ExecutionID: exec.ID,
-			StageRole:           domain.FlowNodeStageRole(node),
+			StageRole:           startRole,
 			CompletionCheckKind: checkKind,
 			ContextItems:        flowNodeContext(quest, flow, flowRun, node.ID, changeSets),
 			ModelBinding:        modelBinding,

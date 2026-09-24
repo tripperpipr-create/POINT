@@ -14,20 +14,22 @@ import (
 	projectenv "local-agent-workbench/internal/environment"
 	"local-agent-workbench/internal/flowruntime"
 	"local-agent-workbench/internal/sandbox"
+	"local-agent-workbench/internal/security"
 	"local-agent-workbench/internal/tools"
 	"local-agent-workbench/internal/workspace"
 )
 
-// stageAllowsLLMBypass is true when launching an LLM cannot improve the tip and
-// often degrades it (e.g. integrate inventing bin/console outside ownership).
-// Serial inheritance already carries one integrated sandbox tip; accept still
-// runs machine verification afterward.
-func stageAllowsLLMBypass(role, sandboxLineage string) bool {
+// stageAllowsLLMBypass applies only where the inherited tip already contains
+// all work assigned to the stage. Generic projects can still need manifests,
+// lockfiles or deployment scaffolding from Integrate after Implement finishes.
+func stageAllowsLLMBypass(role, sandboxLineage, stackID string) bool {
 	if sandboxLineage != "inherited" {
 		return false
 	}
 	switch role {
-	case domain.StageRoleIntegrate, domain.StageRoleImplReview:
+	case domain.StageRoleIntegrate:
+		return stackID == "php-symfony-7"
+	case domain.StageRoleImplReview:
 		return true
 	default:
 		return false
@@ -36,6 +38,74 @@ func stageAllowsLLMBypass(role, sandboxLineage string) bool {
 
 func stageUsesDeterministicBootstrap(role string) bool {
 	return role == domain.StageRoleBootstrap
+}
+
+func workOrderExecutionStageRoleV2(node domain.FlowNode, approved bool) string {
+	role := domain.FlowNodeStageRole(node)
+	if role == "" && approved && node.Kind == domain.FlowNodeAgent {
+		return domain.StageRoleImplement
+	}
+	return role
+}
+
+// A model-planned verification node may repeat criteria that require the host
+// Compose daemon. Point's own Accept and delivery stages own those checks; the
+// model node cannot run them inside the agent sandbox.
+func hostComposeVerificationNodeV2(node domain.FlowNode, order domain.WorkOrder) bool {
+	if node.Kind != domain.FlowNodeAgent || domain.FlowNodeStageRole(node) != "" ||
+		!strings.HasPrefix(strings.ToLower(strings.TrimSpace(node.Name)), "verify") {
+		return false
+	}
+	ids := stringsFromNodeConfig(node.Config, "criterionIds")
+	if len(ids) == 0 {
+		return false
+	}
+	for _, id := range ids {
+		found := false
+		for _, criterion := range order.Criteria {
+			if criterion.ID == id && deferredComposeCriterionV2(order, criterion) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
+}
+
+// A model-planned stage that only repeats manual Docker acceptance cannot
+// verify the host daemon from its isolated container. Leave these criteria
+// pending for delivery and human review instead of starting a doomed agent.
+func hostManualComposeNodeV2(node domain.FlowNode, order domain.WorkOrder) bool {
+	if node.Kind != domain.FlowNodeAgent || domain.FlowNodeStageRole(node) != "" ||
+		!strings.EqualFold(strings.TrimSpace(fmt.Sprint(node.Config["planner"])), "model") {
+		return false
+	}
+	instruction, _ := node.Config["instruction"].(string)
+	if !strings.Contains(strings.ToLower(instruction), "docker compose") {
+		return false
+	}
+	ids := stringsFromNodeConfig(node.Config, "criterionIds")
+	if len(ids) == 0 {
+		return false
+	}
+	composeCriterion := false
+	for _, id := range ids {
+		found := false
+		for _, criterion := range order.Criteria {
+			if criterion.ID == id && criterion.Kind == "manual" {
+				found = true
+				composeCriterion = composeCriterion || strings.Contains(strings.ToLower(criterion.Text), "docker compose")
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return composeCriterion
 }
 
 // continueAfterDeterministicStage finalizes the quest when a non-LLM stage ends
@@ -330,10 +400,18 @@ func bootstrapNetworkHosts(a *App, flowRun domain.FlowRun, projectAgent domain.P
 		}
 		add(strings.TrimSpace(key[len("network:"):]))
 	}
-	// Composer always needs Packagist when installing; keep deterministic bootstrap usable.
+	// Preserve the generic Composer baseline. Additional GitHub archive and Flex
+	// recipe hosts require the approved Symfony setup that names them in Network.
 	add("repo.packagist.org")
 	add("packagist.org")
 	add("github.com")
+	if a != nil && flowRun.QuestID != "" {
+		if approval, err := a.store.WorkOrderApprovalByQuestV2(context.Background(), flowRun.QuestID); err == nil && approval.WorkOrder.Setup.ID == "php-symfony-7" {
+			for _, host := range composerDistributionHostsV2() {
+				add(host)
+			}
+		}
+	}
 	return hosts
 }
 
@@ -348,6 +426,20 @@ func toolResultExitCode(result domain.ToolResult) int {
 		return 0
 	}
 	return payload.ExitCode
+}
+
+func deterministicAcceptFailureDetail(result domain.ToolResult) string {
+	if result.Error != nil && strings.TrimSpace(result.Error.Message) != "" {
+		return truncateRunes(security.Redact(strings.TrimSpace(result.Error.Message)), 160)
+	}
+	var payload struct {
+		Stderr string `json:"stderr"`
+	}
+	if json.Unmarshal(result.Output, &payload) != nil {
+		return ""
+	}
+	line := strings.TrimSpace(strings.SplitN(payload.Stderr, "\n", 2)[0])
+	return truncateRunes(security.Redact(line), 160)
 }
 
 // criteriaSupportDeterministicAccept is true when every parent criterion is a
@@ -371,6 +463,26 @@ func criteriaSupportDeterministicAccept(brief *domain.TaskBrief) bool {
 	return true
 }
 
+// An approved WorkOrder can contain manual criteria alongside declared machine
+// checks. Keep the manual items pending instead of handing every machine check
+// to an LLM running inside the sandbox.
+func criteriaSupportWorkOrderAcceptV2(brief *domain.TaskBrief) bool {
+	if brief == nil {
+		return false
+	}
+	machine := false
+	for _, c := range brief.Criteria {
+		if c.Kind == "manual" {
+			continue
+		}
+		if c.Kind != "verification" || c.Tool != "run_command" || len(c.Arguments) == 0 {
+			return false
+		}
+		machine = true
+	}
+	return machine
+}
+
 // tryDeterministicAccept runs declared run_command criteria on the integrated tip
 // without an LLM. Returns handled=false when criteria are not fully declarative.
 func (a *App) tryDeterministicAccept(quest domain.Quest, flowRun domain.FlowRun, node domain.FlowNode, exec domain.ExecutionInstance, projectAgent domain.ProjectAgent) (bool, domain.FlowRun, error) {
@@ -378,7 +490,8 @@ func (a *App) tryDeterministicAccept(quest domain.Quest, flowRun domain.FlowRun,
 	if brief == nil {
 		return false, flowRun, nil
 	}
-	if !criteriaSupportDeterministicAccept(brief) {
+	approval, approvalErr := a.store.WorkOrderApprovalByQuestV2(context.Background(), flowRun.QuestID)
+	if !criteriaSupportDeterministicAccept(brief) && !(approvalErr == nil && criteriaSupportWorkOrderAcceptV2(brief)) {
 		return false, flowRun, nil
 	}
 	sandboxRecord, err := a.store.GetSandbox(context.Background(), exec.SandboxID)
@@ -432,6 +545,23 @@ func (a *App) tryDeterministicAccept(quest domain.Quest, flowRun domain.FlowRun,
 	allOK := true
 	summaries := make([]string, 0, len(brief.Criteria))
 	for _, criterion := range brief.Criteria {
+		if criterion.Kind == "manual" {
+			evidence.Criteria = append(evidence.Criteria, agent.CriterionEvidence{
+				CriterionID: criterion.ID, Text: criterion.Text, Kind: criterion.Kind, Status: "needs_review",
+			})
+			evidence.Status = "needs_review"
+			summaries = append(summaries, criterion.ID+": manual acceptance pending")
+			continue
+		}
+		if approvalErr == nil && deferredHostCriterionV2(approval.WorkOrder, criterion) {
+			evidence.Criteria = append(evidence.Criteria, agent.CriterionEvidence{
+				CriterionID: criterion.ID, Text: criterion.Text, Kind: criterion.Kind,
+				Status: "unavailable", ExpectedExitCode: criterion.ExpectedExitCode,
+			})
+			evidence.Status = "needs_review"
+			summaries = append(summaries, criterion.ID+": awaiting delivered workspace")
+			continue
+		}
 		var args map[string]any
 		_ = json.Unmarshal(criterion.Arguments, &args)
 		if args == nil {
@@ -472,16 +602,20 @@ func (a *App) tryDeterministicAccept(quest domain.Quest, flowRun domain.FlowRun,
 			if result.Error != nil {
 				ce.Check.Detail = result.Error.Message
 			}
-			summaries = append(summaries, criterion.ID+": failed")
+			failure := criterion.ID + ": failed"
+			if detail := deterministicAcceptFailureDetail(result); detail != "" {
+				failure += " (" + detail + ")"
+			}
+			summaries = append(summaries, failure)
 		} else {
 			ce.Status = "satisfied"
 			summaries = append(summaries, criterion.ID+": ok")
 		}
 		evidence.Criteria = append(evidence.Criteria, ce)
 	}
-	if allOK {
+	if allOK && evidence.Status != "needs_review" {
 		evidence.Status = "verified"
-	} else {
+	} else if !allOK {
 		evidence.Status = "blocked"
 	}
 	checkStatus := "accepted_after_revision"

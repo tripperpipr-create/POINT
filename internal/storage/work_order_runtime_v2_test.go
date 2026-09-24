@@ -97,6 +97,22 @@ func TestWorkOrderRuntimeCarriesStallAndStages(t *testing.T) {
 		t.Fatalf("waiting_api_key is not reported as a stall: %#v", reloaded.Runtime.Stall)
 	}
 
+	// Flow leaves the node at waiting_agent during a live model execution.
+	// The card must use the execution's actual status and clear the old wait.
+	if err = store.SaveExecution(ctx, domain.ExecutionInstance{
+		ID: "execution_writer", WorkspaceID: order.WorkspaceID, QuestID: approval.QuestID,
+		FlowRunID: run.ID, FlowNodeID: "node_writer", RunID: "run_writer", Status: domain.RunRunning, StartedAt: now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err = store.GetWorkOrderV2(ctx, order.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.Runtime.Stall != nil || reloaded.Runtime.Stages[0].Status != "running" || reloaded.Runtime.Stages[0].RunID != "run_writer" || reloaded.Runtime.Stages[0].WaitReason != "" {
+		t.Fatalf("live execution still appears stalled: %#v", reloaded.Runtime)
+	}
+
 	// Узел без причины ожидания затыком не считается: иначе карточка звала бы
 	// человека к работе, которая идёт сама.
 	run.NodeStates["node_writer"] = domain.FlowNodeState{Status: "running", StartedAt: &now, Output: map[string]any{"executionId": "execution_writer"}}
@@ -109,6 +125,20 @@ func TestWorkOrderRuntimeCarriesStallAndStages(t *testing.T) {
 	}
 	if reloaded.Runtime.Stall != nil {
 		t.Fatalf("running node must not look stalled: %#v", reloaded.Runtime.Stall)
+	}
+
+	run.NodeStates["node_writer"] = domain.FlowNodeState{Status: string(domain.RunFailed), StartedAt: &now, Output: map[string]any{
+		"executionId": "execution_writer", "error": "work contract forbids change to composer.json",
+	}}
+	if err = store.SaveFlowRun(ctx, run); err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err = store.GetWorkOrderV2(ctx, order.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.Runtime.Stall == nil || reloaded.Runtime.Stall.WaitReason != "stage_failed" || reloaded.Runtime.Stall.Error != "work contract forbids change to composer.json" {
+		t.Fatalf("failed stage reason is hidden: %#v", reloaded.Runtime.Stall)
 	}
 }
 

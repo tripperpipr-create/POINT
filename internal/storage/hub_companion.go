@@ -411,7 +411,7 @@ WHERE quest_proposals.workspace_id=excluded.workspace_id`,
 func (s *SQLite) ListQuestProposals(ctx context.Context, workspaceID string) ([]domain.QuestProposal, error) {
 	rows, err := s.db.QueryContext(ctx, `
 SELECT id,workspace_id,title,task,rationale,unknowns,objectives,constraints_json,definition_of_done,team_agent_ids,team_agent_ids_locked,selection_breakdown,flow_id,importance,estimate_tokens,estimate_cents,status,created_at,brief_json
-FROM quest_proposals WHERE workspace_id=? ORDER BY created_at DESC`, workspaceID)
+FROM quest_proposals WHERE workspace_id=? AND status<>'purged' ORDER BY created_at DESC`, workspaceID)
 	if err != nil {
 		return nil, err
 	}

@@ -40,13 +40,16 @@ export function createAgentWorkTranscript(dependencies) {
     return `<section class="approval agent-work-card ${pending ? 'is-pending' : ''} ${!pending && approval.status === 'denied' ? 'was-denied' : ''}" ${anchor ? 'id="pending-decision"' : ''}><header><span>!</span><div><strong>${esc(title)}</strong><p>${esc(args.reason || approval.reason)}</p>${pending ? '<em class="decision-mark">Ожидает решения</em>' : ''}</div></header>${operation}${args.cwd ? `<small>${esc(args.cwd)}${args.timeoutSeconds ? ` · тайм-аут ${esc(args.timeoutSeconds)} сек` : ''}</small>` : ''}${pending ? `<footer><button class="danger-button" data-action="resolve" data-id="${esc(approval.id)}" data-allow="false">Отклонить</button><button class="primary small-button" data-action="resolve" data-id="${esc(approval.id)}" data-allow="true">Разрешить один раз</button></footer>` : `<div class="resolved ${approval.status === 'denied' ? 'denied' : ''}">${approval.status === 'allowed' ? 'Разрешено' : 'Отклонено · агент продолжит без этого умения'}</div>`}</section>`
   }
 
-  function patchCard(patch, approval, anchor = false) {
+  function patchCard(patch, approval, anchor = false, sandboxOnly = false) {
     const pending = approval?.status === 'pending'
     const diff = String(patch.diff || '').trim()
     const diffBlock = diff
       ? `<details class="agent-work-diff" ${pending ? 'open' : ''}><summary>Показать diff</summary><pre>${esc(diff)}</pre></details>`
       : ''
-    return `<section class="patch agent-work-card ${pending ? 'is-pending' : ''}" ${anchor ? 'id="pending-decision"' : ''}><header><button type="button" data-action="open-file" data-path="${esc(patch.path)}">${esc(patch.path)}</button><span>${esc(patchStatusLabel(pending ? 'proposed' : patch.status))}</span></header>${pending ? '<em class="decision-mark">Diff ждёт подтверждения</em>' : ''}${diffBlock}${pending ? `<footer><button class="danger-button" data-action="resolve" data-id="${esc(approval.id)}" data-allow="false">Отклонить</button><button class="primary small-button" data-action="resolve" data-id="${esc(approval.id)}" data-allow="true">Применить</button></footer>` : ''}</section>`
+    const path = sandboxOnly
+      ? `<span>${esc(patch.path)}</span>`
+      : `<button type="button" data-action="open-file" data-path="${esc(patch.path)}">${esc(patch.path)}</button>`
+    return `<section class="patch agent-work-card ${pending ? 'is-pending' : ''}" ${anchor ? 'id="pending-decision"' : ''}><header>${path}<span>${esc(patchStatusLabel(pending ? 'proposed' : patch.status))}${sandboxOnly ? ' · в песочнице' : ''}</span></header>${pending ? '<em class="decision-mark">Diff ждёт подтверждения</em>' : ''}${diffBlock}${pending ? `<footer><button class="danger-button" data-action="resolve" data-id="${esc(approval.id)}" data-allow="false">Отклонить</button><button class="primary small-button" data-action="resolve" data-id="${esc(approval.id)}" data-allow="true">${sandboxOnly ? 'Применить в песочнице' : 'Применить'}</button></footer>` : ''}</section>`
   }
 
   // Ждёт ли решения набор правок: у патча своё подтверждение, и лежит оно в
@@ -109,7 +112,7 @@ export function createAgentWorkTranscript(dependencies) {
           payload.omittedRevertibleChanges ? `${payload.omittedRevertibleChanges} сверх лимита истории` : '',
           payload.snapshotComplete === false ? 'снимок неполный' : '',
         ].filter(Boolean)
-        items.push(`<div class="notice ${warnings.length ? 'warning' : 'success'} agent-work-notice">${warnings.length ? '△' : '✓'} ${esc(source)} · изменений: ${esc(payload.totalChanges || 0)} · записано: ${esc(payload.recordedChanges || 0)}${warnings.length ? ` · ${esc(warnings.join(' · '))}` : ''}</div>`)
+        items.push(`<div class="notice ${warnings.length ? 'warning' : 'success'} agent-work-notice">${warnings.length ? '△' : '✓'} ${esc(source)} · изменений: ${esc(payload.totalChanges || 0)} · записано: ${esc(payload.recordedChanges || 0)}${options.sandboxOnly ? ' · в песочнице' : ''}${warnings.length ? ` · ${esc(warnings.join(' · '))}` : ''}</div>`)
       }
       if (event.type === 'tool.requested') {
         items.push(`<div class="tool agent-work-tool"><span aria-hidden="true">↳</span><div><strong>${esc(toolName(payload.tool))}</strong><small>шаг ${event.step}</small></div></div>`)
@@ -128,14 +131,14 @@ export function createAgentWorkTranscript(dependencies) {
           const approval = approvals.get(patch.approvalId)
           const anchor = !anchoredPending && approval?.status === 'pending'
           if (anchor) anchoredPending = true
-          items.push(patchCard(patch, approval, anchor))
+          items.push(patchCard(patch, approval, anchor, Boolean(options.sandboxOnly)))
         }
       }
       if (event.type === 'approval.resolved' && payload.status === 'denied') {
         items.push('<div class="notice warning agent-work-notice">△ Подтверждение отклонено</div>')
       }
       if (event.type === 'run.completed') {
-        items.push(`<div class="notice success completion-pulse agent-work-notice">✓ Квест завершён · запросов: ${details.run.requestCount} · артефактов: ${details.run.changedFiles?.length || 0}</div>${questLevelUpBadge ? questLevelUpBadge(details.run) : ''}`)
+        items.push(`<div class="notice success completion-pulse agent-work-notice">✓ Запуск агента завершён · запросов: ${details.run.requestCount} · изменённых файлов: ${details.run.changedFiles?.length || 0}. Проверка и доставка квеста выполняются отдельно.</div>${questLevelUpBadge ? questLevelUpBadge(details.run) : ''}`)
       }
       if (event.type === 'run.failed' || event.type === 'run.cancelled') {
         items.push(`<div class="notice danger agent-work-notice">! ${esc(coreFailureText(payload.error || payload.reason || details.run.error) || 'Запуск остановлен')}</div>`)

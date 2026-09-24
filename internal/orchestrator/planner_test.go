@@ -14,7 +14,7 @@ import (
 
 func TestPlannerTimeoutsAllowReasoningAndColdLocalStart(t *testing.T) {
 	remote := domain.OrchestratorConfig{Provider: domain.ProviderOpenAI}
-	if got := PlannerBudget(remote); got != 12*time.Minute {
+	if got := PlannerBudget(remote); got != 20*time.Minute {
 		t.Fatalf("remote planner budget=%s", got)
 	}
 	if got := plannerHeaderTimeout(remote); got != 2*time.Minute {
@@ -247,6 +247,31 @@ func TestPlannerCompletesRuntimeOmittedByModel(t *testing.T) {
 	}
 }
 
+func TestPlannerUsesAgentDefaultWhenProbeCatalogIsEmpty(t *testing.T) {
+	request := testPlannerRequest()
+	request.Agents[0].ConnectionID = "conn-1"
+	request.Agents[0].PrimaryModel = "qwen"
+	request.Agents[0].Provider = domain.ProviderOpenAI
+	raw := `{"agentIds":["backend"],"rationale":"Use the selected agent.","stages":[{"name":"Implement","agentId":"backend","instruction":"Implement the task.","phase":1,"connectionId":"conn-1","model":"qwen"}],"requiresApproval":false}`
+	planner := Planner{NewModel: func(providers.Config) (providers.Model, error) {
+		return plannerModel{events: []providers.ModelEvent{{Kind: providers.EventTextDelta, Delta: raw}}}, nil
+	}}
+	result, err := planner.Plan(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stage := result.Plan.Stages[0]
+	if stage.ConnectionID != "" || stage.Model != "" || stage.Runtime != "" {
+		t.Fatalf("agent default was retained as an unsupported override: %#v", stage)
+	}
+
+	foreign := PlanStage{AgentID: "backend", ConnectionID: "another-connection", Model: "qwen"}
+	useAgentDefaultForUncataloguedStageModel(&foreign, nil, request.Agents)
+	if err := validateStageModel(foreign, nil); err == nil {
+		t.Fatal("foreign partial model route was accepted without a catalog entry")
+	}
+}
+
 // plannerBudgetModel запоминает предел вывода каждой попытки и первым ходом
 // повторяет отказ, с которого всё началось: размышление съело бюджет целиком.
 type plannerBudgetModel struct {
@@ -258,7 +283,7 @@ type plannerBudgetModel struct {
 func (m *plannerBudgetModel) Stream(_ context.Context, request providers.ModelRequest, emit func(providers.ModelEvent) error) error {
 	*m.budgets = append(*m.budgets, request.MaxOutputTokens)
 	if m.failFirst && len(*m.budgets) == 1 {
-		return &plannerTestError{"model returned no answer: the entire output budget of 4096 tokens went to reasoning (finish_reason=length)"}
+		return &plannerTestError{"model returned no answer: the entire output budget of 32768 tokens went to reasoning (finish_reason=length)"}
 	}
 	if err := emit(providers.ModelEvent{Kind: providers.EventTextDelta, Delta: m.raw}); err != nil {
 		return err
@@ -266,12 +291,8 @@ func (m *plannerBudgetModel) Stream(_ context.Context, request providers.ModelRe
 	return emit(providers.ModelEvent{Kind: providers.EventUsage, InputTokens: 10, OutputTokens: 5})
 }
 
-// Размышляющей модели планировщик даёт место, а упёршейся — добавляет.
-//
-// 21 сентября 2026 план собрал движок, потому что потолок планировщика резал
-// бюджет до 4096: модель Qwen3.8-27B потратила его на размышление и не ответила
-// ничего. Повтора не было вовсе — планировщик не знал лестницы Мастера.
-func TestPlannerGivesThinkingModelRoomAndGrowsAfterTruncation(t *testing.T) {
+// Повтор с тем же уже максимальным пределом снова тратил бы время без пользы.
+func TestPlannerStartsAtMaximumAndDoesNotRetryExhaustedBudget(t *testing.T) {
 	raw := `{"agentIds":["backend","reviewer"],"rationale":"Backend implements and reviewer verifies independently.","stages":[{"name":"Implement callback","agentId":"backend","instruction":"Implement the callback and run focused tests.","phase":1},{"name":"Security review","agentId":"reviewer","instruction":"Review the implementation and verification evidence.","phase":2}],"requiresApproval":false}`
 	budgets := []int{}
 	planner := Planner{NewModel: func(providers.Config) (providers.Model, error) {
@@ -279,30 +300,18 @@ func TestPlannerGivesThinkingModelRoomAndGrowsAfterTruncation(t *testing.T) {
 	}}
 	request := testPlannerRequest()
 	request.Config.Model = "qwen3-27b"
-	result, err := planner.Plan(context.Background(), request)
-	if err != nil {
-		t.Fatalf("план обязан собраться со второй попытки: %v", err)
+	if _, err := planner.Plan(context.Background(), request); !providers.IsTruncatedReasoningError(err) {
+		t.Fatalf("ожидали честный отказ по лимиту рассуждения: %v", err)
 	}
-	if len(result.Plan.Stages) != 2 {
-		t.Fatalf("plan=%#v", result.Plan)
-	}
-	if len(budgets) != 2 {
-		t.Fatalf("попыток должно быть две, а было %d: %v", len(budgets), budgets)
-	}
-	if budgets[0] < domain.MinThinkingOutputTokens {
-		t.Fatalf("размышляющей модели дали %d — меньше пола %d", budgets[0], domain.MinThinkingOutputTokens)
-	}
-	if budgets[1] <= budgets[0] {
-		t.Fatalf("повтор пошёл под тем же потолком: %v", budgets)
+	if len(budgets) != 1 || budgets[0] != plannerMaxOutputTokens {
+		t.Fatalf("планировщик должен сразу дать 32768 без повтора: %v", budgets)
 	}
 }
 
 // Предел вывода планировщика держится в своих рамках, а не в чужих.
 //
-// Валидатор принимает план на восемь стадий с инструкцией до 2000 рун каждая —
-// около одиннадцати тысяч токенов, — поэтому скупой конфиг поднимается до пола.
-// Щедрый, наоборот, режется потолком: план не должен резервировать бюджет
-// разговора целиком.
+// Планировщик сразу получает 32768 токенов даже при старом малом конфиге.
+// Известный предел семейства остаётся верхней границей.
 func TestPlannerBudgetStaysWithinItsOwnBounds(t *testing.T) {
 	raw := `{"agentIds":["backend"],"rationale":"Single owner is enough.","stages":[{"name":"Implement callback","agentId":"backend","instruction":"Implement the callback and run focused tests.","phase":1}],"requiresApproval":false}`
 	budgets := []int{}

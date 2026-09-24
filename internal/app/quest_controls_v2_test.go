@@ -107,6 +107,9 @@ func TestWorkOrderQuestControlsDriveFlowRuntime(t *testing.T) {
 	if err = application.store.SaveExecution(context.Background(), execution); err != nil {
 		t.Fatal(err)
 	}
+	if _, err = application.ControlWorkOrderQuestV2(context.Background(), quest.ID, "message", WorkOrderQuestControlRequest{Message: "Проверь результат"}); err == nil || !strings.Contains(err.Error(), "нет активного запуска") {
+		t.Fatalf("message without a live run must not claim delivery: %v", err)
+	}
 
 	paused, err := application.ControlWorkOrderQuestV2(context.Background(), quest.ID, "pause", WorkOrderQuestControlRequest{})
 	if err != nil || paused.Status != domain.QuestPaused || paused.FlowRunID != flowRun.ID {
@@ -206,4 +209,48 @@ func TestBlockedWorkOrderQuestRetriesPreflight(t *testing.T) {
 	if strings.TrimSpace(message) == "" || message == workOrderLaunchStartedMessage {
 		t.Fatalf("причина блокировки не записана: %q", message)
 	}
+}
+
+func TestTerminalFailedFlowRejectsNoopResumeAndRecoversPreflight(t *testing.T) {
+	t.Setenv("REDIS_ADDR", "")
+	application, err := New(t.TempDir())
+	if err != nil { t.Fatal(err) }
+	t.Cleanup(func() { application.Shutdown(context.Background()) })
+	ctx := context.Background()
+	world := openTestWorld(t, application)
+	order := managedWorkOrderV2()
+	order.WorkspaceID = world.ID
+	order.Workspace = domain.WorkspacePlan{Mode: "existing", Path: world.Path, Isolation: "snapshot"}
+	assignReadyRosterForTest(t, application, &order)
+	order, err = application.SaveWorkOrderV2(ctx, order)
+	if err != nil { t.Fatal(err) }
+	approval, err := application.store.ApproveWorkOrderV2(ctx, order.ID, order.Version, domain.WorkOrderDigest(order), "terminal-resume")
+	if err != nil { t.Fatal(err) }
+	quest, err := application.workOrderQuestV2(ctx, world.ID, approval.QuestID)
+	if err != nil { t.Fatal(err) }
+	now := time.Now().UTC()
+	flow := domain.FlowGraph{ID: "flow-terminal-resume", WorkspaceID: world.ID, Name: "Terminal flow", CreatedAt: now, UpdatedAt: now}
+	if err = application.store.SaveFlow(ctx, flow); err != nil { t.Fatal(err) }
+	flowRun := domain.FlowRun{ID: "flow-run-terminal-resume", FlowID: flow.ID, WorkspaceID: world.ID, QuestID: quest.ID, Status: domain.RunRunning, StartedAt: now, NodeStates: map[string]domain.FlowNodeState{
+		"bootstrap": {Status: "completed"},
+		"implement": {Status: "failed", Output: map[string]any{"error": "work contract forbids change to composer.json"}},
+		"integrate": {Status: "skipped"},
+	}}
+	if err = application.store.SaveFlowRun(ctx, flowRun); err != nil { t.Fatal(err) }
+	quest.Status, quest.FlowID, quest.FlowRunID = domain.QuestBlocked, flow.ID, flowRun.ID
+	if err = application.store.SaveQuest(ctx, quest); err != nil { t.Fatal(err) }
+	if _, err = application.ControlWorkOrderQuestV2(ctx, quest.ID, "resume", WorkOrderQuestControlRequest{}); err == nil || !strings.Contains(err.Error(), "нельзя возобновить") {
+		t.Fatalf("terminal resume should be rejected: %v", err)
+	}
+	after, err := application.WorkOrderQuestV2(ctx, quest.ID)
+	if err != nil || after.Status != domain.QuestBlocked { t.Fatalf("resume changed quest: %#v %v", after.Status, err) }
+	storedRun, err := application.store.GetFlowRun(ctx, flowRun.ID)
+	if err != nil || storedRun.Status != domain.RunRunning { t.Fatalf("resume changed flow: %#v %v", storedRun.Status, err) }
+	quest.Status = domain.QuestPreflight
+	if err = application.store.SaveQuest(ctx, quest); err != nil { t.Fatal(err) }
+	application.reconcileNoopWorkOrderResumesV2(ctx)
+	after, err = application.WorkOrderQuestV2(ctx, quest.ID)
+	if err != nil || after.Status != domain.QuestBlocked { t.Fatalf("recovery status=%s err=%v", after.Status, err) }
+	storedRun, err = application.store.GetFlowRun(ctx, flowRun.ID)
+	if err != nil || storedRun.Status != domain.RunFailed { t.Fatalf("recovery flow status=%s err=%v", storedRun.Status, err) }
 }

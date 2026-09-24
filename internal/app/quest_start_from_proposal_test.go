@@ -201,6 +201,10 @@ func TestModelOrchestratorPlansValidatedPartyAndFlow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	proposal.EstimateTokens = 100000
+	if err = application.store.SaveQuestProposal(context.Background(), proposal); err != nil {
+		t.Fatal(err)
+	}
 	result, err := application.DecideQuestProposal(QuestProposalDecision{
 		ProposalID: proposal.ID, Action: QuestProposalStart, OrchestratorAPIKey: "orchestrator-secret",
 	})
@@ -348,6 +352,10 @@ func TestModelOrchestratorFallsBackOnInvalidPlan(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	proposal.EstimateTokens = 100000
+	if err = application.store.SaveQuestProposal(context.Background(), proposal); err != nil {
+		t.Fatal(err)
+	}
 	result, err := application.DecideQuestProposal(QuestProposalDecision{ProposalID: proposal.ID, Action: QuestProposalStart})
 	if err != nil {
 		t.Fatal(err)
@@ -482,6 +490,10 @@ func TestQuestPlanningStopsWithTheHTTPContext(t *testing.T) {
 	}
 	proposal, err := application.CompanionPropose(companion.RecommendRequest{Goal: "Plan a slow but cancellable quest"})
 	if err != nil {
+		t.Fatal(err)
+	}
+	proposal.EstimateTokens = 100000
+	if err = application.store.SaveQuestProposal(context.Background(), proposal); err != nil {
 		t.Fatal(err)
 	}
 	before, err := application.Bootstrap()

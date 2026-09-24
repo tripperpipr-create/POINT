@@ -206,7 +206,7 @@ func DefaultStageInstruction(role string) string {
 	case domain.StageRoleImplement:
 		return "Implement the approved quest goal in application source. Prefer propose_patch after list_files or a full-file read; do not use shell redirection (cat/echo) to write source. Inspect third-party libraries under vendor/ or node_modules/ with list_files/read_file when needed — do not clone dependencies into /tmp. Stay inside owned paths; do not rewrite lockfiles, vendored trees, or unrelated project scaffolding unless the quest requires it. Do not start long-lived servers or invent verification beyond the stage brief — accept runs declared checks later. Stop once the feature is in the tree."
 	case domain.StageRoleIntegrate:
-		return "Integrate writer outputs onto the bootstrap base revision. Own shared lockfiles/vendor and scaffolding (bin/, config/) needed for a coherent tip. Prefer confirming the inherited tip over inventing new files. Stop on merge conflict; do not silent-overwrite. Do not re-implement features."
+		return "Integrate writer outputs onto the bootstrap base revision. Check the approved goal against the inherited tip. Create required missing shared manifests, lockfiles and deployment scaffolding (for example go.mod, Dockerfile or Compose) within your owned paths; do not claim these exist without inspecting the files. Preserve existing application source, stop on merge conflict and do not re-implement features."
 	case domain.StageRoleImplReview:
 		return "Read-only review of the integrated revision: list/read src and key config. Do not write. Report whether the goal looks present; do not re-run full test suites (accept stage verifies)."
 	case domain.StageRoleAccept:

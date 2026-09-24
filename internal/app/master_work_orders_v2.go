@@ -117,8 +117,8 @@ func (a *App) saveMasterWorkOrderV2(ctx context.Context, proposal *domain.QuestP
 	if order.Workspace.Mode == "existing" && isCleanGitWorkspace(order.Workspace.Path) {
 		order.Delivery.CommitMode = "squash"
 	}
-	order.Network = masterNetworkGrantsV2(brief, sources)
-	order.Setup = masterSetupPlanV2(order.Stack.ID)
+	order.Setup = masterSetupPlanV2(order.Stack.ID, brief)
+	order.Network = masterNetworkGrantsV2(brief, sources, order.Setup)
 	order.Completion = masterCompletionProfileV2(order)
 	current, getErr := a.store.GetWorkOrderV2(ctx, order.ID)
 	if getErr == nil {
@@ -265,7 +265,6 @@ func masterCompletionProfileV2(order domain.WorkOrder) domain.CompletionProfile 
 	if order.Stack.ID == "php-symfony-7" {
 		add("dependency_audit", "composer validate --no-check-publish")
 		add("cli_smoke", "php bin/console about")
-		checks = append(checks, domain.CompletionCheck{Kind: "health", Command: "php -S 127.0.0.1:8000 -t public", URL: "http://127.0.0.1:8000/health"})
 		return domain.CompletionProfile{ID: "php-symfony-7", Version: "1", Checks: checks}
 	}
 	if path := strings.TrimSpace(order.Workspace.Path); path != "" {
@@ -424,23 +423,39 @@ func masterBriefMentionsSymfony7(brief domain.TaskBrief) bool {
 	return strings.Contains(text, "symfony") && (strings.Contains(text, "symfony 7") || strings.Contains(text, "symfony7") || strings.Contains(text, "7.x"))
 }
 
-func masterSetupPlanV2(stackID string) domain.SetupPlan {
+func masterSetupPlanV2(stackID string, brief domain.TaskBrief) domain.SetupPlan {
 	if stackID != "php-symfony-7" {
 		return domain.SetupPlan{}
 	}
-	return domain.SetupPlan{
+	plan := domain.SetupPlan{
 		ID: "php-symfony-7", Version: "1",
 		Commands: []domain.SetupCommand{
 			{Command: `composer create-project symfony/skeleton:"7.*" . --no-interaction --prefer-dist`, TimeoutSeconds: 900},
-			{Command: "composer require symfony/orm-pack --no-interaction --prefer-dist", TimeoutSeconds: 900},
 		},
-		Files:         []domain.SetupFile{{Path: ".env.local", Content: "DATABASE_URL=\"postgresql://app:change-me@127.0.0.1:5432/app?serverVersion=16&charset=utf8\"\n"}},
 		ExpectedPaths: []string{"composer.json", "vendor/autoload.php", "bin/console"},
 		OwnedPaths:    []string{"composer.json", "composer.lock", ".env", ".env.local", "bin", "vendor"},
 	}
+	requested := strings.ToLower(strings.Join(append([]string{brief.Goal}, brief.Scope...), " "))
+	excluded := strings.ToLower(strings.Join(brief.OutOfScope, " "))
+	if (strings.Contains(requested, "api platform") || strings.Contains(requested, "api-platform")) &&
+		!strings.Contains(excluded, "api platform") && !strings.Contains(excluded, "api-platform") {
+		plan.Commands = append(plan.Commands, domain.SetupCommand{Command: "composer require api-platform/core --no-interaction --prefer-dist", TimeoutSeconds: 900})
+	}
+	if (strings.Contains(requested, "orm") || strings.Contains(requested, "doctrine")) &&
+		!strings.Contains(excluded, "orm") && !strings.Contains(excluded, "doctrine") {
+		plan.Commands = append(plan.Commands, domain.SetupCommand{Command: "composer require symfony/orm-pack --no-interaction --prefer-dist", TimeoutSeconds: 900})
+	}
+	return plan
 }
 
-func masterNetworkGrantsV2(brief domain.TaskBrief, sources []domain.SourceSnapshotRef) []domain.NetworkGrant {
+// Symfony packages are discovered on Packagist, GitHub dist archives travel
+// through api.github.com and codeload.github.com, and Flex fetches recipes
+// from raw.githubusercontent.com.
+func composerDistributionHostsV2() []string {
+	return []string{"repo.packagist.org", "packagist.org", "github.com", "api.github.com", "codeload.github.com", "raw.githubusercontent.com"}
+}
+
+func masterNetworkGrantsV2(brief domain.TaskBrief, sources []domain.SourceSnapshotRef, setup domain.SetupPlan) []domain.NetworkGrant {
 	grants := map[string]string{}
 	for _, value := range brief.Permissions.NetworkHosts {
 		host := strings.ToLower(strings.TrimSpace(value))
@@ -455,6 +470,11 @@ func masterNetworkGrantsV2(brief domain.TaskBrief, sources []domain.SourceSnapsh
 		parsed, err := url.Parse(source.Locator)
 		if err == nil && parsed.Scheme == "https" && parsed.Hostname() != "" {
 			grants[net.JoinHostPort(strings.ToLower(parsed.Hostname()), "443")] = "Обновление или проверка утверждённого источника"
+		}
+	}
+	if setup.ID == "php-symfony-7" {
+		for _, host := range composerDistributionHostsV2() {
+			grants[net.JoinHostPort(host, "443")] = "Загрузка утверждённых Composer-зависимостей Symfony"
 		}
 	}
 	result := make([]domain.NetworkGrant, 0, len(grants))

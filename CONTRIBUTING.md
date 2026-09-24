@@ -19,9 +19,11 @@ The JavaScript side has its own map: which host controller owns what, which
 webview module renders what, and which lists a new module must be added to —
 [`docs/js-modules.md`](docs/js-modules.md).
 
-Start documentation work from [`docs/README.md`](docs/README.md). Historical
-changelog and UI/UX journal entries are append-only evidence; update living
-references instead of rewriting past observations.
+Start documentation work from [`docs/README.md`](docs/README.md). The concise
+current state is [`docs/PROJECT-STATUS.md`](docs/PROJECT-STATUS.md); dated
+evidence lives in [`docs/PROJECT-HISTORY.md`](docs/PROJECT-HISTORY.md).
+Historical changelog and UI/UX journal entries are append-only evidence;
+update living references instead of rewriting past observations.
 
 ## What the repository stores
 
@@ -164,6 +166,36 @@ environment.
 
 ## Local checks
 
+### Работа над задачей
+
+Перед правкой запишите кратко: **ожидаемый результат**, **границы изменения**,
+**наблюдаемый критерий готовности** и **что пока не подтверждено**. Для бага
+добавьте способ воспроизведения; для изменения контракта — кого оно затрагивает
+(core, extension, API, данные). После правки сравните итог с этими пунктами,
+приложите выполненные проверки и явно назовите непроверенное. Не превращайте
+один успешный unit test в утверждение, что весь сценарий IDE работает.
+
+### Проверки по области изменения
+
+Сначала запускайте узкую проверку рядом с изменением, затем затвор затронутого
+контура. Команды полных затворов и их состав определяет `Makefile`; таблица
+помогает выбрать маршрут, а не заменяет CI. При изменении сразу нескольких
+контуров используйте объединение соответствующих строк.
+
+| Область | Быстрая обратная связь | Перед завершением |
+| --- | --- | --- |
+| Go core / API / хранение | `go test ./internal/<package> -count=1` и тест конкретного изменённого пакета | `make test-go`; при новом маршруте ещё `make test-docs` |
+| Hub, extension, CSS | `npm --prefix vscode-extension run build`, затем соответствующий смоук из `scripts/run-hub-smokes.mjs` | `make test-extension`; для UI-контракта также `make test-docs` |
+| Диагностический frontend | `npm --prefix frontend run build` | `make test-frontend` |
+| Документация и контракты | `node scripts/check-docs.mjs` | `make test-docs` |
+| Изоляция, Docker, выпуск | Проверка изменённого скрипта/пакета; для Compose — `docker compose config` | `make test`, затем применимые release и Docker-проверки из [матрицы возможностей](docs/IDE-CAPABILITY-MATRIX.md) |
+| Поведение агента от сообщения до результата | Тест изменённого пакета и воспроизведение бага | Соответствующие затворы выше плюс `make loop` с живой моделью, когда окружение доступно; отсутствие live-прогона указать в итоге |
+
+Смоуки Хаба читают собранный webview: сначала нужна сборка. Имя конкретного
+смоука выбирайте по изменяемому сценарию из `scripts/run-hub-smokes.mjs`.
+`make test` покрывает четыре локальных job; отдельный CI job `sandbox` требует
+Docker-образ и не выполняется этой целью.
+
 PowerShell does not accept `&&`. Use `; if ($LASTEXITCODE -eq 0)`.
 
 `media/style.css` and `media/rpg-tokens.css` are build artifacts. Edit `ui/tokens.css`
@@ -178,7 +210,7 @@ or a file under `ui/layers/`, then rebuild — direct edits are overwritten.
 | `make test-go` | `go` | `go vet`, `go mod verify`, `go test ./... -count=1` |
 | `make test-frontend` | `frontend` | сборка диагностического клиента |
 | `make test-extension` | `extension` | весь JS-контур: сборка ядра, CSS/JS/runtime, смоуки Хаба |
-| `make test` | все четыре | то же, что прогон CI целиком |
+| `make test` | четыре локальных job | полные локальные затворы без отдельного Docker job `sandbox` |
 | `make test-race` | отдельный шаг job `go` | детектор гонок; требует CGO и gcc в PATH |
 | `make loop` | нет | живой прогон: лёгкая правка в настоящем проекте от реплики до зелёных тестов |
 
@@ -220,9 +252,10 @@ the canonical list is in
   handler requires adding its table row in the same change.
 - Onboarding counts come from `ONBOARDING_STEPS` in
   `vscode-extension/ui/client/main.js`.
-- Measured line/file/route counts belong in `docs/PROJECT-STATUS.md`, include a
-  date, and must be remeasured when the status document is refreshed. Route
-  counts cover the whole `internal/httpapi` package, not `server.go` alone.
+- Новые измеренные количества файлов, строк и маршрутов записываются в
+  `docs/PROJECT-STATUS.md` только с датой и свежим замером; прежние значения
+  остаются в `docs/PROJECT-HISTORY.md`. Число маршрутов охватывает весь
+  `internal/httpapi`, а не только `server.go`.
 - A change to the v2 contract (WorkOrder fields, evidence gate, delivery,
   source snapshots) updates `docs/api.md`, `docs/architecture.md` and the
   guarantee list in `docs/agent-hub-mvp.md` in the same change.

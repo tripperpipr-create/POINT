@@ -1,6 +1,7 @@
 package orchestrator
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -102,6 +103,11 @@ func TestCompileWorkGraphForbidsSharedPathsOnImplement(t *testing.T) {
 	}
 	if len(implement.Contract.OwnedPaths) == 0 {
 		t.Fatal("implement must own src/config")
+	}
+	for _, path := range []string{"go.mod", "go.sum", "Dockerfile", "docker-compose.yml"} {
+		if !slices.Contains(implement.Contract.ForbiddenPaths, path) || !slices.Contains(domain.IntegrateOwnedPaths(), path) {
+			t.Fatalf("shared project file %s must belong to Integrate", path)
+		}
 	}
 }
 

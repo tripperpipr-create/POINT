@@ -2,10 +2,74 @@ package app
 
 import (
 	"context"
+	"strings"
+	"time"
 
 	"local-agent-workbench/internal/domain"
 	"local-agent-workbench/internal/observability"
 )
+
+// terminalFailedWorkOrderFlowV2 recognizes a Flow with no node left to run.
+// A stale "running" status must not make Resume claim a new attempt began.
+func terminalFailedWorkOrderFlowV2(run domain.FlowRun) (string, bool) {
+	if len(run.NodeStates) == 0 {
+		return "", false
+	}
+	failure := ""
+	hasFailure := false
+	for _, state := range run.NodeStates {
+		switch state.Status {
+		case "completed", "skipped", "failed", "cancelled":
+		default:
+			return "", false
+		}
+		if state.Status == "failed" {
+			hasFailure = true
+			failure = strings.TrimSpace(state.Error)
+			if fromOutput, _ := state.Output["error"].(string); strings.TrimSpace(fromOutput) != "" {
+				failure = strings.TrimSpace(fromOutput)
+			}
+		}
+	}
+	if !hasFailure {
+		return "", false
+	}
+	if failure == "" {
+		failure = "этап Flow завершился ошибкой"
+	}
+	return failure, true
+}
+
+// Recover a historic no-op Resume before generic restart recovery pauses it.
+func (a *App) reconcileNoopWorkOrderResumesV2(ctx context.Context) {
+	quests, err := a.store.ListInterruptedWorkOrderQuestsV2(ctx)
+	if err != nil {
+		return
+	}
+	for _, candidate := range quests {
+		if candidate.Status != domain.QuestPreflight {
+			continue
+		}
+		quest, questErr := a.workOrderQuestV2(ctx, candidate.WorkspaceID, candidate.QuestID)
+		if questErr != nil || quest.FlowRunID == "" {
+			continue
+		}
+		run, runErr := a.store.GetFlowRun(ctx, quest.FlowRunID)
+		if runErr != nil {
+			continue
+		}
+		failure, terminal := terminalFailedWorkOrderFlowV2(run)
+		if !terminal {
+			continue
+		}
+		now := time.Now().UTC()
+		run.Status, run.Error, run.FinishedAt = domain.RunFailed, failure, &now
+		if saveErr := a.store.SaveFlowRun(ctx, run); saveErr != nil {
+			continue
+		}
+		_, _ = a.setWorkOrderQuestStatusV2(ctx, quest, domain.QuestBlocked, "Этап завершился ошибкой; изменения не доставлены: "+failure)
+	}
+}
 
 // questRecoveryMessageV2 is what the user reads in the launch card after the
 // core, Docker or Windows itself went away mid-quest.

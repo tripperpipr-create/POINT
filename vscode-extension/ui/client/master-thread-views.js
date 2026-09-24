@@ -220,15 +220,13 @@ export function createMasterThreadViews(dependencies) {
     const id = String(proposalId || '')
     if (!id) return ''
     const stored = (ui.state.boot?.questProposals || []).find(item => item.id === id)
-    // Наряд v2 забирал у предложения всю ленту: одна строка гасила и карточку, и
-    // экран запущенной работы, а сама карточка наряда до экрана выполнения не
-    // доросла — человек девять минут смотрел на «выполнение началось» и не видел
-    // ни этапов, ни отказа. Теперь экран выполнения живёт в самой карточке
-    // наряда (master-work-order-v2.js), и лента молчит только тогда, когда там
-    // действительно есть что показать: один экран на одно предложение.
-    const workOrder = (ui.masterData?.workOrders || []).find(order => order.id === `workorder-${id}`)
-    if (workOrder?.runtime) return ''
-    if (workOrder && stored?.status !== 'started') return ''
+    // Наряд и его выполнение принадлежат ходу, в котором Мастер предложил
+    // квест. После запуска карточка предложения уступает место ходу работы;
+    // оба вида рисуются здесь один раз и остаются в ленте разговора.
+    const workOrder = (ui.masterData?.workOrders || []).find(order => order.proposalId === id || order.id === `workorder-${id}`)
+    if (workOrder) return masterWorkOrderCardsHtml([workOrder], esc, ui.masterWorkOrderBusy, {
+      ui, agentWorkTranscriptHtml, flowNodeKindLabels,
+    })
     // Состояние предложения решает хранилище, а не ответ.
     //
     // Ответ хода — снимок на момент реплики, и он остаётся прежним, когда квест
@@ -897,7 +895,6 @@ export function createMasterThreadViews(dependencies) {
     if (ui.masterData && ui.masterData.configured === false && !ui.masterData.sessions?.items?.length) return shell(masterNotConfiguredHtml())
 
     const workMode = ui.masterData?.sessions?.workMode || 'discuss'
-    const keepUndoBar = sessionKeepUndoBarHtml(workMode)
 
     // Панель задания собирается один раз: её разметка решает и класс раздела —
     // без задания сужать разговор не подо что.
@@ -916,7 +913,6 @@ export function createMasterThreadViews(dependencies) {
            ленты, потому что больше не выкидывается вместе с её содержимым. */''}
       <button type="button" class="hall-thread-cue is-hidden" id="master-scroll-cue" data-action="master-scroll-latest">К новым ↓</button>
       ${ui.masterData?.configured===false ? `<div class="hall-compose"><p>История доступна. Чтобы продолжить разговор, настройте модель мастера.</p><button type="button" class="hall-btn" data-action="open-orchestrator-setup">Настроить модель</button></div>` : `<form class="${masterComposeFormClass(ui.masterDraft)}">
-        ${keepUndoBar}
         ${/* Неотвеченные уточнения спрашивают здесь, а не в ленте: там они
              уезжали вверх с каждым следующим ходом, и человек отвечал не на то,
              что видел. Слот стоит отдельным узлом: досборка после ответа ядра
@@ -971,7 +967,10 @@ export function createMasterThreadViews(dependencies) {
     const runChangedFiles = (workMode === 'agent' || ui.state.details?.run) ? sessionRunChangedFilesHtml() : ''
     // Карточке наряда нужны те же зависимости, что и остальным видам: после
     // утверждения она рисует экран выполнения, а он читает хронику прогона.
-    const workOrders = masterWorkOrderCardsHtml(ui.masterData?.workOrders || [], esc, ui.masterWorkOrderBusy, {
+    const shownProposalIds = new Set(history.map(item => String(item?.proposalId || '')).filter(Boolean))
+    const workOrders = masterWorkOrderCardsHtml((ui.masterData?.workOrders || []).filter(order =>
+      !shownProposalIds.has(String(order.proposalId || order.id?.replace(/^workorder-/, '') || ''))
+    ), esc, ui.masterWorkOrderBusy, {
       ui, agentWorkTranscriptHtml, flowNodeKindLabels,
     })
     // Кем делать работу — рядом с тем, что делать. Карточка найма считается на
@@ -1028,6 +1027,7 @@ export function createMasterThreadViews(dependencies) {
         ${agentCards}
         ${hiring}
         ${runChangedFiles}
+        ${sessionKeepUndoBarHtml(workMode)}
       `
   }
 

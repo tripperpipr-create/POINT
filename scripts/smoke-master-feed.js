@@ -27,7 +27,7 @@ const HISTORY = [
   { id: 'ma-2', role: 'assistant', mode: 'model', content: 'Обработчик оплаты падает на повторной доставке.', createdAt: at(0, 14, 3) },
 ]
 
-function open({ history = HISTORY, truncated = false } = {}) {
+function open({ history = HISTORY, truncated = false, workOrders = [], details, executions = [] } = {}) {
   const listeners = {}
   const posted = []
   const field = { id: 'master-input', value: '', rows: 2, focus() {}, setSelectionRange() {}, closest: () => null, matches: () => false }
@@ -58,12 +58,13 @@ function open({ history = HISTORY, truncated = false } = {}) {
     selectedTab: 'master',
     boot: {
       onboarded: true, profiles: [], projectAgents: [], usageRecords: [],
-      runs: [], quests: [], executions: [], changeSets: [], questProposals: [],
+      runs: [], quests: [], executions, changeSets: [], questProposals: [],
       orchestrator: { id: 'o1', preset: 'conductor', model: 'qwen' },
     },
+    details,
   } })
   listeners['window:message']({ data: { type: 'master', master: {
-    configured: true, config: { model: 'qwen' }, history, truncated,
+    configured: true, config: { model: 'qwen' }, history, truncated, workOrders,
   } } })
 
   const click = dataset => listeners['root:click']({
@@ -71,6 +72,66 @@ function open({ history = HISTORY, truncated = false } = {}) {
     preventDefault() {},
   })
   return { listeners, posted, root, click, find }
+}
+
+{
+  const ui = open({ details: {
+    run: { id: 'run-files', status: 'completed' },
+    patches: [
+      { id: 'patch-applied', path: 'src/api.php', status: 'applied' },
+      { id: 'patch-applied-2', path: 'src/api.php', status: 'applied' },
+      { id: 'patch-pending', path: 'src/api.php', status: 'pending' },
+      { id: 'patch-other-pending', path: 'src/new.php', status: 'pending' },
+    ],
+  } })
+  const html = ui.root.innerHTML
+  const feed = html.indexOf('session-keep-undo')
+  const composer = html.indexOf('<form class="hall-compose')
+  if (!(feed >= 0 && feed < composer) || html.includes('Оставить всё')) {
+    throw new Error('file changes or a fake Keep action are still in the composer')
+  }
+  if (!html.includes('data-patch-ids="patch-applied,patch-applied-2"') || html.includes('data-patch-ids="patch-applied,patch-applied-2,patch-pending"')) {
+    throw new Error('file undo includes a patch that was not applied')
+  }
+  if (!html.includes('1 файл применён') || !html.includes('2 файла ждут решения')) {
+    throw new Error('patch count is shown as file count')
+  }
+  if (html.includes('data-action="open-file" data-path="src/new.php"')) {
+    throw new Error('pending sandbox file has a project open button')
+  }
+  ui.click({ action: 'keep-run-all', runId: 'run-files' })
+  if (ui.root.innerHTML.includes('session-keep-undo')) throw new Error('Hide list did not hide the feed item')
+}
+
+{
+  const ui = open({
+    executions: [{ id: 'execution-flow', runId: 'run-flow', flowRunId: 'flow-1' }],
+    details: { run: { id: 'run-flow', status: 'running' }, patches: [{ id: 'patch-flow', path: 'composer.json', status: 'applied' }] },
+  })
+  if (ui.root.innerHTML.includes('session-run-files') || ui.root.innerHTML.includes('session-keep-undo')) {
+    throw new Error('sandbox files appear as changed project files in the feed or composer')
+  }
+}
+
+// После запуска квест идёт при той реплике, которая его предложила. Нижняя
+// форма остаётся местом для сообщения, а не вторым экраном выполнения.
+{
+  const history = HISTORY.map(item => item.id === 'ma-1' ? { ...item, proposalId: 'qp-feed' } : item)
+  const workOrders = [{
+    id: 'workorder-qp-feed', proposalId: 'qp-feed', state: 'approved', goal: 'Миграция базы',
+    runtime: { questId: 'quest-feed', status: 'running', stages: [{ id: 'implement', name: 'Реализация', status: 'running', runId: 'run-feed' }] },
+  }]
+  const html = open({ history, workOrders }).root.innerHTML
+  const proposal = html.indexOf('Отряд собран, миграция расписана.')
+  const run = html.indexOf('data-work-order-id="workorder-qp-feed"')
+  const nextTurn = html.indexOf('Что с обработчиком оплаты?')
+  const composer = html.indexOf('<form class="hall-compose')
+  if (!(proposal >= 0 && proposal < run && run < nextTurn && nextTurn < composer)) {
+    throw new Error('running quest is outside its conversation turn or inside the composer')
+  }
+  if ((html.match(/data-work-order-id="workorder-qp-feed"/g) || []).length !== 1) {
+    throw new Error('running quest is duplicated between its turn and the bottom of the feed')
+  }
 }
 
 const failures = []

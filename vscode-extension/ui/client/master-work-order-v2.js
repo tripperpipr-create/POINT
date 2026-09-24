@@ -158,17 +158,19 @@ export function masterWorkOrderCardsHtml(orders, esc, busyIds = new Set(), deps 
 	// стоит на нём, он отдал ключ или авторизовал CLI и просит продолжить.
 	// Пока этого состояния тут не было, у квеста, ждущего ключ, не оставалось
 	// ни одной кнопки — только отмена.
-	const resumable=['paused','blocked','failed','awaiting_user'].includes(runtime?.status)
+	const resumable=['paused','blocked','awaiting_user'].includes(runtime?.status) && runtime?.stall?.waitReason!=='stage_failed'
 	const resumeLabel=runtime?.status==='paused' ? 'Продолжить' : 'Повторить запуск'
 	// Песочница выключена по умолчанию, и ядро честно отказывается запускать
 	// автономный проект. Отказ без выхода читается как поломка, поэтому рядом
 	// стоит само действие: настройка плюс перезапуск ядра.
 	const sandboxFix=runtime?.status==='blocked' && /docker\s*sandbox/i.test(String(runtime.message || ''))
 		? `<button type="button" class="hall-btn" data-action="enable-docker-sandbox">Включить Docker sandbox</button>` : ''
-	const cancellable=runtime && !['completed','cancelled'].includes(runtime.status)
+	const cancellable=runtime && ['preflight','running','verifying','applying','paused','awaiting_user','needs_review','blocked'].includes(runtime.status)
+	const messageable=runtime && ['running','verifying','applying'].includes(runtime.status)
+		&& list(runtime.stages).some(stage => stage.runId && ['running','waiting_approval'].includes(stage.status))
 	const runtimeControls=order.state==='approved' && runtime?.questId && cancellable ? `<div class="master-v2-runtime-controls">
         <div>${pausable?`<button type="button" class="hall-btn" data-action="control-master-work-order-v2" data-control="pause" data-id="${esc(order.id)}" data-quest-id="${esc(runtime.questId)}" ${busy?'disabled':''}>Пауза</button>`:''}${sandboxFix}${resumable?`<button type="button" class="hall-btn is-primary" data-action="control-master-work-order-v2" data-control="resume" data-id="${esc(order.id)}" data-quest-id="${esc(runtime.questId)}" ${busy?'disabled':''}>${resumeLabel}</button>`:''}<button type="button" class="hall-btn" data-action="control-master-work-order-v2" data-control="cancel" data-id="${esc(order.id)}" data-quest-id="${esc(runtime.questId)}" ${busy?'disabled':''}>Отменить</button></div>
-        <label><span>Сообщение активному квесту</span><input data-work-order-message maxlength="32768" placeholder="Уточнение без изменения scope"><button type="button" class="hall-btn" data-action="control-master-work-order-v2" data-control="message" data-id="${esc(order.id)}" data-quest-id="${esc(runtime.questId)}" ${busy?'disabled':''}>Отправить</button></label>
+		${messageable?`<label><span>Сообщение активному квесту</span><input data-work-order-message maxlength="32768" placeholder="Уточнение без изменения scope"><button type="button" class="hall-btn" data-action="control-master-work-order-v2" data-control="message" data-id="${esc(order.id)}" data-quest-id="${esc(runtime.questId)}" ${busy?'disabled':''}>Отправить</button></label>`:''}
       </div>` : ''
 	const applicationControls=runtime?.status==='completed' && receipt?.id ? `<div class="master-v2-runtime-controls master-v2-application-controls">
         <div><strong>Приложение готово</strong>${receipt.url?`<a href="${esc(receipt.url)}" title="Открыть приложение">${esc(receipt.url)}</a>`:'<span>Локальный URL не указан</span>'}</div>

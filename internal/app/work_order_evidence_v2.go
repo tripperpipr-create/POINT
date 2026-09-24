@@ -7,8 +7,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
+	"net"
+	"net/http"
+	"net/url"
 	"os"
+	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -61,6 +66,15 @@ func (a *App) finalizeWorkOrderQuestAfterFlowV2(approval domain.WorkOrderApprova
 			bundle.DeliveryConflict = errors.Is(applyErr, errWorkOrderDeliveryConflictV2)
 			bundle.KnownLimitations = append(bundle.KnownLimitations, "Автоматический перенос не завершён: "+security.Redact(applyErr.Error()))
 		} else {
+			// Compose controls need the host Docker daemon and the delivered files.
+			// The agent container intentionally has neither. Run only the exact
+			// commands frozen in the approved WorkOrder, then let the completion
+			// profile restore and verify the final service state.
+			composeChecks := a.runDeferredComposeCriteriaV2(ctx, approval.WorkOrder, approval.WorkOrder.Workspace.Path, &bundle)
+			if failed := failedCompletionCheckKindsV2(composeChecks); len(failed) > 0 {
+				bundle.KnownLimitations = append(bundle.KnownLimitations,
+					"Результат перенесён в проект, но не прошёл Compose-критерии: "+strings.Join(failed, ", "))
+			}
 			// The profile runs on the delivered revision: build, tests and a
 			// started service prove the result the user will actually open,
 			// not the sandbox copy that produced it.
@@ -202,6 +216,314 @@ func isFastAgentQuestV2(quest domain.Quest) bool {
 	return strings.EqualFold(strings.TrimSpace(mode), "fast_agent_v2")
 }
 
+// deferredComposeCriterionV2 recognizes an approved command that requires the
+// host Docker daemon. Agent commands run inside an isolated container and must
+// never receive the host socket merely to satisfy an acceptance check.
+func deferredComposeCriterionV2(order domain.WorkOrder, criterion domain.AcceptanceCriterion) bool {
+	if criterion.Kind != "verification" || criterion.Tool != "run_command" {
+		return false
+	}
+	var args struct {
+		Command string `json:"command"`
+	}
+	if json.Unmarshal(criterion.Arguments, &args) != nil || !strings.HasPrefix(strings.TrimSpace(args.Command), "docker compose ") {
+		return false
+	}
+	for _, approved := range order.Criteria {
+		if approved.ID != criterion.ID || approved.Kind != criterion.Kind || approved.Tool != criterion.Tool ||
+			(approved.ExpectedExitCode == nil) != (criterion.ExpectedExitCode == nil) {
+			continue
+		}
+		if approved.ExpectedExitCode != nil && *approved.ExpectedExitCode != *criterion.ExpectedExitCode {
+			continue
+		}
+		var approvedArgs, criterionArgs any
+		if json.Unmarshal(approved.Arguments, &approvedArgs) == nil &&
+			json.Unmarshal(criterion.Arguments, &criterionArgs) == nil && reflect.DeepEqual(approvedArgs, criterionArgs) {
+			return true
+		}
+	}
+	return false
+}
+
+// deferredHostCriterionV2 also covers the HTTP probe of a Compose service:
+// localhost inside the agent container is not localhost on the delivery host.
+func deferredHostCriterionV2(order domain.WorkOrder, criterion domain.AcceptanceCriterion) bool {
+	if deferredComposeCriterionV2(order, criterion) {
+		return true
+	}
+	if criterion.Kind != "verification" || criterion.Tool != "run_command" {
+		return false
+	}
+	var args struct {
+		Command string `json:"command"`
+	}
+	if json.Unmarshal(criterion.Arguments, &args) != nil || !strings.HasPrefix(strings.TrimSpace(args.Command), "curl -sf ") {
+		return false
+	}
+	for _, approved := range order.Criteria {
+		if approved.ID != criterion.ID || approved.Kind != criterion.Kind || approved.Tool != criterion.Tool ||
+			(approved.ExpectedExitCode == nil) != (criterion.ExpectedExitCode == nil) {
+			continue
+		}
+		if approved.ExpectedExitCode != nil && *approved.ExpectedExitCode != *criterion.ExpectedExitCode {
+			continue
+		}
+		var want, got any
+		if json.Unmarshal(approved.Arguments, &want) == nil && json.Unmarshal(criterion.Arguments, &got) == nil && reflect.DeepEqual(want, got) {
+			return true
+		}
+	}
+	return false
+}
+
+func workOrderHasDeferredComposeCriteriaV2(order domain.WorkOrder) bool {
+	for _, criterion := range order.Criteria {
+		if deferredHostCriterionV2(order, criterion) {
+			return true
+		}
+	}
+	return false
+}
+
+// Only these two approved shell forms have a portable managed equivalent.
+// Other Compose commands remain unavailable rather than running model-authored
+// shell on the host or claiming a check that was never performed.
+func managedComposeCriterionKindV2(order domain.WorkOrder, command string) (string, string) {
+	if command == "docker compose build" {
+		return "build", ""
+	}
+	if command == "docker compose up -d" {
+		return "stack-up", ""
+	}
+	if strings.HasPrefix(command, "curl -sf ") {
+		base := strings.TrimSuffix(strings.TrimPrefix(command, "curl -sf "), "/health")
+		if command == "curl -sf "+base+"/health" && managedComposeLocalURLV2(order, base) {
+			return "health-json-ok", base
+		}
+		return "", ""
+	}
+	// The approved criterion can name a local test URL even when delivery does
+	// not promise a running application URL. Extract it only from the two known
+	// command forms, then compare the entire command below.
+	marker := "curl -sf "
+	if strings.HasPrefix(command, "docker compose stop postgres") {
+		marker = "-w '%{http_code}' "
+	}
+	start := strings.Index(command, marker)
+	if start < 0 {
+		return "", ""
+	}
+	remainder := command[start+len(marker):]
+	end := strings.Index(remainder, "/health")
+	if end < 0 {
+		return "", ""
+	}
+	base := remainder[:end]
+	if !managedComposeLocalURLV2(order, base) {
+		return "", ""
+	}
+	health := base + "/health"
+	live := base + "/live"
+	startCommand := "docker compose up -d && timeout 90 bash -c 'until curl -sf " + health + " >/dev/null; do sleep 2; done'"
+	if command == startCommand {
+		return "health-200", base
+	}
+	outage := "docker compose stop postgres && sleep 3 && [ \"$(curl -s -o /dev/null -w '%{http_code}' " + health + ")\" = \"503\" ] && [ \"$(curl -s -o /dev/null -w '%{http_code}' " + live + ")\" = \"200\" ]"
+	if command == outage {
+		return "health-503-live-200", base
+	}
+	return "", ""
+}
+
+func managedComposeLocalURLV2(order domain.WorkOrder, base string) bool {
+	parsed, err := url.Parse(base)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || parsed.Path != "" || parsed.Host == "" {
+		return false
+	}
+	host := parsed.Hostname()
+	if host != "localhost" && (net.ParseIP(host) == nil || !net.ParseIP(host).IsLoopback()) {
+		return false
+	}
+	approvedURL := strings.TrimRight(strings.TrimSpace(order.Delivery.ApplicationURL), "/")
+	return approvedURL == "" || approvedURL == base
+}
+
+func managedComposeJSONProbeV2(ctx context.Context, probeURL string) (int, string, error) {
+	client := &http.Client{Timeout: 3 * time.Second, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	last := "no response"
+	for {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, probeURL, nil)
+		if err != nil {
+			return 1, "invalid health URL", err
+		}
+		resp, err := client.Do(req)
+		if err == nil {
+			var body struct {
+				Status string `json:"status"`
+			}
+			decodeErr := json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&body)
+			_ = resp.Body.Close()
+			last = resp.Status
+			if resp.StatusCode == http.StatusOK && decodeErr == nil && body.Status == "ok" {
+				return 0, "GET " + probeURL + ": 200, status ok", nil
+			}
+		} else {
+			last = security.Redact(err.Error())
+		}
+		select {
+		case <-ctx.Done():
+			return 1, "GET " + probeURL + ": expected 200 with status ok, last " + last, nil
+		case <-ticker.C:
+		}
+	}
+}
+
+func managedComposeProbeV2(ctx context.Context, probeURL string, expected int) (int, string, error) {
+	client := &http.Client{
+		Timeout:       3 * time.Second,
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse },
+	}
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	last := "no response"
+	for {
+		request, err := http.NewRequestWithContext(ctx, http.MethodGet, probeURL, nil)
+		if err != nil {
+			return 1, "invalid health URL", err
+		}
+		response, err := client.Do(request)
+		if err == nil {
+			_ = response.Body.Close()
+			last = response.Status
+			if response.StatusCode == expected {
+				return 0, "GET " + probeURL + ": " + last, nil
+			}
+		} else {
+			last = security.Redact(err.Error())
+		}
+		select {
+		case <-ctx.Done():
+			return 1, "GET " + probeURL + ": expected " + fmt.Sprint(expected) + ", last " + last, nil
+		case <-ticker.C:
+		}
+	}
+}
+
+func (a *App) runManagedComposeCriterionV2(ctx context.Context, directory, kind, base string, runner CompletionCheckRunner) (int, string, error) {
+	base = strings.TrimRight(base, "/")
+	if kind == "build" || kind == "stack-up" {
+		command := "docker compose build"
+		if kind == "stack-up" {
+			command = "docker compose up -d"
+		}
+		return runner.Run(ctx, directory, command)
+	}
+	if kind == "health-json-ok" {
+		probeCtx, cancel := context.WithTimeout(ctx, 90*time.Second)
+		defer cancel()
+		return managedComposeJSONProbeV2(probeCtx, base+"/health")
+	}
+	compose := "docker compose up -d --wait"
+	if kind == "health-503-live-200" {
+		compose = "docker compose stop postgres"
+	}
+	code, output, err := runner.Run(ctx, directory, compose)
+	if err != nil || code != 0 {
+		return code, output, err
+	}
+	if kind == "health-503-live-200" {
+		probeCtx, probeCancel := context.WithTimeout(ctx, 30*time.Second)
+		healthCode, healthOutput, healthErr := managedComposeProbeV2(probeCtx, base+"/health", 503)
+		liveCode, liveOutput, liveErr := managedComposeProbeV2(probeCtx, base+"/live", 200)
+		probeCancel()
+		// Restore the database even if the HTTP probe fails or is cancelled.
+		restoreCtx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		restoreCode, restoreOutput, restoreErr := runner.Run(restoreCtx, directory, "docker compose start postgres")
+		if restoreCode != 0 || restoreErr != nil {
+			restoreCode = 1
+			if restoreErr != nil {
+				restoreOutput += "\nPostgreSQL restore failed: " + security.Redact(restoreErr.Error())
+			}
+		} else {
+			recoveredCode, recoveredOutput, recoveredErr := managedComposeProbeV2(restoreCtx, base+"/health", 200)
+			restoreCode |= recoveredCode
+			restoreOutput += "\n" + recoveredOutput
+			restoreErr = recoveredErr
+		}
+		cancel()
+		return healthCode | liveCode | restoreCode,
+			strings.Join([]string{output, healthOutput, liveOutput, restoreOutput}, "\n"),
+			errors.Join(healthErr, liveErr, restoreErr)
+	}
+	probeCtx, cancel := context.WithTimeout(ctx, 90*time.Second)
+	probeCode, probeOutput, probeErr := managedComposeProbeV2(probeCtx, base+"/health", 200)
+	cancel()
+	return probeCode, strings.TrimSpace(output + "\n" + probeOutput), probeErr
+}
+
+func (a *App) runDeferredComposeCriteriaV2(ctx context.Context, order domain.WorkOrder, directory string, bundle *domain.EvidenceBundle) []domain.VerificationCheck {
+	runner := a.completionCheckRunner
+	if runner == nil {
+		runner = shellCompletionCheckRunner{}
+	}
+	results := []domain.VerificationCheck{}
+	for _, criterion := range order.Criteria {
+		if !deferredHostCriterionV2(order, criterion) {
+			continue
+		}
+		var args struct {
+			Command string `json:"command"`
+		}
+		_ = json.Unmarshal(criterion.Arguments, &args)
+		command := strings.TrimSpace(args.Command)
+		started := time.Now()
+		kind, base := managedComposeCriterionKindV2(order, command)
+		var code int
+		var output string
+		var err error
+		if kind == "" {
+			err = errors.New("Compose-критерий не имеет поддерживаемой управляемой проверки на хосте")
+		} else {
+			attemptCtx, cancel := context.WithTimeout(ctx, completionCheckTimeout)
+			code, output, err = a.runManagedComposeCriterionV2(attemptCtx, directory, kind, base, runner)
+			cancel()
+		}
+		expected := 0
+		if criterion.ExpectedExitCode != nil {
+			expected = *criterion.ExpectedExitCode
+		}
+		check := domain.VerificationCheck{
+			ID: criterion.ID, Kind: workOrderVerificationKindV2(criterion.ID, order.Criteria),
+			Command: command, DurationMs: time.Since(started).Milliseconds(),
+			Summary: completionCheckSummaryV2(output, err),
+		}
+		if err == nil {
+			check.ExitCode = &code
+			check.Satisfied = code == expected
+		}
+		for i := range bundle.Criteria {
+			if bundle.Criteria[i].CriterionID == criterion.ID {
+				bundle.Criteria[i].Satisfied = check.Satisfied
+				bundle.Criteria[i].Command = command
+				bundle.Criteria[i].ExitCode = check.ExitCode
+				bundle.Criteria[i].Summary = check.Summary
+				break
+			}
+		}
+		for i := range bundle.VerificationChecks {
+			if bundle.VerificationChecks[i].ID == criterion.ID {
+				bundle.VerificationChecks[i] = check
+				break
+			}
+		}
+		results = append(results, check)
+	}
+	return results
+}
+
 func (a *App) buildWorkOrderEvidenceV2(ctx context.Context, approval domain.WorkOrderApproval, quest domain.Quest, flowSucceeded bool) domain.EvidenceBundle {
 	order := approval.WorkOrder
 	bundle := domain.EvidenceBundle{
@@ -259,7 +581,7 @@ func (a *App) buildWorkOrderEvidenceV2(ctx context.Context, approval domain.Work
 			}
 		}
 		bundle.ChangedFiles = append(bundle.ChangedFiles, outcome.AppliedFiles...)
-		if !outcome.Verified && outcome.Honest != "" {
+		if !outcome.Verified && outcome.Honest != "" && !workOrderHasDeferredComposeCriteriaV2(order) {
 			bundle.KnownLimitations = append(bundle.KnownLimitations, outcome.Honest)
 		}
 	} else if len(executionFailures) == 0 {

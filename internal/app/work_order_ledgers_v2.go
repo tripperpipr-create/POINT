@@ -104,7 +104,10 @@ func (a *App) collectWorkOrderEvidenceLedgersV2(ctx context.Context, order domai
 	for executionID, run := range runByExecution {
 		execution := owned[executionID]
 		projectAgent := agentByID[execution.ProjectAgentID]
-		if !usageByExecution[executionID] {
+		// Deterministic stages persist a Run for their event history, but never
+		// call a model. They have no provider/model and must not be represented
+		// as an incomplete model call in the evidence ledger.
+		if !usageByExecution[executionID] && strings.TrimSpace(run.Provider) != "" && strings.TrimSpace(run.Model) != "" {
 			bundle.ModelCalls = append(bundle.ModelCalls, domain.ModelCallLedgerEntry{
 				ID: "run:" + run.ID, MilestoneID: milestoneByFlowRun[execution.FlowRunID], StageID: execution.FlowNodeID,
 				ConnectionID: projectAgent.ConnectionID, Provider: run.Provider, Model: run.Model,

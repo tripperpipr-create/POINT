@@ -45,12 +45,12 @@ func TestMasterSymfonyPresetAndGenericWebCompletion(t *testing.T) {
 	if preset := masterStackPresetV2(brief); preset != "php-symfony-7" {
 		t.Fatalf("preset=%q", preset)
 	}
-	setup := masterSetupPlanV2("php-symfony-7")
-	if len(setup.Commands) != 2 || len(setup.ExpectedPaths) != 3 {
+	setup := masterSetupPlanV2("php-symfony-7", brief)
+	if len(setup.Commands) != 1 || len(setup.ExpectedPaths) != 3 {
 		t.Fatalf("unexpected setup plan: %#v", setup)
 	}
 	profile := masterCompletionProfileV2(domain.WorkOrder{Stack: domain.StackPresetRef{ID: "php-symfony-7", Category: "api"}})
-	if len(profile.Checks) != 4 || profile.Checks[3].Kind != "health" || profile.Checks[3].URL == "" {
+	if len(profile.Checks) != 3 {
 		t.Fatalf("unexpected Symfony completion profile: %#v", profile)
 	}
 	generic := masterCompletionProfileV2(domain.WorkOrder{Stack: domain.StackPresetRef{ID: "recommended-web", Category: "web"}})

@@ -49,6 +49,15 @@ func (a *App) ControlWorkOrderQuestV2(ctx context.Context, questID, action strin
 	if err = validateWorkOrderRuntimeControl(quest.Status, action); err != nil {
 		return result, err
 	}
+	if action == "resume" && quest.FlowRunID != "" {
+		flowRun, loadErr := a.store.GetFlowRun(ctx, quest.FlowRunID)
+		if loadErr != nil {
+			return result, loadErr
+		}
+		if failure, terminal := terminalFailedWorkOrderFlowV2(flowRun); terminal {
+			return result, fmt.Errorf("этап завершился ошибкой: %s; этот Flow нельзя возобновить, подготовьте новую версию наряда", security.Redact(failure))
+		}
+	}
 	if action == "cancel" || action == "pause" {
 		// Фоновый запуск ждёт планировщика минутами. Решение человека старше:
 		// иначе отменённый квест ещё полчаса держал бы за собой запуск.
@@ -63,6 +72,9 @@ func (a *App) ControlWorkOrderQuestV2(ctx context.Context, questID, action strin
 		if err != nil {
 			return result, err
 		}
+	}
+	if action == "message" && result.AffectedRuns == 0 {
+		return result, errors.New("нет активного запуска агента, которому можно доставить сообщение")
 	}
 	result.Status, err = a.store.ControlWorkOrderQuestV2(ctx, questID, action, request.Message)
 	if err != nil || action != "resume" {
@@ -90,11 +102,11 @@ func (a *App) ControlWorkOrderQuestV2(ctx context.Context, questID, action strin
 	// причиной, и человек прочитает её на той же карточке.
 	approval, approvalErr := a.store.WorkOrderApprovalByQuestV2(ctx, questID)
 	if approvalErr != nil {
-		return result, nil
+		return result, approvalErr
 	}
 	resumed, resumeErr := a.resumeApprovedWorkOrderV2(ctx, approval, request.APIKey)
 	if resumeErr != nil {
-		return result, nil
+		return result, resumeErr
 	}
 	// У квеста с живым Flow resumeApprovedWorkOrderV2 ничего не запускает: он
 	// видит готовые FlowID/FlowRunID и выходит сразу. Квест оставался в

@@ -12,6 +12,7 @@ func (a *App) Startup(ctx context.Context) {
 	// This one-shot idempotent repair runs after migrations and before generic
 	// interrupted-work recovery can reinterpret the historic cancelled root.
 	a.reconcileBrokenWorkOrderFinalizationsV2(context.Background())
+	a.reconcileNoopWorkOrderResumesV2(context.Background())
 	// A quest left in a live state belongs to a process that no longer exists;
 	// resolve that before anything else can read it as progress.
 	a.pauseInterruptedWorkOrderQuestsV2(context.Background())

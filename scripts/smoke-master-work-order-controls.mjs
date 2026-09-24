@@ -12,11 +12,13 @@ const base = {
   workspace: {}, stack: {}, routing: {}, budget: {}, delivery: {},
 }
 
-const running = masterWorkOrderCardsHtml([{ ...base, runtime: { questId: 'quest-1', status: 'running' } }], esc)
+const running = masterWorkOrderCardsHtml([{ ...base, runtime: { questId: 'quest-1', status: 'running', stages: [{ id: 'implement', status: 'running', runId: 'run-1' }] } }], esc)
 for (const expected of ['data-control="pause"', 'data-control="cancel"', 'data-control="message"', 'data-work-order-message']) {
   if (!running.includes(expected)) throw new Error(`running WorkOrder lost control: ${expected}`)
 }
 if (running.includes('data-control="resume"')) throw new Error('running WorkOrder incorrectly offers Resume')
+const noAgent = masterWorkOrderCardsHtml([{ ...base, runtime: { questId: 'quest-1', status: 'preflight' } }], esc)
+if (noAgent.includes('data-control="message"')) throw new Error('preflight offers a message to an agent that does not exist')
 
 // Утверждённый наряд без рантайма — договор, по которому работа не пошла: квест
 // не создан или уже удалён. Он обещал «выполнение отслеживается в квесте» и
@@ -39,6 +41,7 @@ const paused = masterWorkOrderCardsHtml([{ ...base, runtime: { questId: 'quest-1
 if (!paused.includes('data-control="resume"') || paused.includes('data-control="pause"')) {
   throw new Error('paused WorkOrder controls are incorrect')
 }
+if (paused.includes('data-control="message"')) throw new Error('paused WorkOrder claims a message can be delivered now')
 
 // Блокировка: галочка успеха там врала, а выхода не было вовсе — только отмена.
 const blocked = masterWorkOrderCardsHtml([{ ...base, runtime: { questId: 'quest-1', status: 'blocked', message: 'автономный проект требует Docker sandbox; выполнение на Windows автоматически не включается' } }], esc)

@@ -8,6 +8,7 @@
 | --- | --- |
 | Цель продукта и порядок развития | [PRODUCT-VISION.md](PRODUCT-VISION.md) |
 | Подтверждённое состояние и открытые проверки | [PROJECT-STATUS.md](PROJECT-STATUS.md) |
+| Датированные решения и прежние замеры | [PROJECT-HISTORY.md](PROJECT-HISTORY.md) |
 | Сборка и запуск | [README проекта](../README.md), [README поставки](../distribution/README.md) |
 | Runtime, IDE и данные | [architecture.md](architecture.md) |
 | HTTP-маршруты | [api.md](api.md) |

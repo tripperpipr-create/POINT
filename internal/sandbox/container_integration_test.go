@@ -171,6 +171,54 @@ func TestDockerRuntimePackIntegration(t *testing.T) {
 	}
 }
 
+func TestDockerComposerDistributionIntegration(t *testing.T) {
+	if os.Getenv("POINT_SANDBOX_DOCKER_TEST") != "1" {
+		t.Skip("set POINT_SANDBOX_DOCKER_TEST=1 with the PHP sandbox image available")
+	}
+	root := t.TempDir()
+	fs, err := workspace.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	backend := sandbox.NewContainerBackend(filepath.Join(t.TempDir(), "sandboxes"))
+	if err := backend.Probe(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	payload, _ := json.Marshal(map[string]any{
+		"command": `composer create-project symfony/skeleton:"7.*" . --no-interaction --prefer-dist`,
+		"reason": "verify Composer archive hosts through controlled egress", "timeoutSeconds": 180,
+	})
+	result := (tools.RunCommand{
+		FS: fs, Executor: backend, SandboxImage: "point-agent-sandbox-php:1.3.1",
+		NetworkPolicy: "ALLOWLIST", AllowedNetworkHosts: []string{
+			"repo.packagist.org", "packagist.org", "github.com", "api.github.com", "codeload.github.com", "raw.githubusercontent.com",
+		}, RunID: "integration-composer-dist",
+	}).Execute(context.Background(), payload)
+	if !result.OK || !strings.Contains(string(result.Output), `"exitCode":0`) {
+		var output struct{ Stderr string `json:"stderr"` }
+		_ = json.Unmarshal(result.Output, &output)
+		t.Fatalf("Composer distribution through controlled egress failed: %s (tool error: %v)", output.Stderr, result.Error)
+	}
+	if _, err := os.Stat(filepath.Join(root, "composer.json")); err != nil {
+		t.Fatalf("Composer did not create the project: %v", err)
+	}
+	requirePayload, _ := json.Marshal(map[string]any{
+		"command": "composer require symfony/orm-pack --no-interaction --prefer-dist",
+		"reason": "verify approved Symfony ORM dependencies through controlled egress", "timeoutSeconds": 240,
+	})
+	result = (tools.RunCommand{
+		FS: fs, Executor: backend, SandboxImage: "point-agent-sandbox-php:1.3.1",
+		NetworkPolicy: "ALLOWLIST", AllowedNetworkHosts: []string{
+			"repo.packagist.org", "packagist.org", "github.com", "api.github.com", "codeload.github.com", "raw.githubusercontent.com",
+		}, RunID: "integration-composer-orm",
+	}).Execute(context.Background(), requirePayload)
+	if !result.OK || !strings.Contains(string(result.Output), `"exitCode":0`) {
+		var output struct{ Stderr string `json:"stderr"` }
+		_ = json.Unmarshal(result.Output, &output)
+		t.Fatalf("Composer ORM dependencies through controlled egress failed: %s (tool error: %v)", output.Stderr, result.Error)
+	}
+}
+
 func TestDockerPythonPackageManagerProvisioningIntegration(t *testing.T) {
 	if os.Getenv("POINT_SANDBOX_DOCKER_TEST") != "1" {
 		t.Skip("set POINT_SANDBOX_DOCKER_TEST=1 after building the sandbox images")

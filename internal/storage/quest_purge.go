@@ -163,14 +163,19 @@ func (s *SQLite) PurgeQuest(ctx context.Context, workspaceID, questID string) (m
 		return nil, err
 	}
 
-	// 6. Предложение, из которого квест вырос. Оно связано схемой: у карточки
+	// 6. Предложение, из которого квест вырос. Подписанные версии задания
+	// неизменяемы и ссылаются на предложение внешним ключом. Их родитель
+	// сохраняется как скрытая запись, иначе снос оставит базу с нарушенным FK.
 	if err = forgetMasterExamplesTx(ctx, tx, `workspace_id=? AND (json_extract(payload,'$.questId')=? OR (?<>'' AND (json_extract(payload,'$.flowId')=? OR json_extract(payload,'$.proposalId') IN (SELECT id FROM quest_proposals WHERE workspace_id=? AND flow_id=?))))`, workspaceID, questID, flowID, flowID, workspaceID, flowID); err != nil {
 		return nil, err
 	}
 	// в разговоре нет поля quest_id, и без этого шага в ленте остаётся дверь в
 	// пустоту — «Квест запущен» без единого прогона за ней.
 	if flowID != "" {
-		if err = exec("quest_proposals", `DELETE FROM quest_proposals WHERE workspace_id=? AND flow_id=?`, workspaceID, flowID); err != nil {
+		if err = exec("quest_proposals", `DELETE FROM quest_proposals WHERE workspace_id=? AND flow_id=? AND NOT EXISTS (SELECT 1 FROM task_brief_revisions WHERE proposal_id=quest_proposals.id)`, workspaceID, flowID); err != nil {
+			return nil, err
+		}
+		if err = exec("quest_proposals_archived", `UPDATE quest_proposals SET status='purged', flow_id='' WHERE workspace_id=? AND flow_id=? AND EXISTS (SELECT 1 FROM task_brief_revisions WHERE proposal_id=quest_proposals.id)`, workspaceID, flowID); err != nil {
 			return nil, err
 		}
 	}

@@ -211,6 +211,34 @@ func TestPurgeQuestRemovesEveryTraceButSpend(t *testing.T) {
 	}
 }
 
+func TestPurgeQuestPreservesBriefForeignKeys(t *testing.T) {
+	store := purgeStore(t)
+	ctx := context.Background()
+	seedPurgeQuest(t, store, "ws-1", "q-1")
+	if _, err := store.db.ExecContext(ctx, `INSERT INTO task_brief_revisions(proposal_id,workspace_id,version,digest,brief_json,created_at) VALUES(?,?,?,?,?,?)`,
+		"qp-q-1", "ws-1", 1, "digest", `{}`, formatTime(time.Now().UTC())); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.PurgeQuest(ctx, "ws-1", "q-1"); err != nil {
+		t.Fatal(err)
+	}
+	var status, flowID string
+	if err := store.db.QueryRowContext(ctx, `SELECT status,flow_id FROM quest_proposals WHERE id='qp-q-1'`).Scan(&status, &flowID); err != nil {
+		t.Fatal(err)
+	}
+	if status != "purged" || flowID != "" {
+		t.Fatalf("retained proposal remains visible or linked: status=%q flow=%q", status, flowID)
+	}
+	proposals, err := store.ListQuestProposals(ctx, "ws-1")
+	if err != nil || len(proposals) != 0 {
+		t.Fatalf("purged proposal still listed: %v, %v", proposals, err)
+	}
+	health, err := store.Health(ctx)
+	if err != nil || health.ForeignKeyViolations != 0 {
+		t.Fatalf("purge broke database foreign keys: %+v, %v", health, err)
+	}
+}
+
 func seedPurgeQuestNeighbour(t *testing.T, store *SQLite, workspaceID, questID string) {
 	t.Helper()
 	ctx := context.Background()

@@ -58,7 +58,7 @@ function withoutComments(css) {
 // содержат правила с !important на общих именах вроде `.primary`, поэтому новый
 // слой, переиспользовавший такое имя, проигрывает независимо от специфичности.
 // Проверка ловит это на сборке, а не глазами в браузере.
-const NAMESPACES = { '05-hall.css': /^(hall-|is-)/, '07-master-quiet.css': /^(hall-|is-)/, '27-chat-directory.css': /^(hall-|is-)/ }
+const NAMESPACES = { '05-hall.css': /^(hall-|is-)/, '07-master-quiet.css': /^(hall-|is-)/, '07c-master-feed.css': /^(hall-|is-)/, '07d-master-inspector.css': /^(hall-|is-)/, '27-chat-directory.css': /^(hall-|is-)/ }
 
 function classNames(source) {
   const css = withoutComments(source)

@@ -61,7 +61,7 @@ const context = {
       // заглушку без разметки: переключение правит узлы, а не отрисовку.
       // Поэтому открытость приходит сохранённым состоянием — тем же путём,
       // которым она переживает перезапуск панели у человека.
-      const briefPanel = requestedSurface === 'master' && process.argv[3] === 'brief-panel'
+      const briefPanel = requestedSurface === 'master' && ['brief-panel', 'inspector-team', 'inspector-context'].includes(process.argv[3])
         ? { masterChat: { active: 'pay', briefPanel: { pay: true } } }
         : undefined
       if (briefPanel) return briefPanel
@@ -588,7 +588,7 @@ if (process.argv[2] === 'master') {
         },
       ],
     } } })
-  } else if (variant === 'brief-panel') {
+  } else if (variant === 'brief-panel' || variant === 'inspector-team' || variant === 'inspector-context') {
     // Задание в обсуждении: карточки в ленте нет, состав задания в правой
     // панели, неотвеченный пакет — в карточке ввода. Три поверхности меряются
     // вместе, потому что они делят ширину раздела: панель сужает ленту и
@@ -628,6 +628,21 @@ if (process.argv[2] === 'master') {
       ],
       response: { proposal },
     } } })
+    // Вкладки правой панели: команда с раскрытым листом агента и контекст.
+    // Вкладку в сохранённое состояние не кладут, поэтому её выбирает клик, а
+    // отрисовку — повтор ответа ядра.
+    if (variant !== 'brief-panel') {
+      click(variant === 'inspector-team' ? { action: 'master-inspector-agent', id: boot.projectAgents?.[0]?.id || '' } : { action: 'master-inspector-tab', tab: 'context' })
+      listeners['window:message']({ data: { type: 'master', master: {
+        configured: true, config: boot.orchestrator,
+        sessions: { active: 'pay', mode: 'questions', workMode: 'discuss', memory: 'Примеры на Go. Объяснения по-русски.', items: [{ id: 'pay', title: 'Оплата' }] },
+        history: [
+          { id: 'mp-1', role: 'user', content: 'Вебхук оплаты падает на повторной доставке', createdAt: today(12, 1) },
+          { id: 'mp-2', role: 'assistant', mode: 'model', model: 'qwen2.5-coder:7b', content: 'Собрал черновик задания.', proposalId: proposal.id, createdAt: today(12, 4), factsUsed: ['агентов в ростере: 2', 'активных квестов: 0'] },
+        ],
+        response: { proposal },
+      } } })
+    }
   } else if (variant === 'brief' || variant === 'brief-open') {
     // Карточка задания: из чего состоит работа и по чему её примут. До правки
     // всё это лежало за одной свёрнутой строкой «Состав задания», и ни одна

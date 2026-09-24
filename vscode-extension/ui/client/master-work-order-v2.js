@@ -33,7 +33,7 @@ const runtimeTones = {
   preflight:'is-active', running:'is-active', verifying:'is-active', applying:'is-active',
 }
 
-function runtimePresentation(runtime) {
+export function runtimePresentation(runtime) {
   if (runtime?.status === 'completed' && runtime?.assurance === 'partial') {
     return { label: 'Готово с ограничениями', mark: '!', tone: 'is-attention' }
   }

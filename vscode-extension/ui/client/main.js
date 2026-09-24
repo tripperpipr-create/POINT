@@ -328,6 +328,9 @@ let masterFindIndex = 0
 let masterFindSummary = ''
 let masterLoadingEarlier = false
 let masterFindOpen = false
+// Правая панель разговора: открытая вкладка и раскрытый лист агента.
+let masterInspectorTab = ''
+let masterInspectorAgent = ''
 // Подставленный вопрос дописывают, а не переписывают: курсор должен встать в
 // конец. Ставит его отрисовка — поле к тому времени уже другое.
 let masterCaretToEnd = false
@@ -1509,6 +1512,8 @@ function syncMasterComposeState() {
   syncMasterBriefSurfaces(root)
   const discussion = root.querySelector('#master-discussion-context')
   if (discussion) discussion.innerHTML = masterDiscussionContextHtml()
+  const questStrip = root.querySelector('#master-quest-strip')
+  if (questStrip) questStrip.innerHTML = masterQuestStripSlotHtml()
   const input = root.querySelector('#master-input')
   if (input) {
     // Поле не запирается ходом. Мысль, пришедшая, пока модель думает, должна
@@ -2219,6 +2224,8 @@ const modularUiState = {
   get masterFindQuery() { return masterFindQuery }, set masterFindQuery(value) { masterFindQuery = value },
   get masterCaretToEnd() { return masterCaretToEnd }, set masterCaretToEnd(value) { masterCaretToEnd = value },
   get masterFindOpen() { return masterFindOpen }, set masterFindOpen(value) { masterFindOpen = value },
+  get masterInspectorTab() { return masterInspectorTab }, set masterInspectorTab(value) { masterInspectorTab = String(value || '') },
+  get masterInspectorAgent() { return masterInspectorAgent }, set masterInspectorAgent(value) { masterInspectorAgent = String(value || '') },
   get masterFindIndex() { return masterFindIndex }, set masterFindIndex(value) { masterFindIndex = value },
   set masterFindSummary(value) { masterFindSummary = value },
   get masterAutoFollow() { return masterAutoFollow }, set masterAutoFollow(value) { masterAutoFollow = value },
@@ -2534,11 +2541,13 @@ const {
   // перебор прогонов: разойдясь, они назвали бы одному квесту два состояния.
   startedQuestSummary: (...args) => masterStartedQuestSummary(...args),
   rosterHasAgent: () => rosterHasAgent(),
+  agentById: id => agentById(id),
+  projectAgents: () => hubAgents(),
 })
 
 const {
   masterAskSlotHtml,
-  masterDialogueHtml, masterDiscussionContextHtml, masterModelLabel, masterProposalHtml,
+  masterDialogueHtml, masterDiscussionContextHtml, masterModelLabel, masterProposalHtml, masterQuestStripSlotHtml,
   masterComposeActionsInnerHtml, masterStartedQuestSummary, masterThreadContentHtml,
   masterThreadHtml, stampMasterAnswer,
 } = createMasterThreadViews({
@@ -2892,7 +2901,7 @@ root.addEventListener('click', event => {
   if (handleChatDirectoryAction(action, target)) { render(); return }
   if (handleProjectGalleryAction(action, target)) { render(); return }
   if (handleMasterContextAction({action,target,vscode,sending:masterSending})) {persistDraft();return}
-  if (handleMasterBriefAction({ action, root, persist: persistDraft })) return
+  if (handleMasterBriefAction({ action, target, root, persist: persistDraft })) return
   if (handleMasterSessionAction({
     action, target, root, vscode, sending: masterSending, send: sendMasterMessage,
     render, persist: persistDraft,

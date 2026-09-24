@@ -228,7 +228,7 @@
   padding-left: var(--s-5);
   border-left: var(--edge-accent) solid var(--hub-border-strong);
 }
-.master-v2-run.is-active { border-left-color: var(--hub-accent, var(--mana)); }
+.master-v2-run.is-active { border-left-color: var(--ember); }
 .master-v2-run.is-attention { border-left-color: var(--caution); }
 .master-v2-run.is-done { border-left-color: var(--vital); }
 .master-v2-run.is-quiet { border-left-color: var(--hub-border-strong); }

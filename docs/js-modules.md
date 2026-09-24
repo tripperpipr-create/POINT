@@ -87,6 +87,17 @@ webview. У них нет ни `require`, ни `vscode` — только объ�
 (`vscode-extension/ui/client/html-escape.js`), склонение и единицы — в другом
 (`vscode-extension/ui/client/format-units.js`). Оба вынесены потому, что уже
 расходились копиями, и смоуки экранировали слабее продукта.
+Значки интерфейса — встроенные SVG из `vscode-extension/ui/client/ui-icons.js`
+(`icon(имя)`); значок декоративен, смысл кнопке дают её `aria-label` и `title`.
+Лента разговора с Мастером оформляется одним слоем
+`vscode-extension/ui/layers/07c-master-feed.css`.
+Полосу идущего квеста над полем ввода считает
+`vscode-extension/ui/client/master-quest-strip.js` из наряда v2; подписи
+состояний она берёт у карточки наряда (`runtimePresentation`). Правая панель
+разговора — вкладки «Квест», «Команда», «Контекст»: квест собирает
+`vscode-extension/ui/client/master-brief-panel.js`, команду и контекст —
+`vscode-extension/ui/client/master-inspector.js`, оформление —
+`vscode-extension/ui/layers/07d-master-inspector.css`.
 
 ## Куда класть новое
 
@@ -98,7 +109,7 @@ webview. У них нет ни `require`, ни `vscode` — только объ�
   module» в собранной IDE, которого не покажет ни один тест. Синтаксис
   добавлять куда-либо не нужно: `scripts/check-js-syntax.mjs` обходит каталоги.
 - Новый общий помощник — в существующий дом (`html-escape.js`,
-  `format-units.js`, `view-runtime.js`), а не рядом с местом вызова.
+  `format-units.js`, `view-runtime.js`, `ui-icons.js`), а не рядом с местом вызова.
 
 ## Чем это проверяется
 

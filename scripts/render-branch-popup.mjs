@@ -204,12 +204,12 @@ ${fonts}
 ${codiconCss.replace(/@font-face[\s\S]*?\}/, '')}
 ${glyphs}
 ${workbenchCss}
-body { background: #171717; margin: 0; padding: 24px; }
+body { background: #0A0A0A; margin: 0; padding: 24px; }
 .stand { display: flex; gap: 32px; align-items: flex-start; }
 .case { display: flex; flex-direction: column; gap: 12px; }
 .caption { color: #7a7a7a; font: 400 12px/1.4 "Inter", sans-serif; max-width: 340px; }
 /* Полоса заголовка настоящая по грунту и высоте: жетон меряется на своём фоне. */
-.bar { align-items: center; background: #1a1a1a; border-bottom: 1px solid #2b2b2b; display: flex; height: 36px; padding: 0 8px; }
+.bar { align-items: center; background: #111111; border-bottom: 1px solid #222222; display: flex; height: 36px; padding: 0 8px; }
 .point-popup { position: relative; }
 </style>
 </head>

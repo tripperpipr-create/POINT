@@ -1,3 +1,4 @@
+import { icon } from './ui-icons.js'
 import { masterMessageBytes } from './master-compose.js'
 
 // Пределы набора контекста. Их трое и они из разных мест: 16 вложений и 12 000
@@ -48,7 +49,7 @@ export function masterContextAddHtml(id, esc, sending) {
   const session = esc(key(id))
   const off = sending ? 'disabled' : ''
   return `<details class="hall-context-menu">
-    <summary class="hall-context-add" title="Файлы, папки, ошибки, git diff и буфер терминала. То же открывает «@» в поле; файл можно перетащить мышью">@ Контекст</summary>
+    <summary class="hall-context-add" title="Файлы, папки, ошибки, git diff и буфер терминала. То же открывает «@» в поле; файл можно перетащить мышью">${icon('attach')}<span>Контекст</span></summary>
     <div role="group" aria-label="Что добавить в контекст">
       <button type="button" class="hall-chip" data-action="master-context-attach" data-session="${session}" ${off} title="Взять открытый файл или выделение в редакторе">Открытый файл</button>
       <button type="button" class="hall-chip" data-action="master-context-pick" data-session="${session}" ${off}>Выбрать источник…</button>

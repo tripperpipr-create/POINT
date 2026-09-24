@@ -1,0 +1,326 @@
+/* Правая панель разговора: квест, команда, контекст.
+   ==========================================================================
+   Панель прижата к правому краю раздела и сужает разговор, а не накрывает
+   его — как правая панель Cursor и окна инструментов редактора. На узком окне
+   отступать некуда, и там она выезжает поверх. Фон — боковой панели темы:
+   так же выглядит список чатов слева, и лента между ними остаётся фоном
+   редактора. */
+
+.hall-dialogue.is-brief-open {
+  padding-right: var(--hall-quest-width);
+  --hall-quest-offset: var(--hall-quest-width);
+}
+.hall-brief-panel {
+  position: absolute;
+  inset: 0 0 0 auto;
+  z-index: 4;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  width: var(--hall-quest-width);
+  overflow: hidden;
+  background: var(--hub-panel);
+  border-left: 1px solid var(--hub-border);
+}
+/* display: flex иначе побеждает атрибут hidden, и закрытая панель остаётся на
+   экране. */
+.hall-brief-panel[hidden] { display: none; }
+
+.hall-brief-panel-head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 36px;
+  padding: 0 var(--s-3);
+  border-bottom: 1px solid var(--hub-border);
+}
+.hall-brief-panel-head > .hall-brief-panel-drop {
+  display: inline-grid;
+  place-items: center;
+  width: var(--control-sm);
+  min-width: var(--control-sm);
+  height: var(--control-sm);
+  min-height: 0;
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-1);
+  background: transparent;
+  color: var(--hub-muted);
+  cursor: pointer;
+}
+.hall-brief-panel-head > .hall-brief-panel-drop:hover,
+.hall-brief-panel-head > .hall-brief-panel-drop:focus-visible {
+  background: var(--hub-selected);
+  color: var(--hub-text);
+}
+.hall-brief-panel-head .hall-icon { width: 14px; height: 14px; }
+
+.hall-brief-panel-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--s-5);
+  min-width: 0;
+  min-height: 0;
+  padding: var(--s-5);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+/* Род документа и его состояние — строкой над содержимым вкладки квеста. */
+.hall-brief-panel-sub {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+  min-width: 0;
+  font: var(--fw-semibold) var(--t-base) / 1.4 var(--font-ui);
+  color: var(--hub-text);
+}
+.hall-brief-panel-sub > small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui);
+  color: var(--hub-muted);
+}
+.hall-brief-panel .hall-brief-wait {
+  margin: 0;
+  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui);
+  color: var(--hub-muted);
+}
+.hall-dialogue .hall-brief-panel .hall-deck > header > small { color: var(--hub-text-3); }
+/* Внутри панели карточка задания — уже не карточка: заливка в панели ничего не
+   отделяет, а меру ей задаёт сама панель. */
+.hall-dialogue .hall-brief-panel .hall-deck {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+/* —— Вкладки —— */
+.hall-insp-tabs {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  min-width: 0;
+}
+.hall-insp-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: var(--control-sm);
+  padding: 0 var(--s-4);
+  border: 0;
+  border-radius: var(--r-1);
+  background: transparent;
+  color: var(--hub-muted);
+  font: var(--fw-medium) var(--t-small) / 1 var(--font-ui);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.hall-insp-tab .hall-icon { width: 14px; height: 14px; }
+.hall-insp-tab > small {
+  min-width: 16px;
+  padding: 0 var(--s-2);
+  border-radius: var(--r-full);
+  background: var(--ember-wash-strong);
+  color: var(--hub-text);
+  font: var(--fw-medium) var(--t-micro) / 1.6 var(--font-ui);
+  text-align: center;
+}
+.hall-insp-tab:hover,
+.hall-insp-tab:focus-visible { background: var(--hub-selected); color: var(--hub-text); }
+.hall-insp-tab.is-on { background: var(--hub-selected); color: var(--hub-text); }
+
+/* —— Пустые состояния вкладок —— */
+.hall-insp-blank {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-3);
+  padding: var(--s-6) 0;
+}
+.hall-insp-blank > .hall-icon { width: 20px; height: 20px; color: var(--hub-muted); }
+.hall-insp-blank > b { font: var(--fw-semibold) var(--t-base) / 1.4 var(--font-ui); color: var(--hub-text); }
+.hall-insp-blank > span,
+.hall-insp-empty {
+  margin: 0;
+  font: var(--fw-normal) var(--t-small) / 1.5 var(--font-ui);
+  color: var(--hub-muted);
+}
+
+/* —— Группы: команда и контекст —— */
+.hall-insp-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.hall-insp-group > h3 {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+  margin: 0 0 var(--s-2);
+  font: var(--fw-semibold) var(--t-small) / 1.4 var(--font-ui);
+  color: var(--hub-text-2);
+}
+.hall-insp-group > h3 > small { font-weight: var(--fw-normal); color: var(--hub-muted); }
+.hall-insp-rubric {
+  margin-top: var(--s-4);
+  font: var(--fw-medium) var(--t-small) / 1.4 var(--font-ui);
+  color: var(--hub-muted);
+}
+.hall-insp-note {
+  margin: 0;
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-1);
+  background: var(--hub-raised);
+  font: var(--fw-normal) var(--t-small) / 1.5 var(--font-ui);
+  color: var(--hub-text-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.hall-insp-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.hall-insp-list > li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  padding: var(--s-1) 0;
+  font: var(--fw-normal) var(--t-small) / 1.5 var(--font-ui);
+  color: var(--hub-text-2);
+}
+.hall-insp-list > li > .hall-icon { width: 14px; height: 14px; margin-top: var(--s-1); color: var(--hub-muted); }
+.hall-insp-list > li > span { min-width: 0; overflow-wrap: anywhere; }
+
+/* —— Строка агента ——
+   Монограмма, имя с ролью, модель и состояние справа. Раскрытая строка
+   показывает лист прямо под собой. */
+.hall-insp-agent {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto 16px;
+  align-items: center;
+  column-gap: var(--s-4);
+  width: 100%;
+  min-height: 40px;
+  padding: var(--s-2) var(--s-3);
+  border: 0;
+  border-radius: var(--r-2);
+  background: transparent;
+  color: var(--hub-text);
+  text-align: left;
+  cursor: pointer;
+}
+.hall-insp-agent:hover,
+.hall-insp-agent:focus-visible,
+.hall-insp-agent.is-open { background: var(--hub-selected); }
+.hall-insp-mark {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-2);
+  background: var(--hub-raised);
+  box-shadow: inset 0 0 0 1px var(--hub-border);
+  font: var(--fw-semibold) var(--t-small) / 1 var(--font-ui);
+  color: var(--hub-text-2);
+}
+.hall-insp-agent.is-working .hall-insp-mark { box-shadow: inset 0 0 0 1px var(--ember-line-loud); color: var(--ember-light); }
+.hall-insp-who { display: flex; flex-direction: column; min-width: 0; }
+.hall-insp-who > b,
+.hall-insp-who > small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hall-insp-who > b { font: var(--fw-medium) var(--t-body) / 1.4 var(--font-ui); }
+.hall-insp-who > small { font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui); color: var(--hub-muted); }
+.hall-insp-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  max-width: 11ch;
+  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui);
+  color: var(--hub-muted);
+}
+.hall-insp-meta > small {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hall-insp-state { color: var(--hub-text-3); }
+.hall-insp-agent.is-working .hall-insp-state { color: var(--ember-light); }
+.hall-insp-agent.is-idle .hall-insp-state { color: var(--caution); }
+.hall-insp-chevron { display: inline-flex; color: var(--hub-muted); transition: transform var(--motion-fast) var(--ease); }
+.hall-insp-chevron .hall-icon { width: 14px; height: 14px; }
+.hall-insp-agent.is-open .hall-insp-chevron { transform: rotate(180deg); }
+
+/* —— Лист персонажа —— */
+.hall-insp-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  margin: 0 0 var(--s-4);
+  padding: var(--s-4) var(--s-4) var(--s-5);
+  border-left: 1px solid var(--hub-border);
+  margin-left: calc(var(--s-3) + 14px);
+  font: var(--fw-normal) var(--t-small) / 1.5 var(--font-ui);
+  color: var(--hub-text-2);
+}
+.hall-insp-sheet > p { margin: 0; }
+.hall-insp-facts {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--s-1) var(--s-4);
+  margin: 0;
+}
+.hall-insp-facts > dt { color: var(--hub-muted); }
+.hall-insp-facts > dd { margin: 0; overflow-wrap: anywhere; }
+.hall-insp-stats { display: flex; flex-direction: column; gap: var(--s-2); }
+.hall-insp-stat {
+  display: grid;
+  grid-template-columns: 11ch 56px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--s-4);
+}
+.hall-insp-stat > small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--hub-muted);
+}
+.hall-insp-stat .hall-quest-bar.is-sm { width: 56px; }
+.hall-insp-chips { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+.hall-insp-chips > span {
+  padding: var(--s-1) var(--s-3);
+  border-radius: var(--r-1);
+  background: var(--hub-raised);
+  box-shadow: inset 0 0 0 1px var(--hub-border-soft);
+  font: var(--fw-normal) var(--t-small) / 1.3 var(--font-mono);
+  color: var(--hub-text-3);
+}
+.hall-insp-actions { display: flex; gap: var(--s-3); margin-top: var(--s-2); }
+
+/* Панель выезжает поверх там, где отступать некуда: при 1024 прижатая панель
+   оставляет разговору меньше пятисот пикселей, и реплика перестаёт читаться. */
+@media (max-width: 1100px) {
+  .hall-dialogue.is-brief-open {
+    padding-right: 0;
+    --hall-quest-offset: 0px;
+  }
+  .hall-dialogue.is-brief-open .hall-brief-panel {
+    z-index: 20;
+    width: min(380px, 90%);
+    box-shadow: var(--e-3);
+  }
+}

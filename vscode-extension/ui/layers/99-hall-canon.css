@@ -27,7 +27,8 @@
    определений не видит и продолжает работать с темой пользователя. */
 body[data-layout="wide"],
 body[data-layout="statistics"],
-body[data-layout="docker"] {
+body[data-layout="docker"],
+body[data-layout="wide"] .is-chat {
   --vscode-font-family: var(--font-ui);
   --vscode-editor-font-family: var(--font-mono);
 
@@ -89,6 +90,17 @@ body[data-layout="docker"] {
   --vscode-inputValidation-errorBackground: var(--wound-wash);
   --vscode-charts-blue: var(--hub-muted);
   --vscode-charts-purple: var(--hub-text-4);
+}
+/* Разговор с Мастером живёт в теме IDE (tokens.css, `.is-chat`): его
+   ступени --hub-* уже указывают на тему, и подмена выше, повторённая на его
+   корне, возвращает старым правилам её же цвета. Поле, код и кнопка берут
+   собственные цвета темы — их лесенка Хаба не выражает. */
+body[data-layout="wide"] .is-chat {
+  --vscode-input-background: var(--ui-input);
+  --vscode-input-border: var(--ui-input-border);
+  --vscode-textCodeBlock-background: var(--ui-code);
+  --vscode-button-foreground: var(--ember-fg);
+  --vscode-focusBorder: var(--ui-focus);
 }
 
 /* ── Палитра окна: один акцент ─────────────────────────────────────────────

@@ -1,4 +1,5 @@
 import { fillAttribute, formatBytes } from './format-units.js'
+import { icon } from './ui-icons.js'
 export function createQuestRuntimeViews(dependencies) {
   const {
     CREATE_FLOW_STAGES,
@@ -1201,12 +1202,15 @@ export function createQuestRuntimeViews(dependencies) {
         ${projectChatDirectoryHtml()}
         <main class="hall-main">
           <header class="hall-head hall-head-chat">
-            <button type="button" class="hall-btn is-sm" data-action="master-session-sidebar" aria-label="Показать или скрыть список чатов" title="Список чатов">☰</button>
+            <button type="button" class="hall-btn is-sm hall-head-icon" data-action="master-session-sidebar" aria-label="Показать или скрыть список чатов" title="Список чатов">${icon('panel-left')}</button>
             ${/* Имя мира в подписи обязательно: список кросс-проектный, и без
                   него не видно, в каком мире пишешь. Чип модели остался в
                   композере — у эталона модель выбирают там же, где пишут. */''}
             <div class="hall-chat-heading"><strong>${esc(chatTitle)}</strong><small>${esc(ui.state.workspace || 'Проект не выбран')}</small></div>
-            <button type="button" class="hall-btn is-sm" data-action="master-session-toggle" data-panel="history" aria-label="Действия с разговором" title="Действия с разговором">•••</button>
+            ${/* Поиск свёрнут в значок шапки: строка «Найти в разговоре» над
+                  лентой стояла у каждого разговора и почти всегда пустовала. */''}
+            <button type="button" class="hall-btn is-sm hall-head-icon" data-action="master-find-open" aria-label="Найти в разговоре" title="Найти в разговоре (Ctrl+F)">${icon('search')}</button>
+            <button type="button" class="hall-btn is-sm hall-head-icon" data-action="master-session-toggle" data-panel="history" aria-label="Действия с разговором" title="Действия с разговором">${icon('more')}</button>
             ${hallAlarmHtml(waiting)}
             ${hallChangesAlarmHtml(pendingSets)}
             <button type="button" class="hall-btn is-sm hall-chat-settings" data-action="tab" data-tab="overview" title="Обзор, квесты, агенты и связи проекта">Настройки проекта</button>
@@ -1217,6 +1221,9 @@ export function createQuestRuntimeViews(dependencies) {
                   шапки (syncMasterBriefSurfaces), и полная отрисовка обязана
                   ставить её туда же — иначе она прыгает при каждом ходе. */''}
             ${masterBriefTabHtml ? masterBriefTabHtml() : ''}
+            ${/* Панель справа — квест, команда и контекст разговора — открывается
+                  всегда, а не только при обсуждаемом задании. */''}
+            <button type="button" class="hall-btn is-sm hall-head-icon" id="master-inspector-toggle" data-action="master-brief-toggle" aria-controls="master-brief-panel" aria-pressed="${ui.masterBriefPanelOpen ? 'true' : 'false'}" aria-label="Панель: квест, команда, контекст" title="Квест, команда и контекст">${icon('panel-right')}</button>
           </header>
           ${ui.transientError ? `<div class="error-banner"><span>!</span><p>${esc(ui.transientError)}</p><button data-action="dismiss-error">×</button></div>` : ''}
           <div class="hall-body">${content}</div>

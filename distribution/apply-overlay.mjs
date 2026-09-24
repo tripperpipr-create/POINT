@@ -371,12 +371,12 @@ replaceAny(
 // До того как отрисуется верстак, окно красится двумя путями. Главный процесс
 // отдаёт Electron цвет фона из themeMainService: на первом запуске сохранённого
 // значения нет, и берётся умолчание VS Code #1F1F1F — светлее фона Point
-// (#171717), поэтому первый кадр вспыхивал и темнел.
+// (#0A0A0A), поэтому первый кадр вспыхивал и темнел.
 const themeMainServicePath = path.join(sourceRoot, 'src', 'vs', 'platform', 'theme', 'electron-main', 'themeMainServiceImpl.ts');
 replaceAny(
   themeMainServicePath,
   ["const DEFAULT_BG_DARK = '#1F1F1F';"],
-  "const DEFAULT_BG_DARK = '#171717';",
+  "const DEFAULT_BG_DARK = '#0A0A0A';",
   'Point window background before the workbench paints',
 );
 
@@ -435,7 +435,7 @@ replaceAny(
     ].join('\n'),
     [
       "\t\tlet baseTheme = 'vs-dark';",
-      "\t\tlet shellBackground = '#171717';",
+      "\t\tlet shellBackground = '#0A0A0A';",
       "\t\tlet shellForeground = '#e9e9e9';",
       '\t\tif (data) {',
       '\t\t\tbaseTheme = data.baseTheme;',
@@ -445,7 +445,7 @@ replaceAny(
   ],
   [
     "\t\tlet baseTheme = 'vs-dark';",
-    "\t\tlet shellBackground = '#171717';",
+    "\t\tlet shellBackground = '#0A0A0A';",
     "\t\tlet shellForeground = '#e9e9e9';",
     '\t\tif (data) {',
     '\t\t\tbaseTheme = data.baseTheme;',

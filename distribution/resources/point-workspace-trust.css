@@ -5,7 +5,7 @@
 	padding: 24px 0 0;
 	height: calc(100% - 20px);
 	box-sizing: border-box;
-	background: var(--point-void, #171717);
+	background: var(--point-void, #0A0A0A);
 	color: var(--point-primary, #e9e9e9);
 	font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
 }
@@ -16,8 +16,8 @@
 	padding: 16px 24px;
 	box-sizing: border-box;
 	align-items: flex-start;
-	background: var(--point-panel, #191919);
-	border: 1px solid var(--point-border, #2b2b2b);
+	background: var(--point-panel, #0E0E0E);
+	border: 1px solid var(--point-border, #222222);
 	border-radius: 2px;
 	box-shadow: inset 0 2px 0 var(--point-ember, #FF8A4C);
 	overflow: hidden;
@@ -67,8 +67,8 @@
 	min-height: 248px;
 	padding: 16px 24px;
 	box-sizing: border-box;
-	background: var(--point-panel, #191919);
-	border-color: var(--point-border, #2b2b2b);
+	background: var(--point-panel, #0E0E0E);
+	border-color: var(--point-border, #222222);
 	border-radius: 2px;
 }
 
@@ -76,7 +76,7 @@
 .workspace-trust-editor.point-workspace-trust.untrusted .workspace-trust-features .workspace-trust-limitations.untrusted {
 	outline: 1px solid var(--point-ember, #FF8A4C);
 	outline-offset: -1px;
-	background: color-mix(in srgb, var(--point-ember, #FF8A4C) 8%, var(--point-panel, #191919));
+	background: color-mix(in srgb, var(--point-ember, #FF8A4C) 8%, var(--point-panel, #0E0E0E));
 }
 
 .workspace-trust-editor.point-workspace-trust .workspace-trust-features .workspace-trust-limitations-header {
@@ -142,9 +142,9 @@
 .workspace-trust-editor.point-workspace-trust .workspace-trust-settings {
 	margin: 0 24px 24px;
 	padding: 16px 24px;
-	border: 1px solid var(--point-border, #2b2b2b);
+	border: 1px solid var(--point-border, #222222);
 	border-radius: 2px;
-	background: var(--point-panel, #191919);
+	background: var(--point-panel, #0E0E0E);
 	overflow: hidden;
 }
 

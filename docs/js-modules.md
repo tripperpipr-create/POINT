@@ -91,6 +91,9 @@ webview. У них нет ни `require`, ни `vscode` — только объ�
 (`icon(имя)`); значок декоративен, смысл кнопке дают её `aria-label` и `title`.
 Лента разговора с Мастером оформляется одним слоем
 `vscode-extension/ui/layers/07c-master-feed.css`.
+Полосу идущего квеста над полем ввода считает
+`vscode-extension/ui/client/master-quest-strip.js` из наряда v2; подписи
+состояний она берёт у карточки наряда (`runtimePresentation`).
 
 ## Куда класть новое
 

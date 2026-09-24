@@ -1509,6 +1509,8 @@ function syncMasterComposeState() {
   syncMasterBriefSurfaces(root)
   const discussion = root.querySelector('#master-discussion-context')
   if (discussion) discussion.innerHTML = masterDiscussionContextHtml()
+  const questStrip = root.querySelector('#master-quest-strip')
+  if (questStrip) questStrip.innerHTML = masterQuestStripSlotHtml()
   const input = root.querySelector('#master-input')
   if (input) {
     // Поле не запирается ходом. Мысль, пришедшая, пока модель думает, должна
@@ -2538,7 +2540,7 @@ const {
 
 const {
   masterAskSlotHtml,
-  masterDialogueHtml, masterDiscussionContextHtml, masterModelLabel, masterProposalHtml,
+  masterDialogueHtml, masterDiscussionContextHtml, masterModelLabel, masterProposalHtml, masterQuestStripSlotHtml,
   masterComposeActionsInnerHtml, masterStartedQuestSummary, masterThreadContentHtml,
   masterThreadHtml, stampMasterAnswer,
 } = createMasterThreadViews({
@@ -2892,7 +2894,7 @@ root.addEventListener('click', event => {
   if (handleChatDirectoryAction(action, target)) { render(); return }
   if (handleProjectGalleryAction(action, target)) { render(); return }
   if (handleMasterContextAction({action,target,vscode,sending:masterSending})) {persistDraft();return}
-  if (handleMasterBriefAction({ action, root, persist: persistDraft })) return
+  if (handleMasterBriefAction({ action, target, root, persist: persistDraft })) return
   if (handleMasterSessionAction({
     action, target, root, vscode, sending: masterSending, send: sendMasterMessage,
     render, persist: persistDraft,

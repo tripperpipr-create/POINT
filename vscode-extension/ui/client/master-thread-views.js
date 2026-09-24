@@ -10,6 +10,7 @@ import { questPlanRows } from './master-plan-views.js'
 import { questChecklistHtml, questMenuHtml } from './master-quest-views.js'
 import { masterToolIcon, masterToolName, masterToolNameNow } from './master-tool-names.js'
 import { icon } from './ui-icons.js'
+import { masterQuestStripHtml, masterQuestStripModel } from './master-quest-strip.js'
 import { masterHiringCardsHtml } from './master-hiring-card.js'
 import { masterAgentCardFromAction, masterAgentCardHtml, masterAgentCardsFor, masterAgentCardsHtml } from './master-agent-card.js'
 import { masterCardMoreAttrs } from './master-card-open.js'
@@ -912,6 +913,14 @@ export function createMasterThreadViews(dependencies) {
     </div>`
   }
 
+  function masterQuestStripSlotHtml() {
+    const model = masterQuestStripModel({
+      workOrders: ui.masterData?.workOrders,
+      agentName: id => agentById(id)?.name || '',
+    })
+    return masterQuestStripHtml(model, esc)
+  }
+
   function masterDialogueHtml() {
     if (ui.masterStatus === 'idle') {
       ui.masterStatus = 'loading'
@@ -942,6 +951,9 @@ export function createMasterThreadViews(dependencies) {
              уезжали вверх с каждым следующим ходом, и человек отвечал не на то,
              что видел. Слот стоит отдельным узлом: досборка после ответа ядра
              переписывает его, не трогая форму и каретку в поле реплики. */''}
+        ${/* Идущий квест — первой строкой карточки ввода: туда человек смотрит
+             всё время, пока работа идёт. */''}
+        <div class="hall-quest-strip-slot" id="master-quest-strip">${masterQuestStripSlotHtml()}</div>
         <div id="master-questions-ask">${masterAskSlotHtml()}</div>
         ${/* Обсуждаемое задание и вложения — один ряд слотов, а не два. Каждый
              занимал свою строку во всю ширину, и карточка со всеми слотами
@@ -1075,6 +1087,7 @@ export function createMasterThreadViews(dependencies) {
     masterDiscussionContextHtml,
     masterModelLabel,
     masterProposalHtml,
+    masterQuestStripSlotHtml,
     masterStartedQuestSummary,
     masterThreadContentHtml,
     masterThreadHtml,

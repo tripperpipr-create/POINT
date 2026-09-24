@@ -46,6 +46,11 @@ const STALL_REASON = {
   sandbox_merge_conflict: 'Расхождение в песочнице',
 }
 
+// Пометка этапа по-русски: причина ожидания точнее состояния узла.
+export function workOrderStageNote(stage) {
+  return STAGE_NOTE[stage?.waitReason] || STAGE_NOTE[stage?.status] || ''
+}
+
 const LAUNCH_PHASE = { preflight: 0, planning: 1, compiling: 2, launching: 3 }
 const LAUNCH_STEPS = ['Проверка окружения', 'Планирование', 'Сборка Flow', 'Запуск исполнителя']
 
@@ -61,7 +66,7 @@ function launchPlan(runtime, esc) {
 
 // Идёт ли этап прямо сейчас. Хронику показываем по нему: у завершённых прогонов
 // своя история, и подменять ею текущую работу нельзя.
-function activeStage(stages) {
+export function activeStage(stages) {
   return stages.find(stage => stage.status === 'running' || stage.status === 'waiting' || stage.status === 'waiting_approval')
     || stages.find(stage => stage.waitReason)
     || stages.filter(stage => stage.runId).at(-1)
@@ -127,7 +132,7 @@ export function workOrderExecutionHtml(order, ui, deps = {}) {
   const planRows = stages.map(stage => ({
     text: stage.name || deps.flowNodeKindLabels?.[stage.kind] || stage.id,
     state: masterPlanState(stage.status),
-    note: STAGE_NOTE[stage.waitReason] || STAGE_NOTE[stage.status] || '',
+    note: workOrderStageNote(stage),
   }))
   const plan = launchPlan(runtime, esc) || masterPlanHtml('Этапы', planRows, esc, { limit: 12 })
   const transcript = transcriptFor(order, ui, deps)

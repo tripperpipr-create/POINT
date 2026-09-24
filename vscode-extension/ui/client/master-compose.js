@@ -8,6 +8,8 @@
 // кнопку и на ранний возврат sendMasterMessage; стережёт его
 // scripts/smoke-master-send-unfreezes.js.
 
+import { icon } from './ui-icons.js'
+
 // Тот же предел, что и в ядре (maxChatMessage в internal/orchestrator/chat.go).
 export const MASTER_MESSAGE_LIMIT_BYTES = 32 * 1024
 
@@ -129,10 +131,10 @@ export function masterComposeMetaHtml (loading) {
 // ходом, и по нему же смоуки проверяют, что разговор не заперся насмерть.
 export function masterComposeActionsHtml (loading, draft) {
   const stop = loading
-    ? '<button type="button" class="hall-btn is-sm hall-compose-stop" data-action="stop-master-chat" aria-label="Остановить ход" title="Остановить ход"><span aria-hidden="true">■</span></button>'
+    ? `<button type="button" class="hall-btn is-sm hall-compose-stop" data-action="stop-master-chat" aria-label="Остановить ход" title="Остановить ход">${icon('stop')}</button>`
     : ''
   const empty = !String(draft || '').trim()
-  return `${stop}<button type="submit" class="hall-btn is-primary hall-compose-send" data-action="master-send" aria-label="Отправить" title="Отправить · Enter"${loading ? ' disabled' : ''}${empty ? ' aria-disabled="true"' : ''}><span aria-hidden="true">↑</span></button>`
+  return `${stop}<button type="submit" class="hall-btn is-primary hall-compose-send" data-action="master-send" aria-label="Отправить" title="Отправить · Enter"${loading ? ' disabled' : ''}${empty ? ' aria-disabled="true"' : ''}>${icon('send')}</button>`
 }
 
 // Класс формы. Пустому полю отправлять нечего, и акцент на стрелке в этот

@@ -284,36 +284,28 @@
   margin: 0 auto var(--s-6);
   padding: var(--s-5);
   gap: var(--s-4);
-  /* Контура нет: карточку называет заливка. Кромка в 10% белого давала 1.28
-     к фону под ней — линия, которую видно, только если знать, что она есть,
-     — а вместе с радиусом и тенью соседей добавляла экрану ещё один контур.
-     Заливка читается как поверхность, а не как рамка, и держит форму на всю
-     ширину карточки, а не одной линией по краю. Ступень выбрана замером на
-     отрисованной странице: 7% дают 1.13 к фону под карточкой, 10% — 1.21,
-     14% — 1.34, 18% — 1.5. Взяты 10%, и предел здесь ставит не вкус, а
-     аудит: на 14% семнадцать подписей внутри карточки — «Задание», каретки
-     меню, счётчик байтов, подсказка хода — просели до 4.37 при пороге 4.5.
-     Фон карточки светлее фона ленты, и то, что читалось на ленте, на ней
-     читаться перестаёт: поднимать заливку можно только вместе с ними. */
-  border: 1px solid transparent;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--hub-text) 10%, var(--hub-panel));
+  /* Карточка — поле ввода темы IDE: его фон и тонкая кромка. Серая заливка
+     поверх почти чёрной ленты читалась отдельным блоком, а не местом, где
+     пишут; фон поля темы ставит карточку рядом с полями редактора, и подписи
+     внутри неё читаются так же, как на ленте. */
+  border: 1px solid var(--hub-border-strong);
+  border-radius: var(--r-3);
+  background: var(--vscode-input-background, var(--hub-raised));
   box-shadow: none;
   transition: border-color var(--motion-base) var(--ease);
 }
-/* Ни тени, ни кольца: состояние карточки меняет только кромка — и появляется
-   она лишь тогда, когда в поле работают. В покое рамки нет вовсе. */
+/* Ни тени, ни кольца: состояние карточки меняет только кромка. */
 .hall-dialogue .hall-compose:hover:not(:focus-within) {
-  border-color: color-mix(in srgb, var(--hub-text) 10%, transparent);
+  border-color: var(--hub-border-loud);
 }
 .hall-dialogue .hall-compose:focus-within {
-  border-color: color-mix(in srgb, var(--hub-text) 26%, transparent);
+  border-color: color-mix(in srgb, var(--hub-text) 34%, transparent);
   box-shadow: none;
 }
 /* Волосок отделяет «что уже в разговоре» от «что вы сейчас пишете» — и только
    тогда, когда сверху действительно что-то есть. Постоянная линейка в пустом
    композере делила надвое одну-единственную строку. */
-.hall-dialogue .hall-compose:has(.hall-context, #master-discussion-context:not(:empty), #master-questions-ask:not(:empty), > .hall-strip) textarea {
+.hall-dialogue .hall-compose:has(.hall-context, #master-discussion-context:not(:empty), #master-questions-ask:not(:empty), .hall-quest-strip-slot:not(:empty), > .hall-strip) textarea {
   padding-top: var(--s-4);
   border-top: 1px solid color-mix(in srgb, var(--hub-text) 8%, transparent);
 }
@@ -529,6 +521,7 @@
 .hall-dialogue .hall-compose .hall-context-add {
   background: transparent;
 }
+.hall-dialogue .hall-compose .hall-context-add .hall-icon { width: 14px; height: 14px; }
 /* Вложение читается как вложение, а не как проза.
    Чип носил радиус 999px при прозрачной заливке и нулевой кромке: на экране это
    был просто текст, и отличить приложенный файл от слов в поле было нечем.
@@ -720,6 +713,17 @@
   background: color-mix(in srgb, var(--hub-text) 20%, transparent);
   color: var(--hub-text);
 }
+/* Готовая к отправке реплика — единственное место композера с акцентом:
+   кнопка отправки берёт цвет главной кнопки темы. Пустое поле его не зажигает. */
+.hall-dialogue .hall-compose:not(.is-empty) .hall-compose-actions .hall-compose-send:not(:disabled) {
+  background: var(--ember);
+  color: var(--ember-fg, var(--hub-void));
+}
+.hall-dialogue .hall-compose:not(.is-empty) .hall-compose-actions .hall-compose-send:not(:disabled):hover {
+  background: var(--ember-hover);
+}
+.hall-dialogue .hall-compose-actions .hall-compose-send .hall-icon,
+.hall-dialogue .hall-compose-actions .hall-compose-stop .hall-icon { width: 14px; height: 14px; }
 /* Пустому полю отправлять нечего: стрелка тускнеет, но не перекрашивается —
    перекрасить её было бы единственным цветом в карточке. Класс ставит
    masterComposeFormClass — один источник и для отрисовки, и для набора. */
@@ -1048,4 +1052,83 @@
 .hall-dialogue .hall-compose .hall-questions-left {
   flex: 1 1 0;
   margin-left: 0;
+}
+
+/* ——— Полоса идущего квеста ———
+   Первая строка карточки ввода: состояние, цель, этап со шкалой и кто работает.
+   Строка одна: всё, что не помещается, уходит в многоточие и в подсказку, —
+   карточка ввода не должна расти оттого, что квест длинно назван. Цвет есть
+   только у точки состояния: идёт — акцент, ждёт человека — предупреждение. */
+.hall-dialogue .hall-quest-strip-slot:empty { display: none; }
+.hall-dialogue .hall-quest-strip {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  width: 100%;
+  min-height: var(--control-sm);
+  padding: 0 var(--s-3);
+  border: 0;
+  border-radius: var(--r-1);
+  background: var(--hall-slot-fill);
+  color: var(--hub-muted);
+  font: var(--fw-normal) var(--t-small) / 1.3 var(--font-ui);
+  letter-spacing: normal;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  cursor: pointer;
+  transition: background-color var(--motion-fast) var(--ease);
+}
+.hall-dialogue .hall-quest-strip:hover,
+.hall-dialogue .hall-quest-strip:focus-visible { background: var(--hall-slot-fill-hover); }
+.hall-dialogue .hall-quest-strip-state {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--s-3);
+  font-weight: var(--fw-medium);
+  color: var(--hub-text);
+}
+.hall-dialogue .hall-quest-strip-state > i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--hub-muted);
+}
+.hall-dialogue .hall-quest-strip.is-active .hall-quest-strip-state > i { background: var(--ember); }
+.hall-dialogue .hall-quest-strip.is-attention .hall-quest-strip-state > i { background: var(--caution); }
+.hall-dialogue .hall-quest-strip.is-live .hall-quest-strip-state > i { animation: hall-live-pulse 1.2s var(--ease) infinite; }
+.hall-dialogue .hall-quest-strip-goal {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--hub-text-3);
+}
+.hall-dialogue .hall-quest-strip-stage { flex: none; font-variant-numeric: tabular-nums; }
+.hall-dialogue .hall-quest-strip .hall-quest-bar.is-sm { width: 48px; }
+.hall-dialogue .hall-quest-strip-worker {
+  display: inline-flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+  max-width: 40%;
+  overflow: hidden;
+}
+.hall-dialogue .hall-quest-strip-worker > b {
+  flex: none;
+  font-weight: var(--fw-medium);
+  color: var(--hub-text-2);
+}
+.hall-dialogue .hall-quest-strip-worker > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hall-dialogue .hall-quest-strip .hall-icon { width: 12px; height: 12px; }
+.hall-dialogue .hall-quest-strip-open { display: inline-flex; flex: none; margin-left: auto; }
+.hall-dialogue .hall-quest-strip-open .hall-icon { width: 14px; height: 14px; }
+@media (prefers-reduced-motion: reduce) {
+  .hall-dialogue .hall-quest-strip.is-live .hall-quest-strip-state > i { animation: none; }
 }

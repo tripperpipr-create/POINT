@@ -228,7 +228,19 @@ export function createMasterBriefPanel({
 
   // Переключение идёт правкой узлов, а не отрисовкой раздела: полная отрисовка
   // пересобрала бы ленту и поле ввода ради одного класса.
-  function handleMasterBriefAction({ action, root, persist }) {
+  function handleMasterBriefAction({ action, target, root, persist }) {
+    // Полоса квеста над полем ввода ведёт к подробностям. Панель квеста есть у
+    // разговора, где задание обсуждали; нет её — ведём к карточке наряда в ленте.
+    if (action === 'master-inspector-open') {
+      if (applyOpen(root, true)) {
+        persist?.()
+        return true
+      }
+      const id = String(target?.dataset?.order || '')
+      const card = id ? root.querySelector?.(`[data-work-order-id="${id}"]`) : null
+      card?.scrollIntoView?.({ block: 'center' })
+      return true
+    }
     if (action !== 'master-brief-toggle' && action !== 'master-brief-close') return false
     applyOpen(root, action === 'master-brief-toggle' ? !ui.masterBriefPanelOpen : false)
     persist?.()

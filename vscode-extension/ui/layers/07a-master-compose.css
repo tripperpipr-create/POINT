@@ -59,19 +59,12 @@
   font: var(--fw-normal) var(--t-micro) / 1 var(--font-mono);
   color: var(--hub-faint-2);
 }
-.hall-compose-actions button { margin-left: auto; }
 
-.hall-dialogue .hall-compose { box-sizing: border-box; width: calc(100% - 32px); max-width: var(--hall-read-col); margin: var(--s-3) auto var(--s-5); padding: var(--s-4) var(--s-5); gap: var(--s-3); border: 1px solid color-mix(in srgb, var(--hub-border-loud) 70%, transparent); border-radius: 4px; background: color-mix(in srgb, var(--hub-raised) 55%, var(--hub-void)); box-shadow: none; }
-.hall-dialogue .hall-compose:focus-within { border-color: color-mix(in srgb, var(--vscode-focusBorder, var(--ember)) 55%, var(--hub-border)); box-shadow: none; }
-.hall-compose-label { font: var(--fw-medium) var(--t-body) / 1.4 var(--font-ui); color: var(--hub-muted); }
 .hall-dialogue #master-discussion-context:empty { display: none; }
-.hall-dialogue .hall-compose textarea { box-sizing: border-box; min-height: 44px; max-height: min(200px, 28vh); resize: vertical; padding: var(--s-2) 0; border: 0; background: transparent; font: var(--fw-normal) var(--t-base) / 1.5 var(--font-ui); }
-.hall-dialogue .hall-compose textarea::placeholder { color: var(--hub-muted-2); }
-.hall-dialogue .hall-compose-actions { display: flex; flex-wrap: wrap; gap: var(--s-3); padding-top: var(--s-3); border-top: 1px solid color-mix(in srgb, var(--hub-border) 65%, transparent); }
+.hall-dialogue .hall-compose textarea { box-sizing: border-box; resize: vertical; border: 0; background: transparent; }
 .hall-dialogue .hall-compose-actions .hall-compose-model { flex: 1 1 100%; min-width: 0; font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui); color: var(--hub-faint-2); overflow-wrap: anywhere; }
-.hall-dialogue .hall-compose-hint { margin-left: 0; margin-right: auto; font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui); color: var(--hub-faint-2); white-space: normal; }
+.hall-dialogue .hall-compose-hint { margin-left: 0; margin-right: auto; }
 .hall-dialogue .hall-compose-actions .hall-btn { min-height: 28px; border-radius: 2px; font-family: var(--font-ui); letter-spacing: normal; }
-.hall-dialogue .hall-compose-actions .hall-btn.is-primary { margin-left: auto; }
 
 .hall-composer-controls, .hall-work-modes { display: flex; align-items: center; flex-wrap: wrap; gap: var(--s-3); }
 .hall-composer-controls { color: var(--hub-muted); font: var(--fw-normal) var(--t-small) / 1.5 var(--font-ui); gap: var(--s-2); }
@@ -108,33 +101,6 @@
 .hall-answer-style { position: relative; }
 .hall-answer-style summary { cursor: pointer; padding: var(--s-3); }
 .hall-model-choice { margin-left: auto; max-width: 100%; overflow-wrap: anywhere; }
-
-/* Композер: карточка ради одного поля занимала 213 пикселей. Поле начинается с
-   одной строки и растёт по набранному — сжимать его до нуля незачем, но и
-   держать пустым в две строки не за что. */
-.hall-dialogue .hall-compose {
-  margin-block: var(--s-3) var(--s-5);
-  padding: var(--s-4) var(--s-5);
-  gap: var(--s-3);
-}
-.hall-dialogue .hall-compose textarea {
-  min-height: 0;
-  padding: var(--s-2) 0;
-}
-
-/* Строка под полем: слева — чем отвечают, справа — как отправить и чем.
-   Прежнее правило `.hall-compose-actions button { margin-left: auto }` знало
-   только одну кнопку и развело бы «Остановить» с «Отправить» по разным краям.
-   Разрыв переезжает на подсказку: без него подпись модели и подсказка о
-   клавишах читались одной фразой — «исполнение узлов — движок Point Enter —
-   отправить». Замерено на стенде, а не предположено. */
-.hall-compose-actions { flex-wrap: wrap; }
-.hall-compose-actions button { margin-left: 0; }
-.hall-compose-hint { margin-left: auto; }
-
-/* Подсказка о клавишах не переносится: разорванное «Shift+Enter — перенос»
-   читается как две разные подписи. */
-.hall-compose-hint { white-space: nowrap; }
 
 /* Счёт байтов. Молчит, пока запас велик, и краснеет, когда кончился: постоянная
    цифра у поля перестаёт читаться ровно к тому моменту, когда понадобится. */
@@ -307,7 +273,7 @@
 /* Волосок отделяет «что уже в разговоре» от «что вы сейчас пишете» — и только
    тогда, когда сверху действительно что-то есть. Постоянная линейка в пустом
    композере делила надвое одну-единственную строку. */
-.hall-dialogue .hall-compose:has(.hall-context, #master-discussion-context:not(:empty), #master-questions-ask:not(:empty), .hall-quest-strip-slot:not(:empty), > .hall-strip) textarea {
+.hall-dialogue .hall-compose:has(.hall-context, #master-discussion-context:not(:empty), #master-questions-ask:not(:empty), .hall-quest-strip-slot:not(:empty)) textarea {
   padding-top: var(--s-4);
   border-top: 1px solid color-mix(in srgb, var(--hub-text) 8%, transparent);
 }
@@ -349,8 +315,6 @@
    разными на вид — из этого и складывается «собрано». */
 .hall-dialogue .hall-compose .hall-context-add,
 .hall-dialogue .hall-compose .hall-context-file,
-.hall-dialogue .hall-compose > .hall-strip .hall-chip,
-.hall-dialogue .hall-compose > .hall-strip > div:last-of-type > .hall-btn,
 .hall-dialogue #master-discussion-context > .hall-chip,
 .hall-dialogue .hall-questions-send,
 .hall-dialogue .hall-questions-step,
@@ -375,8 +339,6 @@
 .hall-dialogue .hall-compose .hall-context-add:hover,
 .hall-dialogue .hall-compose .hall-context-add:focus-visible,
 .hall-dialogue .hall-compose .hall-context-file:hover,
-.hall-dialogue .hall-compose > .hall-strip .hall-chip:hover,
-.hall-dialogue .hall-compose > .hall-strip > div:last-of-type > .hall-btn:hover,
 .hall-dialogue #master-discussion-context > .hall-chip:hover,
 .hall-dialogue .hall-questions-send:hover,
 .hall-dialogue .hall-questions-step:hover,
@@ -459,53 +421,6 @@
 }
 .hall-dialogue #master-discussion-context > .hall-chip {
   margin-left: auto;
-}
-
-/* ——— Слот: правки агента, ждущие решения ———
-   Появляется только в режиме «Выполнить». Части полосы адресуются по строению, а
-   не по своим именам классов: имена `session-*` принадлежат другому слою, и
-   сборка не даёт их переиспользовать (проверка пространств имён в ui/build.mjs). */
-.hall-dialogue .hall-compose > .hall-strip {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--s-3);
-  padding: 0;
-  border: 0;
-  background: transparent;
-  border-radius: 0;
-}
-.hall-dialogue .hall-compose > .hall-strip > i {
-  display: none;
-}
-.hall-dialogue .hall-compose > .hall-strip > div:first-of-type {
-  flex: 1 1 14rem;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--s-3);
-}
-.hall-dialogue .hall-compose > .hall-strip > div:first-of-type > span {
-  color: var(--hub-muted);
-  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui);
-}
-.hall-dialogue .hall-compose > .hall-strip ul {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.hall-dialogue .hall-compose > .hall-strip ul > li {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-1);
-}
-.hall-dialogue .hall-compose > .hall-strip > div:last-of-type {
-  display: flex;
-  gap: var(--s-2);
 }
 
 /* ——— Слот: контекст и вложенные файлы ———
@@ -865,9 +780,6 @@
     width: calc(100% - var(--s-5) * 2);
     margin: 0 auto var(--s-5);
   }
-  .hall-dialogue .hall-compose-hint.is-quiet { display: none; }
-  .hall-dialogue .hall-compose:hover .hall-compose-hint.is-quiet,
-  .hall-dialogue .hall-compose:focus-within .hall-compose-hint.is-quiet { display: none; }
   .hall-dialogue .hall-compose-actions { flex-wrap: wrap; }
 }
 
@@ -881,11 +793,6 @@
   font: var(--fw-normal) var(--t-body) / 1.45 var(--font-ui);
   letter-spacing: normal;
   color: var(--ember-prose);
-}
-/* Подсказка о клавишах пряталась прозрачностью — то есть была невидима и с
-   клавиатуры тоже. Она появляется на фокусе в поле, а не только под мышью. */
-.hall-dialogue .hall-compose:focus-within .hall-compose-hint.is-quiet {
-  opacity: 1;
 }
 
 /* —— Ряд слотов ——

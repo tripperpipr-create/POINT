@@ -305,9 +305,13 @@ const click = dataset => listeners['root:click']({ target: { closest(selector) {
   return selector === '[data-action]' ? { dataset } : null
 } } })
 
+// Разговор без мира: первый запуск, папка ещё не выбрана. Раскладка чата та
+// же, а карточка ввода стоит запертой вне `.hall-dialogue` — и оформляют её
+// базовые правила композера, которые ни одна другая страница стенда не видит.
+const withoutWorld = requestedSurface === 'gallery' || (requestedSurface === 'master' && process.argv[3] === 'no-world')
 listeners['window:message']({ data: {
-  type: 'state', service: { state: 'running' }, workspaceTrusted: true, workspace: requestedSurface === 'gallery' ? '' : 'ai-ide',
-  workspacePath: requestedSurface === 'gallery' ? '' : 'C:\worlds\ai-ide',
+  type: 'state', service: { state: 'running' }, workspaceTrusted: true, workspace: withoutWorld ? '' : 'ai-ide',
+  workspacePath: withoutWorld ? '' : 'C:\worlds\ai-ide',
   selectedTab: pick(COMPANION_LAYOUTS, requestedSurface) || requestedSurface === 'master-handoff' ? 'overview'
     : pick(GUILD_SURFACES, requestedSurface) || requestedSurface,
   ideContext: pick(COMPANION_LAYOUTS, requestedSurface)

@@ -306,7 +306,7 @@
 
 /* —— Путь к ответу: одна строка сводки ——
    Сводка называет, чем смотрел, сколько раз и была ли ошибка. Перечень —
-   по нажатию. Упавшие обращения, пока сводка свёрнута, стоят под ней. */
+   по нажатию. Упавшие обращения стоят под сводкой всегда. */
 .hall-dialogue .hall-trail { display: flex; flex-direction: column; gap: var(--s-2); }
 .hall-dialogue .hall-trail > .hall-trail-group > summary {
   display: inline-flex;
@@ -351,7 +351,6 @@
   border-left: 1px solid var(--hub-border);
   list-style: none;
 }
-.hall-dialogue .hall-trail-group[open] + .hall-trail-failed { display: none; }
 
 /* Строка обращения: значок, что сделал, над чем, чем кончилось. */
 .hall-dialogue .hall-step,
@@ -394,8 +393,8 @@
 .hall-dialogue .hall-step-more {
   display: inline-grid;
   place-items: center;
-  width: 20px;
-  height: 20px;
+  width: var(--control-sm);
+  height: var(--control-sm);
   padding: 0;
   border: 0;
   border-radius: var(--r-1);

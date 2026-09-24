@@ -453,16 +453,17 @@ export function createMasterThreadViews(dependencies) {
   // мысли — первая строка того же перечня: это тоже путь к ответу, а не ответ.
   //
   // Неудачное обращение прятать нельзя: ответ, собранный с ошибкой инструмента,
-  // читается иначе. Пока сводка свёрнута, упавшие строки стоят под ней открыто;
-  // раскрытая сводка показывает их на своих местах, и повтор снимается CSS.
+  // читается иначе. Упавшие строки стоят под сводкой всегда и в перечне не
+  // повторяются: одна строка на обращение, где бы её ни искали.
   const MASTER_ACTION_ICONS_MAX = 4
 
   function masterTurnActionsHtml(item) {
     const steps = Array.isArray(item?.steps) ? item.steps : []
     const reasoning = masterReasoningHtml(item)
     if (!steps.length && !reasoning) return ''
-    const rows = steps.map((step, index) => masterStepRowHtml(item, step, index)).join('')
-    const failed = steps.map((step, index) => [step, index]).filter(([step]) => step.failed)
+    const indexed = steps.map((step, index) => [step, index])
+    const rows = indexed.filter(([step]) => !step.failed).map(([step, index]) => masterStepRowHtml(item, step, index)).join('')
+    const failed = indexed.filter(([step]) => step.failed)
     const kinds = [...new Set(steps.map(step => masterToolIcon(step.tool)))].slice(0, MASTER_ACTION_ICONS_MAX)
     const icons = steps.length ? kinds.map(name => icon(name)).join('') : icon('think')
     const label = steps.length ? countOf(steps.length, 'действие', 'действия', 'действий') : 'Ход мысли'
@@ -476,7 +477,7 @@ export function createMasterThreadViews(dependencies) {
     return `<div class="hall-trail${failed.length ? ' is-failed' : ''}">
       <details class="hall-trail-group" data-master-open="steps" data-id="${esc(item.id)}"${open}>
         <summary><span class="hall-trail-icons">${icons}</span><span class="hall-trail-label">${esc(label)}</span>${fail}<span class="hall-trail-chevron">${icon('chevron-right')}</span></summary>
-        <div class="hall-trail-list">${reasoning}${rows}</div>
+        ${reasoning || rows ? `<div class="hall-trail-list">${reasoning}${rows}</div>` : ''}
       </details>
       ${failedRows}
     </div>`

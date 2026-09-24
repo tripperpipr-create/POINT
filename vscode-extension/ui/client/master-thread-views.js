@@ -738,7 +738,7 @@ export function createMasterThreadViews(dependencies) {
     // правка идёт там, закрыта — здесь. Кнопки правки остаются в обоих местах:
     // они шлют одно и то же решение.
     if (proposal.brief) {
-      const editing = ui.proposalEditId === proposal.id && !ui.masterBriefPanelOpen
+      const editing = ui.proposalEditId === proposal.id && !(ui.masterBriefPanelOpen && (ui.masterInspectorTab || 'quest') === 'quest')
       return taskBriefCardHtml(proposal, { esc, countOf, editing, busy: ui.proposalStarting.has(proposal.id) || ui.proposalModifying.has(proposal.id), editor: editing ? questProposalEditorHtml(proposal) : '', rosterReady: rosterHasAgent() })
     }
     // Предложение без brief рисуется теперь в одном месте — в панели задания:

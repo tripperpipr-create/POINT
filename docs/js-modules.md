@@ -93,7 +93,11 @@ webview. У них нет ни `require`, ни `vscode` — только объ�
 `vscode-extension/ui/layers/07c-master-feed.css`.
 Полосу идущего квеста над полем ввода считает
 `vscode-extension/ui/client/master-quest-strip.js` из наряда v2; подписи
-состояний она берёт у карточки наряда (`runtimePresentation`).
+состояний она берёт у карточки наряда (`runtimePresentation`). Правая панель
+разговора — вкладки «Квест», «Команда», «Контекст»: квест собирает
+`vscode-extension/ui/client/master-brief-panel.js`, команду и контекст —
+`vscode-extension/ui/client/master-inspector.js`, оформление —
+`vscode-extension/ui/layers/07d-master-inspector.css`.
 
 ## Куда класть новое
 

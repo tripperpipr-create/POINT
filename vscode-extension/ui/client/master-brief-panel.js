@@ -1,4 +1,9 @@
-import { masterPlanHtml, questPlanProgress } from './master-plan-views.js'
+import { masterPlanHtml, masterPlanState, questPlanProgress } from './master-plan-views.js'
+import { inspectorTab, masterContextPanelHtml, masterInspectorTabsHtml, masterTeamGroups, masterTeamHtml } from './master-inspector.js'
+import { masterContextPayload } from './master-context-ui.js'
+import { workOrderStageNote } from './work-order-execution-views.js'
+import { list } from './format-units.js'
+import { icon } from './ui-icons.js'
 
 // Задание в правой панели разговора.
 //
@@ -39,6 +44,7 @@ export function createMasterBriefPanel({
   esc, countOf, ui, taskProposalById, proposalEditorHtml,
   taskBriefBodyHtml, taskBriefActionsHtml, taskBriefReady, taskBriefStateLabel,
   rosterHasAgent, legacyProposalHtml, startedQuestSummary,
+  agentById = () => null, projectAgents = () => [],
 }) {
   // Какое задание показывает вкладка — вычисляется, а не хранится.
   //
@@ -134,16 +140,39 @@ export function createMasterBriefPanel({
     return `${plan}${brief}${overview}`
   }
 
-  function masterBriefPanelHtml() {
-    const item = masterBriefProposal()
-    if (!item) return ''
-    const open = Boolean(ui.masterBriefPanelOpen)
+  // Какая вкладка панели открыта. Без выбора — квест, если он есть: панель
+  // выросла из панели задания, и открывают её чаще всего ради него.
+  function activeTab(item) {
+    return inspectorTab(ui.masterInspectorTab, item || activeWorkOrder() ? 'quest' : 'team')
+  }
+
+  // Наряд, который сейчас исполняется в этом разговоре, — для разговора, где
+  // предложения в истории нет (запуск из прежней сессии, агентский режим).
+  function activeWorkOrder() {
+    return list(ui.masterData?.workOrders)
+      .filter(order => order?.state === 'approved' && order?.runtime)
+      .sort((a, b) => String(b.runtime?.updatedAt || '').localeCompare(String(a.runtime?.updatedAt || '')))[0] || null
+  }
+
+  // Вкладка «Квест»: задание, пока его обсуждают, и этапы, когда оно идёт.
+  function questTabHtml(item, open, tab) {
+    if (!item) {
+      const order = activeWorkOrder()
+      if (!order) {
+        return `<div class="hall-insp-blank">${icon('quest')}<b>Квеста пока нет</b><span>Опишите задачу — Мастер соберёт задание, и оно появится здесь: цель, условия готовности, этапы и исполнители.</span></div>`
+      }
+      const rows = list(order.runtime?.stages).map(stage => ({
+        text: stage.name || stage.id, state: masterPlanState(stage.status), note: workOrderStageNote(stage),
+      }))
+      return `<div class="hall-brief-panel-sub"><b>Квест</b><small>${esc(order.goal || '')}</small></div>
+        ${masterPlanHtml('Этапы', rows, esc, { limit: 12 }) || '<p class="hall-brief-wait">Этапы появятся, когда Мастер соберёт прогон.</p>'}`
+    }
     const started = item.status === 'started'
     const busy = Boolean(ui.proposalStarting?.has(item.id) || ui.proposalModifying?.has(item.id))
     // Редактор брифа рисуется в одном месте. readTaskBriefEditor ищет поля по
-    // всему разделу и при двух наборах молча прочтёт первый: панель открыта —
-    // правка идёт здесь, закрыта — в карточке ленты.
-    const editing = !started && open && ui.proposalEditId === item.id
+    // всему разделу и при двух наборах молча прочтёт первый: открыта вкладка
+    // квеста — правка идёт здесь, иначе — в карточке ленты.
+    const editing = !started && open && tab === 'quest' && ui.proposalEditId === item.id
     const opts = { esc, countOf, editing, busy, editor: editing ? proposalEditorHtml(item) : '', rosterReady: rosterHasAgent() }
     // Предложение старого маршрута брифа не знает, и разбирать его нечем:
     // taskBriefBodyHtml читает goal, версию и критерии. Рисует его прежняя
@@ -160,18 +189,77 @@ export function createMasterBriefPanel({
       : item.brief
         ? `<section class="hall-deck hall-proposal">${taskBriefBodyHtml(item, opts)}${taskBriefActionsHtml(item, { ...opts, withStart: false })}</section>`
         : (legacyProposalHtml?.(item, fromTurn?.partyWhy || item.rationale, fromTurn?.party) || '')
-    // Шапка называет род документа, и после запуска он другой: обсуждают
-    // задание, идёт — квест. Слева от него состояние работы, а не версия
-    // брифа: версия решала, то ли утверждают, что читают, и у запущенного
-    // квеста решать нечего.
+    // Подзаголовок называет род документа, и после запуска он другой:
+    // обсуждают задание, идёт — квест. Рядом — состояние работы, а не версия
+    // брифа: у запущенного квеста решать нечего.
     const live = started ? startedQuestSummary?.(item.id) : null
     const order = proposalWorkOrder(item)
     const head = started
       ? `<b>Квест</b><small>${esc(live?.statusText || 'выполняется')}${live?.step != null ? ` · ход ${esc(live.step)}` : ''}</small>`
       : `<b>Задание</b><small>${item.brief ? `Версия ${Number(item.brief.version)} · ` : ''}${esc(order?.state === 'staffing' ? 'Собираем состав' : taskBriefStateLabel(item.brief, rosterHasAgent()))}</small>`
-    return `<aside class="hall-brief-panel" id="master-brief-panel" role="tabpanel" tabindex="-1" aria-labelledby="master-brief-tab"${open ? '' : ' hidden'}>
-      <header class="hall-brief-panel-head">${head}<button type="button" class="hall-chip hall-brief-panel-drop" data-action="master-brief-close" aria-label="Закрыть панель задания">×</button></header>
-      <div class="hall-brief-panel-body">${body}</div>
+    // У задания с брифом род и версию называет шапка самой карточки — второй
+    // строкой над ней они повторялись бы слово в слово.
+    const sub = started || !item.brief ? `<div class="hall-brief-panel-sub">${head}</div>` : ''
+    return `${sub}${body}`
+  }
+
+  // Вкладка «Команда»: кто работает, кто в отряде задания, кто есть в проекте.
+  function teamGroups(item) {
+    const order = (item && proposalWorkOrder(item)) || activeWorkOrder()
+    const roster = [...list(order?.roster?.permanent), ...list(order?.roster?.temporary)]
+    const member = (id, extra = {}) => {
+      const agent = agentById(id)
+      const drafted = roster.find(entry => entry?.id === id)
+      return {
+        id,
+        name: agent?.name || drafted?.name || id,
+        role: agent?.roleDescription || drafted?.role || '',
+        model: agent?.model || '',
+        status: agent?.status || (drafted ? 'draft' : ''),
+        ...extra,
+      }
+    }
+    const working = list(order?.runtime?.stages)
+      .filter(stage => stage?.agentId && ['running', 'waiting', 'waiting_approval'].includes(stage.status))
+      .map(stage => member(stage.agentId, { working: true, note: stage.name || 'в работе' }))
+    const partyIds = list(item?.teamAgentIds).length
+      ? list(item.teamAgentIds)
+      : list(ui.masterData?.response?.party).map(entry => entry?.agentId)
+    const party = [...partyIds, ...roster.map(entry => entry?.id)].filter(Boolean).map(id => member(id))
+    const everyone = list(projectAgents()).map(agent => member(agent.id))
+    return masterTeamGroups({ working, party, roster: everyone })
+  }
+
+  // Вкладка «Контекст»: что уйдёт со следующей репликой и на что опирался
+  // последний ответ.
+  function contextTabHtml() {
+    const history = list(ui.masterData?.history)
+    const last = [...history].reverse().find(entry => entry?.role === 'assistant')
+    const entries = list(ui.masterData?.sessions?.memoryEntries)
+    const usedMemory = list(last?.memoryIds).map(id => entries.find(entry => entry.id === id)?.content).filter(Boolean)
+    const facts = list(last?.factsUsed).length ? last.factsUsed : list(ui.masterData?.response?.facts)
+    const model = String(ui.masterData?.sessions?.model || ui.masterData?.config?.model || '')
+    return masterContextPanelHtml({
+      attachments: masterContextPayload(ui.masterConversationId),
+      memory: ui.masterData?.sessions?.memory,
+      usedMemory, facts, model, esc,
+    })
+  }
+
+  function masterBriefPanelHtml() {
+    const item = masterBriefProposal()
+    const open = Boolean(ui.masterBriefPanelOpen)
+    const tab = activeTab(item)
+    const groups = teamGroups(item)
+    const body = tab === 'team'
+      ? masterTeamHtml({ groups, openId: ui.masterInspectorAgent, agentById, esc })
+      : tab === 'context'
+        ? contextTabHtml()
+        : questTabHtml(item, open, tab)
+    const working = groups.find(group => group.id === 'working')?.members.length || 0
+    return `<aside class="hall-brief-panel" id="master-brief-panel" role="tabpanel" tabindex="-1" aria-labelledby="${item ? 'master-brief-tab' : 'master-inspector-toggle'}"${open ? '' : ' hidden'}>
+      <header class="hall-brief-panel-head">${masterInspectorTabsHtml(tab, esc, { team: working })}<button type="button" class="hall-chip hall-brief-panel-drop" data-action="master-brief-close" aria-label="Закрыть панель" title="Закрыть панель">${icon('x')}</button></header>
+      <div class="hall-brief-panel-body" id="master-inspector-body" role="tabpanel" aria-labelledby="master-inspector-tab-${tab}">${body}</div>
     </aside>`
   }
 
@@ -206,16 +294,29 @@ export function createMasterBriefPanel({
 
   function applyOpen(root, open) {
     const panel = root.querySelector('#master-brief-panel')
+    if (!panel) return false
     const tab = root.querySelector('#master-brief-tab')
-    if (!panel || !tab) return false
+    const toggle = root.querySelector('#master-inspector-toggle')
     ui.masterBriefPanelOpen = open
     root.querySelector('.hall-dialogue')?.classList?.toggle('is-brief-open', open)
     panel.hidden = !open
-    tab.classList?.toggle('is-on', open)
-    tab.setAttribute('aria-selected', open ? 'true' : 'false')
+    tab?.classList?.toggle('is-on', open)
+    tab?.setAttribute?.('aria-selected', open ? 'true' : 'false')
+    toggle?.setAttribute?.('aria-pressed', open ? 'true' : 'false')
     // Фокус не остаётся на скрытом узле: закрывая панель, возвращаем его на
-    // вкладку, которой её и открывали.
-    if (!open) tab.focus?.()
+    // вкладку задания, а без неё — на кнопку панели в шапке.
+    if (!open) (tab || toggle)?.focus?.()
+    return true
+  }
+
+  // Смена вкладки перерисовывает только панель: лента и поле ввода остаются
+  // нетронутыми, как и при открытии.
+  function redrawPanel(root, focusTab) {
+    const panel = root.querySelector('#master-brief-panel')
+    if (!panel) return false
+    panel.outerHTML = masterBriefPanelHtml()
+    applyOpen(root, true)
+    if (focusTab) root.querySelector(`#master-inspector-tab-${focusTab}`)?.focus?.()
     return true
   }
 
@@ -232,13 +333,28 @@ export function createMasterBriefPanel({
     // Полоса квеста над полем ввода ведёт к подробностям. Панель квеста есть у
     // разговора, где задание обсуждали; нет её — ведём к карточке наряда в ленте.
     if (action === 'master-inspector-open') {
-      if (applyOpen(root, true)) {
+      if (target?.dataset?.tab) ui.masterInspectorTab = inspectorTab(target.dataset.tab)
+      if (redrawPanel(root)) {
         persist?.()
         return true
       }
       const id = String(target?.dataset?.order || '')
       const card = id ? root.querySelector?.(`[data-work-order-id="${id}"]`) : null
       card?.scrollIntoView?.({ block: 'center' })
+      return true
+    }
+    if (action === 'master-inspector-tab') {
+      ui.masterInspectorTab = inspectorTab(target?.dataset?.tab)
+      redrawPanel(root, ui.masterInspectorTab)
+      return true
+    }
+    // Строка агента раскрывает его лист на месте; вторая — сворачивает.
+    if (action === 'master-inspector-agent') {
+      const id = String(target?.dataset?.id || '')
+      ui.masterInspectorAgent = ui.masterInspectorAgent === id ? '' : id
+      ui.masterInspectorTab = 'team'
+      redrawPanel(root)
+      persist?.()
       return true
     }
     if (action !== 'master-brief-toggle' && action !== 'master-brief-close') return false

@@ -645,18 +645,9 @@
   color: var(--hub-text);
 }
 
-
-/* ——— Задание: вкладка в полосе разговора и панель справа ———
-   Пока задание обсуждают, карточки в ленте нет — она предлагала бы решение,
-   которого принять нельзя, и занимала весь экран разговора. Состав задания
-   живёт здесь: вкладка на правом краю полосы разговора, панель у правого края
-   раздела. Эталон — правая панель Cursor: прижата, сужает разговор, а не
-   накрывает его. Отступать некуда только на узком окне — там она выезжает
-   поверх, как рейка разговоров в той же ширине. */
-.hall-dialogue.is-brief-open {
-  padding-right: var(--hall-quest-width);
-  --hall-quest-offset: var(--hall-quest-width);
-}
+/* ——— Задание: вкладка в шапке разговора ———
+   Вкладка открывает правую панель на задании; сама панель — в
+   07d-master-inspector.css. */
 .hall-brief-tabs {
   display: flex;
   align-items: center;
@@ -743,83 +734,14 @@
   border-radius: var(--r-full);
   background: var(--ember);
 }
-/* Пока ядро собирает прогон, этапов ещё нет. Строка ожидания набрана тише
-   перечня, который её сменит. */
-.hall-brief-panel .hall-brief-wait {
-  margin: 0;
-  color: var(--ui-faint);
-  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui);
-}
-.hall-brief-panel {
-  position: absolute;
-  inset: 0 0 0 auto;
-  z-index: 4;
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-4);
-  width: var(--hall-quest-width);
-  padding: var(--s-6) var(--s-5);
-  overflow-y: auto;
-  background: var(--ui-void);
-  border-left: 1px solid var(--hub-border);
-}
-/* display: flex иначе побеждает атрибут hidden, и закрытая панель остаётся на
-   экране — та же ловушка, что у панелей полосы разговора. */
-.hall-brief-panel[hidden] { display: none; }
-.hall-brief-panel-head {
-  display: flex;
-  align-items: baseline;
-  gap: var(--s-3);
-  font: var(--fw-medium) var(--t-base) / 1.4 var(--font-ui);
-}
-/* Приглушённая ступень берётся от фона раздела, а панель лежит на светлом:
-   замер стенда дал 3.91 при пороге 4.5, поэтому здесь ступень выше. */
-.hall-brief-panel-head > small {
-  color: var(--hub-text-3);
-  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui);
-}
-/* Крестик был 21×20 — мельче порога указателя (24). Размер держит цель, а не
-   знак: сам «×» остаётся прежним. */
-.hall-brief-panel-head > .hall-brief-panel-drop {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: var(--hit);
-  min-height: var(--hit);
-  margin-left: auto;
-}
-.hall-brief-panel-body { min-width: 0; }
-/* Та же причина, что и у шапки панели: состав задания лежит на светлом фоне,
-   и приглушённая ступень давала 3.91 при пороге 4.5. */
-.hall-dialogue .hall-brief-panel .hall-deck > header > small {
-  color: var(--hub-text-3);
-}
-/* Внутри панели карточка задания — уже не карточка: заливка в панели ничего не
-   отделяет, а меру ей задаёт сама панель. Имя взято общее (hall-deck), а не
-   `hall-proposal`: заливку кладёт общий слой карточек, и оставь мы здесь только
-   частное имя — она вернулась бы в панель с первой же карточкой другого рода. */
-.hall-dialogue .hall-brief-panel .hall-deck {
-  max-width: none;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-}
+
+
+
+
+
+
 /* Панель выезжает поверх там, где отступать некуда: при 1024 прижатая панель
    оставляет разговору меньше пятисот пикселей, и реплика перестаёт читаться. */
-@media (max-width: 1100px) {
-  .hall-dialogue.is-brief-open {
-    padding-right: 0;
-    --hall-quest-offset: 0px;
-  }
-  .hall-dialogue.is-brief-open .hall-brief-panel {
-    z-index: 20;
-    width: min(380px, 90%);
-    box-shadow: -8px 0 24px var(--hub-void);
-  }
-}
-
 /* ——— Уточнения в карточке ввода ———
    Слот пуст ровно тогда, когда спрашивать нечего: карточка флексовая с
    промежутком, и пустой узел стоил бы ей строки воздуха в каждом разговоре. */

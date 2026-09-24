@@ -328,6 +328,9 @@ let masterFindIndex = 0
 let masterFindSummary = ''
 let masterLoadingEarlier = false
 let masterFindOpen = false
+// Правая панель разговора: открытая вкладка и раскрытый лист агента.
+let masterInspectorTab = ''
+let masterInspectorAgent = ''
 // Подставленный вопрос дописывают, а не переписывают: курсор должен встать в
 // конец. Ставит его отрисовка — поле к тому времени уже другое.
 let masterCaretToEnd = false
@@ -2221,6 +2224,8 @@ const modularUiState = {
   get masterFindQuery() { return masterFindQuery }, set masterFindQuery(value) { masterFindQuery = value },
   get masterCaretToEnd() { return masterCaretToEnd }, set masterCaretToEnd(value) { masterCaretToEnd = value },
   get masterFindOpen() { return masterFindOpen }, set masterFindOpen(value) { masterFindOpen = value },
+  get masterInspectorTab() { return masterInspectorTab }, set masterInspectorTab(value) { masterInspectorTab = String(value || '') },
+  get masterInspectorAgent() { return masterInspectorAgent }, set masterInspectorAgent(value) { masterInspectorAgent = String(value || '') },
   get masterFindIndex() { return masterFindIndex }, set masterFindIndex(value) { masterFindIndex = value },
   set masterFindSummary(value) { masterFindSummary = value },
   get masterAutoFollow() { return masterAutoFollow }, set masterAutoFollow(value) { masterAutoFollow = value },
@@ -2536,6 +2541,8 @@ const {
   // перебор прогонов: разойдясь, они назвали бы одному квесту два состояния.
   startedQuestSummary: (...args) => masterStartedQuestSummary(...args),
   rosterHasAgent: () => rosterHasAgent(),
+  agentById: id => agentById(id),
+  projectAgents: () => hubAgents(),
 })
 
 const {

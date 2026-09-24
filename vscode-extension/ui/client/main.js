@@ -50,7 +50,7 @@ import { masterWorkOrderCardsHtml } from './master-work-order-v2.js'
 import { handleMasterHiringAction } from './master-hiring-card.js'
 import { handleMasterAgentCardAction, masterAgentCardsAll, masterAgentConsent, readMasterAgentCardInput, releaseMasterAgentCards } from './master-agent-card.js'
 import { MASTER_MESSAGE_LIMIT_BYTES, masterComposeCountClass, masterComposeCountState, masterComposeFormClass, masterAnswerRows, masterComposeRows, masterMessageBytes, masterWaitSuffix, oversizedMasterMessageNote } from './master-compose.js'
-import { createMasterFeedRuntime } from './master-feed.js'
+import { createMasterFeedRuntime, threadNearBottom } from './master-feed.js'
 import { COMPANION_EXAMPLES, COMPANION_MESSAGE_LIMIT_BYTES, COMPANION_SETUP_STEPS, COMPANION_SETUP_STEP_ALIAS, applyLocalSourceFields, companionBrainMode, companionConfigForBrain, normalizeBrainMode, companionSpendCaveats, companionSceneById, companionModeCardsHtml, companionLocalReadyHtml, companionComposeActionsHtml, companionComposeMetaHtml, companionMessageBytes, companionWaitSuffix, oversizedCompanionMessageNote } from './companion-compose.js'
 // Счётчик отправок нужен защите форм от повторной отправки: обработчик формы
 // может выйти раньше, ничего не отправив (не заполнено поле, не пройдена
@@ -1425,10 +1425,6 @@ function patchCompanionComposeChrome() {
     existing.remove()
   }
 }
-// Годится любой ленте: у компаньона и у Мастера «внизу» значит одно и то же.
-function threadNearBottom(thread) {
-  return !thread || thread.scrollHeight - thread.scrollTop - thread.clientHeight < 72
-}
 function scrollCompanionThread(force = false) {
   const thread = root.querySelector('#companion-thread')
   if (!thread) return
@@ -1447,37 +1443,6 @@ function replaceCompanionThreadHtml() {
   companionAutoFollow = follow
   thread.scrollTop = follow ? thread.scrollHeight : Math.min(top, Math.max(0, thread.scrollHeight - thread.clientHeight))
   updateCompanionScrollCue()
-  return true
-}
-// То же для ленты Мастера. Отдельная функция, а не общая с компаньоном: у лент
-// разные источники разметки и разные признаки следования, и параметр вместо
-// двух функций спрятал бы это различие за флагом.
-function replaceMasterThreadHtml() {
-  const thread = root.querySelector('#master-thread')
-  if (!thread) return false
-  const follow = masterAutoFollow || threadNearBottom(thread)
-  const top = thread.scrollTop
-  // Уточнения переехали в ленту, и вместе с ними — поле свободного ответа.
-  // Замена разметки отбирает у него каретку: фоновое обновление посреди
-  // набранного слова выбрасывало бы человека из ответа. Набранное переживает
-  // замену само (черновик пишется на каждом вводе), а место в строке — нет.
-  const typing = thread.contains?.(document.activeElement) && document.activeElement?.classList?.contains('hall-question-extra')
-    ? { key: document.activeElement.closest('[data-question-key]')?.dataset.questionKey, at: document.activeElement.selectionStart }
-    : null
-  // Якорь живёт снаружи ленты и перерисовку переживает сам: дописывать его к
-  // содержимому больше не нужно.
-  thread.innerHTML = masterThreadContentHtml()
-  if (typing?.key) {
-    const field = thread.querySelector(`[data-question-key="${typing.key}"] .hall-question-extra`)
-    if (field) { field.focus(); if (typing.at != null) field.setSelectionRange(typing.at, typing.at) }
-  }
-  masterAutoFollow = follow
-  thread.scrollTop = follow ? thread.scrollHeight : Math.min(top, Math.max(0, thread.scrollHeight - thread.clientHeight))
-  // Замена разметки стирает и пометки поиска, и якорь: набранное в поиске при
-  // этом никуда не делось, и возвращать его руками человек не должен.
-  applyMasterFind()
-  updateMasterScrollCue()
-  applyMasterComposeReserve()
   return true
 }
 // Поле и кнопка отправки стоят вне ленты, и заменять им разметку незачем:
@@ -2115,6 +2080,8 @@ function companionDockTrust() {
 let applyMasterFind = () => {}
 let updateMasterScrollCue = () => {}
 let applyMasterComposeReserve = () => {}
+let replaceMasterThreadHtml = () => false
+let afterMasterFeedPaint = () => {}
 
 const modularUiState = {
   get agentConstructorOpen() { return agentConstructorOpen }, set agentConstructorOpen(value) { agentConstructorOpen = value },
@@ -2574,7 +2541,7 @@ const {
   rosterHasAgent: () => rosterHasAgent(),
 })
 
-;({ applyMasterFind, updateMasterScrollCue, applyMasterComposeReserve } = createMasterFeedRuntime({ root, ui: modularUiState }))
+;({ applyMasterFind, updateMasterScrollCue, applyMasterComposeReserve, replaceMasterThreadHtml, afterMasterFeedPaint } = createMasterFeedRuntime({ root, ui: modularUiState, threadHtml: () => masterThreadContentHtml() }))
 
 function captureUi() {
   const active = document.activeElement
@@ -2661,7 +2628,7 @@ function restoreUi(snapshot) {
     const follow = snapshot.masterThread ? Boolean(snapshot.masterThread.follow) : true
     masterAutoFollow = follow
     masterThread.scrollTop = follow ? masterThread.scrollHeight : snapshot.masterThread.top
-    updateMasterScrollCue()
+    afterMasterFeedPaint()
   }
   if (snapshot.focus?.id) {
     const el = root.querySelector(`#${CSS.escape(snapshot.focus.id)}`)

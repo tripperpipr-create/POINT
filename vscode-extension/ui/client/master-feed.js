@@ -47,13 +47,20 @@ export function masterFindSummary (total, current) {
   return `${current + 1} из ${total}`
 }
 
-// Работа с живой лентой: пометка найденного и якорь «к свежему».
+// Лента «внизу», если до конца осталось меньше строки-другой. Годится любой
+// ленте: у компаньона и у Мастера «внизу» значит одно и то же.
+export function threadNearBottom (thread) {
+  return !thread || thread.scrollHeight - thread.scrollTop - thread.clientHeight < 72
+}
+
+// Работа с живой лентой: замена её разметки, пометка найденного и якорь
+// «к свежему».
 //
 // Обе правят DOM и потому живут не в разметке, а здесь: перерисовывать ленту на
 // каждую набранную букву значило бы терять и прокрутку, и каретку в самом поле
 // поиска. Состояние остаётся в main.js и приходит сюда общим ui-объектом — как
 // у остальных вынесенных видов.
-export function createMasterFeedRuntime ({ root, ui }) {
+export function createMasterFeedRuntime ({ root, ui, threadHtml = () => '' }) {
   // Сколько ленты отдано плавающему композеру.
   //
   // Числом это не задаётся. Карточка растёт от уточнений модели, вложений,
@@ -89,6 +96,10 @@ export function createMasterFeedRuntime ({ root, ui }) {
     if (cue) cue.className = ui.masterAutoFollow ? 'hall-thread-cue is-hidden' : 'hall-thread-cue'
   }
 
+  // Были ли на ленте пометки. Без запроса поиску нечего делать, кроме как снять
+  // прежние: обходить ради этого каждую реплику на каждом событии хода незачем.
+  let marked = false
+
   function applyMasterFind (scroll = false) {
     const thread = root.querySelector('#master-thread')
     // Лента бывает не настоящим узлом: смоуки подставляют объект с тремя
@@ -96,6 +107,15 @@ export function createMasterFeedRuntime ({ root, ui }) {
     // уронило бы проверки, которые про поиск ничего не знают.
     if (typeof thread?.querySelectorAll !== 'function') return
     const needle = String(ui.masterFindQuery || '').trim().toLowerCase()
+    if (!needle) {
+      if (marked) for (const turn of thread.querySelectorAll('.is-hit, .is-current-hit')) turn.classList.remove('is-hit', 'is-current-hit')
+      marked = false
+      ui.masterFindSummary = ''
+      const count = root.querySelector('.hall-find-count')
+      if (count) count.textContent = ''
+      return
+    }
+    marked = true
     const hits = []
     for (const body of thread.querySelectorAll('.hall-msg .body')) {
       const turn = body.closest('.hall-turn') || body.closest('.hall-msg')
@@ -122,5 +142,44 @@ export function createMasterFeedRuntime ({ root, ui }) {
     if (count) count.textContent = ui.masterFindSummary
   }
 
-  return { applyMasterFind, updateMasterScrollCue, applyMasterComposeReserve }
+  // Всё, что лента теряет вместе с разметкой: пометки поиска и видимость якоря.
+  // Один крюк на все пути отрисовки — точечную замену и полную, — чтобы
+  // разошедшиеся пути не давали разный вид одной и той же ленты.
+  function afterMasterFeedPaint () {
+    applyMasterFind()
+    updateMasterScrollCue()
+  }
+
+  // Замена содержимого ленты без отрисовки раздела. Раньше на каждый ход
+  // Мастера пересобирался весь Чертог, и разговор прыгал к первой реплике.
+  //
+  // Запас под карточку ввода здесь не меряется: карточка при замене ленты не
+  // меняется, а её собственный рост ловит ResizeObserver. Замер стоил чтения
+  // вычисленных стилей и геометрии на каждом событии хода.
+  function replaceMasterThreadHtml () {
+    const thread = root.querySelector('#master-thread')
+    if (!thread) return false
+    const follow = ui.masterAutoFollow || threadNearBottom(thread)
+    const top = thread.scrollTop
+    // Уточнения переехали в ленту, и вместе с ними — поле свободного ответа.
+    // Замена разметки отбирает у него каретку: фоновое обновление посреди
+    // набранного слова выбрасывало бы человека из ответа. Набранное переживает
+    // замену само (черновик пишется на каждом вводе), а место в строке — нет.
+    const active = typeof document === 'undefined' ? null : document.activeElement
+    const typing = thread.contains?.(active) && active?.classList?.contains('hall-question-extra')
+      ? { key: active.closest('[data-question-key]')?.dataset.questionKey, at: active.selectionStart }
+      : null
+    // Якорь живёт снаружи ленты и перерисовку переживает сам.
+    thread.innerHTML = threadHtml()
+    if (typing?.key) {
+      const field = thread.querySelector(`[data-question-key="${typing.key}"] .hall-question-extra`)
+      if (field) { field.focus(); if (typing.at != null) field.setSelectionRange(typing.at, typing.at) }
+    }
+    ui.masterAutoFollow = follow
+    thread.scrollTop = follow ? thread.scrollHeight : Math.min(top, Math.max(0, thread.scrollHeight - thread.clientHeight))
+    afterMasterFeedPaint()
+    return true
+  }
+
+  return { applyMasterFind, updateMasterScrollCue, applyMasterComposeReserve, replaceMasterThreadHtml, afterMasterFeedPaint }
 }

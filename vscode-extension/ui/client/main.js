@@ -52,7 +52,7 @@ import { handleMasterAgentCardAction, masterAgentCardsAll, masterAgentConsent, r
 import { MASTER_MESSAGE_LIMIT_BYTES, masterComposeCountClass, masterComposeCountState, masterComposeFormClass, masterAnswerRows, masterComposeRows, masterMessageBytes, masterWaitSuffix, oversizedMasterMessageNote } from './master-compose.js'
 import { createMasterFeedRuntime, threadNearBottom } from './master-feed.js'
 import { createMasterStreamView } from './master-stream-view.js'
-import { closeMasterMenus, closeMasterSlash, handleMasterComposeKey, handleMasterQueueAction, masterQueueHtml, masterQueueOf, masterQueuePush, masterSlashInput, masterSlashOpen, pickMasterSlash } from './master-compose-keys.js'
+import { closeMasterMenus, handleMasterFieldKey, handleMasterQueueAction, masterQueueHtml, masterQueueOf, masterQueuePush, masterSlashInput, masterSlashOpen, pickMasterSlash } from './master-compose-keys.js'
 import { COMPANION_EXAMPLES, COMPANION_MESSAGE_LIMIT_BYTES, COMPANION_SETUP_STEPS, COMPANION_SETUP_STEP_ALIAS, applyLocalSourceFields, companionBrainMode, companionConfigForBrain, normalizeBrainMode, companionSpendCaveats, companionSceneById, companionModeCardsHtml, companionLocalReadyHtml, companionComposeActionsHtml, companionComposeMetaHtml, companionMessageBytes, companionWaitSuffix, oversizedCompanionMessageNote } from './companion-compose.js'
 // Счётчик отправок нужен защите форм от повторной отправки: обработчик формы
 // может выйти раньше, ничего не отправив (не заполнено поле, не пройдена
@@ -1925,6 +1925,7 @@ function masterComposeKeyDeps() {
     draft: () => masterDraft, setDraft: text => { masterDraft = text; masterCaretToEnd = true },
     post: message => vscode.postMessage(message), openFind: () => { masterFindOpen = true },
     render, persist: persistDraft, mentionOpen: masterMentionOpen,
+    mentionKey: key => handleMasterMentionKey(key, { pick: pickMasterMention, render }), send: () => sendMasterMessage(),
   }
 }
 
@@ -3623,45 +3624,8 @@ root.addEventListener('keydown', event => {
     event.preventDefault()
     sendCompanionUserMessage(event.target.value)
   }
-  // Два чата в одном приложении не должны отправляться по-разному: у компаньона
-  // Enter отправляет, а у Мастера единственным способом была мышь.
-  // Shift+Enter по-прежнему переносит строку — задачу описывают и в несколько.
-  // Список упоминаний забирает стрелки, Enter, Tab и Escape себе, пока открыт:
-  // иначе Enter отправит реплику вместо того, чтобы приложить выбранный файл.
-  if (event.target.id === 'master-input' && masterMentionOpen()
-    && handleMasterMentionKey(event.key, { pick: pickMasterMention, render })) {
-    event.preventDefault()
-    return
-  }
-  // Команды «/» и «↑» в пустом поле — до отправки по Enter, по той же причине.
-  if (event.target.id === 'master-input' && handleMasterComposeKey(event, masterComposeKeyDeps())) {
-    event.preventDefault()
-    return
-  }
-  if (event.key === 'Enter' && !event.shiftKey && !event.isComposing && event.target.id === 'master-input') {
-    event.preventDefault()
-    closeMasterSlash()
-    sendMasterMessage()
-  }
-  // Enter в ответе листает пакет, а не отправляет его.
-  //
-  // Прежде он всегда нажимал отправку. Человек отвечал на первый вопрос из
-  // двух, жал Enter — и пакет уходил с одним ответом: остальные возвращались
-  // из ядра в «Нужно уточнить» и держали запуск, а спрошены были будто зря.
-  // Отправка — решение по всему пакету, и принимают его на последнем вопросе
-  // или нажатием на саму кнопку; клавиша делает то же, что кнопка под рукой.
-  //
-  // preventDefault нужен и сам по себе: слот уточнений стоит внутри формы
-  // карточки ввода, и у поля с вариантами (`input`) Enter иначе отправил бы
-  // форму неявно — мимо всякого нашего разбора.
-  if (event.key === 'Enter' && !event.shiftKey && !event.isComposing && event.target.classList?.contains('hall-question-extra')) {
-    event.preventDefault()
-    const pack = event.target.closest('.hall-questions')
-    const at = Number(pack?.dataset?.cursor || 0)
-    const last = Number(pack?.dataset?.total || 1) - 1
-    const step = at < last ? 'master-question-next' : 'master-answer-question'
-    pack?.querySelector(`[data-action="${step}"]`)?.click()
-  }
+  // Поле Мастера и слот уточнений: упоминания, «/», «↑» и Enter (master-compose-keys.js).
+  if (handleMasterFieldKey(event, masterComposeKeyDeps())) event.preventDefault()
 })
 root.addEventListener('scroll', event => {
   if (event.target?.id === 'companion-thread') {

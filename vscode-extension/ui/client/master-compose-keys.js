@@ -246,3 +246,33 @@ export function handleMasterComposeKey (event, deps) {
   }
   return false
 }
+
+// Клавиши поля Мастера и слота уточнений — всё, что keydown раздела решает
+// здесь. Два чата в одном приложении не должны отправляться по-разному: у
+// компаньона Enter отправляет, и у Мастера тоже; Shift+Enter переносит строку.
+// Открытый список «@» или «/» забирает стрелки, Enter, Tab и Escape себе —
+// иначе Enter отправил бы реплику вместо того, чтобы выбрать пункт.
+export function handleMasterFieldKey (event, deps) {
+  const enter = event.key === 'Enter' && !event.shiftKey && !event.isComposing
+  if (event.target?.id === 'master-input') {
+    if (deps.mentionOpen() && deps.mentionKey(event.key)) return true
+    if (handleMasterComposeKey(event, deps)) return true
+    if (!enter) return false
+    closeMasterSlash()
+    deps.send()
+    return true
+  }
+  // Enter в ответе на уточнение листает пакет, а не отправляет его. Прежде он
+  // отправлял: человек отвечал на первый вопрос из двух — и пакет уходил с
+  // одним ответом. Отправка — решение по всему пакету, его принимают на
+  // последнем вопросе или кнопкой. Перехват нужен и сам по себе: слот стоит
+  // внутри формы карточки, и Enter в поле отправил бы её неявно.
+  if (enter && event.target?.classList?.contains('hall-question-extra')) {
+    const pack = event.target.closest('.hall-questions')
+    const at = Number(pack?.dataset?.cursor || 0)
+    const last = Number(pack?.dataset?.total || 1) - 1
+    pack?.querySelector(`[data-action="${at < last ? 'master-question-next' : 'master-answer-question'}"]`)?.click()
+    return true
+  }
+  return false
+}

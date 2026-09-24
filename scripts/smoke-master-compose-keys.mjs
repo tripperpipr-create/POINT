@@ -8,7 +8,7 @@
 import assert from 'node:assert/strict'
 import { createMasterChatState } from '../vscode-extension/ui/client/master-chat-state.js'
 import {
-  MASTER_QUEUE_LIMIT, closeMasterSlash, handleMasterComposeKey, masterQueueAfterTurn, masterQueueHtml, masterQueueOf,
+  MASTER_QUEUE_LIMIT, closeMasterSlash, handleMasterComposeKey, handleMasterFieldKey, masterQueueAfterTurn, masterQueueHtml, masterQueueOf,
   masterQueuePause, masterQueuePush, masterRecallText, masterSlashHtml, masterSlashInput, masterSlashOpen, pickMasterSlash,
 } from '../vscode-extension/ui/client/master-compose-keys.js'
 import { esc } from '../vscode-extension/ui/client/html-escape.js'
@@ -103,6 +103,34 @@ import { esc } from '../vscode-extension/ui/client/html-escape.js'
   pickMasterSlash(0, { ...deps, post: message => posted.push(message) })
   assert.deepEqual(posted, [{ type: 'masterSession', action: 'new' }], '«/новый» открывает новый чат')
   closeMasterSlash()
+}
+
+// ——— Enter в поле и в слоте уточнений ———
+// Ветки keydown переехали сюда из main.js; порядок у них прежний: открытый
+// список забирает Enter, иначе Enter отправляет, Shift+Enter переносит строку.
+{
+  const sent = []
+  let mention = false
+  const deps = { client: createMasterChatState(), id: () => 'c1', history: () => [], draft: () => '', setDraft() {}, persist() {}, render() {},
+    post() {}, openFind() {}, root: { querySelector: () => null }, mentionOpen: () => mention, mentionKey: key => key === 'Enter', send: () => sent.push('send') }
+  const field = (key, extra = {}) => handleMasterFieldKey({ key, target: { id: 'master-input', value: 'текст' }, shiftKey: false, isComposing: false, ...extra }, deps)
+  assert.equal(field('Enter'), true)
+  assert.deepEqual(sent, ['send'], 'Enter в поле отправляет')
+  assert.equal(field('Enter', { shiftKey: true }), false, 'Shift+Enter переносит строку')
+  assert.equal(field('Enter', { isComposing: true }), false, 'Enter посреди набора IME не отправляет')
+  mention = true
+  assert.equal(field('Enter'), true)
+  assert.equal(sent.length, 1, 'при открытом списке «@» Enter выбирает файл, а не отправляет')
+
+  const clicked = []
+  const pack = total => ({ dataset: { cursor: '0', total: String(total) }, querySelector: selector => ({ click: () => clicked.push(selector) }) })
+  const answer = total => handleMasterFieldKey({ key: 'Enter', shiftKey: false, isComposing: false,
+    target: { id: '', classList: { contains: name => name === 'hall-question-extra' }, closest: () => pack(total) } }, deps)
+  assert.equal(answer(2), true)
+  assert.equal(answer(1), true)
+  assert.deepEqual(clicked, ['[data-action="master-question-next"]', '[data-action="master-answer-question"]'],
+    'Enter в ответе листает пакет и отправляет только на последнем вопросе')
+  assert.equal(sent.length, 1, 'ответ на уточнение не уходит репликой из поля')
 }
 
 console.log('композер Мастера: очередь, «↑» и команды «/»: PASS')

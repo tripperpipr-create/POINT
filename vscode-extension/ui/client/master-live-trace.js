@@ -12,7 +12,13 @@
 // hall-step), чтобы при завершении лента не прыгала.
 
 import { masterToolIcon, masterToolNameNow } from './master-tool-names.js'
+import { countOf } from './format-units.js'
 import { icon } from './ui-icons.js'
+
+// Сколько строк следа видно, пока идёт ход. Длинный ход с двадцатью
+// обращениями вытягивал список на полэкрана, и то, что происходит сейчас,
+// приходилось искать внизу; ранние строки уходят под «ещё N».
+const MASTER_TRACE_VISIBLE = 3
 
 // Сколько строк живёт в трассе. Длинный ход с десятками обращений не должен
 // вытеснять из памяти сам разговор; ранние строки всё равно вернутся готовым
@@ -152,6 +158,8 @@ function masterTraceIcon (item) {
 export function masterTraceHtml (turn, esc, open, now = Date.now()) {
   const trace = Array.isArray(turn?.trace) ? turn.trace : []
   if (!trace.length) return ''
+  // Ключи строк — сквозные номера по всему следу: раскрытое помнится по ним, и
+  // masterTraceMindPatch находит последнюю строку тем же ключом.
   const rows = trace.map((item, index) => {
     const key = `${turn.id || 'turn'}:${index}`
     const expanded = open?.has?.(key) ? ' open' : ''
@@ -179,8 +187,12 @@ export function masterTraceHtml (turn, esc, open, now = Date.now()) {
         <pre class="hall-live-body">${esc(body)}${item.truncated ? '\n\n[обрезано ядром]' : ''}</pre>
       </details>
     </li>`
-  }).join('')
-  return `<ol class="hall-live" data-master-live>${rows}</ol>`
+  })
+  if (rows.length <= MASTER_TRACE_VISIBLE) return `<ol class="hall-live" data-master-live>${rows.join('')}</ol>`
+  const earlier = rows.slice(0, -MASTER_TRACE_VISIBLE)
+  const key = `${turn.id || 'turn'}:earlier`
+  const expanded = open?.has?.(key) ? ' open' : ''
+  return `<details class="hall-live-earlier" data-master-open="live" data-id="${esc(key)}"${expanded}><summary>ещё ${esc(countOf(earlier.length, 'шаг', 'шага', 'шагов'))}</summary><ol class="hall-live">${earlier.join('')}</ol></details><ol class="hall-live" data-master-live>${rows.slice(-MASTER_TRACE_VISIBLE).join('')}</ol>`
 }
 
 // Точечное обновление живой мысли: она растёт четыре раза в секунду и меняет

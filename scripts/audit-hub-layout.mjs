@@ -122,6 +122,10 @@ const geometry = root => `(() => {
     const box = element.getBoundingClientRect();
     return box.width > 0 && box.right > doc.clientWidth + 1 && !scrollsSideways(element);
   }).slice(0, 3).map(element => (element.tagName + '.' + String(element.className)).slice(0, 60));
+  // Лента Мастера прокручивается сама, поэтому вылет из неё проверка выше не
+  // видит: широкий блок кода растягивал ленту вбок, и найти это можно было
+  // только глазом. Ленте прокручиваться вбок не положено никогда.
+  const thread = document.querySelector('#master-thread');
   const crumb = document.querySelector('.hall-crumb')?.getBoundingClientRect().left;
   const content = document.querySelector('.hall-body > * > *')?.getBoundingClientRect().left;
   return {
@@ -131,6 +135,7 @@ const geometry = root => `(() => {
     // сорока пяти страницам подряд. Пустую страницу надо называть пустой.
     rooted: Boolean(document.querySelector(ROOT)),
     overflow: Math.max(0, doc.scrollWidth - doc.clientWidth),
+    feedOverflow: thread ? Math.max(0, thread.scrollWidth - thread.clientWidth) : 0,
     spill,
     crumb: crumb == null ? null : Math.round(crumb),
     content: content == null ? null : Math.round(content),
@@ -194,6 +199,11 @@ const targetProbe = root => `(() => {
   for (const element of document.querySelectorAll(['button', 'a[href]', 'summary', '[role="button"]', 'input', 'select'].map(part => ROOT + ' ' + part).join(', '))) {
     const style = getComputedStyle(element);
     if (style.visibility === 'hidden' || style.display === 'none') continue;
+    // Ссылка внутри строки текста порог не держит и не обязана: её высота —
+    // высота строки, и поднять её значило бы разрядить абзац. Это исключение
+    // «inline» из WCAG 2.5.8; ссылки и файлы в ответе Мастера — ровно такие.
+    if (style.display.startsWith('inline') && element.matches('a, .companion-file-link')
+      && element.closest('p, li, td, th, blockquote')) continue;
     const label = element.closest('label');
     const box = (label || element).getBoundingClientRect();
     if (box.width < 2 || box.height < 2) continue;
@@ -281,6 +291,7 @@ try {
       // уехать за край, а документ этого не показать, если ему обрезали overflow.
       if (value.overflow > 1) problems.push(`${width} ${page}: страница прокручивается вбок на ${value.overflow}px`);
       if (value.spill.length) problems.push(`${width} ${page}: за правым краем — ${value.spill.join(' | ')}`);
+      if (value.feedOverflow > 1) problems.push(`${width} ${page}: лента Мастера прокручивается вбок на ${value.feedOverflow}px`);
       if (!splitLayouts.has(page) && value.crumb != null && value.content != null
           && Math.abs(value.crumb - value.content) > 2) {
         problems.push(`${width} ${page}: левый край крошки ${value.crumb}, содержимого ${value.content}`);

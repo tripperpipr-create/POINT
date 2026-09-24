@@ -52,11 +52,11 @@ const check = (name, ok, detail) => {
   else failures.push(`${name}\n     ${String(detail).slice(0, 200)}`)
 }
 
-// Теги, которые разметчик выпускает сам. Всё остальное в выводе — чужое.
-// `span` разрешён не вообще, а только подписью языка у блока кода: голый span
-// в списке разрешённых пропустил бы любой чужой — а проверка здесь ровно про то,
-// что чужого в выводе нет.
-const OURS = /<\/?(p|br|ul|ol|li|strong|code|pre|div|button)\b[^>]*>|<span class="companion-code-lang">|<\/span>/g
+// Что разметчик вправе выпустить, записано тегом с атрибутами целиком
+// (scripts/lib/chat-markup.cjs): имя тега без атрибутов пропустило бы
+// `<p onclick=…>` как своё. Проверка держит обе стороны — чужой тег остаётся
+// текстом при любом соседстве, а своя разметка не выходит из своей формы.
+const { markupProblems } = require('./lib/chat-markup.cjs')
 
 for (const [name, input] of [
   ['тег в обычном тексте', 'Предложение «<img src=x onerror=alert(1)>» ждёт решения'],
@@ -64,9 +64,25 @@ for (const [name, input] of [
   ['однострочный блок в названии', 'Предложение «Почини ```x``` <b>жирный</b>» ждёт решения'],
   ['тег в списке', '- <script>alert(1)</script>\n- второй пункт'],
   ['тег в нумерованном списке', '1. <iframe src=x>\n2. второй'],
+  ['ссылка на javascript:', '[жми](javascript:alert(1))'],
+  ['ссылка на data:', '[жми](data:text/html,<script>alert(1)</script>)'],
+  ['ссылка на vbscript: заглавными', '[жми](VBSCRIPT:msgbox) и JAVASCRIPT:alert(1)'],
+  ['кавычка рвёт адрес', '[x](https://a/"onmouseover="alert(1))'],
+  ['кавычка в голом адресе', 'смотри https://a/"onmouseover="alert(1)'],
+  ['атрибут после адреса', '[x](https://ok.example "t" onclick=alert(1))'],
+  ['тег в подписи ссылки', '[<img src=x onerror=alert(1)>](https://ok.example)'],
+  ['тег в ячейке таблицы', '| a | b |\n| --- | --- |\n| <script>x</script> | <b onclick=y>z</b> |'],
+  ['тег в заголовке', '# <h1 onclick=x>заголовок</h1>'],
+  ['тег в цитате', '> <iframe src=x></iframe>'],
+  ['тег в задаче', '- [x] <img src=x onerror=y>'],
+  ['тег внутри выделения', '**<b>x</b>** и ***<i>y</i>*** и ~~<s>z</s>~~'],
+  ['подделка служебных знаков', 'текст \u00000\u0000 и \u0000B0\u0000 и \uE000 конец'],
+  ['разметка в пути к файлу', '```"><img src=x>.go\nкод\n```'],
 ]) {
-  const leaked = render(input).replace(OURS, '')
-  check(name + ': остался текстом', !/<[a-z!/]/i.test(leaked), leaked)
+  for (const [mode, html] of [['готовый ответ', render(input)], ['поток', render.streaming ? render.streaming(input) : '']]) {
+    const problems = markupProblems(html)
+    check(`${name} (${mode}): остался текстом`, !problems.length, problems.join('; ') + ' :: ' + html)
+  }
 }
 
 for (const [name, input, expect] of [
@@ -82,6 +98,11 @@ for (const [name, input, expect] of [
   // оставалась пустая рамка с кнопкой «копировать код». Текст пропадал молча.
   ['однострочная тройная кавычка — врезка', 'Почини ```go build ./...``` в CI', /<code>go build \.\/\.\.\.<\/code>/],
   ['текст вокруг неё на месте', 'Почини ```go build``` в CI', /Почини .*в CI/],
+  ['заголовок — на два уровня ниже страницы', '## План', /<h4>План<\/h4>/],
+  ['таблица с выравниванием', '| a | b |\n| :-- | --: |\n| 1 | 2 |', /<th data-align="left">a<\/th><th data-align="right">b<\/th>/],
+  ['ссылка', '[документация](https://example.org/a?b=1&c=2)', /<a class="companion-md-link" href="https:\/\/example\.org\/a\?b=1&amp;c=2"/],
+  ['вложенный список', '1. раз\n   - два', /<ol><li>раз<ul><li>два<\/li><\/ul><\/li><\/ol>/],
+  ['нумерация не сбрасывается пустой строкой', '1. раз\n\n2. два', /<ol><li>раз<\/li><li>два<\/li><\/ol>/],
 ]) {
   check(name + ': работает', expect.test(render(input)), render(input))
 }

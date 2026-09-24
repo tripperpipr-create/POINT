@@ -157,14 +157,67 @@
 .companion-msg-body p:last-child { margin-bottom: 0; }
 .companion-msg-body ul, .companion-msg-body ol { margin: 0 0 var(--s-4); padding-left: 18px; }
 .companion-msg-body code { font-family: "JetBrains Mono", Consolas, monospace; font-size: var(--t-body); padding: 1px var(--s-2); border: 1px solid var(--border); background: color-mix(in srgb, var(--void) 70%, var(--panel)); }
-.companion-code-wrap { display: grid; margin: var(--s-4) 0; border: 1px solid var(--border); background: var(--void); }
-.companion-code-actions { display: flex; justify-content: flex-end; gap: var(--s-3); padding: var(--s-3); border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--panel) 88%, var(--mana)); }
+.companion-code-wrap { display: grid; grid-template-columns: minmax(0, 1fr); margin: var(--s-4) 0; border: 1px solid var(--border); background: var(--void); }
+/* Шапка блока — подпись языка слева и значок копирования справа, без полосы и
+   без заливки: полоса над кодом была самым громким местом реплики, а несла
+   одну кнопку. */
+.companion-code-actions { display: flex; align-items: center; justify-content: flex-end; gap: var(--s-3); min-height: var(--control-sm); padding: var(--s-2) var(--s-2) 0 var(--s-4); }
 .companion-code-actions .companion-open-file { margin: 0 auto 0 0; }
 .companion-code-actions button { min-height: 23px; padding: var(--s-1) var(--s-4); font-size: var(--t-micro); }
+.companion-code-actions .companion-code-copy {
+  display: inline-grid;
+  place-items: center;
+  width: var(--control-sm);
+  height: var(--control-sm);
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-1);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.companion-code-actions .companion-code-copy .hall-icon { width: 14px; height: 14px; }
+.companion-code-actions .companion-code-copy:hover,
+.companion-code-actions .companion-code-copy:focus-visible { background: color-mix(in srgb, var(--primary) 10%, transparent); color: var(--primary); }
 .companion-msg-body .companion-code { margin: 0; padding: var(--s-4); border: 0; background: transparent; overflow: auto; }
 .companion-msg-body .companion-code code { display: block; padding: 0; border: 0; background: transparent; white-space: pre; }
 .companion-msg-body .companion-open-file { display: inline-flex; margin-bottom: 6px; min-height: 22px; padding: var(--s-1) var(--s-4); font-size: var(--t-small); }
 .companion-file-link { appearance: none; border: 0; background: transparent; color: var(--mana); text-decoration: underline; cursor: pointer; padding: 0; font: inherit; }
+/* Разметка ответа сверх абзацев и списков: заголовки, цитаты, таблицы, ссылки и
+   задачи (companion-markdown.js). Разбор общий для ленты Мастера и компаньона;
+   здесь — минимум, с которым они читаются в узкой боковой панели. Лента
+   Мастера уточняет теги в 07c-master-feed.css, классы — ниже, в своём блоке. */
+.companion-msg-body h3, .companion-msg-body h4, .companion-msg-body h5, .companion-msg-body h6 { margin: var(--s-5) 0 var(--s-3); font: var(--fw-semibold) var(--t-base) / 1.4 var(--font-ui); }
+.companion-msg-body h3 { font-size: var(--t-lead); }
+.companion-msg-body blockquote { margin: 0 0 var(--s-4); padding-left: var(--s-4); border-left: 2px solid var(--border); color: var(--muted); }
+.companion-msg-body hr { margin: var(--s-5) 0; border: 0; border-top: 1px solid var(--border); }
+.companion-msg-body a { color: var(--mana); }
+.companion-msg-body th, .companion-msg-body td { padding: var(--s-2) var(--s-3); border-bottom: 1px solid var(--border); text-align: left; }
+.companion-msg-body [data-align="right"] { text-align: right; }
+.companion-msg-body [data-align="center"] { text-align: center; }
+/* Таблица шире колонки прокручивается сама, а не растягивает реплику: у модели
+   шесть столбцов по тридцать знаков — обычное дело. */
+.companion-md-table { max-width: 100%; margin: var(--s-4) 0; overflow-x: auto; scrollbar-width: thin; }
+.companion-md-table table { border-collapse: collapse; }
+/* Задача списка — квадрат, а не флажок формы: отметить её нельзя, это часть
+   рассказа модели, и настоящий `input` обещал бы действие, которого нет. */
+.companion-md-task { list-style: none; }
+.companion-md-check {
+  display: inline-block;
+  box-sizing: border-box;
+  width: var(--s-5);
+  height: var(--s-5);
+  margin: 0 var(--s-3) 0 calc(var(--s-6) * -1 + var(--s-1));
+  vertical-align: -1px;
+  border: 1px solid var(--muted);
+  border-radius: var(--r-1);
+}
+.companion-md-task[data-checked="true"] > .companion-md-check {
+  border-color: transparent;
+  background: var(--muted);
+  box-shadow: inset 0 0 0 2px var(--void);
+}
 .companion-stream-cursor {
   display: inline-block;
   width: 7px;
@@ -727,7 +780,8 @@
   50% { opacity: .45; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .brand-mark.live i, .party-status.running, .party-status.waiting_approval { animation: none; }
+  .brand-mark.live i, .party-status.running, .party-status.waiting_approval,
+  .companion-stream-cursor, .companion-msg.thinking p::after { animation: none; }
 }
 .cursor-login { display: flex; align-items: center; justify-content: space-between; gap: var(--s-4h); padding: var(--s-4) var(--s-4h); border: 1px solid var(--mana); border-radius: var(--r-1); background: color-mix(in srgb, var(--mana) 7%, var(--panel)); }
 .cursor-login strong, .cursor-login small { display: block; }
@@ -769,41 +823,77 @@
 /* ── Блок кода в ленте Мастера ────────────────────────────────────────────── */
 /* Шапка блока светилась примесью --mana: бирюзовая полоса над серым кодом была
    самым ярким местом спокойной ленты — и всё ради одной кнопки копирования.
+   Теперь, как у Cursor, полосы нет вовсе: язык подписан слева, а значок
+   копирования проявляется, когда к блоку подводят указатель или фокус.
    Правила живут здесь, а не в слое тихого регистра: имя `companion-code-*`
    принадлежит этому слою, и оттуда его перебило бы !important. */
+.hall-dialogue .companion-md-table { margin: var(--s-4) 0; }
+.hall-dialogue .companion-md-check { border-color: var(--hub-muted); }
+.hall-dialogue .companion-md-task[data-checked="true"] > .companion-md-check {
+  background: var(--hub-muted);
+  box-shadow: inset 0 0 0 2px var(--hub-void);
+}
 .hall-dialogue .companion-code-wrap {
+  overflow: hidden;
   border-color: color-mix(in srgb, var(--hub-border) 70%, transparent);
+  border-radius: var(--r-2);
 }
 .hall-dialogue .companion-code-actions {
-  padding: var(--s-2) var(--s-3);
-  border-bottom-color: color-mix(in srgb, var(--hub-border) 55%, transparent);
-  background: color-mix(in srgb, var(--hub-raised) 30%, var(--hub-void));
+  padding: var(--s-2) var(--s-2) 0 var(--s-5);
 }
 .hall-dialogue .companion-code-actions button {
-  font: var(--fw-normal) var(--t-micro) / 1.2 var(--font-ui);
+  font: var(--fw-normal) var(--t-small) / 1.2 var(--font-ui);
   letter-spacing: normal;
   text-transform: none;
-  color: var(--hub-faint-2);
+  color: var(--hub-muted);
 }
-.hall-dialogue .companion-code-actions button:hover { color: var(--hub-text-3); }
+.hall-dialogue .companion-code-actions button:hover { color: var(--hub-text); }
+.hall-dialogue .companion-code-actions .companion-code-copy {
+  opacity: 0;
+  transition: opacity var(--motion-fast) var(--ease), background-color var(--motion-fast) var(--ease), color var(--motion-fast) var(--ease);
+}
+.hall-dialogue .companion-code-actions .companion-code-copy:hover,
+.hall-dialogue .companion-code-actions .companion-code-copy:focus-visible {
+  background: var(--hub-selected);
+  color: var(--hub-text);
+}
+/* Проявляется у блока под указателем, на фокусе с клавиатуры и пока держит
+   отметку «скопировано» — иначе галочка гасла бы вместе с уходом указателя. */
+.hall-dialogue .companion-code-wrap:hover .companion-code-copy,
+.hall-dialogue .companion-code-wrap:focus-within .companion-code-copy,
+.hall-dialogue .companion-code-actions .companion-code-copy.is-done { opacity: 1; }
+@media (hover: none) {
+  .hall-dialogue .companion-code-actions .companion-code-copy { opacity: 1; }
+}
 /* Язык блока стоит слева и молчит: он подписывает код, а не спорит с ним. */
 .companion-code-lang {
   margin-right: auto;
-  font: var(--fw-normal) var(--t-micro) / 1.2 var(--font-mono);
-  letter-spacing: var(--tracking-label);
-  color: var(--hub-faint-2);
+  font: var(--fw-normal) var(--t-small) / 1.2 var(--font-mono);
+  color: var(--hub-muted);
   text-transform: lowercase;
 }
 /* Рамка у блока одна. Обёртка уже очерчена, а `pre` в ленте Мастера приносил
    свою: вокруг кода получалась двойная линия с полосой фона между ними. */
-/* Селектор длиннее нужного намеренно: рамку `pre` в ленте Мастера ставит
-   05-hall.css правилом той же силы, и правило короче этого не выигрывает —
-   двойная линия оставалась на месте. Имя `.body` сюда брать нельзя: оно
-   принадлежит слою Чертога, и сборка ловит такой захват. Равную силу добирает
-   тег `pre` с классом, а спор равных решает порядок слоёв. */
+/* Селектор длиннее нужного намеренно: `pre` в ленте Мастера оформляет и
+   05-hall.css, и правило короче этого проигрывало ему по счёту. Имя `.body`
+   сюда брать нельзя: оно принадлежит слою Чертога, и сборка ловит такой
+   захват. Равную силу добирает тег `pre` с классом, а спор равных решает
+   порядок слоёв.
+
+   Длинная строка кода прокручивается внутри блока, а не выталкивает его за
+   колонку: без `minmax(0, 1fr)` у обёртки и `overflow-x` здесь сетка брала
+   ширину самой длинной строки, шапка с кнопкой копирования уезжала за край
+   ленты, а браузерный отступ `pre` в 13 пикселей стоял над кодом и под ним.
+   Вертикальной прокрутки у блока нет намеренно: окно в окне внутри ленты
+   читается хуже, чем длинный ответ (то же решение в 08-master-work-order.css). */
 .hall-dialogue .hall-msg pre.companion-code {
-  padding: var(--s-4) var(--s-5);
+  margin: 0;
+  overflow-x: auto;
+  padding: var(--s-2) var(--s-5) var(--s-4);
   border: 0;
   background: transparent;
   font-size: var(--t-small);
+  white-space: pre;
+  tab-size: 2;
+  scrollbar-width: thin;
 }

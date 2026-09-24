@@ -1,20 +1,21 @@
-import { masterStreamHtml } from './master-chat-state.js'
 import { masterUsedMemoryHtml } from './master-memory-ui.js'
 import { masterContextAddHtml, masterContextHtml, masterMessageAttachmentsHtml } from './master-context-ui.js'
 import { masterSessionHtml, masterComposerHtml } from './master-session-ui.js'
 import { masterDayKey, masterDayLabel, masterTimeLabel } from './master-feed.js'
 import { masterComposeActionsHtml, masterComposeCountHtml, masterComposeFormClass, masterComposeMetaHtml, masterComposeRows, masterWaitSuffix } from './master-compose.js'
 import { createMasterQuestionsViews, masterParseAnswers } from './master-questions-views.js'
-import { masterMentionActiveId, masterMentionHtml } from './master-mention-ui.js'
+import { masterMentionActiveId, masterMentionHtml, masterMentionOpen } from './master-mention-ui.js'
+import { masterQueueHtml, masterQueueOf, masterSlashActiveId, masterSlashHtml, masterSlashOpen } from './master-compose-keys.js'
 import { questPlanRows } from './master-plan-views.js'
 import { questChecklistHtml, questMenuHtml } from './master-quest-views.js'
-import { masterToolIcon, masterToolName, masterToolNameNow } from './master-tool-names.js'
+import { masterToolNameNow } from './master-tool-names.js'
 import { icon } from './ui-icons.js'
 import { masterQuestStripHtml, masterQuestStripModel } from './master-quest-strip.js'
 import { masterHiringCardsHtml } from './master-hiring-card.js'
 import { masterAgentCardFromAction, masterAgentCardHtml, masterAgentCardsFor, masterAgentCardsHtml } from './master-agent-card.js'
 import { masterCardMoreAttrs } from './master-card-open.js'
 import { monogram } from './master-agent-sheet.js'
+import { createMasterTrail, trailModelFromItem } from './master-trail.js'
 
 // Диалог с Мастером: лента, реплика и всё, что к ней приложено.
 //
@@ -50,6 +51,9 @@ export function createMasterThreadViews(dependencies) {
     masterBriefPanelHtml,
     masterWorkOrderCardsHtml,
     masterBriefTabHtml,
+    masterStreamBlockHtml,
+    masterStreamPhaseNow,
+    masterTurnErrorHtml,
     taskBriefCardHtml,
     taskBriefReady,
     taskProposalById,
@@ -65,6 +69,7 @@ export function createMasterThreadViews(dependencies) {
     masterQuestionsOf,
     masterTurnQuestionsHtml,
   } = createMasterQuestionsViews({ esc, countOf, ui })
+  const { masterTrailHtml } = createMasterTrail({ esc, countOf, ui })
 
   // ── Диалог с Мастером ──────────────────────────────────────────────────────
   // Собственная поверхность диспетчера, а не переиспользование чата компаньона.
@@ -314,46 +319,6 @@ export function createMasterThreadViews(dependencies) {
   // уточняющие вопросы принадлежат конкретному ходу, а не концу разговора: висели
   // они внизу ленты и относились к последнему ответу молча — прокрутив выше, понять,
   // на чём основан старый ответ, было нельзя.
-  // Модель часто рвёт рассуждение мягкими переносами («All\\nquestions»).
-  // Собираем в читаемую прозу: одиночные переносы → пробел, абзацы и списки
-  // оставляем. Иначе при white-space:pre-wrap лента выглядит столбиком слов.
-  function masterReasoningProse(raw) {
-    const lines = String(raw || '').replace(/\r\n?/g, '\n').split('\n')
-    const out = []
-    for (const line of lines) {
-      const trimmed = line.replace(/[ \t]+/g, ' ').trimEnd()
-      if (!trimmed.trim()) {
-        if (out.length && out[out.length - 1] !== '') out.push('')
-        continue
-      }
-      const body = trimmed.trimStart()
-      const list = /^(?:[-*•]|\d+[.)])\s/.test(body)
-      const prev = out[out.length - 1]
-      if (prev === undefined || prev === '' || list) out.push(body)
-      else out[out.length - 1] = `${prev} ${body}`
-    }
-    while (out.length && out[out.length - 1] === '') out.pop()
-    return out.join('\n').replace(/\n{3,}/g, '\n\n')
-  }
-
-  // Как Мастер пришёл к ответу.
-  //
-  // Раскрыто по умолчанию рассуждение быть не должно: это черновик модели, и
-  // он длиннее самого ответа. Прежнее правило открывало всё до четырёх тысяч
-  // знаков — то есть почти всегда, — и ответ уезжал под простыню размышлений.
-  // У эталона это одна тусклая строка «Thought 6s», раскрываемая по нажатию.
-  // Текст экранирован: это недоверенный вывод модели.
-  function masterReasoningHtml(item) {
-    const raw = String(item?.reasoning || '').trim()
-    if (!raw) return ''
-    const text = masterReasoningProse(raw)
-    const open = ui.masterOpenReasoning.has(item.id) ? ' open' : ''
-    return `<details class="hall-reason" data-master-open="reasoning" data-id="${esc(item.id)}"${open}>
-      <summary><span class="hall-step-icon">${icon('think')}</span><span class="hall-reason-label">Ход мысли</span></summary>
-      <div class="hall-reason-body">${esc(text)}</div>
-    </details>`
-  }
-
   // Сколько шёл ход. Аналог «Worked for 14m 22s» у эталона: одна служебная
   // строка вместо молчания о полутора минутах ожидания. Задержку ядро
   // сохраняет вместе с репликой — выдумывать её не приходится.
@@ -368,119 +333,6 @@ export function createMasterThreadViews(dependencies) {
       ? `${seconds} с`
       : `${Math.floor(seconds / 60)} мин ${seconds % 60} с`
     return `<span class="hall-turn-time" title="Сколько шёл ход">${icon('clock')}${esc(label)}</span>`
-  }
-  // Что Мастер посмотрел в проекте, прежде чем ответить.
-  //
-  // Обрезанный результат назван обрезанным: ответ по первым 16 КБ файла читается
-  // иначе, чем ответ по файлу целиком, и молчать об этом нельзя. Длинное можно
-  // раскрыть кнопкой — title не заменяет чтение на месте.
-  function masterStepClip(value, limit = 96) {
-    const text = String(value || '').replace(/\s+/g, ' ').trim()
-    if (text.length <= limit) return text
-    return `${[...text].slice(0, limit - 1).join('')}…`
-  }
-
-  function masterStepPretty(value) {
-    const raw = String(value || '').trim()
-    if (!raw) return ''
-    if (!(raw.startsWith('{') || raw.startsWith('['))) return raw
-    try { return JSON.stringify(JSON.parse(raw), null, 2) } catch { return raw }
-  }
-
-  function masterStepResultLabel(step, { expanded = false } = {}) {
-    const raw = String(step?.result || '').trim()
-    if (expanded) return masterStepPretty(raw) || 'пусто'
-    if (step?.failed) {
-      const short = raw.replace(/^GetFileAttributesEx\s+/i, 'нет файла: ').replace(/:\s*The system.*$/i, '')
-      return masterStepClip(short || 'инструмент не отработал', 120)
-    }
-    if (!raw) return 'пусто'
-    if (raw === '[]' || raw === 'null') return 'ничего не найдено'
-    if (raw.startsWith('{') || raw.startsWith('[')) {
-      try {
-        const parsed = JSON.parse(raw)
-        if (Array.isArray(parsed)) return parsed.length ? countOf(parsed.length, 'запись', 'записи', 'записей') : 'ничего не найдено'
-        if (parsed && typeof parsed === 'object') {
-          if (parsed.count === 0 || parsed.candidateChunks === 0) return 'ничего не найдено'
-          if (typeof parsed.count === 'number') return `${parsed.count} совпадений`
-          if (Array.isArray(parsed.chunks) && parsed.chunks.length === 0) return 'ничего не найдено'
-          if (Array.isArray(parsed.topDirectories) && parsed.topDirectories.length === 0 && Array.isArray(parsed.symbols) && parsed.symbols.length === 0) {
-            return parsed.status?.state ? `карта · ${parsed.status.state}` : 'карта пуста'
-          }
-        }
-      } catch { /* keep raw */ }
-    }
-    return masterStepClip(raw, 96)
-  }
-
-  function masterStepRowHtml(item, step, index) {
-    const key = `${item.id}:${index}`
-    const expanded = ui.masterExpandedSteps.has(key)
-    const name = masterToolName(step.tool)
-    const fullArg = String(step.argument || '').trim()
-    const fullResult = String(step.result || '').trim()
-    const clippedArg = masterStepClip(fullArg, 64)
-    const shortResult = masterStepResultLabel(step)
-    const canExpand = Boolean(step.truncated)
-      || fullArg.length > 64
-      || fullResult.length > 96
-      || shortResult.endsWith('…')
-    const more = canExpand
-      ? `<button type="button" class="hall-step-more${expanded ? ' is-open' : ''}" data-action="master-step-expand" data-key="${esc(key)}" aria-label="${expanded ? 'Свернуть' : 'Показать полностью'}" title="${expanded ? 'Свернуть' : 'Показать полностью'}">${icon('chevron-down')}</button>`
-      : ''
-    // Полный вывод — в отдельном <pre>, не в span/small: иначе nowrap/line-clamp
-    // переживают «раскрытие» и режут JSON многоточием прямо под кнопкой «Свернуть».
-    const collapsed = expanded ? `<span class="hall-step-arg"></span>` : `<span class="hall-step-arg" title="${esc(fullArg)}">${esc(clippedArg || '—')}</span>
-      <small title="${esc(fullResult)}">${esc(shortResult)}${step.truncated ? ' · обрезано' : ''}</small>`
-    const payload = expanded
-      ? `<pre class="hall-step-payload">${esc([fullArg && `→ ${fullArg}`, masterStepPretty(fullResult) || 'пусто'].filter(Boolean).join('\n\n'))}</pre>`
-      : ''
-    return `<div class="hall-step${step.failed ? ' is-failed' : ''}${expanded ? ' is-expanded' : ''}">
-      <span class="hall-step-icon">${icon(step.failed ? 'warning' : masterToolIcon(step.tool))}</span>
-      <b title="${esc(step.tool || '')}">${esc(name)}</b>
-      ${collapsed}
-      ${more}
-      ${payload}
-    </div>`
-  }
-
-  // Что Мастер делал, прежде чем ответить, — одна свёрнутая строка.
-  //
-  // Шаги стояли строками над ответом: последние три всегда, ранние за «ещё N»,
-  // и ответ на простой вопрос начинался с пяти строк служебного вывода. Теперь
-  // это одна строка сводки — какими средствами смотрел, сколько раз, была ли
-  // ошибка, — а весь перечень с подробностями раскрывается по нажатию. Ход
-  // мысли — первая строка того же перечня: это тоже путь к ответу, а не ответ.
-  //
-  // Неудачное обращение прятать нельзя: ответ, собранный с ошибкой инструмента,
-  // читается иначе. Упавшие строки стоят под сводкой всегда и в перечне не
-  // повторяются: одна строка на обращение, где бы её ни искали.
-  const MASTER_ACTION_ICONS_MAX = 4
-
-  function masterTurnActionsHtml(item) {
-    const steps = Array.isArray(item?.steps) ? item.steps : []
-    const reasoning = masterReasoningHtml(item)
-    if (!steps.length && !reasoning) return ''
-    const indexed = steps.map((step, index) => [step, index])
-    const rows = indexed.filter(([step]) => !step.failed).map(([step, index]) => masterStepRowHtml(item, step, index)).join('')
-    const failed = indexed.filter(([step]) => step.failed)
-    const kinds = [...new Set(steps.map(step => masterToolIcon(step.tool)))].slice(0, MASTER_ACTION_ICONS_MAX)
-    const icons = steps.length ? kinds.map(name => icon(name)).join('') : icon('think')
-    const label = steps.length ? countOf(steps.length, 'действие', 'действия', 'действий') : 'Ход мысли'
-    const fail = failed.length
-      ? `<span class="hall-trail-fail">${icon('warning')}${esc(countOf(failed.length, 'ошибка', 'ошибки', 'ошибок'))}</span>`
-      : ''
-    const open = ui.masterOpenSteps.has(item.id) ? ' open' : ''
-    const failedRows = failed.length
-      ? `<div class="hall-trail-failed">${failed.map(([step, index]) => masterStepRowHtml(item, step, index)).join('')}</div>`
-      : ''
-    return `<div class="hall-trail${failed.length ? ' is-failed' : ''}">
-      <details class="hall-trail-group" data-master-open="steps" data-id="${esc(item.id)}"${open}>
-        <summary><span class="hall-trail-icons">${icons}</span><span class="hall-trail-label">${esc(label)}</span>${fail}<span class="hall-trail-chevron">${icon('chevron-right')}</span></summary>
-        ${reasoning || rows ? `<div class="hall-trail-list">${reasoning}${rows}</div>` : ''}
-      </details>
-      ${failedRows}
-    </div>`
   }
   // Что можно сделать с готовой репликой.
   //
@@ -535,29 +387,33 @@ export function createMasterThreadViews(dependencies) {
       <div class="body">${body}</div>
     </article>`
     // Путь к ответу стоит над ним: сначала что делал, потом вывод.
-    const trail = mine ? '' : masterTurnActionsHtml(item)
+    const trail = mine ? '' : masterTrailHtml(trailModelFromItem(item))
     // Уточнения принадлежат ходу, который их задал, и стоят сразу под ответом:
     // сперва то, что сказано, потом то, что спрошено.
     const questions = mine ? '' : masterTurnQuestionsHtml(item, answered)
     const stamp = time ? `<time class="hall-turn-stamp" aria-hidden="true">${esc(time)}</time>` : ''
-    const foot = `${mine ? '' : masterAnswerBadgeHtml(item)}${pending ? '' : masterMessageToolsHtml(item, mine, previousAsk)}${stamp}${mine ? '' : masterTurnTimeHtml(item)}${masterUsedMemoryHtml(item.memoryIds,ui.masterData?.sessions?.memoryEntries,esc)}`
-    const attached = `${masterMessageAttachmentsHtml(item.attachments,esc)}${trail}${article}${questions}${foot ? `<div class="hall-turn-foot">${foot}</div>` : ''}${masterFactsHtml(facts)}${showProposal === false ? '' : `${masterThreadProposalHtml(item.proposalId)}${masterThreadActionProposalHtml(item.actionProposalId)}`}`
-    return `<div class="hall-turn${mine ? ' is-user-turn' : ' is-master-turn'}${pending ? ' is-pending-turn' : ''}">${attached}</div>`
+    // Ход, сорванный или остановленный, ядро сохраняет с режимом `failed` или
+    // `cancelled` и причиной в поле отката. Метка «ответил движок Point» врала
+    // бы о нём: движок не отвечал, ответ просто не дошёл до конца.
+    const broken = !mine && ['failed', 'cancelled'].includes(String(item.mode || ''))
+    const brokenHtml = !broken ? '' : item.mode === 'failed'
+      ? masterTurnErrorHtml({ streamError: item.fallbackReason, ask: previousAsk })
+      : `<div class="hall-turn-note">${icon('stop')}<span>Ответ остановлен</span></div>`
+    const foot = `${mine || broken ? '' : masterAnswerBadgeHtml(item)}${pending ? '' : masterMessageToolsHtml(item, mine, previousAsk)}${stamp}${mine ? '' : masterTurnTimeHtml(item)}${masterUsedMemoryHtml(item.memoryIds,ui.masterData?.sessions?.memoryEntries,esc,item.id,ui.masterOpenReasoning.has('memory:'+item.id))}`
+    const attached = `${masterMessageAttachmentsHtml(item.attachments,esc)}${trail}${String(item.content || '').trim() || !broken ? article : ''}${brokenHtml}${questions}${foot ? `<div class="hall-turn-foot">${foot}</div>` : ''}${masterFactsHtml(facts)}${showProposal === false ? '' : `${masterThreadProposalHtml(item.proposalId)}${masterThreadActionProposalHtml(item.actionProposalId)}`}`
+    // Ключ появления (master-feed-motion.js): у ответа — номер хода, тот же, что
+    // у блока идущего хода, поэтому готовый ответ не «появляется» второй раз.
+    const feedKey = mine ? '' : ` data-feed-key="a:${esc(item.turnId || item.id || '')}"`
+    return `<div class="hall-turn${mine ? ' is-user-turn' : ' is-master-turn'}${pending ? ' is-pending-turn' : ''}"${feedKey}>${attached}</div>`
   }
 
   // Пока ядро не вернуло историю, своя реплика уже стоит в ленте — иначе
   // кажется, что сообщение «пропало», пока модель думает.
-  // Чем Мастер занят прямо сейчас. Ядро шлёт имя инструмента событием ,
-  // и строка ожидания обязана называть его по-русски: «Смотрю проект…» верно,
-  // но беднее, чем «Читаю файл…», а сырое  на экране — чужое слово.
-  function masterWaitingLabel() {
-    if (ui.masterTurn?.status !== 'tools') return 'Думаю…'
-    const tool = masterToolNameNow(ui.masterTurn?.progress)
-    return tool ? `${tool[0].toUpperCase()}${tool.slice(1)}…` : 'Смотрю проект…'
-  }
-
   function masterPendingUserHtml() {
-    if (!ui.masterSending) return ''
+    // Держится, пока ход виден в ленте своим блоком, а не только пока он идёт:
+    // между концом хода и приходом истории реплика иначе пропадала вместе с
+    // ответом и возвращалась через мгновение.
+    if (!ui.masterSending && !['settling', 'failed'].includes(masterStreamPhaseNow())) return ''
     const pending = String(ui.masterSentText || '').trim()
     if (!pending) return ''
     const history = ui.masterData?.history || []
@@ -942,14 +798,21 @@ export function createMasterThreadViews(dependencies) {
       ${plannerFallbackBannerHtml()}
       ${masterSessionHtml(ui.masterData?.sessions, esc)}
       ${masterFindHtml()}
-      <div class="hall-thread" id="master-thread" role="log" aria-live="polite" aria-relevant="additions text" aria-label="Диалог с Мастером">${masterThreadContentHtml()}</div>
+      ${/* Лента — область, а не живой журнал: её разметка пересобирается на
+           каждое событие хода, и `aria-live` зачитывал бы её заново каждый раз.
+           О ходе говорит диктор рядом с ней, один раз на каждую смену фазы. */''}
+      <div class="hall-thread" id="master-thread" role="region" aria-label="Диалог с Мастером">${masterThreadContentHtml()}</div>
+      <div class="hall-sr" id="master-announcer" role="status" aria-live="polite" aria-atomic="true"></div>
       ${/* Якорь стоит рядом с лентой, а не внутри неё. Внутри он был обычным
            элементом потока: на короткой переписке садился сразу под последней
            репликой и висел посреди пустого экрана, а `width: 100%` из 05-hall
            растягивал его на всю колонку — вместо жетона получалась полоса.
            Снаружи он держится над карточкой ввода и переживает перерисовку
            ленты, потому что больше не выкидывается вместе с её содержимым. */''}
-      <button type="button" class="hall-thread-cue is-hidden" id="master-scroll-cue" data-action="master-scroll-latest">К новым ↓</button>
+      ${/* Видимость якоря считается от следования за лентой, а не вписана
+           скрытой: полная отрисовка (ответ ядра, чужое состояние) иначе
+           прятала его у человека, который как раз читает выше. */''}
+      <button type="button" class="hall-thread-cue${ui.masterAutoFollow ? ' is-hidden' : ''}" id="master-scroll-cue" data-action="master-scroll-latest" aria-label="К новым сообщениям">К новым${icon('chevron-down')}</button>
       ${ui.masterData?.configured===false ? `<div class="hall-compose"><p>История доступна. Чтобы продолжить разговор, настройте модель мастера.</p><button type="button" class="hall-btn" data-action="open-orchestrator-setup">Настроить модель</button></div>` : `<form class="${masterComposeFormClass(ui.masterDraft)}">
         ${/* Неотвеченные уточнения спрашивают здесь, а не в ленте: там они
              уезжали вверх с каждым следующим ходом, и человек отвечал не на то,
@@ -967,8 +830,13 @@ export function createMasterThreadViews(dependencies) {
           <div id="master-discussion-context">${masterDiscussionContextHtml()}</div>
           ${masterContextHtml(ui.masterConversationId, esc, ui.masterSending, ui.masterData?.contextBudgetChars)}
         </div>
-        ${masterMentionHtml(esc)}
-        <textarea id="master-input" rows="${masterComposeRows(ui.masterDraft)}" aria-label="Сообщение Мастеру"${masterMentionActiveId() ? ` aria-activedescendant="${masterMentionActiveId()}"` : ''} placeholder="Что хотите сделать в проекте?">${esc(ui.masterDraft)}</textarea>
+        ${/* Очередь реплик — над полем: это то, что уйдёт следующим. */''}
+        <div id="master-queue">${masterQueueHtml(masterQueueOf(ui.masterClient, ui.masterConversationId), esc, { sending: ui.masterSending })}</div>
+        ${masterMentionHtml(esc)}${masterSlashHtml(esc)}
+        ${/* Поле — комбобокс, пока над ним открыт список «@» или «/»: читалка
+             узнаёт о выбранной строке через aria-activedescendant, фокус при
+             этом остаётся в поле. */''}
+        <textarea id="master-input" rows="${masterComposeRows(ui.masterDraft)}" aria-label="Сообщение Мастеру" role="combobox" aria-autocomplete="list" aria-expanded="${masterMentionOpen() || masterSlashOpen()}"${masterSlashOpen() ? ' aria-controls="master-slash-list"' : masterMentionOpen() ? ' aria-controls="master-mention-list"' : ''}${masterSlashActiveId() || masterMentionActiveId() ? ` aria-activedescendant="${masterSlashActiveId() || masterMentionActiveId()}"` : ''} placeholder="Что хотите сделать в проекте? «/» — команды, «@» — файлы">${esc(ui.masterDraft)}</textarea>
         <small class="hall-compose-note${ui.masterComposeNote ? '' : ' is-hidden'}" role="alert">${esc(ui.masterComposeNote)}</small>
         <div class="hall-compose-actions">${masterComposeActionsInnerHtml()}</div>
       </form>`}
@@ -1054,11 +922,9 @@ export function createMasterThreadViews(dependencies) {
         ${thread}
         ${questionsShown || ui.masterSending ? '' : masterLiveQuestionsHtml(response)}
         ${masterPendingUserHtml()}
-        ${/* Пока идёт ход, лента показывает его след: что Мастер думает и чем
-             смотрит проект. Карточка «Думаю…» остаётся только на то время,
-             пока рассказывать ещё нечего. */''}
-        ${ui.masterSending && (ui.masterTurn?.reply || (ui.masterTurn?.trace || []).length) ? masterStreamHtml(ui.masterTurn,esc,ui.masterOpenLive) : ''}
-        ${ui.masterSending && !ui.masterTurn?.reply && !(ui.masterTurn?.trace || []).length ? `<div class="hall-turn is-master-turn is-waiting-turn"><article class="hall-msg hall-msg-waiting"><span class="who hall-sr"><span class="hall-speaker-name">Мастер</span><time>сейчас</time></span><div class="body is-muted"><span class="agent-work-thinking"><i></i><span>${esc(masterWaitingLabel())}</span></span></div></article></div>` : ''}
+        ${/* Идущий ход — одним блоком (master-stream-view.js): «Думаю…», след,
+             живой ответ, а после конца — тот же ответ, пока не придёт история. */''}
+        ${masterStreamBlockHtml()}
         ${factsShown ? '' : masterFactsHtml(response?.facts)}
         ${proposalShown ? '' : masterThreadProposalHtml(response?.proposal?.id)}
         ${actionProposalShown ? '' : masterThreadActionProposalHtml(response?.actionProposal?.id)}

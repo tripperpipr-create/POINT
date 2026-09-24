@@ -106,7 +106,7 @@ export function masterComposeMetaHtml (loading) {
   // в поле, а отправит его человек сам. Очереди с самоотправкой здесь нет, и
   // обещать её нельзя — реплика ушла бы без второго взгляда на неё.
   return loading
-    ? 'Пишите дальше — набранное дождётся в поле, отправите после ответа'
+    ? 'Enter — в очередь: реплика уйдёт после ответа'
     : 'Enter — отправить · Shift+Enter — перенос'
 }
 
@@ -129,12 +129,20 @@ export function masterComposeMetaHtml (loading) {
 // обхода клавиатурой и молчит о причине. Так она остаётся достижимой и на
 // нажатие отвечает словами. `disabled` остаётся за одним состоянием — идущим
 // ходом, и по нему же смоуки проверяют, что разговор не заперся насмерть.
+//
+// Во время хода отправка больше не заперта, если есть что отправить: реплика
+// встаёт в очередь (master-compose-keys.js) и уходит после ответа. Заперта она
+// только с пустым полем — ставить в очередь нечего.
 export function masterComposeActionsHtml (loading, draft) {
   const stop = loading
     ? `<button type="button" class="hall-btn is-sm hall-compose-stop" data-action="stop-master-chat" aria-label="Остановить ход" title="Остановить ход">${icon('stop')}</button>`
     : ''
   const empty = !String(draft || '').trim()
-  return `${stop}<button type="submit" class="hall-btn is-primary hall-compose-send" data-action="master-send" aria-label="Отправить" title="Отправить · Enter"${loading ? ' disabled' : ''}${empty ? ' aria-disabled="true"' : ''}>${icon('send')}</button>`
+  const label = loading ? 'В очередь' : 'Отправить'
+  // Подсказка о клавишах в покое спрятана, и её `title` был недостижим; клавиши
+  // названы здесь, на кнопке, куда подводят указатель.
+  const keys = 'Enter · Shift+Enter — перенос · «/» — команды · «@» — файлы · ↑ — прошлая реплика'
+  return `${stop}<button type="submit" class="hall-btn is-primary hall-compose-send${loading ? ' is-queue' : ''}" data-action="master-send" aria-label="${label}" title="${label} · ${keys}"${loading && empty ? ' disabled' : ''}${empty ? ' aria-disabled="true"' : ''}>${icon('send')}</button>`
 }
 
 // Класс формы. Пустому полю отправлять нечего, и акцент на стрелке в этот

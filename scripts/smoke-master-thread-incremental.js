@@ -166,6 +166,89 @@ const check = (name, ok, detail) => {
   check('смена настроек сохраняет черновик', ui.root.innerHTML.includes('>Черновик первого чата</textarea>'), 'черновик потерян')
 }
 
+// ── Ход от отправки до истории: без провала и без повтора ─────────────────
+//
+// Между событием `done` и приходом истории ход держался на признаке «идёт
+// ход», а тот гас первым: реплика человека и ответ пропадали из ленты и
+// возвращались через мгновение. Теперь ход в это время стоит своим блоком в
+// фазе «оседания», а с приходом истории уходит — и ответ остаётся ровно один.
+{
+  const ui = open()
+  const deliver = extra => ui.listeners['window:message']({ data: { type: 'master', master: {
+    configured: true, config: { model: 'qwen' }, sessions: { active: 'c1', items: [{ id: 'c1', title: 'C' }] }, history: [], ...extra,
+  } } })
+  deliver()
+  ui.field.value = 'Почини вебхук оплаты'
+  ui.listeners['root:input']({ target: { id: 'master-input', value: 'Почини вебхук оплаты', closest: () => null, matches: () => false } })
+  ui.listeners['root:click']({ target: { closest: selector => (selector === '[data-action]' ? { dataset: { action: 'master-send' } } : null) }, preventDefault() {} })
+  const turnId = [...ui.posted].reverse().find(message => message.type === 'masterChat')?.turnId
+  check('реплика ушла в ядро с ходом', Boolean(turnId), JSON.stringify(ui.posted.slice(-2)))
+  const event = (type, text, detail) => ui.listeners['window:message']({ data: { type: 'masterEvent', event: {
+    turnId, conversationId: 'c1', type, text: text || '', detail: detail ? JSON.stringify(detail) : '',
+  } } })
+  const paints = ui.paintsOf()
+  event('tools', 'read_file', { tool: 'read_file', argument: 'webhook.go' })
+  event('tool_result', '', { tool: 'read_file', result: 'package billing' })
+  event('reply', 'Нашёл **обработчик**')
+  event('reply', 'Нашёл **обработчик** и поправил повтор.')
+  check('события хода не пересобирают раздел', ui.paintsOf() === paints,
+    `root.innerHTML присвоен ${ui.paintsOf() - paints} раз(а) за ход`)
+  check('ответ в потоке уже оформлен', ui.thread.innerHTML.includes('<strong>обработчик</strong>'),
+    'в потоке сырые звёздочки — на финише текст перескочит в оформленный')
+  event('done', 'completed')
+  const between = ui.thread.innerHTML
+  check('между done и историей реплика человека на месте', between.includes('Почини вебхук оплаты'),
+    'своя реплика пропала из ленты до прихода истории')
+  check('между done и историей ответ на месте', between.includes('поправил повтор') && between.includes('data-phase="settling"'),
+    'ответ пропал из ленты до прихода истории')
+  check('после конца хода курсора нет', !between.includes('hall-stream-caret'), 'курсор мигает у законченного ответа')
+  ui.listeners['window:message']({ data: { type: 'master', turnFinished: true, master: {
+    configured: true, config: { model: 'qwen' }, sessions: { active: 'c1', items: [{ id: 'c1', title: 'C' }] },
+    history: [
+      { id: 'u1', role: 'user', turnId, content: 'Почини вебхук оплаты' },
+      { id: 'a1', role: 'assistant', turnId, mode: 'model', content: 'Нашёл **обработчик** и поправил повтор.' },
+    ],
+  } } })
+  const after = ui.thread.innerHTML
+  check('с историей ответ стоит один раз', (after.match(/поправил повтор/g) || []).length === 1,
+    `ответ в ленте ${(after.match(/поправил повтор/g) || []).length} раз(а)`)
+  check('с историей блок хода ушёл', !after.includes('data-master-stream'), 'блок хода остался рядом с записью истории')
+  check('лента — область, а не живой журнал', /id="master-thread" role="region"/.test(ui.root.innerHTML) && !/id="master-thread"[^>]*aria-live/.test(ui.root.innerHTML),
+    'лента с aria-live зачитывается заново на каждой пересборке')
+  check('диктор стоит вне ленты', /<\/div>\s*<div class="hall-sr" id="master-announcer" role="status" aria-live="polite"/.test(ui.root.innerHTML),
+    'диктора нет или он внутри пересобираемой ленты')
+  // Считается тело реплики, а не строка: текст стоит ещё и в атрибуте кнопки
+  // «Изменить и отправить заново».
+  check('с историей реплика человека не задвоилась', (after.match(/<p>Почини вебхук оплаты<\/p>/g) || []).length === 1,
+    'своя реплика стоит дважды — ожидающая и сохранённая')
+}
+
+// ── Поток оборвался: написанное остаётся, отправка не заперта ──────────────
+{
+  const ui = open()
+  const deliver = extra => ui.listeners['window:message']({ data: { type: 'master', master: {
+    configured: true, config: { model: 'qwen' }, sessions: { active: 'c1', items: [{ id: 'c1', title: 'C' }] }, history: [], ...extra,
+  } } })
+  deliver()
+  ui.field.value = 'Проверь миграцию'
+  ui.listeners['root:input']({ target: { id: 'master-input', value: 'Проверь миграцию', closest: () => null, matches: () => false } })
+  ui.listeners['root:click']({ target: { closest: selector => (selector === '[data-action]' ? { dataset: { action: 'master-send' } } : null) }, preventDefault() {} })
+  const turnId = [...ui.posted].reverse().find(message => message.type === 'masterChat')?.turnId
+  ui.listeners['window:message']({ data: { type: 'masterEvent', event: { turnId, conversationId: 'c1', type: 'reply', text: 'Начал проверку схемы', detail: '' } } })
+  ui.listeners['window:message']({ data: { type: 'masterStreamError', conversationId: 'c1', message: 'соединение с ядром потеряно' } })
+  const html = ui.thread.innerHTML
+  check('написанное до сбоя осталось в ленте', html.includes('Начал проверку схемы'), 'частичный ответ пропал вместе с потоком')
+  check('сбой назван в ленте', html.includes('hall-turn-error') && html.includes('соединение с ядром потеряно'), 'причина сбоя не показана у ответа')
+  check('«Повторить» задаёт тот же вопрос', html.includes('data-action="master-retry-turn" data-message="Проверь миграцию"'), 'повторить нечего')
+  deliver()
+  // Разметка раздела с тех пор не пересобиралась: замок снимает досборка
+  // композера, и мерить надо саму кнопку, а не прежнюю строку разметки.
+  ui.sendButton.disabled = true
+  deliver()
+  check('следующий ответ ядра не запирает отправку', ui.sendButton.disabled === false,
+    'после сбоя отправка осталась запертой')
+}
+
 if (failures.length) {
   console.error('\nОТВЕТ МАСТЕРА ПЕРЕСОБИРАЕТ ЧЕРТОГ:')
   for (const message of failures) console.error('  · ' + message)

@@ -305,9 +305,13 @@ const click = dataset => listeners['root:click']({ target: { closest(selector) {
   return selector === '[data-action]' ? { dataset } : null
 } } })
 
+// Разговор без мира: первый запуск, папка ещё не выбрана. Раскладка чата та
+// же, а карточка ввода стоит запертой вне `.hall-dialogue` — и оформляют её
+// базовые правила композера, которые ни одна другая страница стенда не видит.
+const withoutWorld = requestedSurface === 'gallery' || (requestedSurface === 'master' && process.argv[3] === 'no-world')
 listeners['window:message']({ data: {
-  type: 'state', service: { state: 'running' }, workspaceTrusted: true, workspace: requestedSurface === 'gallery' ? '' : 'ai-ide',
-  workspacePath: requestedSurface === 'gallery' ? '' : 'C:\worlds\ai-ide',
+  type: 'state', service: { state: 'running' }, workspaceTrusted: true, workspace: withoutWorld ? '' : 'ai-ide',
+  workspacePath: withoutWorld ? '' : 'C:\worlds\ai-ide',
   selectedTab: pick(COMPANION_LAYOUTS, requestedSurface) || requestedSurface === 'master-handoff' ? 'overview'
     : pick(GUILD_SURFACES, requestedSurface) || requestedSurface,
   ideContext: pick(COMPANION_LAYOUTS, requestedSurface)
@@ -519,6 +523,130 @@ if (process.argv[2] === 'master') {
     // Ядро уже сообщило, чем занято: событие `tools` несёт сырое имя
     // инструмента, и русскую подпись строки ожидания без него не увидеть.
     listeners['window:message']({ data: { type: 'masterTurn', turn: { id: 'turn-tools', conversationId: '', status: 'tools', progress: 'read_file', reply: '' } } })
+  } else if (/^(streaming-|stream-error$|turn-failed$|turn-cancelled$)/.test(variant)) {
+    // Ход Мастера по фазам: ожидание, след, текст с открытым блоком кода,
+    // конец хода до прихода истории, оборванный поток — и сохранённые ядром
+    // сорванный и остановленный ходы. Каждая фаза — отдельный облик одного и
+    // того же блока, и прыжок между ними виден только при сравнении страниц.
+    const sessions = { active: 'db', mode: 'auto', workMode: 'discuss', items: [{ id: 'db', title: 'Миграция базы' }] }
+    const ask = 'Проверь миграцию заказов и поправь повтор вебхука'
+    const history = [
+      { id: 'u0', role: 'user', content: 'Что в проекте с базой?', createdAt: today(9, 40) },
+      { id: 'a0', role: 'assistant', mode: 'model', model: 'qwen2.5-coder:7b', content: 'Миграции лежат в `internal/storage/migrations`, последняя — **0008_orders**.', createdAt: today(9, 41) },
+    ]
+    const partial = 'Начал с проверки схемы: таблица **orders** уже перенесена, а'
+    if (variant === 'turn-failed' || variant === 'turn-cancelled') {
+      history.push({ id: 'u1', role: 'user', content: ask, createdAt: today(10, 2) }, {
+        id: 'a1', role: 'assistant', createdAt: today(10, 3), content: partial,
+        mode: variant === 'turn-failed' ? 'failed' : 'cancelled',
+        fallbackReason: variant === 'turn-failed' ? 'модель вернула 502 Bad Gateway' : 'Ответ остановлен',
+      })
+      listeners['window:message']({ data: { type: 'master', master: { configured: true, config: boot.orchestrator, sessions, history } } })
+    } else {
+      listeners['window:message']({ data: { type: 'master', master: { configured: true, config: boot.orchestrator, sessions, history } } })
+      listeners['root:input']({ target: { id: 'master-input', value: ask, closest: () => null, matches: () => false } })
+      click({ action: 'master-send' })
+      const turnId = [...posted].reverse().find(message => message.type === 'masterChat')?.turnId
+      const event = (type, text, detail) => listeners['window:message']({ data: { type: 'masterEvent', event: {
+        turnId, conversationId: 'db', type, text: text || '', detail: detail ? JSON.stringify(detail) : '',
+      } } })
+      let status = 'waiting'
+      let progress = ''
+      let reply = ''
+      if (variant !== 'streaming-wait') {
+        event('reasoning', '', { round: 1, delta: 'Посмотрю миграции и обработчик вебхука, потом сверю тесты.' })
+        const files = ['internal/storage/migrations/0008_orders.sql', 'internal/billing/webhook.go', 'internal/billing/webhook_test.go', 'internal/storage/sqlite.go', 'internal/billing/retry.go']
+        files.forEach((file, index) => {
+          event('tools', 'read_file', { round: 1, tool: 'read_file', argument: file })
+          event('tool_result', '', { round: 1, tool: 'read_file', result: index === 3 ? 'нет файла: internal/storage/sqlite.go' : `${[42, 118, 64, 0, 37][index]} строк`, failed: index === 3 })
+        })
+        event('tools', 'search_text', { round: 2, tool: 'search_text', argument: 'RetryDelivery' })
+        status = 'tools'
+        progress = 'search_text'
+      }
+      if (['streaming-text', 'streaming-settling', 'stream-error'].includes(variant)) {
+        event('tool_result', '', { round: 2, tool: 'search_text', result: '[]' })
+        reply = variant === 'streaming-settling'
+          ? 'Нашёл причину: **повтор вебхука** не проверял ключ идемпотентности.\n\n1. Добавил проверку ключа\n2. Покрыл тестом повторную доставку\n\n```go\nif seen(key) { return nil }\n```'
+          : variant === 'stream-error' ? partial
+            : 'Нашёл причину: **повтор вебхука** не проверял ключ идемпотентности.\n\n1. Добавил проверку ключа\n2. Покрыл тестом\n\n```go\nif seen(key) {\n  return nil'
+        event('reply', reply)
+        status = 'streaming'
+      }
+      if (variant === 'streaming-settling') { event('done', 'completed'); status = 'completed' }
+      if (variant === 'stream-error') {
+        listeners['window:message']({ data: { type: 'masterStreamError', conversationId: 'db', message: 'соединение с ядром потеряно' } })
+        status = 'failed'
+      }
+      // Стенд рисует разметку разделом целиком, а точечные правки ленты у него
+      // некуда применять: повторный приход того же хода просит полную отрисовку.
+      listeners['window:message']({ data: { type: 'masterTurn', turn: { id: turnId, conversationId: 'db', status, progress, reply } } })
+    }
+  } else if (variant === 'queue' || variant === 'queue-paused' || variant === 'slash') {
+    // Композер: очередь реплик во время хода, она же на паузе после уточнений,
+    // и список команд «/» над полем.
+    const sessions = { active: 'db', mode: 'auto', workMode: 'discuss', items: [{ id: 'db', title: 'Миграция базы' }] }
+    const history = [{ id: 'u0', role: 'user', content: 'Что в проекте с базой?', createdAt: today(9, 40) },
+      { id: 'a0', role: 'assistant', mode: 'model', model: 'qwen2.5-coder:7b', content: 'Миграции лежат в `internal/storage/migrations`.', createdAt: today(9, 41) }]
+    listeners['window:message']({ data: { type: 'master', master: { configured: true, config: boot.orchestrator, sessions, history } } })
+    const type = value => listeners['root:input']({ target: { id: 'master-input', value, selectionStart: value.length, closest: () => null, matches: () => false } })
+    if (variant === 'slash') {
+      type('/')
+    } else {
+      type('Проверь миграцию заказов')
+      click({ action: 'master-send' })
+      type('И заодно посмотри логи вебхука за вчера')
+      click({ action: 'master-send' })
+      type('Потом обнови README')
+      click({ action: 'master-send' })
+      if (variant === 'queue-paused') {
+        listeners['window:message']({ data: { type: 'master', turnFinished: true, master: { configured: true, config: boot.orchestrator, sessions, history: [...history,
+          { id: 'u1', role: 'user', content: 'Проверь миграцию заказов', createdAt: today(10, 2) },
+          { id: 'a1', role: 'assistant', mode: 'model', model: 'qwen2.5-coder:7b', content: 'Уточню, прежде чем трогать данные.', questions: ['Можно ли блокировать таблицу orders на время переноса?'], createdAt: today(10, 3) }] } } })
+      } else {
+        const turnId = [...posted].reverse().find(message => message.type === 'masterChat')?.turnId
+        listeners['window:message']({ data: { type: 'masterTurn', turn: { id: turnId, conversationId: 'db', status: 'waiting', reply: '' } } })
+      }
+    }
+  } else if (variant === 'markdown') {
+    // Разметка ответа целиком: заголовки, списки со вложением и задачами,
+    // таблица шире колонки, цитата, ссылки и блок кода с длинной строкой. По
+    // отдельности каждая вещь где-нибудь да встречается, а переполнение колонки
+    // и спор отступов видны только вместе.
+    const answer = [
+      '## План миграции',
+      'Сначала **сверю схему**, потом _перенесу данные_ и ~~удалю~~ отключу старые таблицы. Подробности — в [документации Postgres](https://www.postgresql.org/docs/current/ddl-alter.html) и в `internal/storage/sqlite.go:412`.',
+      '### Шаги',
+      '1. Снять дамп',
+      '2. Применить миграции:',
+      '   - `0007_users.sql`',
+      '   - `0008_orders.sql`',
+      '3. Прогнать тесты',
+      '',
+      '- [x] Резервная копия',
+      '- [ ] Проверка на стенде',
+      '',
+      '> Миграция необратима без дампа: откат сделает только восстановление.',
+      '',
+      '| Таблица | Строк | Размер | Индексы | Владелец | Комментарий к переносу |',
+      '| :--- | ---: | ---: | :---: | --- | --- |',
+      '| users | 12 480 | 3,1 МБ | 4 | auth | переносится первой, от неё зависят заказы и платежи |',
+      '| orders | 318 002 | 96 МБ | 7 | billing | переносится пачками по 10 000 строк, чтобы не держать блокировку |',
+      '',
+      '---',
+      '```go',
+      'func migrate(ctx context.Context, db *sql.DB, steps []Step) error { for _, step := range steps { if err := step.Apply(ctx, db); err != nil { return fmt.Errorf("шаг %s: %w", step.Name, err) } }; return nil }',
+      '```',
+      'Готово к запуску после вашего подтверждения.',
+    ].join('\n')
+    listeners['window:message']({ data: { type: 'master', master: {
+      configured: true, config: boot.orchestrator,
+      sessions: { active: 'db', mode: 'auto', workMode: 'discuss', items: [{ id: 'db', title: 'Миграция базы' }] },
+      history: [
+        { id: 'mu-1', role: 'user', content: 'Распиши план миграции базы', createdAt: today(10, 2) },
+        { id: 'ma-1', role: 'assistant', mode: 'model', model: 'qwen2.5-coder:7b', content: answer, createdAt: today(10, 3) },
+      ],
+    } } })
   } else if (variant === 'composer') {
     // Композер со всеми слотами сразу: обсуждаемое задание, вложенные файлы,
     // уточнение модели и длинная реплика в поле. По отдельности каждый слот
@@ -1052,6 +1180,24 @@ if (requestedSurface === 'companion' && seedStep === 'busy') {
     loading: false,
   } })
   listeners['window:message']({ data: { type: 'companionActionApplied', teamId: 'team-qa', stayInCompanion: true, guildTab: 'teams' } })
+}
+// Разметка ответа в узкой колонке компаньона: тот же разбор, что у Мастера,
+// но колонка в 300 пикселей, и таблица с блоком кода обязаны прокручиваться
+// внутри себя, а не раздвигать док.
+if (pick(COMPANION_LAYOUTS, requestedSurface) && seedStep === 'markdown') {
+  listeners['window:message']({ data: {
+    type: 'companionThreadSync',
+    messages: [
+      { role: 'user', content: 'Как проверить миграцию?' },
+      { role: 'assistant', content: [
+        '### Проверка', '1. Снять дамп', '2. Прогнать:', '   - `go test ./internal/storage/...`', '- [x] Копия', '- [ ] Стенд',
+        '> Без дампа отката нет.', '', '| Таблица | Строк | Комментарий |', '| --- | ---: | --- |', '| users | 12 480 | первой |',
+        '```go', 'if err := migrate(ctx, db); err != nil { return fmt.Errorf("миграция: %w", err) }', '```',
+        'Подробнее — в [документации](https://www.postgresql.org/docs/).',
+      ].join('\n') },
+    ],
+    loading: false,
+  } })
 }
 const css = ['rpg-tokens.css', 'style.css']
   .map(file => fs.readFileSync(path.join(repo, 'vscode-extension', 'media', file), 'utf8'))

@@ -117,6 +117,16 @@ const last = (ui, type) => [...ui.posted].reverse().find(message => message.type
     last(ui, 'copyMasterText')?.text === 'В ростере один агент.',
     JSON.stringify(last(ui, 'copyMasterText')))
 
+  // Отклик на месте нажатия: строка состояния IDE далеко от реплики, и без
+  // галочки кнопку нажимали второй раз.
+  const button = { dataset: { action: 'copy-master-message', id: 'ma-1' }, innerHTML: '', attrs: { 'aria-label': 'Копировать' },
+    classes: new Set(), getAttribute(name) { return this.attrs[name] }, setAttribute(name, value) { this.attrs[name] = value },
+    classList: { add: name => button.classes.add(name), remove: name => button.classes.delete(name) } }
+  ui.listeners['root:click']({ target: { closest: selector => (selector === '[data-action]' ? button : null) }, preventDefault() {} })
+  check('скопированная кнопка отвечает галочкой',
+    button.classes.has('is-done') && /<svg/.test(button.innerHTML) && button.attrs['aria-label'] === 'Скопировано',
+    JSON.stringify({ classes: [...button.classes], label: button.attrs['aria-label'] }))
+
   ui.click({ action: 'master-message-details', id: 'ma-2' })
   const details = last(ui, 'openMasterMessageDetails')
   check('сведения несут саму реплику', details?.item?.id === 'ma-2',

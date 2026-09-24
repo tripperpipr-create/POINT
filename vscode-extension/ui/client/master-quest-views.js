@@ -22,6 +22,7 @@
 // русской карточки. Стенд этого не показал: его образцы были написаны под
 // словарь, а не под ядро, то есть проверяли сами себя.
 import { fillAttribute } from './format-units.js'
+import { icon } from './ui-icons.js'
 
 export const CRITERION_KIND = { verification: 'авто', reproduction: 'повтор', manual: 'вы' }
 
@@ -74,5 +75,5 @@ export function questMenuHtml(items, esc) {
     return `<button type="button" class="hall-btn" ${attrs}>${esc(item.label)}</button>`
   }).join('')
   if (!rowsHtml) return ''
-  return `<details class="hall-deck-menu"><summary title="Ещё действия" aria-label="Ещё действия">···</summary><div>${rowsHtml}</div></details>`
+  return `<details class="hall-deck-menu"><summary title="Ещё действия" aria-label="Ещё действия">${icon('more')}</summary><div>${rowsHtml}</div></details>`
 }

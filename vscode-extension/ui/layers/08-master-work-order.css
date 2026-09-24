@@ -262,6 +262,9 @@
   background: var(--hub-accent, var(--mana));
   animation: agent-work-pulse 1.1s ease-in-out infinite;
 }
+@media (prefers-reduced-motion: reduce) {
+  .master-v2-run.is-live .master-v2-run-mark::before { animation: none; }
+}
 /* Поле внутри прогона уже задано слева, поэтому экран выполнения своего не
    добавляет: два поля подряд возвращают ощущение коробки внутри коробки. */
 .master-v2-run .work-order-exec { padding: 0; gap: var(--s-4); }

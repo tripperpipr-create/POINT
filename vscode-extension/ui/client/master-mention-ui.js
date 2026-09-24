@@ -101,5 +101,5 @@ export function masterMentionHtml(esc) {
   // Пустой ответ — тоже ответ: молчащий список читается как «ищет», и человек
   // ждёт того, чего не будет.
   const body = rows || `<p class="hall-mention-empty">${state.query ? 'Ничего не нашлось' : 'Наберите часть имени файла'}</p>`
-  return `<div class="hall-mention" role="listbox" aria-label="Файлы проекта">${body}</div>`
+  return `<div class="hall-mention" id="master-mention-list" role="listbox" aria-label="Файлы проекта">${body}</div>`
 }

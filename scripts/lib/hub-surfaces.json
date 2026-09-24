@@ -23,6 +23,55 @@
       "surface": "master"
     },
     {
+      "page": "master-markdown",
+      "surface": "master",
+      "args": [
+        "markdown"
+      ]
+    },
+    {
+      "page": "master-streaming-trace",
+      "surface": "master",
+      "args": [
+        "streaming-trace"
+      ]
+    },
+    {
+      "page": "master-streaming-text",
+      "surface": "master",
+      "args": [
+        "streaming-text"
+      ]
+    },
+    {
+      "page": "master-streaming-settling",
+      "surface": "master",
+      "args": [
+        "streaming-settling"
+      ]
+    },
+    {
+      "page": "master-stream-error",
+      "surface": "master",
+      "args": [
+        "stream-error"
+      ]
+    },
+    {
+      "page": "master-turn-failed",
+      "surface": "master",
+      "args": [
+        "turn-failed"
+      ]
+    },
+    {
+      "page": "master-turn-cancelled",
+      "surface": "master",
+      "args": [
+        "turn-cancelled"
+      ]
+    },
+    {
       "page": "master-origin",
       "surface": "master",
       "args": [
@@ -48,6 +97,27 @@
       "surface": "master",
       "args": [
         "sending"
+      ]
+    },
+    {
+      "page": "master-queue",
+      "surface": "master",
+      "args": [
+        "queue"
+      ]
+    },
+    {
+      "page": "master-queue-paused",
+      "surface": "master",
+      "args": [
+        "queue-paused"
+      ]
+    },
+    {
+      "page": "master-slash",
+      "surface": "master",
+      "args": [
+        "slash"
       ]
     },
     {
@@ -265,6 +335,20 @@
         [
           560,
           260
+        ]
+      ]
+    },
+    {
+      "page": "companion-sidebar-markdown",
+      "surface": "companion-sidebar",
+      "args": [
+        "markdown"
+      ],
+      "root": ".app",
+      "sizes": [
+        [
+          300,
+          820
         ]
       ]
     },

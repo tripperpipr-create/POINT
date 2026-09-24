@@ -96,8 +96,8 @@ const check = (name, ok, detail) => {
   check('до ответа заперта кнопка, а не поле',
     ui.root.innerHTML.includes('Думаю…') && sendLocked(ui.root.innerHTML) && !fieldLocked(ui.root.innerHTML),
     'ход идёт, а отправка не заперта или поле заперто — либо реплика уйдёт дважды, либо записать следующую некуда')
-  check('во время хода сказано, что набранное дождётся в поле',
-    ui.root.innerHTML.includes('дождётся в поле'),
+  check('во время хода сказано, что набранное уйдёт в очередь',
+    ui.root.innerHTML.includes('в очередь'),
     'поле открыто и молчит о судьбе набранного')
 
   ui.listeners['window:message']({ data: {

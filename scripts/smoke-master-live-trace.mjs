@@ -7,8 +7,8 @@
 // строка не выдаёт подробностей до нажатия.
 
 import assert from 'node:assert/strict'
-import { createMasterChatState, masterStreamHtml } from '../vscode-extension/ui/client/master-chat-state.js'
-import { masterTraceTitle, masterTraceDuration } from '../vscode-extension/ui/client/master-live-trace.js'
+import { createMasterChatState } from '../vscode-extension/ui/client/master-chat-state.js'
+import { masterTraceHtml, masterTraceTitle, masterTraceDuration } from '../vscode-extension/ui/client/master-live-trace.js'
 import { esc } from '../vscode-extension/ui/client/html-escape.js'
 
 const state = createMasterChatState()
@@ -52,7 +52,7 @@ assert.equal(turn.status, 'waiting', 'строка ожидания называ
 assert.equal(turn.progress, 'больше места на ответ')
 assert.equal(masterTraceTitle(retry), 'Вторая попытка')
 
-const html = masterStreamHtml(turn, esc, new Set())
+const html = masterTraceHtml(turn, esc, new Set())
 assert.match(html, /hall-live-row is-retry/, 'повтор помечен в разметке')
 assert.match(html, /32768/, 'раскрытая строка повтора называет новый предел вывода')
 assert.match(html, /hall-live-row is-mind is-done/, 'мысль стоит в следе строкой')
@@ -61,7 +61,7 @@ assert.match(html, /<b>Читаю файл<\/b>/, 'свёрнутая строк
 assert.ok(!/<details class="hall-live-item"[^>]*\sopen/.test(html), 'по умолчанию подробности свёрнуты')
 assert.match(html, /data-master-open="live" data-id="t1:1"/, 'раскрытие помнится по ключу строки')
 
-const opened = masterStreamHtml(turn, esc, new Set(['t1:1']))
+const opened = masterTraceHtml(turn, esc, new Set(['t1:1']))
 assert.match(opened, /data-id="t1:1" open/, 'раскрытая строка остаётся раскрытой после перерисовки')
 assert.match(opened, /файл не найден/, 'раскрытая строка показывает исход обращения')
 
@@ -69,6 +69,20 @@ assert.match(opened, /файл не найден/, 'раскрытая стро�
 // своей репликой, и хранить его в снимке значит возить мегабайты впустую.
 const snapshot = state.snapshot()
 assert.equal(snapshot.turns.c1.trace, undefined, 'след не попадает в снимок состояния')
+
+// Длинный ход: видны три последних строки, ранние — под «ещё N». Ключи
+// строк сквозные, поэтому раскрытое помнится и после того, как строка уехала
+// под «ещё».
+for (let i = 0; i < 5; i++) {
+  state.acceptEvent(event('tools', { round: 2, tool: 'search_text', argument: 'шаг ' + i }, 'search_text'))
+  state.acceptEvent(event('tool_result', { round: 2, tool: 'search_text', result: '[]' }))
+}
+const windowed = masterTraceHtml(turn, esc, new Set())
+const earlierCount = trace.length - 3
+assert.match(windowed, new RegExp(`<details class="hall-live-earlier" data-master-open="live" data-id="t1:earlier"><summary>ещё ${earlierCount} шаг`), 'ранние строки свёрнуты под «ещё N»')
+assert.equal((windowed.split('data-master-live>')[1].match(/hall-live-row/g) || []).length, 3, 'на виду три последних строки')
+assert.match(windowed, new RegExp(`data-id="t1:${trace.length - 1}"`), 'ключ последней строки — её сквозной номер')
+assert.match(masterTraceHtml(turn, esc, new Set(['t1:earlier'])), /data-id="t1:earlier" open>/, 'раскрытое «ещё» остаётся раскрытым')
 
 state.acceptEvent(event('done', null, 'completed'))
 assert.ok(trace.every(item => !item.running), 'конец хода закрывает все строки следа')

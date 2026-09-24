@@ -8,6 +8,8 @@
 //
 // Состояние приходит общим мешком `ui`, как в `companion-transport.js`.
 
+import { masterQueueAfterTurn, masterQueuePause } from './master-compose-keys.js'
+
 const MASTER_MESSAGES = new Set([
 	'masterDevelopment', 'masterDevelopmentError',
   'master', 'masterTurn', 'masterEvent',
@@ -26,6 +28,8 @@ export function createMasterInbox({
   masterClient,
   masterSessionDrafts,
   masterTraceMindPatch,
+  masterStream,
+  masterSentText,
   acceptMasterMentionItems,
   receiveMasterContext,
   clearMasterContext,
@@ -48,17 +52,19 @@ export function createMasterInbox({
 	  }
       if (message.type==='master' && message.requestId && message.requestId!==ui.masterRequestId) return true
       if (message.type==='masterTurn') {masterClient.acceptTurn(message.turn);if(message.turn.conversationId===masterClient.active){ui.masterSending=masterClient.running();render()};persistDraft()}
+      // Событие хода правит только его блок в ленте (master-stream-view.js):
+      // текст — тело ответа, мысль — свою строку следа, остальное — блок.
       if (message.type==='masterEvent') {
         masterClient.acceptEvent(message.event)
         if(message.event.conversationId===masterClient.active){
           ui.masterSending=masterClient.running()
-          const text=root.querySelector('.hall-stream-text')
-          if(message.event.type==='reply'&&text){text.textContent=message.event.text;const thread=root.querySelector('#master-thread');if(thread&&ui.masterAutoFollow)thread.scrollTop=thread.scrollHeight}
-          else if(message.event.type==='reasoning'&&masterTraceMindPatch(root,masterClient.turns[masterClient.active],ui.masterAutoFollow)) {}
-          else replaceMasterThreadHtml()
+          if(message.event.type==='reasoning'&&masterTraceMindPatch(root,masterClient.turns[masterClient.active],ui.masterAutoFollow)) {}
+          else masterStream.accept(message.event.type)
         }
       }
-      if (message.type==='masterStreamError' && message.conversationId===masterClient.active){ui.masterComposeNote=message.message;ui.masterSending=false;render()}
+      // Поток оборвался: написанное и вопрос остаются в ленте со строкой сбоя,
+      // а не причиной под полем ввода — там её читали, уже потеряв ответ.
+      if (message.type==='masterStreamError' && message.conversationId===masterClient.active){masterClient.fail(masterClient.active,message.message,masterSentText());masterQueuePause(masterClient,masterClient.active,'failed');ui.masterSending=false;stopMasterWaitClock();if(!replaceMasterThreadHtml())render();syncMasterComposeState()}
       if (message.type==='masterWorkOrder') {
         // Наблюдение за живым квестом продолжается и после перехода в другой
         // разговор: его обновление не должно подкладывать чужую карточку.
@@ -106,17 +112,20 @@ export function createMasterInbox({
         if(message.turn) masterClient.acceptTurn(message.turn)
         for(const turn of message.master?.activeTurns || []) masterClient.acceptTurn(turn)
         const incomingConversation=message.master?.sessions?.active
-        if(message.turnFinished && incomingConversation && incomingConversation!==masterClient.active) {persistDraft();return}
+        // Ход кончился в другом разговоре: его очередь ждёт человека, а не уходит
+        // сама — он её сейчас не видит.
+        if(message.turnFinished && incomingConversation && incomingConversation!==masterClient.active) {masterQueuePause(masterClient,incomingConversation,'elsewhere');persistDraft();return}
         if(message.sessionChanged || message.loaded){masterClient.restoreScroll=masterClient.scroll[incomingConversation] ?? Infinity;masterClient.query='';ui.masterFindQuery=''}
         masterClient.active=incomingConversation || masterClient.active
         if (message.turnFinished) {
+          masterClient.settle(incomingConversation || masterClient.active)
           clearMasterContext(ui.masterData?.sessions?.active)
           // Все чипы, а не первый: querySelector возвращал один узел, и после хода
           // с тремя вложениями на экране оставалось два призрака.
           root.querySelectorAll?.('.hall-context-file')?.forEach?.(node => node.remove?.())
           const activeId = incomingConversation || masterClient.active
           const current = masterClient.turns[activeId]
-          if (current && !message.turn) masterClient.acceptTurn({ ...current, status: 'done' })
+          if (current && !message.turn) masterClient.acceptTurn({ ...current, status: 'done', settled: true })
         }
         const previousSession = ui.masterData?.sessions?.active
         if (message.sessionChanged && previousSession) masterSessionDrafts[previousSession] = ui.masterDraft
@@ -139,6 +148,12 @@ export function createMasterInbox({
           ui.masterDraft = message.draft ?? (masterSessionDrafts[ui.masterData?.sessions?.active] ?? (message.loaded ? ui.masterDraft : ''))
         }
         if (message.turnFinished || message.turn?.status === 'done') forgetMasterSent()
+        // Очередь: следующая реплика уходит сама, если ход кончился как надо;
+        // после уточнений, остановки и сбоя она ждёт кнопки (master-compose-keys.js).
+        const queued = message.turnFinished ? masterQueueAfterTurn(masterClient, masterClient.active, {
+          status: String(masterClient.turns[masterClient.active]?.status || ''), last: (ui.masterData?.history || []).slice(-1)[0],
+        }) : null
+        if (queued) setTimeout(() => sendMasterMessage(queued.text), 0)
         persistDraft()
         // Причины полной отрисовки перечислены явно. Незаданный Мастер меняет весь
         // раздел, а не ленту; отсутствие ленты означает, что человек смотрит другой

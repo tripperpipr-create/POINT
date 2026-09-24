@@ -718,7 +718,10 @@ for (const [file, maximum] of Object.entries({
   'vscode-extension/ide-action-controller.js': 1500,
   'vscode-extension/ide-navigation-controller.js': 1500,
   'vscode-extension/connection-controller.js': 1500,
-  'vscode-extension/ui/client/main.js': 4400,
+  // Потолок опущен с 4400: ветки поля Мастера (очередь, «/», Enter, слот
+  // уточнений) ушли в master-compose-keys.js, и отвоёванное не должно
+  // зарасти обратно.
+  'vscode-extension/ui/client/main.js': 4330,
   'vscode-extension/ui/client/infra-actions.js': 220,
   'vscode-extension/ui/client/master-actions.js': 280,
   'vscode-extension/ui/client/run-actions.js': 280,
@@ -752,6 +755,16 @@ for (const [file, maximum] of Object.entries({
   'vscode-extension/ui/client/onboarding-actions.js': 450,
   'vscode-extension/ui/client/companion-transport.js': 450,
   'vscode-extension/ui/client/master-inbox.js': 200,
+  // Лента Мастера по заботам: разбор ответа, идущий ход, след хода, замена
+  // ленты, движение, клавиши композера. Каждый вынесен, чтобы main.js и
+  // master-thread-views.js не росли, — потолки держат их от обратного
+  // слипания в один файл.
+  'vscode-extension/ui/client/companion-markdown.js': 320,
+  'vscode-extension/ui/client/master-stream-view.js': 240,
+  'vscode-extension/ui/client/master-trail.js': 220,
+  'vscode-extension/ui/client/master-feed.js': 300,
+  'vscode-extension/ui/client/master-feed-motion.js': 140,
+  'vscode-extension/ui/client/master-compose-keys.js': 300,
   'vscode-extension/ui/client/hub-entity-inbox.js': 220,
   'vscode-extension/ui/client/run-inbox.js': 240,
   'vscode-extension/ui/client/world-state-inbox.js': 180,

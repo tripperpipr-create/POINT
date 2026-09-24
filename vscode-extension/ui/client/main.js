@@ -50,7 +50,9 @@ import { masterWorkOrderCardsHtml } from './master-work-order-v2.js'
 import { handleMasterHiringAction } from './master-hiring-card.js'
 import { handleMasterAgentCardAction, masterAgentCardsAll, masterAgentConsent, readMasterAgentCardInput, releaseMasterAgentCards } from './master-agent-card.js'
 import { MASTER_MESSAGE_LIMIT_BYTES, masterComposeCountClass, masterComposeCountState, masterComposeFormClass, masterAnswerRows, masterComposeRows, masterMessageBytes, masterWaitSuffix, oversizedMasterMessageNote } from './master-compose.js'
-import { createMasterFeedRuntime } from './master-feed.js'
+import { createMasterFeedRuntime, threadNearBottom } from './master-feed.js'
+import { createMasterStreamView } from './master-stream-view.js'
+import { closeMasterMenus, handleMasterFieldKey, handleMasterQueueAction, masterQueueHtml, masterQueueOf, masterQueuePush, masterSlashInput, masterSlashOpen, pickMasterSlash } from './master-compose-keys.js'
 import { COMPANION_EXAMPLES, COMPANION_MESSAGE_LIMIT_BYTES, COMPANION_SETUP_STEPS, COMPANION_SETUP_STEP_ALIAS, applyLocalSourceFields, companionBrainMode, companionConfigForBrain, normalizeBrainMode, companionSpendCaveats, companionSceneById, companionModeCardsHtml, companionLocalReadyHtml, companionComposeActionsHtml, companionComposeMetaHtml, companionMessageBytes, companionWaitSuffix, oversizedCompanionMessageNote } from './companion-compose.js'
 // Счётчик отправок нужен защите форм от повторной отправки: обработчик формы
 // может выйти раньше, ничего не отправив (не заполнено поле, не пройдена
@@ -1425,10 +1427,6 @@ function patchCompanionComposeChrome() {
     existing.remove()
   }
 }
-// Годится любой ленте: у компаньона и у Мастера «внизу» значит одно и то же.
-function threadNearBottom(thread) {
-  return !thread || thread.scrollHeight - thread.scrollTop - thread.clientHeight < 72
-}
 function scrollCompanionThread(force = false) {
   const thread = root.querySelector('#companion-thread')
   if (!thread) return
@@ -1447,37 +1445,6 @@ function replaceCompanionThreadHtml() {
   companionAutoFollow = follow
   thread.scrollTop = follow ? thread.scrollHeight : Math.min(top, Math.max(0, thread.scrollHeight - thread.clientHeight))
   updateCompanionScrollCue()
-  return true
-}
-// То же для ленты Мастера. Отдельная функция, а не общая с компаньоном: у лент
-// разные источники разметки и разные признаки следования, и параметр вместо
-// двух функций спрятал бы это различие за флагом.
-function replaceMasterThreadHtml() {
-  const thread = root.querySelector('#master-thread')
-  if (!thread) return false
-  const follow = masterAutoFollow || threadNearBottom(thread)
-  const top = thread.scrollTop
-  // Уточнения переехали в ленту, и вместе с ними — поле свободного ответа.
-  // Замена разметки отбирает у него каретку: фоновое обновление посреди
-  // набранного слова выбрасывало бы человека из ответа. Набранное переживает
-  // замену само (черновик пишется на каждом вводе), а место в строке — нет.
-  const typing = thread.contains?.(document.activeElement) && document.activeElement?.classList?.contains('hall-question-extra')
-    ? { key: document.activeElement.closest('[data-question-key]')?.dataset.questionKey, at: document.activeElement.selectionStart }
-    : null
-  // Якорь живёт снаружи ленты и перерисовку переживает сам: дописывать его к
-  // содержимому больше не нужно.
-  thread.innerHTML = masterThreadContentHtml()
-  if (typing?.key) {
-    const field = thread.querySelector(`[data-question-key="${typing.key}"] .hall-question-extra`)
-    if (field) { field.focus(); if (typing.at != null) field.setSelectionRange(typing.at, typing.at) }
-  }
-  masterAutoFollow = follow
-  thread.scrollTop = follow ? thread.scrollHeight : Math.min(top, Math.max(0, thread.scrollHeight - thread.clientHeight))
-  // Замена разметки стирает и пометки поиска, и якорь: набранное в поиске при
-  // этом никуда не делось, и возвращать его руками человек не должен.
-  applyMasterFind()
-  updateMasterScrollCue()
-  applyMasterComposeReserve()
   return true
 }
 // Поле и кнопка отправки стоят вне ленты, и заменять им разметку незачем:
@@ -1529,7 +1496,9 @@ function syncMasterComposeState() {
   // ввода теперь живут уточнения со своей кнопкой отправки, и она стояла бы
   // в разметке раньше — то есть забирала бы себе запирание на время хода.
   const send = root.querySelector('.hall-compose .hall-compose-send')
-  if (send) send.disabled = masterSending
+  if (send) send.disabled = masterSending && !String(masterDraft || '').trim()
+  const queue = root.querySelector('#master-queue')
+  if (queue) queue.innerHTML = masterQueueHtml(masterQueueOf(masterClient, masterClient.active), esc, { sending: masterSending })
   // Строка под полем меняется вместе с ходом: в ней появляется «Остановить»,
   // подсказка меняет смысл, счётчик пересчитывается. Собирает её тот же код,
   // что и полная отрисовка, — двух источников у одной строки быть не должно.
@@ -1915,6 +1884,8 @@ function patchMasterComposeForm() {
   // читалке нужен признак на том узле, который нажимают.
   const send = form.querySelector('.hall-compose-send')
   if (send) send.setAttribute('aria-disabled', String(!String(masterDraft || '').trim()))
+  // Во время хода стрелка ставит в очередь и оживает, как только есть что ставить.
+  if (send) send.disabled = masterSending && !String(masterDraft || '').trim()
   applyMasterComposeReserve()
 }
 // Отказ по длине снимается вместе с правкой: объяснение, висящее над уже
@@ -1947,6 +1918,17 @@ function pickMasterMention(item, at, query) {
   render()
 }
 
+// Всё, что нужно клавишам и командам поля ввода (master-compose-keys.js).
+function masterComposeKeyDeps() {
+  return {
+    root, client: masterClient, id: () => masterClient.active, history: () => masterData?.history || [],
+    draft: () => masterDraft, setDraft: text => { masterDraft = text; masterCaretToEnd = true },
+    post: message => vscode.postMessage(message), openFind: () => { masterFindOpen = true },
+    render, persist: persistDraft, mentionOpen: masterMentionOpen,
+    mentionKey: key => handleMasterMentionKey(key, { pick: pickMasterMention, render }), send: () => sendMasterMessage(),
+  }
+}
+
 function sendMasterMessage(forcedText = '', options = {}) {
   const input = root.querySelector('#master-input')
   const text = String(forcedText || (input ? input.value : masterDraft)).trim()
@@ -1958,7 +1940,14 @@ function sendMasterMessage(forcedText = '', options = {}) {
   }
   // Ход ещё идёт: поле открыто, но реплика уйдёт следующей. Молчать об этом
   // нельзя — нажатие выглядит как проглоченное.
-  if (masterSending) { masterComposeNote = 'Мастер ещё отвечает. Набранное останется в поле — отправьте его, когда ход закончится.'; render(); return }
+  // Ход ещё идёт: реплика из поля встаёт в очередь и уйдёт после ответа
+  // (master-compose-keys.js). Готовый текст кнопок ленты в очередь не ставится.
+  if (masterSending) {
+    if (forcedText) { masterComposeNote = 'Мастер ещё отвечает — повторите после ответа.'; render(); return }
+    if (masterQueuePush(masterClient, masterClient.active, text)) masterDraft = ''
+    else masterComposeNote = 'В очереди уже пять реплик — дождитесь ответа или уберите лишнее.'
+    persistDraft(); render(); return
+  }
   const workMode = masterData?.sessions?.workMode || 'discuss'
   if (workMode === 'agent') {
     const profile = agentById(selectedProfileId) || hubAgents()[0] || (state.boot?.profiles || [])[0]
@@ -2115,6 +2104,9 @@ function companionDockTrust() {
 let applyMasterFind = () => {}
 let updateMasterScrollCue = () => {}
 let applyMasterComposeReserve = () => {}
+let replaceMasterThreadHtml = () => false
+let afterMasterFeedPaint = () => {}
+let afterMasterStreamPatch = () => {}
 
 const modularUiState = {
   get agentConstructorOpen() { return agentConstructorOpen }, set agentConstructorOpen(value) { agentConstructorOpen = value },
@@ -2216,6 +2208,7 @@ const modularUiState = {
   get hiringReloadFor() { return hiringReloadFor }, set hiringReloadFor(value) { hiringReloadFor = value },
   get masterComposeNote() { return masterComposeNote }, set masterComposeNote(value) { masterComposeNote = value },
   get masterTurn() { return masterClient.turns[masterClient.active] },
+  get masterClient() { return masterClient },
   get masterData() { return masterData }, set masterData(value) { masterData = value },
   get masterOpenReasoning() { return masterOpenReasoning },
   get masterOpenLive() { return masterClient.openLive },
@@ -2323,6 +2316,8 @@ const applyMasterMessage = createMasterInbox({
   persistDraft: (...args) => persistDraft(...args),
   masterClient, masterSessionDrafts,
   masterTraceMindPatch: (...args) => masterTraceMindPatch(...args),
+  masterStream: { accept: type => masterStreamView.accept(type) },
+  masterSentText: () => masterSentText(),
   acceptMasterMentionItems: (...args) => acceptMasterMentionItems(...args),
   receiveMasterContext: (...args) => receiveMasterContext(...args),
   clearMasterContext: (...args) => clearMasterContext(...args),
@@ -2553,6 +2548,9 @@ const {
 } = createMasterThreadViews({
   masterBriefPanelHtml: (...args) => masterBriefPanelHtml(...args),
   masterBriefTabHtml: (...args) => masterBriefTabHtml(...args),
+  masterStreamBlockHtml: () => masterStreamView.html(),
+  masterStreamPhaseNow: () => masterStreamView.phase(),
+  masterTurnErrorHtml: turn => masterStreamView.errorHtml(turn),
   taskBriefReady,
   agentById: (...args) => agentById(...args), agentClass: (...args) => agentClass(...args),
   agentWorkTranscriptHtml: (...args) => agentWorkTranscriptHtml(...args),
@@ -2574,7 +2572,13 @@ const {
   rosterHasAgent: () => rosterHasAgent(),
 })
 
-;({ applyMasterFind, updateMasterScrollCue, applyMasterComposeReserve } = createMasterFeedRuntime({ root, ui: modularUiState }))
+;({ applyMasterFind, updateMasterScrollCue, applyMasterComposeReserve, replaceMasterThreadHtml, afterMasterFeedPaint, afterMasterStreamPatch } = createMasterFeedRuntime({ root, ui: modularUiState, threadHtml: () => masterThreadContentHtml() }))
+const masterStreamView = createMasterStreamView({
+  root, ui: modularUiState, esc, countOf,
+  formatStreaming: (text, options) => formatCompanionMarkdown.streaming(text, options),
+  replaceThread: () => replaceMasterThreadHtml(),
+  afterPatch: block => afterMasterStreamPatch(block),
+})
 
 function captureUi() {
   const active = document.activeElement
@@ -2661,6 +2665,7 @@ function restoreUi(snapshot) {
     const follow = snapshot.masterThread ? Boolean(snapshot.masterThread.follow) : true
     masterAutoFollow = follow
     masterThread.scrollTop = follow ? masterThread.scrollHeight : snapshot.masterThread.top
+    afterMasterFeedPaint()
   }
   if (snapshot.focus?.id) {
     const el = root.querySelector(`#${CSS.escape(snapshot.focus.id)}`)
@@ -2895,12 +2900,16 @@ root.addEventListener('click', event => {
     render()
   }
   if (closeModelPickerOutside(event)) render()
+  closeMasterMenus(root, event.target)
   const target = event.target.closest('[data-action]')
   if (!target) return
   const action = target.dataset.action
   if (handleChatDirectoryAction(action, target)) { render(); return }
   if (handleProjectGalleryAction(action, target)) { render(); return }
   if (handleMasterContextAction({action,target,vscode,sending:masterSending})) {persistDraft();return}
+  if (action === 'master-slash-pick') { pickMasterSlash(target.dataset.index, masterComposeKeyDeps()); return }
+  if (handleMasterQueueAction(action, target, { client: masterClient, id: masterClient.active, sending: masterSending,
+    send: text => sendMasterMessage(text), setDraft: text => { masterDraft = text; masterCaretToEnd = true }, render, persist: persistDraft })) return
   if (handleMasterBriefAction({ action, target, root, persist: persistDraft })) return
   if (handleMasterSessionAction({
     action, target, root, vscode, sending: masterSending, send: sendMasterMessage,
@@ -3384,7 +3393,8 @@ root.addEventListener('input', event => {
     // у ошибок сборки, git diff и буфера терминала нет пути в дереве.
     const askedFor = masterSending ? (closeMasterMention(), null) : masterMentionInput(event.target.value, event.target.selectionStart)
     if (askedFor !== null) askMasterMention(askedFor)
-    if (askedFor !== null || masterMentionOpen()) render()
+    const slashChanged = !masterSending && masterSlashInput(event.target.value, event.target.selectionStart)
+    if (askedFor !== null || masterMentionOpen() || slashChanged) render()
     else patchMasterCompose(event.target)
   }
   // Набор в поиске не перерисовывает ленту: пометка ходов делается по DOM, и
@@ -3544,6 +3554,13 @@ root.addEventListener('keydown', event => {
     if(event.shiftKey && event.key.toLowerCase()==='n'){event.preventDefault();vscode.postMessage({type:'masterSession',action:'new'});return}
   }
   if(state.selectedTab==='master'&&event.key==='Escape'&&masterClient.historyOpen){event.preventDefault();masterClient.historyOpen=false;render();return}
+  // Escape закрывает открытое меню разговора и список моделей — раньше панели
+  // задания: меню лежит поверх неё, и закрываться первым должно оно.
+  if (state.selectedTab === 'master' && event.key === 'Escape') {
+    const menu = closeMasterMenus(root)
+    if (menu) { event.preventDefault(); menu.querySelector?.('summary')?.focus?.(); return }
+    if (closeModelPickerOutside({ target: {} })) { event.preventDefault(); render(); return }
+  }
   // Escape закрывает панель задания — но не тогда, когда набирают в её полях:
   // в открытой панели правят бриф, и закрытие потеряло бы набранный критерий.
   if (state.selectedTab === 'master' && event.key === 'Escape' && !event.target.closest?.('input, textarea, select')
@@ -3607,39 +3624,8 @@ root.addEventListener('keydown', event => {
     event.preventDefault()
     sendCompanionUserMessage(event.target.value)
   }
-  // Два чата в одном приложении не должны отправляться по-разному: у компаньона
-  // Enter отправляет, а у Мастера единственным способом была мышь.
-  // Shift+Enter по-прежнему переносит строку — задачу описывают и в несколько.
-  // Список упоминаний забирает стрелки, Enter, Tab и Escape себе, пока открыт:
-  // иначе Enter отправит реплику вместо того, чтобы приложить выбранный файл.
-  if (event.target.id === 'master-input' && masterMentionOpen()
-    && handleMasterMentionKey(event.key, { pick: pickMasterMention, render })) {
-    event.preventDefault()
-    return
-  }
-  if (event.key === 'Enter' && !event.shiftKey && !event.isComposing && event.target.id === 'master-input') {
-    event.preventDefault()
-    sendMasterMessage()
-  }
-  // Enter в ответе листает пакет, а не отправляет его.
-  //
-  // Прежде он всегда нажимал отправку. Человек отвечал на первый вопрос из
-  // двух, жал Enter — и пакет уходил с одним ответом: остальные возвращались
-  // из ядра в «Нужно уточнить» и держали запуск, а спрошены были будто зря.
-  // Отправка — решение по всему пакету, и принимают его на последнем вопросе
-  // или нажатием на саму кнопку; клавиша делает то же, что кнопка под рукой.
-  //
-  // preventDefault нужен и сам по себе: слот уточнений стоит внутри формы
-  // карточки ввода, и у поля с вариантами (`input`) Enter иначе отправил бы
-  // форму неявно — мимо всякого нашего разбора.
-  if (event.key === 'Enter' && !event.shiftKey && !event.isComposing && event.target.classList?.contains('hall-question-extra')) {
-    event.preventDefault()
-    const pack = event.target.closest('.hall-questions')
-    const at = Number(pack?.dataset?.cursor || 0)
-    const last = Number(pack?.dataset?.total || 1) - 1
-    const step = at < last ? 'master-question-next' : 'master-answer-question'
-    pack?.querySelector(`[data-action="${step}"]`)?.click()
-  }
+  // Поле Мастера и слот уточнений: упоминания, «/», «↑» и Enter (master-compose-keys.js).
+  if (handleMasterFieldKey(event, masterComposeKeyDeps())) event.preventDefault()
 })
 root.addEventListener('scroll', event => {
   if (event.target?.id === 'companion-thread') {

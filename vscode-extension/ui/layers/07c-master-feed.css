@@ -225,6 +225,7 @@
   background: transparent;
   color: var(--hub-muted);
   cursor: pointer;
+  transition: background-color var(--motion-fast) var(--ease), color var(--motion-fast) var(--ease);
 }
 .hall-dialogue .hall-msg-tools > button:hover,
 .hall-dialogue .hall-msg-tools > button:focus-visible,
@@ -674,7 +675,53 @@
 }
 .hall-dialogue .hall-thread-cue:hover { border-color: var(--hub-border-loud); color: var(--hub-text); }
 .hall-dialogue .hall-thread-cue .hall-icon { width: 14px; height: 14px; }
-.hall-dialogue .hall-thread-cue.is-hidden { display: none; }
+/* Якорь проявляется и гаснет, а не выскакивает: он встаёт над карточкой ввода,
+   ровно там, куда смотрят, и резкое появление читалось как всплывшая ошибка.
+   Скрытый якорь не ловит указатель и не виден читалке. */
+.hall-dialogue .hall-thread-cue {
+  transition: opacity var(--motion-base) var(--ease), transform var(--motion-base) var(--ease), visibility 0s linear 0s;
+}
+.hall-dialogue .hall-thread-cue.is-hidden {
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(var(--s-2));
+  pointer-events: none;
+  transition: opacity var(--motion-base) var(--ease), transform var(--motion-base) var(--ease), visibility 0s linear var(--motion-base);
+}
+
+/* —— Движение ленты ——
+   Новый узел ленты — реплика, блок хода, карточка — входит одним тихим
+   движением: прозрачность и сдвиг на четыре пикселя снизу. Кому входить,
+   решает master-feed-motion.js: лента пересобирается целиком почти на каждое
+   событие хода, и правило «при появлении узла» проигрывалось бы у всех. */
+@keyframes hall-enter {
+  from { opacity: 0; transform: translateY(var(--s-2)); }
+}
+.hall-dialogue .hall-thread > .is-entering {
+  animation: hall-enter var(--motion-enter) var(--ease) both;
+}
+/* Раскрытие свёрток — сводки хода, мысли, строк следа — проявляет содержимое,
+   а не выдвигает его: анимация высоты стоила бы вёрстки на каждом кадре при
+   программном compositor. Переход не срабатывает на пересборке ленты:
+   переходов у только что созданного узла не бывает. */
+.hall-dialogue .hall-trail-group::details-content,
+.hall-dialogue .hall-reason::details-content,
+.hall-dialogue .hall-live-item::details-content,
+.hall-dialogue .hall-live-earlier::details-content {
+  opacity: 0;
+  transform: translateY(calc(var(--s-1) * -1));
+  transition: opacity var(--motion-base) var(--ease), transform var(--motion-base) var(--ease), content-visibility var(--motion-base) allow-discrete;
+}
+.hall-dialogue .hall-trail-group[open]::details-content,
+.hall-dialogue .hall-reason[open]::details-content,
+.hall-dialogue .hall-live-item[open]::details-content,
+.hall-dialogue .hall-live-earlier[open]::details-content {
+  opacity: 1;
+  transform: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hall-dialogue .hall-thread > .is-entering { animation: none; }
+}
 
 /* —— Пустые состояния: приветствие, загрузка, сбой ——
    Один вид на три случая. Приветствие когда-то привели к тихому регистру, а

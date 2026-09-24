@@ -400,7 +400,10 @@ export function createMasterThreadViews(dependencies) {
       : `<div class="hall-turn-note">${icon('stop')}<span>Ответ остановлен</span></div>`
     const foot = `${mine || broken ? '' : masterAnswerBadgeHtml(item)}${pending ? '' : masterMessageToolsHtml(item, mine, previousAsk)}${stamp}${mine ? '' : masterTurnTimeHtml(item)}${masterUsedMemoryHtml(item.memoryIds,ui.masterData?.sessions?.memoryEntries,esc,item.id,ui.masterOpenReasoning.has('memory:'+item.id))}`
     const attached = `${masterMessageAttachmentsHtml(item.attachments,esc)}${trail}${String(item.content || '').trim() || !broken ? article : ''}${brokenHtml}${questions}${foot ? `<div class="hall-turn-foot">${foot}</div>` : ''}${masterFactsHtml(facts)}${showProposal === false ? '' : `${masterThreadProposalHtml(item.proposalId)}${masterThreadActionProposalHtml(item.actionProposalId)}`}`
-    return `<div class="hall-turn${mine ? ' is-user-turn' : ' is-master-turn'}${pending ? ' is-pending-turn' : ''}">${attached}</div>`
+    // Ключ появления (master-feed-motion.js): у ответа — номер хода, тот же, что
+    // у блока идущего хода, поэтому готовый ответ не «появляется» второй раз.
+    const feedKey = mine ? '' : ` data-feed-key="a:${esc(item.turnId || item.id || '')}"`
+    return `<div class="hall-turn${mine ? ' is-user-turn' : ' is-master-turn'}${pending ? ' is-pending-turn' : ''}"${feedKey}>${attached}</div>`
   }
 
   // Пока ядро не вернуло историю, своя реплика уже стоит в ленте — иначе
@@ -794,7 +797,11 @@ export function createMasterThreadViews(dependencies) {
       ${plannerFallbackBannerHtml()}
       ${masterSessionHtml(ui.masterData?.sessions, esc)}
       ${masterFindHtml()}
-      <div class="hall-thread" id="master-thread" role="log" aria-live="polite" aria-relevant="additions text" aria-label="Диалог с Мастером">${masterThreadContentHtml()}</div>
+      ${/* Лента — область, а не живой журнал: её разметка пересобирается на
+           каждое событие хода, и `aria-live` зачитывал бы её заново каждый раз.
+           О ходе говорит диктор рядом с ней, один раз на каждую смену фазы. */''}
+      <div class="hall-thread" id="master-thread" role="region" aria-label="Диалог с Мастером">${masterThreadContentHtml()}</div>
+      <div class="hall-sr" id="master-announcer" role="status" aria-live="polite" aria-atomic="true"></div>
       ${/* Якорь стоит рядом с лентой, а не внутри неё. Внутри он был обычным
            элементом потока: на короткой переписке садился сразу под последней
            репликой и висел посреди пустого экрана, а `width: 100%` из 05-hall

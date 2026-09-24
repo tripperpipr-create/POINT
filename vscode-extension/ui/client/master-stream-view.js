@@ -101,10 +101,39 @@ export function createMasterStreamView ({ root, ui, esc, countOf, formatStreamin
     return `<article class="hall-msg"><span class="who hall-sr"><span class="hall-speaker-name">Мастер</span><time>сейчас</time></span><div class="body">${body}</div></article>`
   }
 
+  // Диктор: одна фраза на смену фазы хода, а не пересказ ленты. Пишется с
+  // задержкой — полная отрисовка раздела создаёт узел диктора заново, и
+  // фраза, записанная в старый узел, пропала бы непрочитанной.
+  let spoken = ''
+  let spokenTurn = ''
+  function announce (text) {
+    setTimeout(() => {
+      const node = root.querySelector?.('#master-announcer')
+      if (node) node.textContent = text
+    }, 100)
+  }
+  function firstLine (text) {
+    const line = String(text || '').split('\n').map(part => part.replace(/[#>*_`~|]/g, '').trim()).find(Boolean) || ''
+    return line.length > 160 ? line.slice(0, 159) + '…' : line
+  }
+  function narrate (phase, turn) {
+    const id = String(turn?.id || '')
+    if (phase === spoken && id === spokenTurn) return
+    const was = spoken
+    // Сменился разговор, а не фаза: чужой ход не объявляется «ответившим».
+    const same = id === spokenTurn
+    spoken = phase
+    spokenTurn = id
+    if (phase === 'text' && (was !== 'text' || !same)) announce('Мастер отвечает')
+    else if (phase === 'failed') announce(`Ответ прервался: ${turn?.streamError || 'поток оборвался'}`)
+    else if (!phase && same && ['text', 'settling'].includes(was) && turn?.reply) announce(`Мастер ответил: ${firstLine(turn.reply)}`)
+  }
+
   function html () {
     const phase = phaseNow()
-    if (!phase) return ''
     const turn = ui.masterTurn
+    narrate(phase, turn)
+    if (!phase) return ''
     const attrs = `class="hall-turn is-master-turn is-stream-turn" data-master-stream data-phase="${phase}" data-rows="${esc(rowsKey(turn))}" data-feed-key="a:${esc(turn?.id || 'wait')}"`
     if (phase === 'wait') {
       return `<div ${attrs}><article class="hall-msg hall-msg-waiting"><span class="who hall-sr"><span class="hall-speaker-name">Мастер</span><time>сейчас</time></span><div class="body is-muted"><span class="agent-work-thinking"><i></i><span>${esc(waitingLabel())}</span></span></div></article></div>`

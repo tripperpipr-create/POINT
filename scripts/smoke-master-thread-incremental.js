@@ -213,6 +213,10 @@ const check = (name, ok, detail) => {
   check('с историей ответ стоит один раз', (after.match(/поправил повтор/g) || []).length === 1,
     `ответ в ленте ${(after.match(/поправил повтор/g) || []).length} раз(а)`)
   check('с историей блок хода ушёл', !after.includes('data-master-stream'), 'блок хода остался рядом с записью истории')
+  check('лента — область, а не живой журнал', /id="master-thread" role="region"/.test(ui.root.innerHTML) && !/id="master-thread"[^>]*aria-live/.test(ui.root.innerHTML),
+    'лента с aria-live зачитывается заново на каждой пересборке')
+  check('диктор стоит вне ленты', /<\/div>\s*<div class="hall-sr" id="master-announcer" role="status" aria-live="polite"/.test(ui.root.innerHTML),
+    'диктора нет или он внутри пересобираемой ленты')
   // Считается тело реплики, а не строка: текст стоит ещё и в атрибуте кнопки
   // «Изменить и отправить заново».
   check('с историей реплика человека не задвоилась', (after.match(/<p>Почини вебхук оплаты<\/p>/g) || []).length === 1,

@@ -47,6 +47,8 @@ export function masterFindSummary (total, current) {
   return `${current + 1} из ${total}`
 }
 
+import { createMasterFeedMotion } from './master-feed-motion.js'
+
 // Лента «внизу», если до конца осталось меньше строки-другой. Годится любой
 // ленте: у компаньона и у Мастера «внизу» значит одно и то же.
 export function threadNearBottom (thread) {
@@ -73,6 +75,8 @@ export function createMasterFeedRuntime ({ root, ui, threadHtml = () => '' }) {
   // Пишем через CSSOM, а не атрибутом style: CSP вебвью запрещает инлайновые
   // стили в разметке, но программную правку свойства не трогает.
   let watched = null
+  const motion = createMasterFeedMotion()
+  const conversation = () => String(ui.masterData?.sessions?.active || '')
   const sizes = typeof ResizeObserver === 'function' ? new ResizeObserver(() => applyMasterComposeReserve()) : null
 
   function applyMasterComposeReserve () {
@@ -148,6 +152,12 @@ export function createMasterFeedRuntime ({ root, ui, threadHtml = () => '' }) {
   function afterMasterFeedPaint () {
     applyMasterFind()
     updateMasterScrollCue()
+    motion.mark(root.querySelector('#master-thread'), { conversationId: conversation() })
+  }
+
+  // Блок идущего хода заменён точечно: движение решается только для него.
+  function afterMasterStreamPatch (block) {
+    motion.mark(root.querySelector('#master-thread'), { conversationId: conversation(), scope: block })
   }
 
   // Замена содержимого ленты без отрисовки раздела. Раньше на каждый ход
@@ -181,5 +191,5 @@ export function createMasterFeedRuntime ({ root, ui, threadHtml = () => '' }) {
     return true
   }
 
-  return { applyMasterFind, updateMasterScrollCue, applyMasterComposeReserve, replaceMasterThreadHtml, afterMasterFeedPaint }
+  return { applyMasterFind, updateMasterScrollCue, applyMasterComposeReserve, replaceMasterThreadHtml, afterMasterFeedPaint, afterMasterStreamPatch }
 }

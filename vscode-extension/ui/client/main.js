@@ -2083,6 +2083,7 @@ let updateMasterScrollCue = () => {}
 let applyMasterComposeReserve = () => {}
 let replaceMasterThreadHtml = () => false
 let afterMasterFeedPaint = () => {}
+let afterMasterStreamPatch = () => {}
 
 const modularUiState = {
   get agentConstructorOpen() { return agentConstructorOpen }, set agentConstructorOpen(value) { agentConstructorOpen = value },
@@ -2547,11 +2548,12 @@ const {
   rosterHasAgent: () => rosterHasAgent(),
 })
 
-;({ applyMasterFind, updateMasterScrollCue, applyMasterComposeReserve, replaceMasterThreadHtml, afterMasterFeedPaint } = createMasterFeedRuntime({ root, ui: modularUiState, threadHtml: () => masterThreadContentHtml() }))
+;({ applyMasterFind, updateMasterScrollCue, applyMasterComposeReserve, replaceMasterThreadHtml, afterMasterFeedPaint, afterMasterStreamPatch } = createMasterFeedRuntime({ root, ui: modularUiState, threadHtml: () => masterThreadContentHtml() }))
 const masterStreamView = createMasterStreamView({
   root, ui: modularUiState, esc, countOf,
   formatStreaming: (text, options) => formatCompanionMarkdown.streaming(text, options),
   replaceThread: () => replaceMasterThreadHtml(),
+  afterPatch: block => afterMasterStreamPatch(block),
 })
 
 function captureUi() {

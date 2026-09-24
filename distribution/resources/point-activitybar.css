@@ -115,7 +115,7 @@
 .monaco-workbench .part.activitybar.point-activitybar .composite-bar .badge .badge-content {
 	background: var(--point-wound, #ee6873);
 	border-radius: 2px;
-	color: var(--point-void, #171717);
+	color: var(--point-void, #0A0A0A);
 	font: 700 9px/1 "JetBrains Mono", Consolas, monospace;
 	min-width: 14px;
 	padding: 2px 4px;
@@ -123,7 +123,7 @@
 	top: 1px;
 }
 .monaco-workbench .part.activitybar.point-activitybar > .content > *:not(.composite-bar):not(.point-panel-strip):not(.menubar) {
-	border-top: 1px solid var(--point-border, #2b2b2b);
+	border-top: 1px solid var(--point-border, #222222);
 	padding-top: 4px;
 }
 .monaco-workbench .part.activitybar.point-activitybar > .content > *:not(.composite-bar):not(.point-panel-strip):not(.menubar) .action-item {
@@ -134,8 +134,8 @@
 	width: 36px;
 }
 .monaco-workbench .part.activitybar.point-activitybar > .content > *:not(.composite-bar):not(.point-panel-strip):not(.menubar) .action-item:hover {
-	background: var(--point-raised, #202020);
-	border-color: var(--point-border, #2b2b2b);
+	background: var(--point-raised, #151515);
+	border-color: var(--point-border, #222222);
 }
 .monaco-workbench .part.activitybar.point-activitybar > .content > *:not(.composite-bar):not(.point-panel-strip):not(.menubar) .action-label {
 	height: 36px !important;

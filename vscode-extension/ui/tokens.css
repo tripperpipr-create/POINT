@@ -21,11 +21,11 @@
 
   /* --- Палитра оболочки: мост к теме VS Code -------------------------------
      Фолбэк — графит Point Dark. Под чужой темой значения приезжают из неё. */
-  --ui-void: var(--vscode-editor-background, #171717);
-  --ui-panel: var(--vscode-sideBar-background, #191919);
-  --ui-raised: var(--vscode-list-hoverBackground, #202020);
-  --ui-selected: var(--vscode-list-activeSelectionBackground, #262626);
-  --ui-border: var(--vscode-widget-border, #2b2b2b);
+  --ui-void: var(--vscode-editor-background, #0A0A0A);
+  --ui-panel: var(--vscode-sideBar-background, #0E0E0E);
+  --ui-raised: var(--vscode-list-hoverBackground, #151515);
+  --ui-selected: var(--vscode-list-activeSelectionBackground, #1C1C1C);
+  --ui-border: var(--vscode-widget-border, #222222);
   --ui-border-soft: color-mix(in srgb, var(--ui-border) 55%, transparent);
   --ui-text: var(--vscode-foreground, #e9e9e9);
   --ui-muted: var(--vscode-descriptionForeground, #989898);
@@ -40,12 +40,12 @@
      тему пользователя, а не её подмену. */
   --ui-accent: var(--vscode-button-background, #FF8A4C);
   --ui-accent-hover: var(--vscode-button-hoverBackground, #FF7626);
-  --ui-accent-fg: var(--vscode-button-foreground, #171717);
+  --ui-accent-fg: var(--vscode-button-foreground, #0A0A0A);
   --ui-link: var(--vscode-textLink-foreground, #FF9A63);
   --ui-focus: var(--vscode-focusBorder, #FF8A4C);
-  --ui-input: var(--vscode-input-background, #1a1a1a);
-  --ui-input-border: var(--vscode-input-border, #2b2b2b);
-  --ui-code: var(--vscode-textCodeBlock-background, #202020);
+  --ui-input: var(--vscode-input-background, #111111);
+  --ui-input-border: var(--vscode-input-border, #222222);
+  --ui-code: var(--vscode-textCodeBlock-background, #151515);
   --ui-success: var(--vscode-testing-iconPassed, #5BCB8A);
   --ui-error: var(--vscode-errorForeground, #EE6873);
   --ui-warning: var(--vscode-editorWarning-foreground, #E0A24A);

@@ -34,7 +34,7 @@
 .point-native-ready { display: flex; align-items: center; }
 .point-native-header {
 	justify-content: space-between;
-	border-bottom: 1px solid var(--point-border, #2b2b2b);
+	border-bottom: 1px solid var(--point-border, #222222);
 	gap: 12px;
 	min-height: 40px;
 	min-width: 0;
@@ -62,8 +62,8 @@
 	width: 30px;
 }
 .point-native-ready {
-	background: var(--point-panel, #191919);
-	border: 1px solid var(--point-border, #2b2b2b);
+	background: var(--point-panel, #0E0E0E);
+	border: 1px solid var(--point-border, #222222);
 	border-radius: 2px;
 	color: var(--point-vital, #5bcb8a);
 	flex-shrink: 0;
@@ -91,8 +91,8 @@
 .point-native-project,
 .point-native-basics,
 .point-native-recent {
-	background: var(--point-panel, #191919);
-	border: 1px solid var(--point-border, #2b2b2b);
+	background: var(--point-panel, #0E0E0E);
+	border: 1px solid var(--point-border, #222222);
 	border-radius: 2px;
 	box-shadow: none;
 	box-sizing: border-box;
@@ -143,8 +143,8 @@
 .point-native-actions { flex-wrap: wrap; gap: 8px; }
 .point-native-button,
 .point-native-small-button {
-	background: var(--point-raised, #202020);
-	border: 1px solid var(--point-border, #2b2b2b);
+	background: var(--point-raised, #151515);
+	border: 1px solid var(--point-border, #222222);
 	border-radius: 2px;
 	color: var(--point-primary, #e9e9e9);
 	cursor: pointer;
@@ -179,13 +179,13 @@
 .monaco-workbench .part.editor > .content .gettingStartedContainer.point-native-home .point-native-button.primary {
 	background: var(--point-ember, #ff8a4c);
 	border-color: var(--point-ember, #ff8a4c);
-	color: var(--point-void, #171717);
+	color: var(--point-void, #0A0A0A);
 	font-weight: 700;
 }
 .point-native-button:hover,
 .point-native-small-button:hover {
-	background-color: var(--point-selected, #262626);
-	border-color: var(--point-border-soft, #424242);
+	background-color: var(--point-selected, #1C1C1C);
+	border-color: var(--point-border-soft, #333333);
 	color: var(--point-primary, #e9e9e9);
 }
 /* Наведение тем же префиксом: иначе оно осталось бы единственным местом, где
@@ -195,8 +195,8 @@
 	border-color: var(--point-ember-hover, #FF9A63);
 }
 .point-native-button kbd {
-	background: var(--point-void, #171717);
-	border: 1px solid var(--point-border, #2b2b2b);
+	background: var(--point-void, #0A0A0A);
+	border: 1px solid var(--point-border, #222222);
 	border-radius: 2px;
 	color: var(--point-muted, #989898);
 	flex-shrink: 0;
@@ -226,8 +226,8 @@
 .point-native-project p { min-height: 0; overflow-wrap: anywhere; }
 .point-native-project-actions { flex-wrap: wrap; gap: 8px; margin-top: auto; }
 .point-native-project-hint {
-	background: var(--point-void, #171717);
-	border: 1px solid var(--point-border, #2b2b2b);
+	background: var(--point-void, #0A0A0A);
+	border: 1px solid var(--point-border, #222222);
 	border-radius: 2px;
 	color: var(--point-muted, #989898);
 	gap: 10px;
@@ -270,8 +270,8 @@
 	grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 .point-native-recent .index-list li {
-	background: var(--point-void, #171717);
-	border: 1px solid var(--point-border, #2b2b2b);
+	background: var(--point-void, #0A0A0A);
+	border: 1px solid var(--point-border, #222222);
 	border-radius: 2px;
 	box-sizing: border-box;
 	color: var(--point-primary, #e9e9e9);
@@ -282,7 +282,7 @@
 	transition: background-color 90ms ease, border-color 90ms ease;
 }
 .point-native-recent .index-list li:hover {
-	background: var(--point-raised, #202020);
+	background: var(--point-raised, #151515);
 	border-color: var(--point-ember, #ff8a4c);
 }
 .point-native-recent .index-list li:focus-visible {
@@ -316,8 +316,8 @@
 	gap: 8px;
 }
 .point-native-keys kbd {
-	background: var(--point-void, #171717);
-	border: 1px solid var(--point-border, #2b2b2b);
+	background: var(--point-void, #0A0A0A);
+	border: 1px solid var(--point-border, #222222);
 	border-radius: 2px;
 	color: var(--point-primary, #e9e9e9);
 	font: 650 10px/1 "JetBrains Mono", Consolas, monospace;
@@ -340,8 +340,8 @@
 }
 .point-native-system-card {
 	align-items: flex-start;
-	background: var(--point-panel, #191919);
-	border: 1px solid var(--point-border, #2b2b2b);
+	background: var(--point-panel, #0E0E0E);
+	border: 1px solid var(--point-border, #222222);
 	border-radius: 2px;
 	color: inherit;
 	cursor: pointer;
@@ -359,8 +359,8 @@
 .point-native-system-card.guild { border-top: 2px solid var(--point-mana, #46d8e8); }
 .point-native-system-card.search { border-top: 2px solid var(--point-ember, #ff8a4c); }
 .point-native-system-card:hover:not(:disabled) {
-	background: var(--point-raised, #202020);
-	border-color: var(--point-border-soft, #424242);
+	background: var(--point-raised, #151515);
+	border-color: var(--point-border-soft, #333333);
 }
 .point-native-system-card:disabled { cursor: default; opacity: .48; }
 .point-native-system-card small {
@@ -382,8 +382,8 @@
 }
 .point-native-system-card kbd {
 	align-self: flex-start;
-	background: var(--point-void, #171717);
-	border: 1px solid var(--point-border, #2b2b2b);
+	background: var(--point-void, #0A0A0A);
+	border: 1px solid var(--point-border, #222222);
 	border-radius: 2px;
 	color: var(--point-muted, #989898);
 	font: 650 10px/1 "JetBrains Mono", Consolas, monospace;
@@ -391,8 +391,8 @@
 }
 .point-native-recent .empty-recent {
 	align-items: center;
-	background: var(--point-void, #171717);
-	border: 1px dashed var(--point-border, #2b2b2b);
+	background: var(--point-void, #0A0A0A);
+	border: 1px dashed var(--point-border, #222222);
 	border-radius: 2px;
 	color: var(--point-muted, #989898);
 	display: flex;

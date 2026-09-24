@@ -71,6 +71,7 @@ const checks = [
   'smoke-master-editor-context.cjs',
   'smoke-master-feed.js',
   'smoke-master-feed-rules.mjs',
+  'smoke-chat-markdown.mjs',
   'smoke-master-live-trace.mjs',
   'smoke-master-quest-strip.mjs',
   'smoke-master-inspector.mjs',

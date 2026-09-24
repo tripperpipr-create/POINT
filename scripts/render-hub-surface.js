@@ -1096,6 +1096,24 @@ if (requestedSurface === 'companion' && seedStep === 'busy') {
   } })
   listeners['window:message']({ data: { type: 'companionActionApplied', teamId: 'team-qa', stayInCompanion: true, guildTab: 'teams' } })
 }
+// Разметка ответа в узкой колонке компаньона: тот же разбор, что у Мастера,
+// но колонка в 300 пикселей, и таблица с блоком кода обязаны прокручиваться
+// внутри себя, а не раздвигать док.
+if (pick(COMPANION_LAYOUTS, requestedSurface) && seedStep === 'markdown') {
+  listeners['window:message']({ data: {
+    type: 'companionThreadSync',
+    messages: [
+      { role: 'user', content: 'Как проверить миграцию?' },
+      { role: 'assistant', content: [
+        '### Проверка', '1. Снять дамп', '2. Прогнать:', '   - `go test ./internal/storage/...`', '- [x] Копия', '- [ ] Стенд',
+        '> Без дампа отката нет.', '', '| Таблица | Строк | Комментарий |', '| --- | ---: | --- |', '| users | 12 480 | первой |',
+        '```go', 'if err := migrate(ctx, db); err != nil { return fmt.Errorf("миграция: %w", err) }', '```',
+        'Подробнее — в [документации](https://www.postgresql.org/docs/).',
+      ].join('\n') },
+    ],
+    loading: false,
+  } })
+}
 const css = ['rpg-tokens.css', 'style.css']
   .map(file => fs.readFileSync(path.join(repo, 'vscode-extension', 'media', file), 'utf8'))
   .join('\n')

@@ -5,6 +5,7 @@
 // пользуются `git-actions.js` и `hub-actions.js`.
 import { COMPANION_EXAMPLES, COMPANION_SETUP_STEPS } from './companion-compose.js'
 import { COMPANION_PRESETS } from './companion-studio-views.js'
+import { icon } from './ui-icons.js'
 
 const COMPANION_ACTIONS = new Set([
   'stop-companion-chat', 'companion-scroll-latest', 'copy-companion-message', 'copy-companion-code',
@@ -69,6 +70,20 @@ export function handleCompanionClickAction({
       // IDE называет, откуда скопировано, и чужое имя там врало.
       const master = Boolean(target.closest?.('.hall-dialogue'))
       vscode.postMessage({ type: master ? 'copyMasterText' : 'copyCompanionText', text })
+      // Значок блока кода отвечает галочкой, а не словом: слово раздвинуло бы
+      // шапку и сдвинуло подпись языка.
+      if (target.classList?.contains('companion-code-copy')) {
+        target.innerHTML = icon('check')
+        target.classList.add('is-done')
+        target.setAttribute('aria-label', 'Скопировано')
+        setTimeout(() => {
+          if (!target.isConnected) return
+          target.innerHTML = icon('copy')
+          target.classList.remove('is-done')
+          target.setAttribute('aria-label', 'Копировать код')
+        }, 1400)
+        return true
+      }
       const previous = target.textContent
       target.textContent = 'Скопировано ✓'
       setTimeout(() => { if (target.isConnected) target.textContent = previous }, 1400)

@@ -23,6 +23,13 @@
       "surface": "master"
     },
     {
+      "page": "master-markdown",
+      "surface": "master",
+      "args": [
+        "markdown"
+      ]
+    },
+    {
       "page": "master-origin",
       "surface": "master",
       "args": [
@@ -265,6 +272,20 @@
         [
           560,
           260
+        ]
+      ]
+    },
+    {
+      "page": "companion-sidebar-markdown",
+      "surface": "companion-sidebar",
+      "args": [
+        "markdown"
+      ],
+      "root": ".app",
+      "sizes": [
+        [
+          300,
+          820
         ]
       ]
     },

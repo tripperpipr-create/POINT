@@ -90,8 +90,14 @@
 }
 
 /* Разметка ответа. Текст модели проходит через разбор markdown
-   (companion-markdown.js); блоки кода оформляет 45-hub-overhaul.css вместе с
-   их кнопками и обёрткой — голого `pre` разбор не выдаёт. */
+   (companion-markdown.js); блоки кода, таблицы и задачи оформляет
+   45-hub-overhaul.css — их классы `companion-*` принадлежат тому слою, и
+   занять их здесь сборка не даст. Здесь — всё, что узнаётся по тегу.
+
+   Заголовки ответа разбор опускает на два уровня (# → h3): лента стоит под
+   заголовками страницы. Кегль растёт только у первого уровня — дальше
+   иерархию держит вес и тон, как у редактора: в плотной ленте три размера
+   заголовка читаются как три разных документа. */
 .hall-dialogue .hall-msg .body p { margin-block: var(--s-4); }
 .hall-dialogue .hall-msg .body ul,
 .hall-dialogue .hall-msg .body ol {
@@ -100,17 +106,32 @@
 }
 .hall-dialogue .hall-msg .body li { margin-block: var(--s-2); }
 .hall-dialogue .hall-msg .body li::marker { color: var(--hub-muted); }
-.hall-dialogue .hall-msg .body h1,
-.hall-dialogue .hall-msg .body h2,
+.hall-dialogue .hall-msg .body li > ul,
+.hall-dialogue .hall-msg .body li > ol { margin-block: var(--s-2) 0; }
+.hall-dialogue .hall-msg .body li > p { margin-block: var(--s-2); }
 .hall-dialogue .hall-msg .body h3,
-.hall-dialogue .hall-msg .body h4 {
+.hall-dialogue .hall-msg .body h4,
+.hall-dialogue .hall-msg .body h5,
+.hall-dialogue .hall-msg .body h6 {
   margin: var(--s-6) 0 var(--s-3);
   font: var(--fw-semibold) var(--t-base) / 1.4 var(--font-ui);
   color: var(--hub-text);
 }
-.hall-dialogue .hall-msg .body h1 { font-size: var(--t-lead); }
-.hall-dialogue .hall-msg .body a { color: var(--ember-light); }
+.hall-dialogue .hall-msg .body h3 { font-size: var(--t-lead); }
+.hall-dialogue .hall-msg .body h5 { color: var(--hub-text-2); }
+.hall-dialogue .hall-msg .body h6 { color: var(--hub-muted); }
+.hall-dialogue .hall-msg .body h3 + *,
+.hall-dialogue .hall-msg .body h4 + *,
+.hall-dialogue .hall-msg .body h5 + *,
+.hall-dialogue .hall-msg .body h6 + * { margin-top: 0; }
+.hall-dialogue .hall-msg .body a {
+  color: var(--vscode-textLink-foreground, var(--ember-light));
+  text-decoration: none;
+}
+.hall-dialogue .hall-msg .body a:hover,
+.hall-dialogue .hall-msg .body a:focus-visible { text-decoration: underline; }
 .hall-dialogue .hall-msg .body strong { font-weight: var(--fw-semibold); }
+.hall-dialogue .hall-msg .body del { color: var(--hub-muted); }
 .hall-dialogue .hall-msg .body :not(pre) > code {
   padding: 0 var(--s-2);
   border-radius: var(--r-1);
@@ -118,25 +139,35 @@
   font: var(--fw-normal) var(--t-body) / 1.5 var(--font-mono);
 }
 .hall-dialogue .hall-msg .body table {
-  display: block;
-  max-width: 100%;
-  overflow-x: auto;
+  width: max-content;
+  min-width: 100%;
   border-collapse: collapse;
   font-size: var(--t-body);
+  font-variant-numeric: tabular-nums;
 }
 .hall-dialogue .hall-msg .body th,
 .hall-dialogue .hall-msg .body td {
-  padding: var(--s-2) var(--s-4);
-  border: 1px solid var(--hub-border);
+  padding: var(--s-3) var(--s-4);
+  border-bottom: 1px solid var(--hub-border-soft);
   text-align: left;
+  vertical-align: top;
 }
-.hall-dialogue .hall-msg .body th { font-weight: var(--fw-semibold); background: var(--hub-raised); }
+.hall-dialogue .hall-msg .body th {
+  border-bottom-color: var(--hub-border);
+  font-weight: var(--fw-semibold);
+  color: var(--hub-text);
+  white-space: nowrap;
+}
+.hall-dialogue .hall-msg .body tr:last-child > td { border-bottom: 0; }
+.hall-dialogue .hall-msg .body [data-align="right"] { text-align: right; }
+.hall-dialogue .hall-msg .body [data-align="center"] { text-align: center; }
 .hall-dialogue .hall-msg .body blockquote {
   margin: var(--s-4) 0;
   padding-left: var(--s-5);
   border-left: 2px solid var(--hub-border-loud);
   color: var(--hub-muted);
 }
+.hall-dialogue .hall-msg .body blockquote > p { margin-block: var(--s-2); }
 .hall-dialogue .hall-msg .body hr {
   margin: var(--s-6) 0;
   border: 0;

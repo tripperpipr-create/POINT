@@ -95,16 +95,39 @@
   animation: none;
 }
 
+/* Кнопки разговора — кнопки редактора: обычный регистр, малое скругление,
+   тонкая кромка у второстепенных и цвет главной кнопки темы у главной.
+   Моноширинный капс с разрядкой — регистр Чертога; в разговоре он звучал
+   громче любой реплики. */
 .hall-dialogue .hall-btn,
 .hall-dialogue .hall-btn.is-sm,
 .hall-dialogue .hall-btn.is-primary {
   font: var(--fw-medium) var(--t-small) / 1.3 var(--font-ui);
   letter-spacing: normal;
   text-transform: none;
-  border-radius: 2px;
-  min-height: 28px;
-  padding: var(--s-2) var(--s-4);
+  border: 1px solid var(--hub-border-strong);
+  border-radius: var(--r-1);
+  background: transparent;
+  color: var(--hub-text);
+  min-height: var(--control-md);
+  padding: var(--s-2) var(--s-5);
 }
+.hall-dialogue .hall-btn:hover,
+.hall-dialogue .hall-btn:focus-visible {
+  border-color: var(--hub-border-loud);
+  background: var(--hub-selected);
+}
+.hall-dialogue .hall-btn.is-primary {
+  border-color: transparent;
+  background: var(--ember);
+  color: var(--ember-fg, var(--hub-void));
+}
+.hall-dialogue .hall-btn.is-primary:hover {
+  border-color: transparent;
+  background: var(--ember-hover);
+}
+.hall-dialogue .hall-btn.is-danger { color: var(--wound); }
+.hall-dialogue .hall-btn:disabled { opacity: var(--disabled-opacity); cursor: default; }
 .hall-dialogue .hall-btn.is-primary {
   margin-left: auto;
 }
@@ -322,15 +345,9 @@
   margin-top: var(--s-3);
 }
 /* —— Кого нанять ——
-   Карточка найма — развилка, и коробку она заслуживает. Но приезжала она из
-   Чертога целиком: имя чертежа мононабором с разрядкой, умения жетонами в
-   рамках по десять пикселей, две одинаково громкие кнопки под ними. И вставала
-   она по центру колонки, потому что общее правило ленты центрирует всё, что
-   уже колонки: карточка съезжала вправо от текста, к которому относится. */
-.hall-dialogue .hall-thread > .hall-hire {
-  max-width: 560px;
-  margin-inline: 0 auto;
-}
+   Карточка найма — развилка, и коробку она заслуживает. Ширина у неё та же,
+   что у остальных карточек ленты: суженная до 560 пикселей, она одна из всех
+   стояла короче колонки и читалась отдельной вещью. */
 .hall-dialogue .hall-hire-who b {
   font: var(--fw-medium) var(--t-base) / 1.35 var(--font-ui);
   letter-spacing: normal;

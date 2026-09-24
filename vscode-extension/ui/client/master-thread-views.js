@@ -14,6 +14,7 @@ import { masterQuestStripHtml, masterQuestStripModel } from './master-quest-stri
 import { masterHiringCardsHtml } from './master-hiring-card.js'
 import { masterAgentCardFromAction, masterAgentCardHtml, masterAgentCardsFor, masterAgentCardsHtml } from './master-agent-card.js'
 import { masterCardMoreAttrs } from './master-card-open.js'
+import { monogram } from './master-agent-sheet.js'
 
 // Диалог с Мастером: лента, реплика и всё, что к ней приложено.
 //
@@ -701,15 +702,17 @@ export function createMasterThreadViews(dependencies) {
     // Имя и роль обрезаются по колонке — целиком они остаются в подсказке, иначе
     // обрезанное не восстановить ничем, кроме похода в карточку агента.
     const name = String(member.name || member.agentId || '')
-    return `<div class="hall-party-row">
-      <div class="hall-portrait is-sm"></div>
-      <div class="hall-party-who">
+    // Строка ведёт к листу персонажа в правой панели: модель, умения, послужной
+    // список. Прежде за подробностями надо было уходить в Гильдию.
+    return `<button type="button" class="hall-party-row" data-action="master-inspector-agent" data-id="${esc(member.agentId || '')}" title="Открыть лист персонажа">
+      <span class="hall-insp-mark" aria-hidden="true">${esc(monogram(name) || '?')}</span>
+      <span class="hall-party-who">
         <b title="${esc(name)}">${esc(name)}</b>
         ${member.role ? `<span title="${esc(member.role)}">${esc(member.role)}</span>` : ''}
-      </div>
-      <div class="hall-party-why${blocking.length ? ' is-blocking' : ''}">${why}</div>
+      </span>
+      <span class="hall-party-why${blocking.length ? ' is-blocking' : ''}">${why}</span>
       ${score}
-    </div>`
+    </button>`
   }
 
   function masterPartyHtml(party) {

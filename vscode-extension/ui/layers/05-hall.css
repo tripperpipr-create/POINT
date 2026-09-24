@@ -312,49 +312,67 @@
    но спорить человек будет с совпавшими терминами, а не с числом. */
 .hall-party { display: flex; flex-direction: column; gap: var(--s-3); }
 .hall-party-row {
+  /* Две строки при любой ширине: кто и насколько подходит — сверху, почему —
+     под именем. В четыре колонки причина сжималась до столбца из слов и в
+     панели справа наезжала на оценку. */
   display: grid;
-  grid-template-columns: auto minmax(0, 148px) minmax(0, 1fr) auto;
-  gap: var(--s-4);
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: "mark who score" "mark why why";
+  gap: var(--s-1) var(--s-4);
   align-items: center;
+  width: 100%;
   padding: var(--s-3) var(--s-4);
-  border: 1px solid var(--hub-border);
-  background: var(--hub-panel);
+  border: 1px solid var(--hub-border-soft);
+  border-radius: var(--r-1);
+  background: transparent;
+  color: var(--hub-text);
+  text-align: left;
+  cursor: pointer;
 }
-.hall-party-who { display: flex; flex-direction: column; gap: var(--s-1); min-width: 0; }
+/* Строка — кнопка к листу персонажа в правой панели. */
+.hall-party-row:hover,
+.hall-party-row:focus-visible { background: var(--hub-selected); border-color: var(--hub-border); }
+.hall-party-row > .hall-insp-mark { grid-area: mark; align-self: start; }
+.hall-party-who { grid-area: who; display: flex; align-items: baseline; gap: var(--s-3); min-width: 0; }
 /* Имя обрезается так же, как роль под ним. Роли обрезку задали, имени — нет, а
    задаёт его человек в конструкторе и длину ему там не ограничивают: имя без
    пробелов печаталось поверх причины неготовности, и обе строки становились
    нечитаемыми, а лента разговора уезжала вбок. Полное имя остаётся в подсказке. */
 .hall-party-who b {
+  flex: 0 0 auto;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font: var(--fw-semibold) var(--t-small) / 1 var(--font-ui);
+  font: var(--fw-semibold) var(--t-body) / 1.3 var(--font-ui);
 }
 .hall-party-who span {
-  font: var(--fw-normal) var(--t-micro) / 1.3 var(--font-mono);
-  color: var(--hub-faint);
+  min-width: 0;
+  font: var(--fw-normal) var(--t-small) / 1.3 var(--font-ui);
+  color: var(--hub-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .hall-party-why {
+  grid-area: why;
   min-width: 0;
-  font: var(--fw-normal) var(--t-micro) / 1.4 var(--font-mono);
-  color: var(--hub-muted-2);
+  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui);
+  color: var(--hub-muted);
 }
-/* Непригодность агента набирается акцентом: это не деталь подбора, а причина,
-   по которой квест не состоится. */
-.hall-party-why.is-blocking { color: var(--ember-light); }
+/* Непригодность агента набирается цветом ошибки: это не деталь подбора, а
+   причина, по которой квест не состоится. */
+.hall-party-why.is-blocking { color: var(--wound); }
 /* Оценка соответствия задаче — с подписью и шкалой.
    Раньше это было голое число у правого края, а смысл жил только в подсказке
    по наведению: «31» без единицы и без верхней границы. */
 .hall-party-score {
+  grid-area: score;
   display: inline-flex;
   align-items: baseline;
   gap: var(--s-2);
-  font: var(--fw-semibold) var(--t-micro) / 1 var(--font-mono);
-  color: var(--hub-faint-2);
+  font: var(--fw-semibold) var(--t-micro) / 1 var(--font-ui);
+  color: var(--hub-muted);
   white-space: nowrap;
 }
 /* Размер задаётся явно: браузер уменьшает <small> относительно родителя, и
@@ -1264,7 +1282,7 @@ button.hall-panel-row:focus-visible { outline: 1px solid var(--ember); outline-o
 .hall-hire-who b {
   min-width: 0;
   overflow-wrap: anywhere;
-  font: var(--fw-semibold) var(--t-body) / 1.2 var(--font-mono);
+  font: var(--fw-semibold) var(--t-body) / 1.2 var(--font-ui);
   color: var(--hub-text-2);
 }
 .hall-hire-who span { color: var(--hub-faint-2); font-size: var(--t-small); }
@@ -1273,6 +1291,7 @@ button.hall-panel-row:focus-visible { outline: 1px solid var(--ember); outline-o
 .hall-hire-tools span {
   padding: var(--s-1) var(--s-3);
   border: 1px solid var(--hub-border);
+  border-radius: var(--r-1);
   color: var(--hub-faint-2);
   font: var(--fw-medium) var(--t-micro) / 1.4 var(--font-mono);
 }
@@ -1287,10 +1306,8 @@ button.hall-panel-row:focus-visible { outline: 1px solid var(--ember); outline-o
 .hall-hire-selected > b,
 .hall-hire-considered > summary {
   display: block;
-  color: var(--hub-faint-2);
-  font: var(--fw-medium) var(--t-micro) / 1.4 var(--font-ui);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  color: var(--hub-muted);
+  font: var(--fw-medium) var(--t-small) / 1.4 var(--font-ui);
 }
 .hall-hire-selected { margin-top: var(--s-4); }
 .hall-hire-candidate { padding: var(--s-4) 0; border-top: 1px solid var(--hub-border); }
@@ -1474,7 +1491,6 @@ button.hall-panel-row:focus-visible { outline: 1px solid var(--ember); outline-o
 .hall-dialogue .hall-objectives,
 .hall-dialogue .hall-dod ul { font: var(--fw-normal) var(--t-base) / var(--lh-loose) var(--font-ui); }
 .hall-dialogue .hall-panel .hall-fineprint { font: var(--fw-normal) var(--t-small) / var(--lh-base) var(--font-ui); }
-.hall-dialogue .hall-party-row { border-radius: 4px; }
 .hall-dialogue .hall-panel .hall-actions .hall-btn { border-radius: 4px; font-family: var(--font-ui); letter-spacing: normal; }
 /* Одна вертикаль текста на всю ленту.
    Реплика Мастера начиналась у самого края колонки, текст в пузыре — на 12px
@@ -1509,9 +1525,6 @@ button.hall-panel-row:focus-visible { outline: 1px solid var(--ember); outline-o
 .hall-dialogue .hall-compose { width: calc(100% - 16px); margin-bottom: var(--s-4); padding: var(--s-4); }
   .hall-dialogue .master-starters > div { grid-template-columns: minmax(0, 1fr); }
   .hall-dialogue .hall-compose-hint { flex: 1 1 100%; }
-  .hall-dialogue .hall-party-row { grid-template-columns: auto minmax(0, 1fr); gap: var(--s-3) var(--s-4); }
-  .hall-dialogue .hall-party-why,
-  .hall-dialogue .hall-party-score { grid-column: 2; justify-self: start; }
 }
 
 /* Conversation controls stay outside the scrolling message log. */

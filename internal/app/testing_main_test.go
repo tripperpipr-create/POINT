@@ -27,6 +27,11 @@ func appTestDialGuard(ctx context.Context, network, address string) (net.Conn, e
 }
 
 func TestMain(m *testing.M) {
+	// Поддельный MCP-сервер — этот же тестовый бинарь (mcp_servers_test.go).
+	if mode := os.Getenv("POINT_FAKE_MCP"); mode != "" {
+		runFakeMCPServer(mode)
+		os.Exit(0)
+	}
 	baseTransport := http.DefaultTransport
 	guardedTransport := baseTransport.(*http.Transport).Clone()
 	guardedTransport.DialContext = appTestDialGuard

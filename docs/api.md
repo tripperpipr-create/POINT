@@ -217,6 +217,16 @@ is checked against every `HandleFunc` registration by `node scripts/check-docs.m
 | `POST` | `/api/db-connections/{id}/query` | Run a bounded query; write/DDL requires an explicit decision |
 | `POST` | `/api/db-connections/{id}/schema` | Read bounded table/column metadata |
 | `POST` | `/api/db-connections/unlock` | Supply a secret for the current in-memory database session |
+| `GET` | `/api/mcp/servers` | List the owner's MCP servers with tool snapshots, trust state, runtime status and problem/fix |
+| `POST` | `/api/mcp/servers` | Create/update an MCP server; secret values are accepted by name, kept in core memory only, never persisted |
+| `DELETE` | `/api/mcp/servers/{id}` | Stop and delete an MCP server, its tool snapshot and its in-memory secrets |
+| `POST` | `/api/mcp/servers/{id}/trust` | Owner trusts a stdio server's exact launch configuration; the digest must equal the one shown |
+| `POST` | `/api/mcp/servers/{id}/probe` | Restart the server, read `tools/list` and reconcile the snapshot (new tools off, changed tools off) |
+| `POST` | `/api/mcp/servers/{id}/stop` | Stop the server process; the next use starts it again |
+| `POST` | `/api/mcp/servers/{id}/tools` | Enable/disable one tool and set its risk; enabling approves the current tool digest |
+| `GET` | `/api/mcp/servers/{id}/log` | Redacted tail of the server's stderr and protocol log |
+| `POST` | `/api/mcp/import/preview` | Parse an `mcp.json` (Claude/Cursor `mcpServers` or VS Code `servers`) into candidates without saving |
+| `POST` | `/api/mcp/secrets/unlock` | Supply MCP secret values (`point.mcp.*` refs only) for the current in-memory session |
 | `GET` | `/api/events` | SSE stream (`workbench` events) |
 
 An approved `WorkOrder` keeps its reviewed fields immutable and exposes changing execution state only through the derived `runtime` object (`questId`, `status`, `message`, `flowId`, `flowRunId`, `updatedAt`). `runtime` is excluded from the approval digest. Initial approval reuses the transaction-created quest, opens the exact approved workspace, builds a project Flow and moves it to `running`; a missing runtime credential or interactive CLI session yields `awaiting_user`, while preflight failure yields `blocked` with a redacted reason. A v2 Flow terminal callback cannot use the legacy completion path: it persists an `EvidenceBundle` and the v2 evidence gate alone may produce `completed` or `needs_review`. The approved `completion` profile carries a command and expected exit code per check; after automatic delivery each command runs against the delivered revision, and the gate requires a matching executed record for every entry. A conflicting external change to the workspace rolls the transfer back whole and yields `needs_review`; a receipt may claim running services only when the approved service check actually started them.
@@ -363,5 +373,13 @@ authorized Master interaction; a deferred job never launches a real quest.
 CLI providers (Claude Code, Codex, Cursor CLI) were removed from the Companion
 and run product path. Models use HTTP API providers only (Ollama,
 OpenAI-compatible, Anthropic, Azure OpenAI) and receive tools in the request
-body. MCP for an external CLI executor is not a Companion path and is not
-documented as a supported product integration.
+body. Point's own MCP server (`/mcp`) for an external CLI executor is not a
+Companion path and is not documented as a supported product integration.
+
+The opposite direction is supported: the owner's MCP servers under
+`/api/mcp/*`, where Point is the MCP client (`internal/mcpclient`). A stdio
+server runs on the owner's machine outside the sandbox and starts only after
+the owner trusts its exact launch digest. A remote server is reached over
+Streamable HTTP with https, no redirects and a pinned address; a private or
+VPN address is allowed only for the host the owner granted. See
+[integrations-gitlab.md](integrations-gitlab.md).

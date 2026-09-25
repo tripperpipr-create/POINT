@@ -91,6 +91,7 @@ type App struct {
 	cache                 cache.Cache
 	workspaceBoundary     string
 	dbSecrets             *dbconn.MemorySecrets
+	mcpRuntime            mcpRuntime // MCP-серверы владельца: секреты и надзор (mcp_runtime.go)
 	sandboxBackend        sandbox.Backend
 	sourceFetcher         SourceFetcher
 	gitRunner             GitRunner
@@ -422,6 +423,7 @@ func (a *App) Shutdown(ctx context.Context) {
 	}
 	a.stopMasterTurns()
 	a.stopWorkOrderLaunches()
+	a.stopMCPServers()
 	a.stopMasterWatch()
 	a.externalMu.Lock()
 	for _, cancel := range a.externalCancels {

@@ -122,5 +122,6 @@ func hubMigrations() []migration {
 		{67, "master_turn_event_detail_v1", migrationMasterTurnEventDetailV1},
 		{68, "project_agent_lifecycle_v1", migrationProjectAgentLifecycleV1},
 		{69, "master_skills_learning_v1", migrationMasterSkillsLearningV1},
+		{70, "mcp_integrations_v1", migrationMCPIntegrationsV1},
 	}
 }

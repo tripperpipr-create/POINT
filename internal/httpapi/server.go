@@ -251,6 +251,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/servers/{id}/read", s.readServerRemote)
 	s.mux.HandleFunc("GET /api/servers/{id}/terminal", s.serverTerminal)
 	s.registerDBRoutes()
+	s.registerMCPRoutes()
 	s.registerConnectionRoutes()
 	s.mux.HandleFunc("GET /api/events", s.events)
 }

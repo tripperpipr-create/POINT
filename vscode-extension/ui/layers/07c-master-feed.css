@@ -19,6 +19,7 @@
   --hall-read-col: 780px;
   --hall-who-col: 0px;
   --hall-msg-indent: 0px;
+  --hall-mine-fill: color-mix(in srgb, var(--hub-text) 7%, transparent);
 }
 
 /* —— Каркас ленты —— */
@@ -64,6 +65,26 @@
   flex-direction: column;
   gap: var(--s-3);
 }
+/* Вопрос и ответ на него — одна пара, и зазор внутри пары меньше, чем между
+   парами. Было наоборот: под своей репликой строка действий (копировать,
+   изменить, время) держала 24 пикселя, видимые только под указателем, и от
+   вопроса до ответа выходило 56 пикселей против 46 от ответа до следующего
+   вопроса — ответ читался ближе к чужому вопросу, чем к своему.
+   Теперь строка действий стоит в зазоре под полосой, а не в потоке: зазор
+   равен её высоте (промежуток ленты плюс поле хода), и она не наезжает на
+   ответ ни под указателем, ни на сенсорном экране, где видна всегда. */
+.hall-dialogue .hall-turn.is-user-turn {
+  position: relative;
+  margin-bottom: calc(var(--control-sm) - var(--s-6));
+}
+.hall-dialogue .is-user-turn > .hall-turn-foot {
+  position: absolute;
+  top: 100%;
+  right: 0;
+}
+/* Сводка хода и строки упавших обращений — над ответом, но не вплотную к
+   нему: при шести пикселях строка ошибки читалась первой строкой ответа. */
+.hall-dialogue .hall-trail + .hall-msg { margin-top: var(--s-2); }
 .hall-dialogue .hall-msg { display: block; }
 .hall-dialogue .hall-msg .body {
   min-width: 0;
@@ -75,14 +96,18 @@
 .hall-dialogue .hall-msg .body > :first-child { margin-top: 0; }
 .hall-dialogue .hall-msg .body > :last-child { margin-bottom: 0; }
 
-/* Своя реплика — плашка во всю колонку; ответ — текст без рамки. Две формы
-   и есть подпись: кто говорит, видно без чтения имени. */
+/* Своя реплика — полоса заливки во всю колонку; ответ — текст без рамки. Две
+   формы и есть подпись: кто говорит, видно без чтения имени.
+   Кромки у полосы нет (выбор владельца по снимкам, сентябрь 2026): рамка во
+   всю ширину повторяла карточку ввода под лентой, и вопрос читался как ещё
+   одно поле. Без кромки полосу держит заливка, поэтому она на ступень плотнее
+   прежней --hub-raised, на которой тонула в фоне ленты. */
 .hall-dialogue .hall-msg.is-mine .body {
   padding: var(--s-4) var(--s-5);
-  border: 1px solid var(--hub-border-soft);
   border-radius: var(--r-2);
-  background: var(--hub-raised);
+  background: var(--hall-mine-fill);
 }
+.hall-dialogue .hall-msg.is-mine .body :not(pre) > code { background: var(--hub-border-strong); }
 .hall-dialogue .hall-msg.is-pending .body { opacity: .72; }
 .hall-dialogue .hall-msg-waiting .body {
   font-size: var(--t-body);
@@ -320,10 +345,11 @@
   font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui);
   color: var(--hub-muted);
 }
-.hall-dialogue .hall-facts-line > span {
-  padding: var(--s-1) var(--s-3);
-  border: 1px solid var(--hub-border-soft);
-  border-radius: var(--r-1);
+/* Основания — строка через точку, а не ряд жетонов в рамках: рамка делала
+   «агентов в ростере: 2» похожим на отладочный вывод и спорила с кнопками. */
+.hall-dialogue .hall-facts-line > span + span::before {
+  content: '·';
+  margin-right: var(--s-3);
 }
 .hall-dialogue .hall-facts-line .hall-btn,
 .hall-dialogue .hall-facts-line .hall-btn.is-sm {

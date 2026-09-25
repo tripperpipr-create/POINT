@@ -1,4 +1,5 @@
 import { masterMemoryEntryHtml } from './master-memory-ui.js'
+import { icon } from './ui-icons.js'
 // Формы ответа — те же пять, что различает ядро: internal/app/master_sessions.go
 // принимает auto|brief|detailed|plan|questions, и каждая разворачивается в свою
 // инструкцию модели (internal/orchestrator/chat_model.go). Меню знало три, и
@@ -43,14 +44,16 @@ function masterAnswerStyleHtml(sessions,esc){
 // Ряд управления композера: чем занят Мастер и какой моделью отвечает.
 //
 // Модель вернулась сюда из шапки: у эталона её выбирают там же, где пишут, и
-// два места для одного имени — это два места, куда за ним идти. Чип режима
-// залит, модель набрана плоским текстом: громкость в ряду одна.
+// два места для одного имени — это два места, куда за ним идти. Ряд тихий
+// целиком: у каждого элемента значок и слово, заливка — только под указателем.
 export function masterComposerHtml(sessions,model,esc,sending,modelChip){
  if(!sessions)return ''
- // Режим работы: отметка считается от ступени, а не от сырого поля.
- const works=[['discuss','Обсудить'],['plan','Спланировать'],['execute','Выполнить'],['agent','Агент']]
- const workId=works.find(v=>v[0]===sessions.workMode)?.[0] || 'discuss'
- const workLabel=works.find(v=>v[0]===workId)[1]
+ // Режим работы: отметка считается от ступени, а не от сырого поля. Значок
+ // режима стоит и в свёрнутом меню, и в строке списка: по нему режим узнаётся
+ // в ряду рядом со скрепкой «Контекста» и точкой модели, не читая слова.
+ const works=[['discuss','Обсудить','chat'],['plan','Спланировать','list'],['execute','Выполнить','play'],['agent','Агент','tool']]
+ const work=works.find(v=>v[0]===sessions.workMode) || works[0]
+ const [workId,workLabel,workIcon]=work
  // Модель этого разговора, если её переопределили: ядро берёт её вместо общей
  // (internal/app/master_turns.go). Общая названа чипом рядом, и повторять её
  // здесь незачем — говорим только о расхождении.
@@ -60,7 +63,7 @@ export function masterComposerHtml(sessions,model,esc,sending,modelChip){
   ? `<button type="button" class="hall-chip hall-model-choice" data-action="master-session-model" data-id="${esc(sessions.active || '')}" title="Этот разговор закреплён за другой моделью" ${sending?'disabled':''}>только здесь: ${esc(sessionModel)}</button>`
   : ''
  return `<div class="hall-composer-controls">
-  <details class="hall-work-menu"><summary>${esc(workLabel)}</summary><div class="hall-work-modes" role="group" aria-label="Режим работы">${works.map(([id,label])=>`<button type="button" class="hall-chip" data-action="master-session-workMode" data-value="${id}" aria-pressed="${workId===id}">${label}</button>`).join('')}</div></details>
+  <details class="hall-work-menu"><summary>${icon(workIcon)}${esc(workLabel)}</summary><div class="hall-work-modes" role="group" aria-label="Режим работы">${works.map(([id,label,glyph])=>`<button type="button" class="hall-chip" data-action="master-session-workMode" data-value="${id}" aria-pressed="${workId===id}">${icon(glyph)}${label}</button>`).join('')}</div></details>
   ${modelChip || ''}
   ${modelChoice}
  </div>`

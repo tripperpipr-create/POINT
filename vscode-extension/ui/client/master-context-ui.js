@@ -105,10 +105,13 @@ export function masterContextHtml(id, esc, sending, budgetChars) {
       && /^[A-Za-z0-9+/=]+$/.test(String(value.content || ''))
     ? `<img class="hall-context-thumb" src="data:${esc(value.mime)};base64,${esc(value.content)}" alt="" aria-hidden="true">`
     : ''
+  // Имя стоит своим узлом: голый текст внутри кнопки-флекса не умеет ни
+  // сжиматься, ни ставить многоточие, и длинное имя срезало вес на полуслове
+  // («4,7» без «КБ»). Полное имя — в подсказке: в чипе его может не хватить.
   const rows = items.map(value => {
     const parts = split(value.name)
     const size = sizeLabel(value)
-    return `<span class="hall-context-file is-${value.kind === 'image' ? 'image' : 'file'}"><button type="button" data-action="master-context-preview" data-session="${esc(key(id))}" data-id="${esc(value.id)}" title="Посмотреть вложение" ${sending ? 'disabled' : ''}>${preview(value)}${parts.dir ? `<em>${esc(parts.dir)}</em>` : ''}${esc(parts.base)}${size ? `<small>${esc(size)}</small>` : ''}</button><button type="button" data-action="master-context-remove" data-session="${esc(key(id))}" data-id="${esc(value.id)}" aria-label="Убрать ${esc(value.name)}" title="Убрать вложение" ${sending ? 'disabled' : ''}>×</button></span>`
+    return `<span class="hall-context-file is-${value.kind === 'image' ? 'image' : 'file'}"><button type="button" data-action="master-context-preview" data-session="${esc(key(id))}" data-id="${esc(value.id)}" title="${esc(value.name)} · посмотреть вложение" ${sending ? 'disabled' : ''}>${preview(value)}${parts.dir ? `<em>${esc(parts.dir)}</em>` : ''}<span>${esc(parts.base)}</span>${size ? `<small>${esc(size)}</small>` : ''}</button><button type="button" data-action="master-context-remove" data-session="${esc(key(id))}" data-id="${esc(value.id)}" aria-label="Убрать ${esc(value.name)}" title="Убрать вложение" ${sending ? 'disabled' : ''}>×</button></span>`
   }).join('')
   // Счётчик появляется, когда запас кончается, и краснеет, когда кончился.
   // До этого он шум — но молчать до самой отправки нельзя: отказ «доступно

@@ -255,10 +255,15 @@ export function createHallOnboardingViews(dependencies) {
   // И это была надпись, а не кнопка. Названная очередь — ровно то место, куда
   // уходят предложения Мастера, но добраться до неё из разговора можно было
   // только через «← ЧЕРТОГ» и рейку.
+  //
+  // Число и слова разнесены по узлам: на узкой шапке слова уходят, а точка с
+  // числом остаются (07-master-quiet.css, контейнер шапки). Полная фраза тогда
+  // живёт в подсказке и в имени кнопки — читалка её не теряет.
   function hallAlarmHtml(waiting) {
     if (!waiting) return ''
-    return `<button type="button" class="hall-alarm" data-action="tab" data-tab="decisions" title="Открыть очередь решений">
-      <i></i><span>${waiting} ${plural(waiting, 'ждёт', 'ждут', 'ждут')} решения</span>
+    const phrase = `${waiting} ${plural(waiting, 'ждёт', 'ждут', 'ждут')} решения`
+    return `<button type="button" class="hall-alarm" data-action="tab" data-tab="decisions" title="${phrase} · открыть очередь решений" aria-label="${phrase}. Открыть очередь решений">
+      <i></i><span>${waiting}<span class="hall-alarm-word"> ${plural(waiting, 'ждёт', 'ждут', 'ждут')} решения</span></span>
     </button>`
   }
   
@@ -268,8 +273,9 @@ export function createHallOnboardingViews(dependencies) {
   // пятна в одной шапке одинаково срочны, то есть одинаково незаметны.
   function hallChangesAlarmHtml(pending) {
     if (!pending) return ''
-    return `<button type="button" class="hall-alarm is-quiet" data-action="tab" data-tab="changesets" title="Открыть наборы изменений">
-      <i></i><span>${countOf(pending, 'набор', 'набора', 'наборов')} без проверки</span>
+    const phrase = `${countOf(pending, 'набор', 'набора', 'наборов')} без проверки`
+    return `<button type="button" class="hall-alarm is-quiet" data-action="tab" data-tab="changesets" title="${phrase} · открыть наборы изменений" aria-label="${phrase}. Открыть наборы изменений">
+      <i></i><span>${pending}<span class="hall-alarm-word"> ${plural(pending, 'набор', 'набора', 'наборов')} без проверки</span></span>
     </button>`
   }
 

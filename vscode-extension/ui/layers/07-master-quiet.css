@@ -39,7 +39,45 @@
 .hall-head-chat .hall-btn.is-sm:focus-visible {
   background: color-mix(in srgb, var(--hub-text) 12%, transparent);
   color: var(--hub-text);
-  outline: none;
+}
+/* Фокус с клавиатуры — кольцом темы, как в ленте и композере
+   (`.hall-dialogue :focus-visible` в 05-hall.css). Шапка стоит вне ленты, и то
+   правило до неё не доходит; а здесь кольцо гасили `outline: none`, и фокус на
+   кнопке шапки нельзя было отличить от наведения — рядом с указателем он
+   терялся совсем. */
+.hall-head-chat :focus-visible {
+  outline: 2px solid var(--vscode-focusBorder, var(--ember));
+  outline-offset: 1px;
+}
+/* Шапка в одну строку при любой ширине панели.
+   На 1024 (панель 804) строка переносилась: вкладка задания и значок панели
+   уезжали на вторую, и шапка вырастала с 36 до 68 пикселей — у того самого
+   разговора, ради которого открыт экран. Место отдают подписи, а не строки:
+   шапка — контейнер, и на узкой ширине метки тревог сжимаются до точки с
+   числом, а «Настройки проекта» — до значка (полные фразы — в подсказке и в
+   имени кнопки). Меряется панель, а не окно: ширина окна о рейке не знает. */
+.hall-main > .hall-head.hall-head-chat {
+  flex-wrap: nowrap;
+  container: hall-chat-head / inline-size;
+}
+.hall-head-chat .hall-chat-settings {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+}
+.hall-head-chat .hall-chat-settings > .hall-icon { display: none; }
+@container hall-chat-head (max-width: 980px) {
+  .hall-head-chat:has(#master-brief-tabs) .hall-alarm-word,
+  .hall-head-chat:has(#master-brief-tabs) .hall-chat-settings > span { display: none; }
+  .hall-head-chat:has(#master-brief-tabs) .hall-chat-settings > .hall-icon { display: block; }
+  .hall-head-chat:has(#master-brief-tabs) .hall-chat-settings { width: var(--control-sm); padding: 0; }
+}
+@container hall-chat-head (max-width: 640px) {
+  .hall-head-chat .hall-alarm-word,
+  .hall-head-chat .hall-chat-settings > span { display: none; }
+  .hall-head-chat .hall-chat-settings > .hall-icon { display: block; }
+  .hall-head-chat .hall-chat-settings { width: var(--control-sm); padding: 0; }
 }
 /* Значковые кнопки шапки: квадрат по росту контрола, значок по центру. */
 .hall-head-chat .hall-head-icon {
@@ -76,7 +114,6 @@
 .hall-head-chat .hall-alarm:hover,
 .hall-head-chat .hall-alarm:focus-visible {
   background: color-mix(in srgb, var(--hub-text) 12%, transparent);
-  outline: none;
 }
 .hall-head-chat .hall-alarm span {
   font: var(--fw-normal) var(--t-small) / 1.3 var(--font-ui);
@@ -641,7 +678,10 @@
      есть в самой панели. */
   white-space: nowrap;
   gap: var(--s-3);
-  max-width: 16rem;
+  /* Предел шире прежних 16rem: на 1280 шапке было куда расти, а название
+     резалось на «Укрепить обработч…». На узком окне вкладка сжимается сама
+     (flex-shrink), многоточие остаётся за длинными целями. */
+  max-width: 26rem;
   min-height: var(--control-sm);
   padding: var(--s-1) var(--s-4);
   border: 0;
@@ -664,26 +704,37 @@
   white-space: nowrap;
 }
 /* Состояние задания — подпись, а не имя: набрана тише. --ui-faint, а не
-   --hub-faint-2: вторая даёт 4.13 при пороге 4.5, поймано аудитом контраста. */
+   --hub-faint-2: вторая даёт 4.13 при пороге 4.5, поймано аудитом контраста.
+   Правила ниже написаны и от шапки: вкладка живёт там, а не в ленте, и
+   селектор от одной `.hall-dialogue` не доставал до неё — у вкладки не было
+   ни наведения, ни отметки фокуса, ни открытого состояния. */
+.hall-head-chat .hall-brief-tab > small,
 .hall-dialogue .hall-brief-tab > small {
   color: var(--ui-faint);
   white-space: nowrap;
 }
 /* У открытой вкладки фон светлее на один шаг заливки, и та же ступень давала
    уже 3.91. Тише остаются только закрытые вкладки. */
+.hall-head-chat .hall-brief-tab.is-on > small,
+.hall-head-chat .hall-brief-tab[aria-selected="true"] > small,
 .hall-dialogue .hall-brief-tab.is-on > small,
 .hall-dialogue .hall-brief-tab[aria-selected="true"] > small {
   color: var(--hub-text-3);
 }
+/* Заливка наведения записана числом по той же причине, что и заливка покоя:
+   `--hall-slot-fill-hover` объявлена на `.hall-dialogue`, в шапке её нет. */
+.hall-head-chat .hall-brief-tab:hover,
+.hall-head-chat .hall-brief-tab:focus-visible,
+.hall-head-chat .hall-brief-tab[aria-selected="true"],
 .hall-dialogue .hall-brief-tab:hover,
 .hall-dialogue .hall-brief-tab:focus-visible,
 .hall-dialogue .hall-brief-tab[aria-selected="true"] {
-  background: var(--hall-slot-fill-hover);
+  background: color-mix(in srgb, var(--hub-text) 12%, transparent);
   color: var(--hub-text);
-  outline: none;
 }
 /* Готовность названа и знаком, и словом: цвет один ничего не сообщает тому,
    кто его не различает. */
+.hall-head-chat .hall-brief-tab.is-ready::before,
 .hall-dialogue .hall-brief-tab.is-ready::before {
   content: "";
   width: 5px;

@@ -475,7 +475,10 @@
   white-space: nowrap;
 }
 .hall-dialogue .hall-context-file > button > em {
-  flex: none;
+  /* Путь уступает место первым: по имени файл узнают, по пути — различают
+     одноимённые. Вчетверо быстрее имени, но не до нуля. */
+  flex: 0 4 auto;
+  min-width: 3ch;
   max-width: 7rem;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -484,6 +487,13 @@
      держит имя файла, которое ярче, а не путь, который темнее. */
   color: var(--hub-muted);
   font-style: normal;
+}
+/* Сжимается имя, а не вес: вес короткий и без него чип теряет смысл. */
+.hall-dialogue .hall-context-file > button > span {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 /* Вес вложения. Имя файла не говорит, сколько в нём: правка на три строки и
    файл на сорок килобайт выглядели одинаково, а предел у хода общий. */
@@ -644,6 +654,15 @@
 }
 .hall-dialogue .hall-compose-actions .hall-compose-send .hall-icon,
 .hall-dialogue .hall-compose-actions .hall-compose-stop .hall-icon { width: 14px; height: 14px; }
+/* Во время хода с пустым полем в ряду одна кнопка — «Остановить». Запертая
+   стрелка очереди стояла рядом вторым серым кругом того же размера, и две
+   одинаковые кнопки, из которых нажимается одна, приходилось различать по
+   значку. Стрелка возвращается с первым набранным символом: класс пустоты
+   формы правит набор (patchMasterComposeForm), без полной отрисовки. Подсказка
+   «Enter — в очередь» остаётся: она и говорит, что поле во время хода открыто. */
+.hall-dialogue .hall-compose.is-empty .hall-compose-actions .hall-compose-send.is-queue {
+  display: none;
+}
 /* Пустому полю отправлять нечего: стрелка тускнеет, но не перекрашивается —
    перекрасить её было бы единственным цветом в карточке. Класс ставит
    masterComposeFormClass — один источник и для отрисовки, и для набора. */
@@ -654,19 +673,26 @@
      4.32 при пороге 4.5 — обе поймал аудит на трёх страницах стенда. */
   color: var(--hub-muted);
 }
-/* Режим — жетон с заливкой, подробность ответа — просто текст: у эталона
-   залито только левое меню, второе стоит голым. Два одинаковых жетона подряд
-   читаются как переключатель из двух положений, а это два разных выбора. */
+/* Ряд управления тихий целиком: «Контекст», режим и модель — значок, слово и
+   стрелка меню без заливки; заливка появляется под указателем и у раскрытого
+   меню. Выбор владельца по снимкам, сентябрь 2026. Прежде режим стоял залитым
+   жетоном «как у эталона», а соседи — голыми, и три элемента одного веса
+   выглядели тремя разными вещами. Залитой в ряду остаётся одна отправка. */
 .hall-dialogue .hall-composer-controls {
   position: relative;
   flex: 1 1 auto;
   min-width: 0;
   gap: var(--s-2);
 }
+.hall-dialogue .hall-composer-controls .hall-work-menu > summary,
 .hall-dialogue .hall-composer-controls .hall-answer-style > summary {
   background: transparent;
+}
+.hall-dialogue .hall-composer-controls .hall-answer-style > summary {
   padding-inline: var(--s-2);
 }
+.hall-dialogue .hall-composer-controls .hall-work-menu > summary .hall-icon,
+.hall-dialogue .hall-work-modes .hall-chip .hall-icon { width: 14px; height: 14px; }
 .hall-dialogue .hall-composer-controls .hall-work-menu > summary,
 .hall-dialogue .hall-composer-controls .hall-answer-style > summary {
   list-style: none;

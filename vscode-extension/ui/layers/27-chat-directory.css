@@ -75,6 +75,8 @@
 }
 
 .hall-chats-world-new {
+  display: inline-grid;
+  place-items: center;
   flex: 0 0 auto;
   width: var(--hit);
   height: var(--hit);
@@ -128,7 +130,12 @@
   font-weight: 400;
 }
 
-.hall-chats-world > button {
+/* Кнопка группы — первая в строке, и селектор говорит об этом явно. Короткий
+   `.hall-chats-world > button` доставал и до соседней «＋ Новый чат»: весом
+   (0,1,1) он перебивал её собственные (0,1,0), растягивал невидимую кнопку до
+   80 пикселей, и клик по правой половине заголовка группы вместо свёртки
+   заводил новый чат. Заодно счётчики чатов вставали каждый на своём месте. */
+.hall-chats-world > button:first-child {
   display: flex;
   align-items: center;
   gap: var(--s-3);
@@ -140,21 +147,22 @@
   padding: 0 var(--s-2);
   border: 0;
   background: transparent;
-  color: var(--hub-muted-2);
-  /* Разрядки нет. Прописные остаются: имя мира в данных записано как имя папки
-     («ai-ide»), и строчными оно читается техническим словом посреди русских
-     названий чатов. Кричала же не сама заглавная буква, а разрядка в .14em —
-     она растягивала метку на всю ширину панели и делала её длиннее любого
-     названия чата под ней. */
-  font-size: var(--t-micro);
+  color: var(--hub-text-3);
+  /* Имя мира — как записано, полужирным (выбор владельца по снимкам, сентябрь
+     2026). Прописные держались доводом, что строчное «ai-ide» читается
+     техническим словом; но весь Хаб прописные уже снял, и в панели они
+     оставались последним осколком Чертога. От названий чатов под ним заголовок
+     группы отличают вес и столбец шевронов, а не регистр. */
+  font-size: var(--t-small);
+  font-weight: var(--fw-semibold);
   letter-spacing: normal;
-  text-transform: uppercase;
+  text-transform: none;
   text-align: left;
   cursor: pointer;
 }
 
-.hall-chats-world > button:hover {
-  color: var(--hub-text-3);
+.hall-chats-world > button:first-child:hover {
+  color: var(--hub-text);
 }
 
 .hall-chats-world span {
@@ -172,13 +180,23 @@
 }
 
 .hall-chats-caret {
+  display: inline-flex;
   flex: 0 0 auto;
   font-style: normal;
   color: var(--hub-faint-3);
 }
+.hall-chats-caret .hall-icon {
+  width: 12px;
+  height: 12px;
+  transition: transform var(--motion-fast) var(--ease);
+}
+.hall-chats-group.is-open .hall-chats-caret .hall-icon { transform: rotate(90deg); }
 
 .hall-chats-add {
+  display: inline-grid;
+  place-items: center;
   flex: 0 0 auto;
+  padding: 0;
   /* Цель указателя, а не значок: 22px замер ловит как недобор при пороге 24.
      Ступень попадания уже есть — ею и меряем. */
   width: var(--hit);
@@ -208,12 +226,16 @@
   margin-block-start: var(--s-1);
 }
 
+/* Подсветка — у строки целиком, а не у кнопки названия: знак удаления стоит
+   в той же строке, и пока заливка кончалась перед ним, выбранный чат выглядел
+   обрезанным на 30 пикселей до края панели. */
 .hall-chat-row {
   display: flex;
   align-items: center;
   gap: var(--s-1);
   min-height: 28px;
   border-inline-start: var(--edge-accent) solid transparent;
+  border-radius: var(--r-1);
 }
 
 .hall-chat-row > button:first-child {
@@ -232,8 +254,10 @@
   cursor: pointer;
 }
 
-.hall-chat-row:hover > button:first-child {
+.hall-chat-row:hover {
   background: var(--hub-raised);
+}
+.hall-chat-row:hover > button:first-child {
   color: var(--hub-text);
 }
 
@@ -243,8 +267,10 @@
   border-inline-start-color: var(--ember);
 }
 
-.hall-chat-row.is-current > button:first-child {
+.hall-chat-row.is-current {
   background: var(--hub-selected);
+}
+.hall-chat-row.is-current > button:first-child {
   color: var(--hub-text);
 }
 
@@ -285,7 +311,10 @@
 /* Знак снятия появляется, когда до строки дотянулись: постоянный крестик у
    каждого чата превращает рельсу в список крестиков, а не разговоров. */
 .hall-chat-drop {
+  display: inline-grid;
+  place-items: center;
   flex: 0 0 auto;
+  padding: 0;
   width: var(--hit);
   height: var(--hit);
   border: 0;
@@ -304,6 +333,9 @@
 .hall-chat-drop:hover {
   color: var(--wound);
 }
+
+.hall-chats-add .hall-icon,
+.hall-chat-drop .hall-icon { width: 14px; height: 14px; }
 
 .hall-chats-archive {
   margin-block-start: var(--s-2);
@@ -342,23 +374,27 @@
   color: var(--hub-muted-2);
 }
 
-.hall-chats-foot {
-  flex: 0 0 auto;
-}
-
+/* «Временный чат» — строка под проектами тем же отступом, что и заголовок
+   группы: значок стоит в столбце шевронов, подпись — в столбце имён. */
 .hall-chats-temporary {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
   width: 100%;
   min-height: var(--hit);
+  padding: 0 var(--s-2);
   border: 0;
   border-radius: var(--r-1);
   background: transparent;
   color: var(--hub-muted-2);
   font-size: var(--t-small);
+  text-align: left;
   cursor: pointer;
 }
+.hall-chats-temporary .hall-icon { width: 12px; height: 12px; }
 
 .hall-chats-temporary:hover {
-  border-color: var(--hub-border-strong);
+  background: var(--hub-raised);
   color: var(--hub-text-3);
 }
 

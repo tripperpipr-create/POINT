@@ -1215,7 +1215,7 @@ export function createQuestRuntimeViews(dependencies) {
             <button type="button" class="hall-btn is-sm hall-head-icon" data-action="master-session-toggle" data-panel="history" aria-label="Действия с разговором" title="Действия с разговором">${icon('more')}</button>
             ${hallAlarmHtml(waiting)}
             ${hallChangesAlarmHtml(pendingSets)}
-            <button type="button" class="hall-btn is-sm hall-chat-settings" data-action="tab" data-tab="overview" title="Обзор, квесты, агенты и связи проекта">Настройки проекта</button>
+            <button type="button" class="hall-btn is-sm hall-chat-settings" data-action="tab" data-tab="overview" aria-label="Настройки проекта" title="Обзор, квесты, агенты и связи проекта">${icon('settings')}<span>Настройки проекта</span></button>
             ${/* Вкладка задания — крайняя справа, у самого края, из-под которого
                   выезжает её панель. Стояла она сразу за названием разговора, и
                   между ручкой и дверью оказывались четыре чужих жетона. Место то

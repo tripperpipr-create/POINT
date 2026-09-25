@@ -193,6 +193,21 @@ const check = (name, ok, detail) => {
     'Ctrl+стрелка ушла в перебор — перехвачена комбинация редактора')
 }
 
+// ── Второстепенная кнопка строки не встаёт на пути стрелки ─────────────────
+// В списке чатов у каждой строки два пункта: название и «×». Стрелка вниз
+// вставала на «×» через шаг; помеченная data-keynav-skip кнопка из перебора
+// выпадает и остаётся в обходе табуляцией.
+{
+  const ui = open('journal')
+  const list = makeList('column', 4)
+  list.items[1].dataset = { keynavSkip: '' }
+  list.items[3].dataset = { keynavSkip: '' }
+  ui.press('ArrowDown', list.items[0])
+  check('стрелка перешагивает второстепенную кнопку строки',
+    list.focused[list.focused.length - 1] === 2,
+    `фокус ушёл на ${JSON.stringify(list.focused)} вместо следующей строки`)
+}
+
 if (failures.length) {
   console.error('\nКЛАВИАТУРНЫЙ МАРШРУТ ПО ХАБУ ПРОВАЛЕН:')
   for (const message of failures) console.error('  · ' + message)

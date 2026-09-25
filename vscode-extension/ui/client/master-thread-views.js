@@ -399,8 +399,11 @@ export function createMasterThreadViews(dependencies) {
     const brokenHtml = !broken ? '' : item.mode === 'failed'
       ? masterTurnErrorHtml({ streamError: item.fallbackReason, ask: previousAsk })
       : `<div class="hall-turn-note">${icon('stop')}<span>Ответ остановлен</span></div>`
+    // Основания принадлежат ответу и стоят сразу под ним, над подвалом: под
+    // подвалом их отделяла от ответа пустая строка действий, видимых только
+    // под указателем.
     const foot = `${mine || broken ? '' : masterAnswerBadgeHtml(item)}${pending ? '' : masterMessageToolsHtml(item, mine, previousAsk)}${stamp}${mine ? '' : masterTurnTimeHtml(item)}${masterUsedMemoryHtml(item.memoryIds,ui.masterData?.sessions?.memoryEntries,esc,item.id,ui.masterOpenReasoning.has('memory:'+item.id))}`
-    const attached = `${masterMessageAttachmentsHtml(item.attachments,esc)}${trail}${String(item.content || '').trim() || !broken ? article : ''}${brokenHtml}${questions}${foot ? `<div class="hall-turn-foot">${foot}</div>` : ''}${masterFactsHtml(facts)}${showProposal === false ? '' : `${masterThreadProposalHtml(item.proposalId)}${masterThreadActionProposalHtml(item.actionProposalId)}`}`
+    const attached = `${masterMessageAttachmentsHtml(item.attachments,esc)}${trail}${String(item.content || '').trim() || !broken ? article : ''}${brokenHtml}${questions}${masterFactsHtml(facts)}${foot ? `<div class="hall-turn-foot">${foot}</div>` : ''}${showProposal === false ? '' : `${masterThreadProposalHtml(item.proposalId)}${masterThreadActionProposalHtml(item.actionProposalId)}`}`
     // Ключ появления (master-feed-motion.js): у ответа — номер хода, тот же, что
     // у блока идущего хода, поэтому готовый ответ не «появляется» второй раз.
     const feedKey = mine ? '' : ` data-feed-key="a:${esc(item.turnId || item.id || '')}"`

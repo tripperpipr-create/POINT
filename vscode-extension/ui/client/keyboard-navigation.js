@@ -30,9 +30,14 @@ export function createKeyboardNavigation({ root }) {
 
   // Вложенные списки существуют: в детали решения свой перебор. Берём только
   // кнопки своего контейнера, иначе стрелка уводила бы в чужой список.
+  //
+  // Второстепенная кнопка строки (удалить чат) помечена data-keynav-skip:
+  // стрелка идёт по строкам, а не по всем кнопкам подряд — иначе каждый второй
+  // шаг вниз по списку чатов вставал на «×». До неё доходят Tab'ом.
   function itemsOf(container) {
     const all = container.querySelectorAll ? [...container.querySelectorAll('button:not([disabled])')] : []
-    return all.filter(item => (item.closest ? item.closest('[data-keynav]') : container) === container)
+    return all.filter(item => (item.closest ? item.closest('[data-keynav]') : container) === container
+      && item.dataset?.keynavSkip === undefined)
   }
 
   function handleListKeydown(event) {

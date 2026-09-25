@@ -74,7 +74,9 @@ export function masterAnswerProgress(pack, owner, drafts) {
 // поломка — теперь причина написана рядом с ней.
 export function masterAnswerNote({ answered, total }) {
   if (!total) return ''
-  if (!answered) return 'Выберите вариант или напишите ответ — иначе отправлять нечего'
+  // Без хвоста «иначе отправлять нечего»: он занимал вторую половину ряда
+  // рядом с кнопкой и пересказывал то, что и так следует из первой половины.
+  if (!answered) return 'Выберите вариант или напишите ответ'
   if (answered < total) return `Отвечено ${answered} из ${total} · остальные останутся в задании нерешёнными и задержат запуск`
   return ''
 }

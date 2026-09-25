@@ -81,8 +81,10 @@ const note = html => (html.match(/hall-compose-note[^>]*>([^<]*)</) || [, ''])[1
   const html = ui.root.innerHTML
   check('вложение появилось в ряду', chips(html) === 1,
     `чипов ${chips(html)} вместо одного — приложенный файл не виден`)
+  // Имя стоит своим узлом: только так оно сжимается с многоточием, а вес
+  // рядом остаётся целым.
   check('путь отделён от имени',
-    html.includes('<em>internal/app/</em>payments.go'),
+    html.includes('<em>internal/app/</em><span>payments.go</span>'),
     'путь и имя слиты в одну серую строку — не читается ни то, ни другое')
   check('вес вложения назван',
     /<small>2,3 КБ<\/small>/.test(html),

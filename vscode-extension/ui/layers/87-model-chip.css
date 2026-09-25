@@ -175,13 +175,22 @@
   color: var(--hub-muted);
   font: var(--fw-normal) var(--t-small) / 1.3 var(--font-ui);
 }
+/* Фокус с клавиатуры оставлен кольцу темы (`.hall-dialogue :focus-visible`), как
+   у соседей по ряду: `outline: none` здесь делал чип единственным элементом
+   композера, на котором фокус видно только по заливке. Раскрытый список держит
+   заливку наведения — так же, как раскрытое меню режима рядом. */
 .hall-dialogue .hall-composer-controls .model-chip-button:hover,
-.hall-dialogue .hall-composer-controls .model-chip-button:focus-visible {
+.hall-dialogue .hall-composer-controls .model-chip-button:focus-visible,
+.hall-dialogue .hall-composer-controls .model-chip.is-open .model-chip-button {
   background: var(--hall-slot-fill-hover);
   border: 0;
   color: var(--hub-text);
-  outline: none;
 }
+/* Живая связь в ряду композера — зелёная точка, как у любого состояния «в
+   порядке» (--vital). Цвет кнопки темы остаётся за отправкой: две точки одного
+   акцента в одном ряду спорили бы, какая из них главная. Выбор владельца по
+   снимкам, сентябрь 2026. */
+.hall-dialogue .hall-composer-controls .model-chip-button.is-live > i { background: var(--vital); }
 /* Список раскрывается вверх. В шапке он падал вниз, а здесь под композером
    ничего нет: карточка стоит у нижнего края ленты. */
 .hall-dialogue .hall-composer-controls .model-chip-list {

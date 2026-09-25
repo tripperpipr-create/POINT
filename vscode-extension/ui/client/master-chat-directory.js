@@ -10,6 +10,11 @@
 // Путь чужого мира ядро не отдаёт (см. комментарий у App.MasterChatDirectory).
 // Он берётся из хостового реестра по отпечатку, и открыть можно только тот мир,
 // который реестр уже знает.
+import { icon } from './ui-icons.js'
+
+// Знаки панели — значки набора разговора, а не символы шрифта: «⌄» и «›»
+// разной ширины сдвигали имя мира на четыре пикселя при сворачивании, а «＋» и
+// «×» рисуются каждой гарнитурой по-своему (ui-icons.js).
 export function createMasterChatDirectory(dependencies) {
   const { ui, vscode, esc, countOf, projectPathByHash } = dependencies
 
@@ -94,7 +99,7 @@ export function createMasterChatDirectory(dependencies) {
       <button type="button" data-action="chat-open" data-world="${esc(world.workspaceId)}" data-path="${esc(world.path || '')}" data-chat="${esc(chat.id)}"${chat.current && own ? ' aria-current="true"' : ''} title="${esc(chat.title)}">
         <span class="hall-chat-title">${esc(chat.title)}</span>${live}<time class="hall-chat-when">${esc(when)}</time>
       </button>
-      ${own ? `<button type="button" class="hall-chat-drop" data-action="master-session-delete" data-id="${esc(chat.id)}" aria-label="Удалить разговор «${esc(chat.title)}»" title="Удалить разговор">×</button>` : ''}
+      ${own ? `<button type="button" class="hall-chat-drop" data-keynav-skip data-action="master-session-delete" data-id="${esc(chat.id)}" aria-label="Удалить разговор «${esc(chat.title)}»" title="Удалить разговор">${icon('x')}</button>` : ''}
     </div>`
   }
 
@@ -107,8 +112,8 @@ export function createMasterChatDirectory(dependencies) {
     const expanded = open || (Boolean(query.trim()) && visible.length > 0)
     if (query.trim() && !visible.length) return ''
     const add = world.own
-      ? '<button type="button" class="hall-chats-add" data-action="master-session-new" aria-label="Новый чат в этом проекте" title="Новый чат">＋</button>'
-      : `<button type="button" class="hall-chats-add" data-action="chat-new" data-world="${esc(world.workspaceId)}" data-path="${esc(world.path || '')}" aria-label="Новый чат в проекте «${esc(world.name)}»" title="Новый чат в этом проекте">＋</button>`
+      ? '<button type="button" class="hall-chats-add" data-action="master-session-new" aria-label="Новый чат в этом проекте" title="Новый чат">' + icon('plus') + '</button>'
+      : `<button type="button" class="hall-chats-add" data-action="chat-new" data-world="${esc(world.workspaceId)}" data-path="${esc(world.path || '')}" aria-label="Новый чат в проекте «${esc(world.name)}»" title="Новый чат в этом проекте">${icon('plus')}</button>`
     const body = expanded
       ? `<div class="hall-chats-items" data-keynav="column" aria-label="Чаты проекта «${esc(world.name)}»">
           ${visible.map(chat => rowHtml(chat, world)).join('') || '<p class="hall-chats-blank">Здесь пока пусто</p>'}
@@ -119,7 +124,7 @@ export function createMasterChatDirectory(dependencies) {
     return `<section class="hall-chats-group${expanded ? ' is-open' : ''}${world.own ? ' is-own' : ''}">
       <h3 class="hall-chats-world">
         <button type="button" data-action="chat-group" data-world="${esc(world.workspaceId)}" aria-expanded="${expanded ? 'true' : 'false'}">
-          <em class="hall-chats-caret" aria-hidden="true">${expanded ? '⌄' : '›'}</em><span>${esc(world.name)}</span><b>${world.chats.filter(chat => !chat.archived && !chat.temporary).length}</b>
+          <em class="hall-chats-caret" aria-hidden="true">${icon('chevron-right')}</em><span>${esc(world.name)}</span><b>${world.chats.filter(chat => !chat.archived && !chat.temporary).length}</b>
         </button>
         ${unreachable ? '' : add}
       </h3>
@@ -161,19 +166,20 @@ export function createMasterChatDirectory(dependencies) {
     requestChatDirectory()
     const list = worlds()
     const groups = list.map(groupHtml).join('')
+    // «Временный чат» — строка сразу под проектами, а не подвал панели: внизу
+    // пустой рейки он висел отдельно от всего, что с ним связано (выбор
+    // владельца по снимкам, сентябрь 2026).
+    const temporary = `<button type="button" class="hall-chats-temporary" data-action="master-session-temporary"${ui.state.workspace ? '' : ' disabled'}>${icon('plus')}<span>Временный чат</span></button>`
     const empty = !list.length
       ? '<div class="hall-chats-empty"><strong>Миров пока нет</strong><p>Откройте папку — она станет миром для мастера и гильдии.</p><button type="button" class="hall-chats-new" data-action="gallery-open-folder">Открыть папку</button></div>'
       : ''
     return `<aside class="hall-chats" aria-label="Чаты по проектам">
       <header class="hall-chats-head">
         <button type="button" class="hall-chats-new" data-action="master-session-new"${ui.state.workspace ? '' : ' disabled'}>Новый чат</button>
-        <button type="button" class="hall-chats-world-new" data-action="gallery-toggle" aria-label="Все проекты" title="Все проекты">＋</button>
+        <button type="button" class="hall-chats-world-new" data-action="gallery-toggle" aria-label="Все проекты" title="Все проекты">${icon('folder')}</button>
       </header>
       <input type="search" id="chat-directory-search" data-master-sidebar-search placeholder="Поиск по всем чатам" aria-label="Поиск по чатам всех проектов" value="${esc(query)}">
-      <div class="hall-chats-groups">${groups || empty}${groups && query.trim() && !list.some(world => world.chats.some(chat => matches(chat.title))) ? `<p class="hall-chats-blank">Ничего не нашлось по запросу «${esc(query.trim())}»</p>` : ''}</div>
-      <footer class="hall-chats-foot">
-        <button type="button" class="hall-chats-temporary" data-action="master-session-temporary"${ui.state.workspace ? '' : ' disabled'}>Временный чат</button>
-      </footer>
+      <div class="hall-chats-groups">${groups || empty}${groups && query.trim() && !list.some(world => world.chats.some(chat => matches(chat.title))) ? `<p class="hall-chats-blank">Ничего не нашлось по запросу «${esc(query.trim())}»</p>` : ''}${groups ? temporary : ''}</div>
     </aside>`
   }
 

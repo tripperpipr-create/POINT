@@ -1,0 +1,42 @@
+{
+  "package": "@zereight/mcp-gitlab",
+  "version": "2.1.66",
+  "integrity": "sha512-KiWiaRzQQw8i+CFwY4zQgsVrLAbj81Dok3ZUqdUIYOhQIs5DOskxoZtqNp1qjdBRYKD03HPmV+4Wv1OinyDfXw==",
+  "protocolVersion": "2025-06-18",
+  "serverInfo": {
+    "name": "zereight-gitlab-mcp-server",
+    "version": "2.1.66"
+  },
+  "capabilities": {
+    "tools": {
+      "listChanged": true
+    },
+    "prompts": {}
+  },
+  "recipe": {
+    "command": "npx",
+    "args": [
+      "-y",
+      "@zereight/mcp-gitlab@2.1.66"
+    ],
+    "env": {
+      "GITLAB_TOOLSETS": "merge_requests",
+      "GITLAB_TOOLS": "whoami,get_project,list_merge_requests,get_merge_request,mr_discussions,list_merge_request_changed_files,get_merge_request_file_diff,get_merge_request_diffs,get_file_contents,create_merge_request_note,create_merge_request_discussion_note,approve_merge_request,unapprove_merge_request,get_merge_request_approval_state,merge_merge_request,list_merge_request_pipelines,list_pipelines,get_pipeline,list_pipeline_jobs,get_pipeline_job_output,retry_pipeline_job",
+      "GITLAB_PERMISSION_MODE": "modify",
+      "GITLAB_DENIED_TOOLS_REGEX": "^discover_tools$"
+    },
+    "secretEnv": [
+      "GITLAB_PERSONAL_ACCESS_TOKEN"
+    ],
+    "requiredEnv": [
+      "GITLAB_API_URL"
+    ]
+  },
+  "toolsWithRecipe": 46,
+  "toolsDefault": 118,
+  "captured": {
+    "date": "2026-09-25",
+    "toolsList": "снят локально с GITLAB_API_URL=https://gitlab.example.test/api/v4 и поддельным токеном: tools/list к GitLab не обращается",
+    "responses": "синтетические, по схемам ответов сервера (schemas.js 2.1.66) и REST API GitLab; заменить снятием с GitLab 19.3.2 владельца"
+  }
+}

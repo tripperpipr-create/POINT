@@ -20,7 +20,7 @@
 - [sandbox.md](sandbox.md), [security.md](security.md), [threat-model.md](threat-model.md) — границы изоляции, доступы, сеть и угрозы.
 - [agent-evaluation.md](agent-evaluation.md) — benchmark, attribution и canary для Skills.
 - [operations.md](operations.md), [performance.md](performance.md), [DEPENDENCIES.md](DEPENDENCIES.md) — эксплуатация, SLO и зависимости.
-- [databases.md](databases.md), [ssh.md](ssh.md), [tool-access-layer.md](tool-access-layer.md) — инструменты и данные.
+- [databases.md](databases.md), [ssh.md](ssh.md), [tool-access-layer.md](tool-access-layer.md), [integrations-gitlab.md](integrations-gitlab.md) — инструменты, данные и интеграции через MCP.
 - [legacy-lifecycle.md](legacy-lifecycle.md) — совместимость старых маршрутов и порядок её сокращения.
 - [IDE-CAPABILITY-MATRIX.md](IDE-CAPABILITY-MATRIX.md), [IDE-DESIGN.md](IDE-DESIGN.md), [ide-workspace-controls.md](ide-workspace-controls.md), [search-window.md](search-window.md), [RPG-DESIGN-SYSTEM.md](RPG-DESIGN-SYSTEM.md), [VISUAL-LOOP.md](VISUAL-LOOP.md) — реализация и дизайн IDE.
 - [js-modules.md](js-modules.md), [master-chat-sessions.md](master-chat-sessions.md) — карта расширения и разговоры Мастера.

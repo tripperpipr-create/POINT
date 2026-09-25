@@ -78,6 +78,31 @@ A workflow accepts a separate transient key per referenced profile, allowing mix
 
 The HTTP layer logs method, path, duration and remote address only. It never logs request bodies or headers. It enforces request size limits, JSON content types, origin controls for development and security headers.
 
+## MCP servers and integrations
+
+- A stdio MCP server runs on the owner's machine **outside the sandbox**. It
+  starts only after the owner trusts the exact launch digest: transport,
+  command, resolved path, args, cwd, open env values and secret names. Any edit
+  drops trust. Shell wrappers (`sh -c`, `cmd /c`, `powershell`) are refused, so
+  the trust dialog always names the real program.
+- The child environment is an allowlist (PATH, HOME/USERPROFILE, APPDATA, TEMP,
+  locale, proxy) plus the server's own values; `POINT_*`, `VSCODE_*` and the core
+  API token never reach it. The process group dies with the core.
+- MCP secrets live in IDE SecretStorage and core memory only
+  (`point.mcp.<id>.env|header.<NAME>`); the webview sees names, never values.
+  Server stderr and errors pass `security.Redact` (GitLab tokens included) and
+  an exact scrub of the injected secret values.
+- A remote server is reached over https (http only on loopback), without
+  redirects or proxy, through a pinned dialer: public addresses only; a private
+  or VPN address only for the one host the owner granted; link-local and
+  metadata addresses never.
+- A tool whose description or schema changed after approval is disabled until
+  the owner reviews it. At stage 1 no MCP tool is given to agents or the Master.
+- GitLab window actions (comment, approve, merge, retry) run only on the
+  owner's click and are journaled in `integration_actions` with the tool,
+  target and outcome; comment bodies are stored as SHA-256 and length only.
+  Merge requires a modal confirmation and the head SHA the owner saw.
+
 ## Learning and evaluation privacy
 
 Learning signals and Skill outcomes copy only bounded diagnostic facts, redacted

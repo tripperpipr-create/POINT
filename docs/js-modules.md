@@ -55,6 +55,17 @@ webview. У них нет ни `require`, ни `vscode` — только объ�
 `vscode-extension/point-panels.js`,
 `vscode-extension/ide-observation-controller.js`.
 
+Интеграции собраны так же, фабрикой:
+`vscode-extension/integrations-controller.js` отдаёт два типа сообщений вебвью
+(`mcpAction`, `gitlabAction`) двум своим модулям и больше о предмете не знает.
+`vscode-extension/mcp-controller.js` держит секреты MCP в SecretStorage и
+передаёт их каждому новому процессу ядра, показывает окно доверия и принимает
+импорт `mcp.json`. `vscode-extension/gitlab-controller.js` отвечает окну GitLab
+и карточкам MR, открывает diff файлов MR штатным `vscode.diff` над документами
+`point-gitlab:` и подтверждает merge. Ответ уходит только той поверхности,
+которая спросила (поле `surface`: окно, карточка `mr:<проект>!<номер>` или
+Гильдия).
+
 Чистые помощники без состояния живут отдельно:
 `vscode-extension/extension-utils.js`, `vscode-extension/run-config-utils.js`,
 `vscode-extension/ide-navigation-utils.js`, `vscode-extension/ssh-utils.js`.
@@ -131,6 +142,24 @@ webview. У них нет ни `require`, ни `vscode` — только объ�
 `vscode-extension/ui/client/master-brief-panel.js`, команду и контекст —
 `vscode-extension/ui/client/master-inspector.js`, оформление —
 `vscode-extension/ui/layers/07d-master-inspector.css`.
+
+Интеграции в вебвью — один модуль состояния и три вида над ним:
+
+- `vscode-extension/ui/client/integrations-ui.js` — состояние окна GitLab,
+  карточки MR и вкладки Гильдии, приём ответов хоста, нажатия и черновики
+  полей. Черновик живёт в модуле, а у поля есть стабильный id, поэтому фоновая
+  перерисовка не теряет набранное и фокус. main.js знает о модуле пять строк;
+- `vscode-extension/ui/client/integrations-views.js` — Гильдия → «Интеграции»:
+  плагин GitLab, свои MCP-серверы, инструменты с риском, форма, импорт, журнал;
+- `vscode-extension/ui/client/gitlab-views.js` — окно GitLab в регистре окна
+  Git (`nc-*`), а также общие для GitLab значки, статусы и время;
+- `vscode-extension/ui/client/gitlab-mr-views.js` — карточка MR вкладкой
+  редактора; описание и заметки проходят `companion-markdown.js`.
+
+Оформление — слой `vscode-extension/ui/layers/96a-integrations.css`. Смоуки
+`scripts/smoke-mcp-integrations.js` и `scripts/smoke-gitlab-tool-window.js`
+гоняют собранный `media/main.js` через общий стенд
+`scripts/lib/webview-harness.js`.
 
 ## Куда класть новое
 

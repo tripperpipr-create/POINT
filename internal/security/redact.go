@@ -27,6 +27,11 @@ var secretRules = []secretRule{
 	// а тридцать с лишним буквенно-цифровых подряд на обычное слово не похожи.
 	{regexp.MustCompile(`\bAIza[0-9A-Za-z_-]{30,}`), "[REDACTED]"},
 	{regexp.MustCompile(`\bgsk_[A-Za-z0-9]{20,}\b`), "[REDACTED]"},
+	// Токены GitLab: личный (glpat-), проекта и группы, деплоя, runner'а, CI-джоба,
+	// OAuth и SCIM. Интеграция GitLab передаёт токен MCP-серверу, а тот охотно
+	// вкладывает его в текст ошибки и в stderr — оба показываются на экране
+	// «Интеграции».
+	{regexp.MustCompile(`\bgl(?:pat|ptt|dt|rt|cbt|oas|ft|soat|imt|agent|ffct)-[A-Za-z0-9_-]{20,}`), "[REDACTED]"},
 }
 
 func Redact(value string) string {

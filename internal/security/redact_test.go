@@ -37,6 +37,16 @@ func TestRedactCommonSecrets(t *testing.T) {
 			want:  `token [REDACTED] leftover`,
 		},
 		{
+			name:  "gitlab personal token",
+			input: `401 Unauthorized for glpat-xA1b2C3d4E5f6G7h8I9j0 on /api/v4/user`,
+			want:  `401 Unauthorized for [REDACTED] on /api/v4/user`,
+		},
+		{
+			name:  "gitlab job token",
+			input: `CI_JOB_TOKEN=glcbt-64_abcdefghijklmnopqrstuvwx`,
+			want:  `CI_JOB_TOKEN=[REDACTED]`,
+		},
+		{
 			name:  "pem block",
 			input: "before\n-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA0Z3VS5JJcds3xfn/ygWyF6PZG...\n-----END RSA PRIVATE KEY-----\nafter",
 			want:  "before\n[REDACTED PEM]\nafter",

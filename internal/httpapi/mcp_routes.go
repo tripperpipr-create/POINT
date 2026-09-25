@@ -23,6 +23,7 @@ func (s *Server) registerMCPRoutes() {
 	s.mux.HandleFunc("GET /api/mcp/servers/{id}/log", s.mcpServerLog)
 	s.mux.HandleFunc("POST /api/mcp/import/preview", s.previewMCPImport)
 	s.mux.HandleFunc("POST /api/mcp/secrets/unlock", s.unlockMCPSecrets)
+	s.registerGitLabRoutes()
 }
 
 func (s *Server) listMCPServers(w http.ResponseWriter, _ *http.Request) {

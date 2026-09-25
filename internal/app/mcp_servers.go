@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"local-agent-workbench/internal/domain"
+	"local-agent-workbench/internal/integrations/gitlab"
 	"local-agent-workbench/internal/mcpclient"
 	"local-agent-workbench/internal/security"
 )
@@ -72,10 +73,23 @@ var (
 		"powershell": true, "powershell.exe": true, "pwsh": true, "pwsh.exe": true}
 )
 
-// SaveMCPServer сохраняет сервер. Любая правка команды, аргументов или
-// переменных меняет отпечаток и снимает доверие; сервер гасится, чтобы
-// следующее обращение подняло его с новой конфигурацией.
+// SaveMCPServer сохраняет сервер владельца. Сервер встроенного плагина
+// собирается из рецепта плагина (SaveGitLabPlugin): форма «любого MCP» его не
+// правит, иначе рецепт и экран разошлись бы.
 func (a *App) SaveMCPServer(req MCPServerUpsert) (MCPServerView, error) {
+	if req.Kind != "" && req.Kind != domain.MCPServerCustom {
+		return MCPServerView{}, errors.New("сервер плагина настраивается на карточке плагина")
+	}
+	if existing, err := a.store.GetMCPServer(context.Background(), strings.TrimSpace(req.ID)); err == nil && existing.Kind != domain.MCPServerCustom {
+		return MCPServerView{}, errors.New("сервер плагина настраивается на карточке плагина")
+	}
+	return a.saveMCPServer(req)
+}
+
+// saveMCPServer: любая правка команды, аргументов или переменных меняет
+// отпечаток и снимает доверие; сервер гасится, чтобы следующее обращение
+// подняло его с новой конфигурацией.
+func (a *App) saveMCPServer(req MCPServerUpsert) (MCPServerView, error) {
 	ctx := context.Background()
 	now := time.Now().UTC()
 	server := domain.MCPServer{
@@ -319,6 +333,9 @@ func (a *App) mergeMCPTools(ctx context.Context, server domain.MCPServer, fresh 
 		switch {
 		case !known:
 			item.State, item.Risk = domain.MCPToolNew, defaultMCPToolRisk(tool.Annotations)
+			if risk, ok := gitlab.PresetRisk(item.Name); ok && server.Kind == domain.MCPServerGitLab {
+				item.Risk = risk
+			}
 		case prior.ApprovedDigest != "" && prior.ApprovedDigest != item.Digest:
 			item.State, item.Risk, item.ApprovedDigest = domain.MCPToolChanged, prior.Risk, prior.ApprovedDigest
 		case prior.ApprovedDigest != "":

@@ -279,6 +279,29 @@ FROM integration_actions ORDER BY at DESC LIMIT ?`, limit)
 	return result, rows.Err()
 }
 
+// GetGitLabBinding — привязка папки; sql.ErrNoRows, если её нет.
+func (s *SQLite) GetGitLabBinding(ctx context.Context, workspaceID string) (domain.GitLabBinding, error) {
+	var binding domain.GitLabBinding
+	var mode, updated string
+	err := s.db.QueryRowContext(ctx, `
+SELECT workspace_id, server_id, mode, project_path, username, updated_at FROM gitlab_bindings WHERE workspace_id=?`,
+		workspaceID).Scan(&binding.WorkspaceID, &binding.ServerID, &mode, &binding.ProjectPath, &binding.Username, &updated)
+	if err != nil {
+		return domain.GitLabBinding{}, err
+	}
+	binding.Mode, binding.UpdatedAt = domain.GitLabBindMode(mode), parseTime(updated)
+	return binding, nil
+}
+
+func (s *SQLite) SaveGitLabBinding(ctx context.Context, binding domain.GitLabBinding) error {
+	_, err := s.db.ExecContext(ctx, `
+INSERT INTO gitlab_bindings(workspace_id, server_id, mode, project_path, username, updated_at) VALUES(?,?,?,?,?,?)
+ON CONFLICT(workspace_id) DO UPDATE SET server_id=excluded.server_id, mode=excluded.mode,
+  project_path=excluded.project_path, username=excluded.username, updated_at=excluded.updated_at`,
+		binding.WorkspaceID, binding.ServerID, string(binding.Mode), binding.ProjectPath, binding.Username, formatTime(binding.UpdatedAt))
+	return err
+}
+
 func decodeStringMap(raw string) map[string]string {
 	values := map[string]string{}
 	_ = json.Unmarshal([]byte(raw), &values)

@@ -1,0 +1,1 @@
+{"approval_rules_overwritten":false,"rules":[{"id":1,"name":"Code owners","rule_type":"code_owner","approvals_required":1,"approved":true,"approved_by":[{"id":9,"username":"boris","name":"Борис"}]},{"id":2,"name":"Security","rule_type":"regular","approvals_required":1,"approved":false,"approved_by":[{"id":9,"username":"boris","name":"Борис"}]}]}

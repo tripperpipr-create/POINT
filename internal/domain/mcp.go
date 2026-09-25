@@ -116,6 +116,29 @@ type IntegrationAction struct {
 	At         time.Time `json:"at"`
 }
 
+// GitLabBindMode — как папка выбирает проект GitLab.
+type GitLabBindMode string
+
+const (
+	// GitLabBindAuto — проект по git remote origin папки.
+	GitLabBindAuto GitLabBindMode = "auto"
+	// GitLabBindManual — проект назван владельцем.
+	GitLabBindManual GitLabBindMode = "manual"
+	// GitLabBindAll — без проекта: MR владельца по всем проектам.
+	GitLabBindAll GitLabBindMode = "all"
+)
+
+// GitLabBinding — какой проект GitLab показывать для папки. Username —
+// ручная замена имени владельца, если сервер не отвечает на whoami.
+type GitLabBinding struct {
+	WorkspaceID string         `json:"workspaceId"`
+	ServerID    string         `json:"serverId"`
+	Mode        GitLabBindMode `json:"mode"`
+	ProjectPath string         `json:"projectPath,omitempty"`
+	Username    string         `json:"username,omitempty"`
+	UpdatedAt   time.Time      `json:"updatedAt"`
+}
+
 // MCPTrustDigest — отпечаток того, что будет запущено: транспорт, команда и
 // путь, в который она разрешилась, аргументы, каталог, имена переменных и
 // открытые значения, имена секретов, адрес и заголовки. Значения секретов в

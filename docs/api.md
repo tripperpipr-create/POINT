@@ -227,6 +227,23 @@ is checked against every `HandleFunc` registration by `node scripts/check-docs.m
 | `GET` | `/api/mcp/servers/{id}/log` | Redacted tail of the server's stderr and protocol log |
 | `POST` | `/api/mcp/import/preview` | Parse an `mcp.json` (Claude/Cursor `mcpServers` or VS Code `servers`) into candidates without saving |
 | `POST` | `/api/mcp/secrets/unlock` | Supply MCP secret values (`point.mcp.*` refs only) for the current in-memory session |
+| `GET` | `/api/integrations/gitlab/status` | GitLab plugin state: server, token owner (`whoami`), folder binding, capabilities; failures come back as `{state:"error", reason, problem, fix}` |
+| `POST` | `/api/integrations/gitlab/plugin` | Connect/update the GitLab plugin: URL, optional CA path and token; builds the pinned `@zereight/mcp-gitlab` launch, which needs the owner's trust |
+| `PUT` | `/api/integrations/gitlab/binding` | Bind the open folder: `auto` (git remote origin), `manual` project path, or `all` projects; optional username override |
+| `GET` | `/api/integrations/gitlab/merge-requests` | Open MRs by `scope` (`mine`, `review`, `project`) for the bound project (or all projects) |
+| `GET` | `/api/integrations/gitlab/merge-request` | MR card by `project` and `iid`: detail, approvals, MR pipelines, `mine` and `approvedByMe` |
+| `GET` | `/api/integrations/gitlab/merge-request/discussions` | MR discussions (up to 5 pages of 100) |
+| `GET` | `/api/integrations/gitlab/merge-request/changes` | Changed files of an MR |
+| `GET` | `/api/integrations/gitlab/merge-request/diff` | Text diff of one MR file by `path` (fallback when file contents are unavailable) |
+| `POST` | `/api/integrations/gitlab/merge-request/notes` | Owner's comment or thread reply; runs at once and is journaled with body hash and length, not the text |
+| `POST` | `/api/integrations/gitlab/merge-request/approval` | Approve (with the seen head `sha`) or unapprove an MR; journaled |
+| `POST` | `/api/integrations/gitlab/merge-request/merge` | Merge an MR; requires `confirmed:true` and `expectedSha`, GitLab refuses when the head moved; journaled |
+| `GET` | `/api/integrations/gitlab/file` | File content at a revision (`project`, `path`, `ref`) for the IDE diff; missing, binary and too-big are flags |
+| `GET` | `/api/integrations/gitlab/pipelines` | Pipelines of a `ref` (default: the folder's branch) or of an MR (`mr`) |
+| `GET` | `/api/integrations/gitlab/jobs` | Jobs of a `pipeline` |
+| `GET` | `/api/integrations/gitlab/job-log` | Tail of a `job` log: server headers and terminal codes stripped, secrets redacted, at most 256 KiB |
+| `POST` | `/api/integrations/gitlab/jobs/retry` | Retry a job; journaled |
+| `GET` | `/api/integrations/actions` | Journal of actions in external services (who, tool, target, outcome), newest first |
 | `GET` | `/api/events` | SSE stream (`workbench` events) |
 
 An approved `WorkOrder` keeps its reviewed fields immutable and exposes changing execution state only through the derived `runtime` object (`questId`, `status`, `message`, `flowId`, `flowRunId`, `updatedAt`). `runtime` is excluded from the approval digest. Initial approval reuses the transaction-created quest, opens the exact approved workspace, builds a project Flow and moves it to `running`; a missing runtime credential or interactive CLI session yields `awaiting_user`, while preflight failure yields `blocked` with a redacted reason. A v2 Flow terminal callback cannot use the legacy completion path: it persists an `EvidenceBundle` and the v2 evidence gate alone may produce `completed` or `needs_review`. The approved `completion` profile carries a command and expected exit code per check; after automatic delivery each command runs against the delivered revision, and the gate requires a matching executed record for every entry. A conflicting external change to the workspace rolls the transfer back whole and yields `needs_review`; a receipt may claim running services only when the approved service check actually started them.
@@ -381,5 +398,13 @@ The opposite direction is supported: the owner's MCP servers under
 server runs on the owner's machine outside the sandbox and starts only after
 the owner trusts its exact launch digest. A remote server is reached over
 Streamable HTTP with https, no redirects and a pinned address; a private or
-VPN address is allowed only for the host the owner granted. See
+VPN address is allowed only for the host the owner granted.
+
+The GitLab window reads through the plugin's MCP server under
+`/api/integrations/gitlab/*`; no model takes part. A GitLab project path
+contains `/`, so project, MR and file are query parameters. Every answer is
+`{state, reason, problem, fix, data}`: a screen that could not load is `200`
+with a reason (`not_configured`, `not_trusted`, `secret_locked`,
+`tool_missing`, `unreachable`, `auth`, `not_found`, `refused`, `format`,
+`no_project`), an invalid request is `400` with `bad_request`. See
 [integrations-gitlab.md](integrations-gitlab.md).

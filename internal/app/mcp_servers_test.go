@@ -14,6 +14,10 @@ import (
 )
 
 func runFakeMCPServer(mode string) {
+	if mode == "gitlab" {
+		runFakeGitLabServer()
+		return
+	}
 	description := "Read a thing"
 	if mode == "changed" {
 		// Описание, попадающее в промпт, изменилось после одобрения.

@@ -17,6 +17,7 @@ import (
 
 	"local-agent-workbench/internal/dbconn"
 	"local-agent-workbench/internal/domain"
+	"local-agent-workbench/internal/integrations/gitlab"
 	"local-agent-workbench/internal/mcpclient"
 	"local-agent-workbench/internal/observability"
 )
@@ -29,6 +30,9 @@ type mcpRuntime struct {
 	mu         sync.Mutex
 	secrets    *dbconn.MemorySecrets
 	supervisor *mcpclient.Supervisor
+	// gitlabUsers — ответ whoami по серверу: имя нужно каждому списку «на
+	// моём ревью», а токен меняется только сохранением плагина.
+	gitlabUsers map[string]gitlab.User
 }
 
 func (a *App) mcp() *mcpRuntime {

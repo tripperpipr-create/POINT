@@ -100,7 +100,7 @@ func TestGitLabRoutesAnswerWithState(t *testing.T) {
 	if status, value, body = call("GET", "/api/integrations/gitlab/merge-request?project=billing/payments&iid=12", ""); status != http.StatusOK || value.Reason != app.GitLabNotConfigured {
 		t.Fatalf("merge request status=%d body=%s", status, body)
 	}
-	if status, value, body = call("GET", "/api/integrations/gitlab/file?project=..%2F..%2Fetc&path=passwd&ref=main", ""); status != http.StatusBadRequest || value.Reason != app.GitLabBadRequest {
+	if status, value, body = call("GET", "/api/integrations/gitlab/file?project=..%2F..%2Fetc&path=passwd&ref=main", ""); status != http.StatusBadRequest || value.Reason != app.GitLabBadRequest || !strings.Contains(body, `"error":{"code":"bad_request","message":"путь проекта`) {
 		t.Fatalf("bad project status=%d body=%s", status, body)
 	}
 	if status, _, body = call("POST", "/api/integrations/gitlab/merge-request/merge", `{"project":"billing/payments","iid":12,"force":true}`); status != http.StatusBadRequest || !strings.Contains(body, "invalid_json") {

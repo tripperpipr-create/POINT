@@ -40,6 +40,7 @@ const entries = [
 	['Окна инструментов', 'Структура', 'list-tree', 'localAgent.showOutline'],
 	['Окна инструментов', 'Запуск и консоли', 'play', 'workbench.view.extension.pointRun'],
 	['Окна инструментов', 'Службы', 'database', 'workbench.view.extension.pointServices'],
+	['Окна инструментов', 'GitLab', 'git-merge', 'workbench.view.extension.pointGitLab'],
 	['Окна инструментов', 'Git · история', 'book', 'localAgent.openChronicle'],
 	['Окна инструментов', 'Консольный канал', 'terminal', 'localAgent.openTerminal'],
 	['Окна инструментов', 'Помощник Point', 'hubot', 'localAgent.askCompanion'],

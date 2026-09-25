@@ -100,6 +100,9 @@ const requiredFiles = [
   'vscode-extension/ide-action-controller.js',
   'vscode-extension/ide-navigation-controller.js',
   'vscode-extension/connection-controller.js',
+  'vscode-extension/integrations-controller.js',
+  'vscode-extension/mcp-controller.js',
+  'vscode-extension/gitlab-controller.js',
   'vscode-extension/ssh-utils.js',
   'vscode-extension/media/chronicle.css',
   'vscode-extension/ui/client/companion-markdown.js',
@@ -597,6 +600,7 @@ for (const token of [
   "require('./core-log')", "require('./core-lease')",
   "require('./git-tool-controller')", "require('./hub-surfaces-controller')",
   "require('./hub-polling-controller')", "require('./companion-thread-controller')",
+  "require('./integrations-controller')",
 ]) {
   requireText(extensionSource, token, 'extension module boundary')
 }
@@ -679,7 +683,7 @@ for (const token of [
   "from './companion-actions.js'", "from './onboarding-actions.js'",
   "from './companion-transport.js'", "from './master-inbox.js'",
   "from './hub-entity-inbox.js'", "from './run-inbox.js'",
-  "from './world-state-inbox.js'",
+  "from './world-state-inbox.js'", "from './integrations-ui.js'",
 ]) {
   requireText(webviewSource, token, 'webview module boundary')
 }
@@ -718,6 +722,11 @@ for (const [file, maximum] of Object.entries({
   'vscode-extension/ide-action-controller.js': 1500,
   'vscode-extension/ide-navigation-controller.js': 1500,
   'vscode-extension/connection-controller.js': 1500,
+  // Интеграции: хост только доставляет ответы ядра и держит секреты и
+  // доверие — толстеть ему не с чего.
+  'vscode-extension/integrations-controller.js': 80,
+  'vscode-extension/mcp-controller.js': 300,
+  'vscode-extension/gitlab-controller.js': 360,
   // Потолок опущен с 4400: ветки поля Мастера (очередь, «/», Enter, слот
   // уточнений) ушли в master-compose-keys.js, и отвоёванное не должно
   // зарасти обратно.
@@ -768,6 +777,11 @@ for (const [file, maximum] of Object.entries({
   'vscode-extension/ui/client/hub-entity-inbox.js': 220,
   'vscode-extension/ui/client/run-inbox.js': 240,
   'vscode-extension/ui/client/world-state-inbox.js': 180,
+  // Интеграции: состояние и нажатия, вкладка Гильдии, окно GitLab, карточка MR.
+  'vscode-extension/ui/client/integrations-ui.js': 420,
+  'vscode-extension/ui/client/integrations-views.js': 260,
+  'vscode-extension/ui/client/gitlab-views.js': 260,
+  'vscode-extension/ui/client/gitlab-mr-views.js': 180,
 })) {
   const actual = lineCount(read(file))
   if (actual > maximum) errors.push(`module boundary: ${file} has ${actual} lines (budget ${maximum})`)

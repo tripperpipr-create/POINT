@@ -38,12 +38,20 @@ func gitlabContext(r *http.Request) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(r.Context(), 2*time.Minute)
 }
 
+// gitlabWrite: неверный запрос несёт и конверт, и обычный блок error — хост
+// показывает error.message любого отказа ядра одинаково.
 func (s *Server) gitlabWrite(w http.ResponseWriter, value app.GitLabResponse) {
-	status := http.StatusOK
-	if value.Reason == app.GitLabBadRequest {
-		status = http.StatusBadRequest
+	if value.Reason != app.GitLabBadRequest {
+		s.write(w, http.StatusOK, value)
+		return
 	}
-	s.write(w, status, value)
+	if rec, ok := w.(*statusRecorder); ok {
+		rec.errCode, rec.errMsg = string(value.Reason), value.Problem
+	}
+	s.write(w, http.StatusBadRequest, struct {
+		app.GitLabResponse
+		Error map[string]string `json:"error"`
+	}{value, map[string]string{"code": string(value.Reason), "message": value.Problem}})
 }
 
 // queryInt — число из параметра; неверное становится 0, и экран отвечает

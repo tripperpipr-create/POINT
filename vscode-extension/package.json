@@ -40,6 +40,7 @@
     "onView:localAgent.databaseTools",
     "onView:localAgent.sshTools",
     "onView:localAgent.gitTools",
+    "onView:localAgent.gitlabTools",
     "onView:localAgent.logTools",
     "onCommand:localAgent.quickActions",
     "onCommand:localAgent.startServer",
@@ -50,6 +51,7 @@
     "onCommand:localAgent.openStatistics",
     "onCommand:localAgent.openDocker",
     "onCommand:localAgent.openDatabases",
+    "onCommand:localAgent.openIntegrations",
     "onCommand:localAgent.connectServer",
     "onCommand:localAgent.openTerminal",
     "onCommand:localAgent.newConsoleChannel",
@@ -432,6 +434,12 @@
         "icon": "$(database)"
       },
       {
+        "command": "localAgent.openIntegrations",
+        "title": "Интеграции: GitLab и MCP-серверы",
+        "category": "Point",
+        "icon": "$(plug)"
+      },
+      {
         "command": "localAgent.connectServer",
         "title": "Подключиться к серверу",
         "category": "Point",
@@ -799,6 +807,11 @@
           "id": "pointGit",
           "title": "Git",
           "icon": "$(source-control)"
+        },
+        {
+          "id": "pointGitLab",
+          "title": "GitLab",
+          "icon": "$(git-merge)"
         }
       ],
       "panel": [
@@ -857,6 +870,13 @@
         {
           "id": "localAgent.gitTools",
           "name": "Git",
+          "type": "webview"
+        }
+      ],
+      "pointGitLab": [
+        {
+          "id": "localAgent.gitlabTools",
+          "name": "Merge requests и пайплайны",
           "type": "webview"
         }
       ],

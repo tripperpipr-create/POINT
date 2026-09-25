@@ -277,7 +277,23 @@ function attachFeedbackToMessages(messages, records) {
   })
 }
 
+// Команды, которые окно инструмента вправе попросить у IDE. Список закрытый:
+// вебвью выбирает из разрешённого, а не называет любую команду.
+const TOOL_WINDOW_COMMANDS = new Set([
+  'localAgent.openTerminal', 'localAgent.runAnything', 'localAgent.newConsoleChannel',
+  'localAgent.selectRunConfiguration', 'localAgent.runWithoutDebug', 'localAgent.startDebug',
+  'localAgent.vcsChanges', 'localAgent.openChronicle', 'localAgent.gitClone',
+  'localAgent.vcsCommit', 'localAgent.vcsPush', 'localAgent.vcsPull',
+  'localAgent.vcsRollback', 'localAgent.vcsShowDiff', 'localAgent.showCoreChronicle',
+  'localAgent.openLogChat',
+  'localAgent.askCompanionAboutTerminal', 'localAgent.askCompanionAboutDiff',
+  'localAgent.askCompanionAboutProblems', 'localAgent.connectServer',
+  'localAgent.openDatabases', 'localAgent.rebuildIndex', 'localAgent.showIndexStatus',
+  'localAgent.openIntegrations',
+])
+
 module.exports = {
+  TOOL_WINDOW_COMMANDS,
   decisionResolvePath,
   companionFeedbackMarks,
   withoutFeedbackFor,

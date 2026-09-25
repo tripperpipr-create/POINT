@@ -28,6 +28,7 @@ import { handleHubClickAction } from './hub-actions.js'
 import { handleCompanionClickAction } from './companion-actions.js'
 import { handleOnboardingClickAction } from './onboarding-actions.js'
 import { handleInfraClickAction } from './infra-actions.js'
+import { createIntegrationsUi } from './integrations-ui.js'
 import { handleMasterClickAction } from './master-actions.js'
 import { handleRunClickAction } from './run-actions.js'
 import { handleFlowClickAction } from './flow-actions.js'
@@ -768,6 +769,7 @@ const {
 
 // Собирается выше обеих ветвей отрисовки: поверхностей Хаба и окон панели.
 const toolWindowFrame = createToolWindowFrame({ esc, isToolWindow })
+const integrations = createIntegrationsUi({ root, vscode, render: (...args) => render(...args), shell: (...args) => shell(...args), toolPageHeading: toolWindowFrame.toolPageHeading, markdown: formatCompanionMarkdown })
 
 // Студия характера компаньона живёт отдельным модулем: main.js держит её
 // состояние, а разметку роли, стиля, черт и образца ответа считает она.
@@ -2391,7 +2393,7 @@ const {
   statusLabels, toolLabels, eventLabels, healthLabels, stopReasonLabels,
   plural, countOf, esc, formatCompanionMarkdown, data, toolName,
   providerCatalog, providerPreset, requiresApiKey, lines, toolProvidesVerification,
-  serversView: (...args) => serversView(...args), toolWindowKind, ui: modularUiState, vscode,
+  serversView: (...args) => serversView(...args), toolWindowKind, ui: modularUiState, vscode, gitlabToolView: () => integrations.toolView(),
 })
 
 ;({ agentWorkTranscriptHtml } = createAgentWorkTranscript({
@@ -2814,7 +2816,7 @@ function paint() {
     return
   }
   if (state.service?.state !== 'running') { root.innerHTML = offline(); return }
-  const dedicated = { connections: connectionsView, statistics: statisticsView, docker: dockerView }[document.body?.dataset?.layout]
+  const dedicated = { connections: connectionsView, statistics: statisticsView, docker: dockerView, 'gitlab-mr': integrations.mrView }[document.body?.dataset?.layout]
   if (dedicated) { root.innerHTML = dedicated(); restoreUi(snapshot); persistDraft(); return }
   if (state.selectedTab === 'onboarding') root.innerHTML = (agentConstructorOpen && companionOnboardingFinished()) ? agentConstructor() : onboarding()
   else if (state.selectedTab === 'decisions') root.innerHTML = decisionsView()
@@ -2831,6 +2833,7 @@ function paint() {
   else if (state.selectedTab === 'memory') root.innerHTML = memoryView()
   else if (state.selectedTab === 'connections') root.innerHTML = connectionsView()
   else if (state.selectedTab === 'databases') root.innerHTML = databasesView()
+  else if (state.selectedTab === 'integrations') root.innerHTML = integrations.guildView()
   else if (state.selectedTab === 'changesets') root.innerHTML = changeSetsView()
   else if (state.selectedTab === 'journal') root.innerHTML = journalView()
   else if (state.selectedTab === 'filehistory') root.innerHTML = fileHistoryView()
@@ -2934,6 +2937,7 @@ root.addEventListener('click', event => {
   if (handleInfraClickAction({
     action, target, ui: modularUiState, root, vscode, render, saveConnectionFromFields,
   })) return
+  if (integrations.click(action, target)) return
   if (handleMasterClickAction({
     action, target, ui: modularUiState, root, vscode, render, persistDraft, masterClient,
     applyMasterFind: (...args) => applyMasterFind(...args),
@@ -3851,6 +3855,7 @@ window.addEventListener('message', event => {
     render()
     return
   }
+  if (integrations.message(message)) return
   if (applyWorldStateMessage(message)) return
   if (message.type === 'cursorRuntime') {
     state = { ...state, cursorRuntime: message }

@@ -15,6 +15,7 @@ export function createQuestRuntimeViews(dependencies) {
     createGitViews,
     currentHubQuest,
     databasesView,
+    gitlabToolView,
     decisionsWaitingCount,
     execControlsHtml,
     gitWide,
@@ -1131,6 +1132,7 @@ export function createQuestRuntimeViews(dependencies) {
     if (kind === 'database') return databasesView()
     if (kind === 'ssh') return serversView()
     if (kind === 'git') return gitToolView()
+    if (kind === 'gitlab') return gitlabToolView()
     if (kind === 'terminal') return terminalToolView()
     if (kind === 'logs') return logsToolView()
     return shell(`<main class="point-tool-page">${toolWindowEmpty('Окно инструмента не найдено', 'Откройте его заново из рейки или по своей клавише.')}</main>`)
@@ -1308,9 +1310,9 @@ export function createQuestRuntimeViews(dependencies) {
     { id: 'quests', icon: '⚑', label: 'Квесты', title: 'Квесты проекта, их история и схемы',
       tabs: ['quests', 'quest', 'history', 'flows'],
       subtabs: [['quests', 'Квесты'], ['history', 'История'], ['flows', 'Схемы']] },
-    { id: 'guild', icon: '⬡', label: 'Гильдия', title: 'Агенты, отряды, навыки, инструменты и связи',
-      tabs: ['agents', 'teams', 'skills', 'tools', 'memory', 'connections', 'databases', 'onboarding'],
-      subtabs: [['agents', 'Агенты'], ['teams', 'Отряды'], ['skills', 'Навыки'], ['tools', 'Инструменты'], ['memory', 'Память'], ['connections', 'Связи'], ['databases', 'Базы'], ['onboarding', 'Настройка']] },
+    { id: 'guild', icon: '⬡', label: 'Гильдия', title: 'Агенты, отряды, навыки, инструменты, связи и интеграции',
+      tabs: ['agents', 'teams', 'skills', 'tools', 'memory', 'connections', 'databases', 'integrations', 'onboarding'],
+      subtabs: [['agents', 'Агенты'], ['teams', 'Отряды'], ['skills', 'Навыки'], ['tools', 'Инструменты'], ['memory', 'Память'], ['connections', 'Связи'], ['databases', 'Базы'], ['integrations', 'Интеграции'], ['onboarding', 'Настройка']] },
   ]
   
   // Незнакомая вкладка не подсвечивает ни одного раздела. Раньше запасным

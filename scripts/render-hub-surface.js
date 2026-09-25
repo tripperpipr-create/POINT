@@ -21,7 +21,9 @@ const COMPANION_LAYOUTS = { companion: 'companion', 'companion-sidebar': 'compan
 // «Подключения» живут двумя жизнями: своим окном (`connections-window`) и
 // вкладкой Хаба (`connections`), где от них остался только вход. Стенд рисует
 // обе — иначе правка одной молча ломала бы другую.
-const DEDICATED_LAYOUTS = { statistics: 'statistics', docker: 'docker', 'connections-window': 'connections' }
+// Карточка MR — вкладка редактора со своей раскладкой; какой MR в ней открыт,
+// хост пишет в data-атрибуты body, стенд — тоже.
+const DEDICATED_LAYOUTS = { statistics: 'statistics', docker: 'docker', 'connections-window': 'connections', 'gitlab-mr': 'gitlab-mr' }
 // Окна инструментов правой панели — терминал, базы, SSH, Git, логи. Разметку им
 // выбирает не вкладка, а `data-layout` вебвью: `tool-<вид>`. Пять поверхностей
 // живут в окне IDE постоянно и до цикла 34 не рисовались стендом вовсе.
@@ -85,7 +87,7 @@ const context = {
   }),
   document: {
     getElementById: id => (id === 'root' ? root : undefined),
-    body: { dataset: { layout: requestedLayout } },
+    body: { dataset: { layout: requestedLayout, ...(requestedSurface === 'gitlab-mr' ? { gitlabProject: 'billing/payments', gitlabIid: '12' } : {}) } },
   },
   window: { addEventListener(type, callback) { listeners[`window:${type}`] = callback } },
   console, Date, Map, Set, CSS: { escape(value) { return String(value) } },
@@ -1199,6 +1201,111 @@ if (pick(COMPANION_LAYOUTS, requestedSurface) && seedStep === 'markdown') {
     loading: false,
   } })
 }
+// Интеграции: ответы ядра в форме GitLabResponse {state, reason, problem, fix,
+// data}. MR, обсуждение и пайплайн — те же, что в фикстурах адаптера
+// (internal/integrations/gitlab/testdata/zereight-2.1.66/responses).
+if (['tool-gitlab', 'gitlab-mr', 'integrations'].includes(requestedSurface)) {
+  const send = data => listeners['window:message']({ data })
+  const ok = data => ({ state: 'ok', data })
+  const anna = { id: 7, username: 'anna', name: 'Анна Петрова' }
+  const boris = { id: 9, username: 'boris', name: 'Борис' }
+  const head = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678'
+  const variant = process.argv[3] || ''
+  const binding = { mode: 'auto', project: 'billing/payments', detected: 'billing/payments', remote: 'gitlab.example.test/billing/payments', branch: 'fix/webhook-retry', workspace: 'ai-ide' }
+  const status = variant === 'problem'
+    ? { state: 'error', reason: 'not_trusted', problem: 'запуск сервера GitLab не одобрен', fix: 'Гильдия → Интеграции → GitLab: посмотрите команду и нажмите «Доверяю»',
+      data: { serverId: 'mcp-gitlab', configured: true, url: 'https://gitlab.example.test', pinned: '@zereight/mcp-gitlab@2.1.66', binding } }
+    : ok({ serverId: 'mcp-gitlab', configured: true, url: 'https://gitlab.example.test', pinned: '@zereight/mcp-gitlab@2.1.66', serverVersion: '2.1.66', user: anna, binding })
+  const mergeRequests = [
+    { projectId: 42, projectPath: 'billing/payments', iid: 12, title: 'Идемпотентность вебхука оплаты', state: 'opened', sourceBranch: 'fix/webhook-retry', targetBranch: 'main',
+      author: anna, reviewers: [boris], mergeStatus: 'mergeable', sha: head, updatedAt: yesterday(17, 30) },
+    { projectId: 42, projectPath: 'billing/payments', iid: 13, title: 'Draft: миграция заказов на новую схему с разбиением по месяцам', state: 'opened', draft: true, sourceBranch: 'feat/orders-partitioning', targetBranch: 'main',
+      author: boris, mergeStatus: 'draft_status', hasConflicts: true, blockingThreads: true, sha: 'f'.repeat(40), updatedAt: atMidnight(-2, 10, 0) },
+    { projectId: 42, projectPath: 'billing/payments', iid: 9, title: 'Ретраи с экспоненциальной паузой', state: 'opened', sourceBranch: 'feat/backoff', targetBranch: 'main',
+      author: anna, reviewers: [boris], mergeStatus: 'ci_still_running', sha: 'b'.repeat(40), updatedAt: today(9, 5) },
+  ]
+  const pipelines = [
+    { id: 3301, status: 'failed', ref: 'fix/webhook-retry', sha: head, source: 'push', createdAt: yesterday(17, 31), duration: 512.4, user: anna },
+    { id: 3290, status: 'success', ref: 'fix/webhook-retry', sha: '9'.repeat(40), source: 'push', createdAt: yesterday(12, 0), duration: 530 },
+    { id: 3288, status: 'running', ref: 'fix/webhook-retry', sha: '8'.repeat(40), source: 'push', createdAt: yesterday(11, 0) },
+  ]
+  const jobs = [
+    { id: 77001, name: 'build', stage: 'build', status: 'success', duration: 120.5, startedAt: yesterday(17, 31) },
+    { id: 77002, name: 'go-test', stage: 'test', status: 'failed', duration: 301.2, failureReason: 'script_failure', startedAt: yesterday(17, 33) },
+    { id: 77003, name: 'lint', stage: 'test', status: 'success', duration: 41, startedAt: yesterday(17, 33) },
+  ]
+  if (requestedSurface === 'tool-gitlab') {
+    send({ type: 'gitlabStatus', response: status })
+    if (variant !== 'problem') send({ type: 'gitlabMergeRequests', scope: 'mine', response: ok({ scope: 'mine', project: 'billing/payments', items: mergeRequests }) })
+    if (variant === 'pipelines') {
+      click({ action: 'gitlab-section', section: 'pipelines' })
+      send({ type: 'gitlabPipelines', response: ok({ project: 'billing/payments', ref: 'fix/webhook-retry', items: pipelines }) })
+      click({ action: 'gitlab-toggle-pipeline', project: 'billing/payments', pipeline: '3301' })
+      send({ type: 'gitlabJobs', pipeline: 3301, response: ok({ project: 'billing/payments', pipelineId: 3301, jobs }) })
+    }
+    if (variant === 'binding') click({ action: 'gitlab-binding-toggle' })
+  }
+  if (requestedSurface === 'gitlab-mr') {
+    send({ type: 'gitlabMr', response: ok({
+      mergeRequest: { ...mergeRequests[0], description: [
+        'Повторная доставка вебхука больше не создаёт второй платёж: ключ идемпотентности хранится 24 часа.', '',
+        '### Что изменилось', '- [x] ключ идемпотентности в `internal/billing/idempotency.go`', '- [ ] нагрузочный тест', '',
+        '> Старые вебхуки без ключа обрабатываются как раньше.', '', '<script>alert(1)</script>',
+      ].join('\n'), diffRefs: { baseSha: '0'.repeat(39) + '1', headSha: head, startSha: '0'.repeat(39) + '1' }, changesCount: '3', removeSourceBranch: true, webUrl: 'https://gitlab.example.test/billing/payments/-/merge_requests/12' },
+      approvals: { rules: [{ name: 'Code owners', required: 1, approved: true, approvedBy: [boris] }, { name: 'Security', required: 1, approved: false }], approvedBy: [boris] },
+      pipelines: pipelines.slice(0, 2), mine: true, approvedByMe: false,
+    }) })
+    send({ type: 'gitlabDiscussions', response: ok({ discussions: [
+      { id: 'd1a2', individual: true, notes: [{ id: 501, author: boris, body: 'approved this merge request', system: true, createdAt: yesterday(16, 0) }] },
+      { id: 'd3b4', individual: false, resolvable: true, resolved: false, notes: [
+        { id: 502, author: boris, body: 'Здесь нужен **таймаут**, иначе ретрай зависнет.', resolvable: true, createdAt: yesterday(16, 5), position: { newPath: 'internal/billing/retry.go', newLine: 27 } },
+        { id: 503, author: anna, body: 'Добавила, см. новый коммит.', resolvable: true, createdAt: yesterday(17, 0) },
+      ] },
+    ] }) })
+    send({ type: 'gitlabChanges', response: ok({ files: [
+      { oldPath: 'docs/hooks.md', newPath: 'docs/webhooks.md', renamed: true },
+      { oldPath: 'internal/billing/idempotency.go', newPath: 'internal/billing/idempotency.go', new: true },
+      { oldPath: 'internal/billing/retry.go', newPath: 'internal/billing/retry.go' },
+    ] }) })
+    if (['discussion', 'changes', 'pipeline'].includes(variant)) click({ action: 'gitlab-mr-tab', tab: variant })
+    if (variant === 'pipeline') {
+      click({ action: 'gitlab-toggle-pipeline', project: 'billing/payments', pipeline: '3301' })
+      send({ type: 'gitlabJobs', pipeline: 3301, response: ok({ project: 'billing/payments', pipelineId: 3301, jobs }) })
+    }
+  }
+  if (requestedSurface === 'integrations') {
+    const tool = (name, risk, extra = {}) => ({ serverId: 'x', name, description: `Инструмент ${name}`, risk, state: 'ok', enabled: false, ...extra })
+    const gitlabTools = ['list_merge_requests', 'get_merge_request', 'mr_discussions', 'create_merge_request_note', 'approve_merge_request', 'merge_merge_request']
+      .map(name => tool(name, name === 'merge_merge_request' ? 'CRITICAL' : /create|approve/.test(name) ? 'HIGH' : 'LOW', { state: 'new' }))
+    const servers = variant === 'empty' ? [] : [
+      { id: 'mcp-gitlab', displayName: 'GitLab', kind: 'gitlab', transport: 'stdio', command: 'npx', args: ['-y', '@zereight/mcp-gitlab@2.1.66'],
+        env: { GITLAB_API_URL: 'https://gitlab.example.test/api/v4' }, secretEnv: { GITLAB_PERSONAL_ACCESS_TOKEN: 'point.mcp.mcp-gitlab.env.GITLAB_PERSONAL_ACCESS_TOKEN' },
+        settings: { url: 'https://gitlab.example.test' }, trusted: true, outsideSandbox: true, status: 'connected', serverName: 'zereight-gitlab-mcp-server', serverVersion: '2.1.66',
+        runtime: { running: true }, tools: gitlabTools, secretRefs: {} },
+      { id: 'mcp-sentry', displayName: 'Sentry', kind: 'custom', transport: 'stdio', command: 'npx', args: ['-y', '@sentry/mcp-server@0.18.0'],
+        resolvedPreview: 'C:\\Program Files\\nodejs\\npx.cmd', env: { SENTRY_HOST: 'sentry.company.local' }, secretEnv: { SENTRY_ACCESS_TOKEN: 'ref' },
+        trusted: false, outsideSandbox: true, status: 'unknown', runtime: {}, tools: [], secretRefs: {} },
+      { id: 'mcp-docs', displayName: 'Документация платформы', kind: 'custom', transport: 'http', url: 'https://mcp.company.local/docs/mcp', allowPrivateHost: 'mcp.company.local',
+        secretHeaders: { Authorization: 'ref' }, secretsLocked: ['Authorization'], trusted: true, status: 'error', runtime: {},
+        problem: 'ядро не получило секрет: Authorization', fix: 'введите значение в карточке сервера — Point хранит его в SecretStorage и передаёт ядру при запуске',
+        tools: [tool('search_docs', 'LOW', { enabled: true }), tool('open_page', 'LOW', { state: 'changed', description: 'Открыть страницу. Описание изменилось после одобрения.' }), tool('old_search', 'MEDIUM', { state: 'missing' })], secretRefs: {} },
+    ]
+    send({ type: 'mcpServers', servers })
+    send({ type: 'gitlabStatus', response: variant === 'empty' ? { state: 'error', reason: 'not_configured', problem: 'GitLab не подключён', fix: 'Гильдия → Интеграции → GitLab: адрес сервера и личный токен', data: { serverId: 'mcp-gitlab', configured: false, pinned: '@zereight/mcp-gitlab@2.1.66', binding } } : status })
+    if (variant === 'tools') click({ action: 'mcp-tools-toggle', id: 'mcp-docs' })
+    if (variant === 'form') click({ action: 'mcp-form-open' })
+    if (variant === 'import') {
+      click({ action: 'mcp-import-open' })
+      send({ type: 'mcpImportPreview', candidates: [
+        { name: 'github', server: { transport: 'stdio', command: 'npx', args: ['-y', '@modelcontextprotocol/server-github@latest'] }, secretNames: ['env:GITHUB_TOKEN'],
+          warnings: ['версия @modelcontextprotocol/server-github@latest не закреплена: npx возьмёт то, что окажется в реестре в день запуска', 'программа запустится на этой машине вне песочницы — только после «Доверяю»'] },
+        { name: 'jira', server: { transport: 'http', url: 'https://jira.company.local/mcp' }, needsValue: ['header:Authorization'] },
+        { name: 'legacy', refused: 'устаревший транспорт HTTP+SSE не поддерживается — укажите адрес Streamable HTTP того же сервера' },
+      ] })
+    }
+  }
+}
+
 const css = ['rpg-tokens.css', 'style.css']
   .map(file => fs.readFileSync(path.join(repo, 'vscode-extension', 'media', file), 'utf8'))
   .join('\n')

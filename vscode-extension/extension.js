@@ -36,6 +36,7 @@ const {
   readJsonFile,
   upsertById,
   removeById,
+  TOOL_WINDOW_COMMANDS,
 } = require('./extension-utils')
 const {
   parseJsonc,
@@ -66,6 +67,7 @@ const { coreStateByKey, rememberWarmCore, reapWarmCores } = require('./core-warm
 const { createIdeActionController } = require('./ide-action-controller')
 const { createIdeNavigationController } = require('./ide-navigation-controller')
 const { createConnectionController } = require('./connection-controller')
+const { createIntegrationsController } = require('./integrations-controller')
 const { createPointPanels } = require('./point-panels')
 const { handleRosterMessage } = require('./roster-controller')
 const { handleLearningMessage } = require('./learning-controller')
@@ -734,6 +736,8 @@ class AgentViewProvider {
     })
   }
 
+  integrations() { return (this.integrationsController ||= createIntegrationsController(this)) }
+
   removeBootItem(collection, id) {
     this.patchBoot({ [collection]: removeById(this.boot?.[collection], id) })
   }
@@ -942,22 +946,13 @@ class AgentViewProvider {
         case 'openDocker':
           this.showDocker(); break
         case 'toolCommand': {
-          const allowed = new Set([
-            'localAgent.openTerminal', 'localAgent.runAnything', 'localAgent.newConsoleChannel',
-            'localAgent.selectRunConfiguration', 'localAgent.runWithoutDebug', 'localAgent.startDebug',
-            'localAgent.vcsChanges', 'localAgent.openChronicle', 'localAgent.gitClone',
-            'localAgent.vcsCommit', 'localAgent.vcsPush', 'localAgent.vcsPull',
-            'localAgent.vcsRollback', 'localAgent.vcsShowDiff', 'localAgent.showCoreChronicle',
-            'localAgent.openLogChat',
-            'localAgent.askCompanionAboutTerminal', 'localAgent.askCompanionAboutDiff',
-            'localAgent.askCompanionAboutProblems', 'localAgent.connectServer',
-            'localAgent.openDatabases', 'localAgent.rebuildIndex', 'localAgent.showIndexStatus',
-          ])
           const command = String(message.command || '')
-          if (!allowed.has(command)) throw new Error('Недоступное действие окна инструментов')
+          if (!TOOL_WINDOW_COMMANDS.has(command)) throw new Error('Недоступное действие окна инструментов')
           await vscode.commands.executeCommand(command)
           break
         }
+        case 'mcpAction': case 'gitlabAction':
+          await this.integrations().handle(message); break
         case 'gitAction':
         case 'loadToolWindowState':
         case 'loadDocker':
@@ -3032,6 +3027,7 @@ function activate(context) {
     },
   })
   provider.indexController = indexController
+  provider.integrations().register(context)
   // Реестр миров и кольцо тёплых ядер. Галерея Чертога рисуется до любого ядра,
   // поэтому источник у неё хостовый, а состояние ядра по каждому проекту
   // читается с диска — из дескрипторов и аренд, без единого запроса по HTTP.
@@ -3260,6 +3256,7 @@ function activate(context) {
       ['localAgent.databaseTools', 'database'],
       ['localAgent.sshTools', 'ssh'],
       ['localAgent.gitTools', 'git'],
+      ['localAgent.gitlabTools', 'gitlab'],
       ['localAgent.logTools', 'logs'],
     ].map(([id, kind]) => vscode.window.registerWebviewViewProvider(id, {
       resolveWebviewView(view) { provider.resolveToolWindow(view, kind) },

@@ -1,0 +1,535 @@
+/* Интеграции: окно GitLab, карточка MR и вкладка Гильдии «Интеграции».
+
+   Окно и карточка стоят на грунте окон инструментов (`nc-*`, 96-tool-windows):
+   это IDE, а не Чертог, — плотно, тихо, цветом отмечено только состояние.
+   Вкладка Гильдии живёт в регистре Хаба. Общие детали (кнопка, поле, сбой)
+   берут цвета из локальных `--gl-*`, которые задаёт каждая из двух оболочек,
+   поэтому одна и та же кнопка читается в обеих.
+
+   Пространство имён — `gl-` и `int-`: слои Point полны правил на общие имена. */
+
+.gl-app {
+  --gl-line: var(--nc-line-soft);
+  --gl-text: var(--nc-text);
+  --gl-text-2: var(--nc-text-2);
+  --gl-muted: var(--nc-dim);
+  --gl-faint: var(--nc-faint);
+  --gl-hover: var(--nc-row-hover);
+  --gl-field: var(--nc-field);
+  --gl-accent: var(--nc-accent);
+  --gl-accent-wash: var(--nc-accent-wash);
+}
+.int-page {
+  --gl-line: var(--hub-border);
+  --gl-text: var(--hub-text);
+  --gl-text-2: var(--hub-text-3);
+  --gl-muted: var(--hub-muted);
+  --gl-faint: var(--hub-faint);
+  --gl-hover: color-mix(in srgb, var(--hub-text) 5%, transparent);
+  --gl-field: var(--hub-void);
+  --gl-accent: var(--ember);
+  --gl-accent-wash: var(--ember-wash);
+}
+
+/* ── Общие детали ────────────────────────────────────────────────────────── */
+.gl-btn {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--gl-line);
+  border-radius: var(--r-1);
+  color: var(--gl-text-2);
+  display: inline-flex;
+  flex: 0 0 auto;
+  font: var(--fw-normal) var(--t-small)/1 var(--font-ui);
+  gap: var(--s-3);
+  min-height: var(--control-sm);
+  padding: 0 var(--s-4);
+  white-space: nowrap;
+}
+.gl-btn:hover:not(:disabled) { background: var(--gl-hover); color: var(--gl-text); }
+.gl-btn:focus-visible { outline: 1px solid var(--ui-focus); outline-offset: 1px; }
+.gl-btn.is-primary { background: var(--gl-accent); border-color: var(--gl-accent); color: var(--ui-accent-fg); font-weight: var(--fw-medium); }
+.gl-btn.is-primary:hover:not(:disabled) { background: var(--ember-hover); color: var(--ui-accent-fg); }
+.gl-btn.is-quiet { border-color: transparent; color: var(--gl-muted); }
+.gl-btn.is-danger { color: var(--wound); }
+.gl-btn.is-on { background: var(--gl-accent-wash); border-color: transparent; color: var(--gl-text); }
+.gl-btn b { color: var(--gl-faint); font: var(--fw-normal) var(--t-micro)/1 var(--font-mono); }
+.gl-btn:disabled { cursor: default; opacity: var(--disabled-opacity); }
+
+.gl-input {
+  background: var(--gl-field);
+  border: 1px solid var(--gl-line);
+  border-radius: var(--r-1);
+  color: var(--gl-text);
+  font: var(--fw-normal) var(--t-small)/var(--lh-base) var(--font-ui);
+  padding: var(--s-3) var(--s-4);
+  resize: vertical;
+  width: 100%;
+}
+.gl-input.is-mono { font-family: var(--font-mono); }
+.gl-input:focus { border-color: var(--gl-accent); outline: 1px solid var(--gl-accent); }
+.gl-input::placeholder { color: var(--gl-faint); }
+
+.gl-check,
+.gl-radio { align-items: flex-start; color: var(--gl-text-2); cursor: pointer; display: inline-flex; font-size: var(--t-small); gap: var(--s-3); }
+.gl-check { align-items: center; min-height: var(--control-sm); }
+.gl-check input,
+.gl-radio input { accent-color: var(--gl-accent); flex: 0 0 auto; margin: var(--s-1) 0 0; width: auto; }
+.gl-check input { margin: 0; }
+.gl-radio span { display: grid; gap: var(--s-1); }
+.gl-radio b { color: var(--gl-text); font-weight: var(--fw-medium); }
+.gl-radio small { color: var(--gl-faint); font-size: var(--t-micro); }
+
+.gl-loading { align-items: center; color: var(--gl-muted); display: flex; font-size: var(--t-small); gap: var(--s-4); padding: var(--s-7) var(--s-6); }
+.gl-muted { color: var(--gl-faint); font-size: var(--t-small); line-height: var(--lh-base); margin: 0; }
+
+/* Сбой экрана: причина — строкой, следующий шаг — под ней, кнопка — одна. */
+.gl-problem {
+  align-items: flex-start;
+  background: var(--caution-wash);
+  border-left: var(--edge-accent) solid var(--caution);
+  color: var(--caution);
+  display: flex;
+  gap: var(--s-4);
+  margin: var(--s-5);
+  padding: var(--s-5);
+}
+.gl-problem.is-auth,
+.gl-problem.is-unreachable,
+.gl-problem.is-format { background: var(--wound-wash); border-left-color: var(--wound); color: var(--wound); }
+.gl-problem > div { display: grid; gap: var(--s-3); justify-items: start; min-width: 0; }
+.gl-problem strong { color: var(--gl-text); font: var(--fw-medium) var(--t-small)/var(--lh-base) var(--font-ui); }
+.gl-problem p { color: var(--gl-muted); font-size: var(--t-small); line-height: var(--lh-base); margin: 0; }
+
+/* Метка состояния пайплайна и джоба: кружок с галочкой или крестом. */
+.gl-mark {
+  align-items: center;
+  border: 1.5px solid currentColor;
+  border-radius: var(--r-full);
+  color: var(--gl-faint);
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: var(--s-6);
+  justify-content: center;
+  width: var(--s-6);
+}
+.gl-mark .nc-icon { stroke-width: 2; }
+.gl-mark.is-ok { background: var(--vital-wash); color: var(--vital); }
+.gl-mark.is-bad { background: var(--wound-wash); color: var(--wound); }
+.gl-mark.is-run { border-style: dashed; color: var(--mana); }
+.gl-mark.is-wait { color: var(--caution); }
+
+.gl-status.is-ok { color: var(--vital); }
+.gl-status.is-bad { color: var(--wound); }
+.gl-status.is-warn { color: var(--caution); }
+.gl-status.is-wait { color: var(--mana); }
+.gl-status.is-mute { color: var(--gl-faint); }
+
+/* ── Окно GitLab ─────────────────────────────────────────────────────────── */
+.gl-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; scrollbar-color: var(--nc-line-soft) transparent; scrollbar-width: thin; }
+
+/* Где окно смотрит: проект, ветка, чьё имя. Нажатие открывает выбор проекта. */
+.gl-where {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--nc-line);
+  color: var(--nc-text-2);
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--s-4);
+  min-height: var(--control-md);
+  padding: 0 var(--nc-4);
+  text-align: left;
+  width: 100%;
+}
+.gl-where:hover { background: var(--nc-row-hover); }
+.gl-where span { font: var(--fw-normal) var(--t-small)/1 var(--nc-mono); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gl-where small { align-items: center; color: var(--nc-faint); display: inline-flex; flex: 0 1 auto; font-size: var(--t-micro); gap: var(--s-2); min-width: 0; overflow: hidden; white-space: nowrap; }
+.gl-where em { color: var(--nc-faint); font: var(--fw-normal) var(--t-micro)/1 var(--font-ui); margin-left: auto; white-space: nowrap; }
+
+.gl-scopes .nc-seg { flex: 0 1 auto; min-width: 0; }
+.gl-scopes .nc-seg button { flex: 0 1 auto; min-height: var(--control-sm); min-width: 0; overflow: hidden; padding-inline: var(--s-4); text-overflow: ellipsis; white-space: nowrap; }
+.gl-scopes .nc-seg button:disabled { cursor: default; opacity: var(--disabled-opacity); }
+.gl-count { color: var(--nc-faint); font: var(--fw-normal) var(--t-micro)/1 var(--nc-mono); }
+
+.gl-mr-row { align-items: flex-start; }
+.gl-mr-row > span { flex: 1 1 auto; }
+.gl-mr-row strong em { color: var(--nc-faint); font: var(--fw-normal) var(--t-small)/1 var(--nc-mono); margin-right: var(--s-1); }
+.gl-mr-row small > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gl-mr-row .gl-branch { color: var(--nc-muted); font-family: var(--nc-mono); }
+.gl-mr-meta { flex-wrap: wrap; }
+.gl-mr-state {
+  background: var(--nc-ghost);
+  border-radius: var(--r-full);
+  flex: 0 0 auto;
+  height: var(--s-4);
+  margin-top: var(--s-3);
+  width: var(--s-4);
+}
+.gl-mr-state.is-ok { background: var(--vital); }
+.gl-mr-state.is-bad { background: var(--wound); }
+.gl-mr-state.is-warn { background: var(--caution); }
+.gl-mr-state.is-wait { background: var(--mana); }
+
+.gl-flag { color: var(--nc-faint); font: var(--fw-normal) var(--nc-t-num)/1.4 var(--font-ui); }
+.gl-flag::before { content: '·'; margin-right: var(--s-3); }
+.gl-flag.is-bad { color: var(--wound); }
+.gl-flag.is-warn { color: var(--caution); }
+
+.gl-pipeline { border-bottom: 1px solid var(--nc-line); }
+.gl-pipeline > .nc-row { align-items: center; }
+.gl-pipeline > .nc-row > span { flex: 1 1 auto; }
+.gl-pipeline.is-open > .nc-row { background: var(--nc-row-hover); }
+.gl-jobs { display: grid; list-style: none; margin: 0; padding: 0 0 var(--s-4); }
+.gl-jobs li {
+  align-items: center;
+  display: grid;
+  gap: var(--s-4);
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  padding: var(--s-1) var(--nc-3) var(--s-1) var(--s-8);
+}
+.gl-jobs li:hover { background: var(--nc-row-hover); }
+.gl-jobs span { display: grid; gap: var(--s-1); min-width: 0; }
+.gl-jobs b { color: var(--nc-text); font: var(--fw-normal) var(--t-small)/1.3 var(--font-ui); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gl-jobs small { color: var(--nc-faint); font-size: var(--t-micro); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gl-jobs .gl-muted,
+.gl-pipeline .gl-loading { padding: var(--s-4) var(--s-8); }
+
+.gl-binding-edit {
+  background: var(--nc-panel);
+  border-bottom: 1px solid var(--nc-line);
+  display: grid;
+  flex: 0 0 auto;
+  gap: var(--s-4);
+  padding: var(--s-5) var(--nc-4);
+}
+.gl-binding-edit .gl-input.is-sub { margin-left: var(--s-7); width: calc(100% - var(--s-7)); }
+.gl-field { color: var(--gl-muted); display: grid; font-size: var(--t-small); gap: var(--s-2); }
+.gl-field small { color: var(--gl-faint); font-size: var(--t-micro); }
+.gl-binding-edit footer { display: flex; gap: var(--s-3); }
+
+/* ── Карточка MR ─────────────────────────────────────────────────────────── */
+.gl-mr { height: 100vh; }
+.gl-mr-head {
+  background: var(--nc-panel);
+  border-bottom: 1px solid var(--nc-line);
+  display: grid;
+  flex: 0 0 auto;
+  gap: var(--s-3);
+  padding: var(--s-6) var(--s-7) var(--s-5);
+}
+.gl-mr-title { align-items: flex-start; display: flex; gap: var(--s-4); }
+.gl-mr-title h1 { color: var(--nc-text); flex: 1 1 auto; font: var(--fw-semibold) var(--t-title)/var(--lh-tight) var(--font-ui); margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.gl-mr-title h1 em { color: var(--nc-faint); font: var(--fw-normal) var(--t-lead)/1 var(--nc-mono); font-style: normal; margin-right: var(--s-2); }
+.gl-mr-sub { align-items: center; color: var(--nc-faint); display: flex; flex-wrap: wrap; font-size: var(--t-small); gap: var(--s-2) var(--s-5); margin: 0; }
+.gl-mr-sub .gl-branch { align-items: center; color: var(--nc-text-2); display: inline-flex; font-family: var(--nc-mono); gap: var(--s-2); min-width: 0; overflow-wrap: anywhere; }
+.gl-mr-bar { align-items: center; display: flex; flex-wrap: wrap; gap: var(--s-4); margin-top: var(--s-3); }
+.gl-mr-error { color: var(--wound); font-size: var(--t-small); margin: 0; }
+.gl-chips { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+.gl-chip {
+  border: 1px solid color-mix(in srgb, currentColor 40%, transparent);
+  border-radius: var(--r-full);
+  color: var(--nc-faint);
+  font: var(--fw-normal) var(--t-small)/1.5 var(--font-ui);
+  padding: 0 var(--s-4);
+  white-space: nowrap;
+}
+.gl-chip.is-ok { color: var(--vital); }
+.gl-chip.is-bad { color: var(--wound); }
+.gl-chip.is-warn { color: var(--caution); }
+.gl-chip.is-wait,
+.gl-chip.is-run { color: var(--mana); }
+.gl-chip.is-merged { color: var(--arcane); }
+
+.gl-mr-tabs { background: var(--nc-panel); border-bottom: 1px solid var(--nc-line); flex: 0 0 auto; padding: 0 var(--s-6); }
+.gl-mr-tabs .nc-tab { border-radius: 0; flex: 0 0 auto; }
+.gl-mr-tabs .nc-tab.is-active { background: transparent; box-shadow: inset 0 calc(-1 * var(--edge-accent)) 0 var(--nc-accent); }
+.gl-mr-tabs .nc-tab b { color: var(--nc-faint); font: var(--fw-normal) var(--t-micro)/1 var(--nc-mono); }
+
+.gl-pane {
+  display: grid;
+  gap: var(--s-7);
+  grid-template-columns: minmax(0, 1fr) minmax(200px, 260px);
+  max-width: 1180px;
+  padding: var(--s-7);
+}
+.gl-pane.is-single { display: block; max-width: 920px; }
+.gl-pane.is-single > * + * { margin-top: var(--s-5); }
+@media (max-width: 720px) { .gl-pane { grid-template-columns: minmax(0, 1fr); } }
+
+/* Описание и заметки — разметка GitLab после разборщика: только базовые теги. */
+.gl-desc,
+.gl-note-body { color: var(--nc-text-2); font-size: var(--t-base); line-height: var(--lh-loose); min-width: 0; overflow-wrap: anywhere; }
+.gl-desc > :first-child,
+.gl-note-body > :first-child { margin-top: 0; }
+.gl-desc > :last-child,
+.gl-note-body > :last-child { margin-bottom: 0; }
+.gl-desc :is(h1, h2, h3, h4) { color: var(--nc-text); font-size: var(--t-base); font-weight: var(--fw-semibold); margin: var(--s-6) 0 var(--s-3); }
+.gl-desc :is(p, ul, ol, blockquote, table, pre),
+.gl-note-body :is(p, ul, ol, blockquote, table, pre) { margin: 0 0 var(--s-4); }
+.gl-desc :is(ul, ol),
+.gl-note-body :is(ul, ol) { padding-left: var(--s-7); }
+.gl-desc code,
+.gl-note-body code { background: var(--nc-field); border-radius: var(--r-1); font: var(--fw-normal) var(--t-small)/1 var(--nc-mono); padding: var(--s-1) var(--s-2); }
+.gl-desc pre,
+.gl-note-body pre { background: var(--nc-field); border: 1px solid var(--nc-line); border-radius: var(--r-2); overflow: auto; padding: var(--s-4) var(--s-5); }
+.gl-desc pre code,
+.gl-note-body pre code { background: transparent; padding: 0; }
+.gl-desc blockquote,
+.gl-note-body blockquote { border-left: var(--edge-accent) solid var(--nc-line-soft); color: var(--nc-muted); padding-left: var(--s-5); }
+.gl-desc a,
+.gl-note-body a { color: var(--ui-link); }
+.gl-desc table { border-collapse: collapse; font-size: var(--t-small); }
+.gl-desc :is(th, td) { border: 1px solid var(--nc-line); padding: var(--s-2) var(--s-4); text-align: left; }
+
+.gl-side { align-content: start; display: grid; gap: var(--s-6); }
+.gl-people,
+.gl-rules { display: grid; gap: var(--s-3); }
+.gl-people > span,
+.gl-rules > span { color: var(--nc-faint); font: var(--fw-normal) var(--t-micro)/1 var(--font-ui); letter-spacing: var(--tracking-label); text-transform: uppercase; }
+.gl-people b { color: var(--nc-text-2); font: var(--fw-normal) var(--t-small)/1.3 var(--font-ui); }
+.gl-rules p { align-items: center; color: var(--nc-faint); display: flex; font-size: var(--t-small); gap: var(--s-3); margin: 0; }
+.gl-rules p.is-ok { color: var(--vital); }
+.gl-rules b { color: var(--nc-text-2); flex: 1 1 auto; font-weight: var(--fw-normal); min-width: 0; }
+.gl-rules small { color: var(--nc-faint); font: var(--fw-normal) var(--t-micro)/1 var(--nc-mono); }
+
+.gl-thread { border: 1px solid var(--nc-line); border-radius: var(--r-2); position: relative; }
+.gl-thread.is-resolved { border-color: color-mix(in srgb, var(--vital) 35%, transparent); }
+.gl-thread-state { color: var(--caution); font: var(--fw-normal) var(--t-micro)/1 var(--font-ui); letter-spacing: var(--tracking-label); position: absolute; right: var(--s-5); text-transform: uppercase; top: var(--s-5); }
+.gl-thread.is-resolved .gl-thread-state { color: var(--vital); }
+.gl-note { display: grid; gap: var(--s-3); padding: var(--s-5) var(--s-6); }
+.gl-note + .gl-note { border-top: 1px solid var(--nc-line); }
+.gl-note header { align-items: center; display: flex; flex-wrap: wrap; gap: var(--s-4); padding-right: var(--s-8); }
+.gl-note header b { color: var(--nc-text); font: var(--fw-medium) var(--t-small)/1 var(--font-ui); }
+.gl-note header small { color: var(--nc-faint); font-size: var(--t-micro); }
+.gl-note.is-system p { color: var(--nc-faint); font-size: var(--t-small); margin: 0; }
+.gl-where-chip { background: var(--mana-wash); border-radius: var(--r-1); color: var(--mana); font: var(--fw-normal) var(--t-micro)/1.5 var(--nc-mono); padding: 0 var(--s-3); }
+.gl-event { align-items: center; color: var(--nc-faint); display: flex; font-size: var(--t-small); gap: var(--s-3); }
+.gl-event b { color: var(--nc-muted); font-weight: var(--fw-medium); }
+.gl-event small { font-size: var(--t-micro); margin-left: auto; }
+.gl-reply { align-items: flex-end; border-top: 1px solid var(--nc-line); display: flex; flex-direction: column; gap: var(--s-3); padding: var(--s-4) var(--s-6); }
+.gl-reply.is-new { border-top: 0; margin-top: var(--s-6); padding: 0; }
+
+.gl-files { list-style: none; margin: 0; padding: 0; }
+.gl-files .nc-row { align-items: center; border-radius: var(--r-1); }
+.gl-file-mark {
+  border-radius: var(--r-1);
+  flex: 0 0 auto;
+  font: var(--fw-semibold) var(--t-micro)/1.6 var(--nc-mono);
+  font-style: normal;
+  text-align: center;
+  width: var(--s-6);
+}
+.gl-file-mark.is-add { background: var(--vital-wash); color: var(--vital); }
+.gl-file-mark.is-del { background: var(--wound-wash); color: var(--wound); }
+.gl-file-mark.is-ren { background: var(--mana-wash); color: var(--mana); }
+.gl-file-mark.is-mod { background: var(--caution-wash); color: var(--caution); }
+
+/* ── Гильдия → Интеграции ────────────────────────────────────────────────── */
+.int-page { display: flex; flex-direction: column; gap: var(--s-7); max-width: 980px; }
+.int-section { display: grid; gap: var(--s-4); }
+.int-section > h2 {
+  color: var(--gl-faint);
+  font: var(--fw-medium) var(--t-small)/1 var(--font-ui);
+  letter-spacing: var(--tracking-label);
+  margin: 0;
+  text-transform: uppercase;
+}
+.int-section > h2 small { color: var(--gl-faint); font-weight: var(--fw-normal); letter-spacing: 0; margin-left: var(--s-3); text-transform: none; }
+.int-muted { color: var(--gl-faint); font-size: var(--t-small); line-height: var(--lh-base); margin: 0; }
+.int-muted code { font-family: var(--font-mono); }
+.int-warn { align-items: center; color: var(--caution); display: flex; font-size: var(--t-small); gap: var(--s-3); margin: 0; }
+
+.int-plugin,
+.int-server,
+.int-form.is-card,
+.int-candidate {
+  background: var(--hub-panel);
+  border: 1px solid var(--gl-line);
+  border-radius: var(--r-2);
+  display: grid;
+  gap: var(--s-5);
+  min-width: 0;
+  padding: var(--s-6);
+}
+.int-candidate { background: transparent; padding: var(--s-5); }
+.int-candidate.is-refused { border-style: dashed; }
+.int-plugin > header,
+.int-server > header,
+.int-form > header,
+.int-candidate > header { align-items: center; display: flex; flex-wrap: wrap; gap: var(--s-3) var(--s-5); min-width: 0; }
+.int-plugin > header > div,
+.int-server > header > div { display: grid; flex: 1 1 200px; gap: var(--s-2); min-width: 0; }
+.int-plugin strong,
+.int-server strong,
+.int-form > header strong,
+.int-candidate strong { color: var(--gl-text); font: var(--fw-semibold) var(--t-base)/1.2 var(--font-ui); }
+.int-plugin header small,
+.int-server header small,
+.int-form > header small { color: var(--gl-faint); font-size: var(--t-small); }
+.int-plugin.is-soon { background: transparent; border-style: dashed; padding: var(--s-5) var(--s-6); }
+.int-plugin.is-soon strong { color: var(--gl-muted); }
+.int-plugin-mark {
+  align-items: center;
+  background: var(--ember-wash);
+  border-radius: var(--r-2);
+  color: var(--ember);
+  display: inline-flex;
+  flex: 0 0 auto;
+  font: var(--fw-semibold) var(--t-base)/1 var(--font-ui);
+  height: var(--s-8);
+  justify-content: center;
+  width: var(--s-8);
+}
+.int-plugin.is-soon .int-plugin-mark { background: color-mix(in srgb, var(--hub-text) 6%, transparent); color: var(--gl-faint); }
+
+.int-state {
+  border: 1px solid color-mix(in srgb, currentColor 40%, transparent);
+  border-radius: var(--r-full);
+  color: var(--gl-faint);
+  font: var(--fw-normal) var(--t-small)/1.5 var(--font-ui);
+  padding: 0 var(--s-4);
+  white-space: nowrap;
+}
+.int-state.is-ok { color: var(--vital); }
+.int-state.is-bad { color: var(--wound); }
+.int-state.is-warn { color: var(--caution); }
+.int-sandbox {
+  background: var(--caution-wash);
+  border-radius: var(--r-1);
+  color: var(--caution);
+  font: var(--fw-normal) var(--t-micro)/1.6 var(--font-ui);
+  letter-spacing: var(--tracking-label);
+  padding: 0 var(--s-3);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.int-dot { background: var(--gl-faint); border-radius: var(--r-full); flex: 0 0 auto; height: var(--s-4); width: var(--s-4); }
+.int-dot.is-ok { background: var(--vital); }
+.int-dot.is-bad { background: var(--wound); }
+.int-dot.is-warn { background: var(--caution); }
+
+.int-command {
+  background: var(--hub-void);
+  border: 1px solid var(--gl-line);
+  border-radius: var(--r-1);
+  color: var(--gl-text-2);
+  display: block;
+  font: var(--fw-normal) var(--t-small)/1.5 var(--font-mono);
+  overflow-x: auto;
+  padding: var(--s-3) var(--s-4);
+  white-space: nowrap;
+}
+.int-problem {
+  align-items: flex-start;
+  background: var(--caution-wash);
+  border-left: var(--edge-accent) solid var(--caution);
+  color: var(--caution);
+  display: flex;
+  gap: var(--s-4);
+  padding: var(--s-4) var(--s-5);
+}
+.int-problem p { display: grid; gap: var(--s-2); margin: 0; min-width: 0; }
+.int-problem b { color: var(--gl-text); font: var(--fw-medium) var(--t-small)/var(--lh-base) var(--font-ui); }
+.int-problem span { color: var(--gl-muted); font-size: var(--t-small); line-height: var(--lh-base); }
+.int-problem.is-banner { align-items: center; background: var(--wound-wash); border-left-color: var(--wound); color: var(--wound); }
+.int-problem.is-banner p { flex: 1 1 auto; }
+
+.int-actions { align-items: center; display: flex; flex-wrap: wrap; gap: var(--s-3); }
+.int-actions > .nc-gap { flex: 1 1 auto; }
+.int-facts { display: grid; font-size: var(--t-small); gap: var(--s-3) var(--s-6); grid-template-columns: max-content minmax(0, 1fr); margin: 0; }
+.int-facts dt { color: var(--gl-faint); }
+.int-facts dd { color: var(--gl-text-2); margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.int-facts code { font-family: var(--font-mono); }
+
+.int-form { display: grid; gap: var(--s-5); }
+.int-form > header .nc-seg { margin-left: auto; }
+.int-form .nc-seg { border-color: var(--gl-line); }
+.int-form .nc-seg button { color: var(--gl-muted); font-size: var(--t-small); min-height: var(--control-sm); }
+.int-form .nc-seg button.is-on { background: var(--gl-accent-wash); color: var(--gl-text); }
+.int-field { display: grid; gap: var(--s-2); }
+.int-field > span { color: var(--gl-muted); font-size: var(--t-small); }
+.int-field > span small { color: var(--gl-faint); font-size: var(--t-micro); }
+.int-form .gl-check input { accent-color: var(--ember); }
+
+.int-secrets { display: grid; gap: var(--s-3); }
+.int-inline { align-items: center; display: grid; gap: var(--s-4); grid-template-columns: max-content minmax(0, 1fr) auto; }
+.int-inline > span { color: var(--gl-text-2); font: var(--fw-normal) var(--t-small)/1 var(--font-mono); }
+
+.int-tools { border-top: 1px solid var(--gl-line); display: grid; padding-top: var(--s-4); }
+.int-tools > .int-muted { margin-bottom: var(--s-4); }
+.int-tool {
+  align-items: center;
+  border-top: 1px solid var(--hub-border-soft);
+  display: grid;
+  gap: var(--s-5);
+  grid-template-columns: var(--s-7) minmax(0, 1fr) auto;
+  padding: var(--s-3) 0;
+}
+.int-tool-toggle { align-items: center; display: flex; justify-content: center; }
+.int-tool-toggle input { accent-color: var(--ember); margin: 0; width: auto; }
+.int-tool-main { display: grid; gap: var(--s-1); min-width: 0; }
+.int-tool-main b { color: var(--gl-text-2); font: var(--fw-normal) var(--t-small)/1.3 var(--font-mono); overflow-wrap: anywhere; }
+.int-tool.is-on .int-tool-main b { color: var(--gl-text); }
+.int-tool-main em { color: var(--gl-faint); font: var(--fw-normal) var(--t-micro)/1 var(--font-ui); font-style: normal; }
+.int-tool-main em.is-new { color: var(--mana); }
+.int-tool-main em.is-warn { color: var(--caution); }
+.int-tool-main small {
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: var(--gl-faint);
+  display: -webkit-box;
+  font-size: var(--t-micro);
+  line-height: var(--lh-base);
+  overflow: hidden;
+}
+.int-risk { border: 1px solid var(--gl-line); border-radius: var(--r-1); display: flex; overflow: hidden; }
+.int-risk button {
+  background: transparent;
+  border: 0;
+  color: var(--gl-faint);
+  font: var(--fw-normal) var(--t-micro)/1 var(--font-mono);
+  min-height: var(--control-sm);
+  min-width: var(--control-sm);
+}
+.int-risk button + button { border-left: 1px solid var(--gl-line); }
+.int-risk button:hover { background: var(--gl-hover); color: var(--gl-text); }
+.int-risk button.is-on.is-low { background: var(--vital-wash); color: var(--vital); }
+.int-risk button.is-on.is-medium { background: var(--mana-wash); color: var(--mana); }
+.int-risk button.is-on.is-high { background: var(--caution-wash); color: var(--caution); }
+.int-risk button.is-on.is-critical { background: var(--wound-wash); color: var(--wound); }
+
+.int-log {
+  background: var(--hub-void);
+  border: 1px solid var(--gl-line);
+  border-radius: var(--r-1);
+  color: var(--gl-text-2);
+  font: var(--fw-normal) var(--t-micro)/1.55 var(--font-mono);
+  margin: 0;
+  max-height: 280px;
+  overflow: auto;
+  padding: var(--s-4) var(--s-5);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.int-journal { display: grid; list-style: none; margin: 0; padding: 0; }
+.int-journal li {
+  align-items: baseline;
+  border-top: 1px solid var(--hub-border-soft);
+  display: grid;
+  font-size: var(--t-small);
+  gap: var(--s-5);
+  grid-template-columns: 96px max-content minmax(0, 1fr) auto;
+  padding: var(--s-3) 0;
+}
+.int-journal time { color: var(--gl-faint); font-size: var(--t-micro); }
+.int-journal b { color: var(--gl-text-2); font: var(--fw-normal) var(--t-small)/1.3 var(--font-mono); }
+.int-journal span { color: var(--gl-muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.int-journal em { color: var(--vital); font-style: normal; }
+.int-journal li.is-bad em { color: var(--wound); }
+@media (max-width: 640px) {
+  .int-journal li { grid-template-columns: minmax(0, 1fr) auto; }
+  .int-journal span,
+  .int-journal time { grid-column: 1 / -1; }
+}

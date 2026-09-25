@@ -302,6 +302,38 @@
       "surface": "databases"
     },
     {
+      "page": "integrations",
+      "surface": "integrations"
+    },
+    {
+      "page": "integrations-tools",
+      "surface": "integrations",
+      "args": [
+        "tools"
+      ]
+    },
+    {
+      "page": "integrations-form",
+      "surface": "integrations",
+      "args": [
+        "form"
+      ]
+    },
+    {
+      "page": "integrations-import",
+      "surface": "integrations",
+      "args": [
+        "import"
+      ]
+    },
+    {
+      "page": "integrations-empty",
+      "surface": "integrations",
+      "args": [
+        "empty"
+      ]
+    },
+    {
       "page": "tools",
       "surface": "tools"
     },
@@ -458,6 +490,156 @@
         [
           255,
           700
+        ]
+      ]
+    },
+    {
+      "page": "tool-gitlab",
+      "surface": "tool-gitlab",
+      "root": ".point-tool-app",
+      "sizes": [
+        [
+          420,
+          900
+        ],
+        [
+          300,
+          840
+        ],
+        [
+          255,
+          700
+        ]
+      ]
+    },
+    {
+      "page": "tool-gitlab-pipelines",
+      "surface": "tool-gitlab",
+      "args": [
+        "pipelines"
+      ],
+      "root": ".point-tool-app",
+      "sizes": [
+        [
+          420,
+          900
+        ],
+        [
+          300,
+          840
+        ],
+        [
+          255,
+          700
+        ]
+      ]
+    },
+    {
+      "page": "tool-gitlab-binding",
+      "surface": "tool-gitlab",
+      "args": [
+        "binding"
+      ],
+      "root": ".point-tool-app",
+      "sizes": [
+        [
+          420,
+          900
+        ],
+        [
+          300,
+          840
+        ]
+      ]
+    },
+    {
+      "page": "tool-gitlab-problem",
+      "surface": "tool-gitlab",
+      "args": [
+        "problem"
+      ],
+      "root": ".point-tool-app",
+      "sizes": [
+        [
+          420,
+          900
+        ],
+        [
+          255,
+          700
+        ]
+      ]
+    },
+    {
+      "page": "gitlab-mr",
+      "surface": "gitlab-mr",
+      "root": ".gl-mr",
+      "sizes": [
+        [
+          1280,
+          800
+        ],
+        [
+          900,
+          800
+        ],
+        [
+          600,
+          800
+        ]
+      ]
+    },
+    {
+      "page": "gitlab-mr-discussion",
+      "surface": "gitlab-mr",
+      "args": [
+        "discussion"
+      ],
+      "root": ".gl-mr",
+      "sizes": [
+        [
+          1280,
+          800
+        ],
+        [
+          600,
+          800
+        ]
+      ]
+    },
+    {
+      "page": "gitlab-mr-changes",
+      "surface": "gitlab-mr",
+      "args": [
+        "changes"
+      ],
+      "root": ".gl-mr",
+      "sizes": [
+        [
+          1280,
+          800
+        ],
+        [
+          600,
+          800
+        ]
+      ]
+    },
+    {
+      "page": "gitlab-mr-pipeline",
+      "surface": "gitlab-mr",
+      "args": [
+        "pipeline"
+      ],
+      "root": ".gl-mr",
+      "sizes": [
+        [
+          1280,
+          800
+        ],
+        [
+          600,
+          800
         ]
       ]
     },

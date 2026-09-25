@@ -99,6 +99,8 @@ const checks = [
   'smoke-setup-survives-core-refusal.js',
   'smoke-skill-cannot-loosen-deny.js',
   'smoke-world-state-isolation.js',
+  'smoke-mcp-integrations.js',
+  'smoke-gitlab-tool-window.js',
 ];
 
 const failures = [];

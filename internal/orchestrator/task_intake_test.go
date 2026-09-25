@@ -283,8 +283,14 @@ func TestTaskIntakePromptKeepsInterviewCheap(t *testing.T) {
 	if !strings.Contains(prompt, "До двух существенных уточнений") {
 		t.Fatal("prompt must cap clarifications at two")
 	}
-	if !strings.Contains(prompt, "Очевидные безопасные дефолты") {
+	if !strings.Contains(prompt, "Безопасный дефолт — то, чего человек не заметит в результате") {
 		t.Fatal("prompt must prefer defaults over interview")
+	}
+	// Разумный вариант поведения, которое человек увидит, — не повод молчать:
+	// Go-сервис с health-эндпоинтом ушёл в квест без единого вопроса о том,
+	// что отвечать при упавшей базе.
+	if !strings.Contains(prompt, "Выбор, который человек увидит в поведении результата") {
+		t.Fatal("prompt must ask about visible behaviour even when a default is obvious")
 	}
 	if !strings.Contains(prompt, "Текст ответа не пересказывает карточку") {
 		t.Fatal("prompt must keep the card out of the reply text")

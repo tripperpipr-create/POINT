@@ -3,9 +3,12 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"regexp"
+	"strings"
 	"testing"
 
 	"local-agent-workbench/internal/domain"
+	"local-agent-workbench/internal/masterskills"
 )
 
 func TestStageAllowsLLMBypassOnlyForInheritedSerialStages(t *testing.T) {
@@ -149,6 +152,35 @@ func TestManagedComposeCriteriaUseApprovedLocalTestURL(t *testing.T) {
 	order.Delivery.ApplicationURL = "http://localhost:9999"
 	if kind, _ := managedComposeCriterionKindV2(order, start); kind != "" {
 		t.Fatal("criterion URL must match the approved delivery URL when one is set")
+	}
+}
+
+// Навык критериев называет Мастеру команды, которые Point проверит на хосте
+// после доставки. Разойдись он с классификатором — Мастер снова писал бы
+// проверки, которые никто не исполнит: «docker compose up -d --build» не
+// имеет управляемой формы, а цикл с curl уходит в песочницу без Docker.
+func TestMasterCriteriaSkillNamesOnlyManagedComposeChecks(t *testing.T) {
+	var instructions string
+	for _, skill := range masterskills.Builtins() {
+		if skill.ID == masterskills.Criteria {
+			instructions = skill.Instructions
+		}
+	}
+	commands := regexp.MustCompile("`((?:docker compose|curl -sf) [^`]+)`").FindAllStringSubmatch(instructions, -1)
+	if len(commands) < 3 {
+		t.Fatalf("навык критериев перестал называть управляемые проверки Compose: найдено %d", len(commands))
+	}
+	for _, match := range commands {
+		command := strings.ReplaceAll(match[1], "ПОРТ", "8080")
+		arguments, _ := json.Marshal(map[string]string{"command": command})
+		criterion := domain.AcceptanceCriterion{ID: "c", Kind: "verification", Tool: "run_command", Arguments: arguments}
+		order := domain.WorkOrder{Criteria: []domain.AcceptanceCriterion{criterion}}
+		if !deferredHostCriterionV2(order, criterion) {
+			t.Fatalf("%q не будет отложена до проверки на хосте", command)
+		}
+		if kind, _ := managedComposeCriterionKindV2(order, command); kind == "" {
+			t.Fatalf("%q не имеет управляемой проверки на хосте", command)
+		}
 	}
 }
 

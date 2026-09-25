@@ -545,6 +545,13 @@ func (s ChatService) discussWithModel(ctx context.Context, req ChatRequest, worl
 		if emptyWorkspace {
 			readDefinitions = filterOutExplorationTools(readDefinitions)
 		}
+		// Задание в обсуждении без карточки вопросов — ещё не конец: модель
+		// оставила вопросы голым списком. Ей даётся один круг, чтобы задать их
+		// вариантами; результат propose_brief уже сказал ей, как.
+		if concluded && actions.awaitsQuestionCard() {
+			actions.questionsPrompted = true
+			concluded = false
+		}
 		// Круг только из принятых вызовов разговора — это конец хода: задание
 		// или вопросы оформлены, а ещё один круг ради вежливой фразы стоил бы
 		// человеку полминуты ожидания на локальной модели.

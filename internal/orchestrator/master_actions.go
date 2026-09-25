@@ -2,6 +2,7 @@ package orchestrator
 
 import (
 	"encoding/json"
+	"slices"
 	"strings"
 
 	"local-agent-workbench/internal/domain"
@@ -48,6 +49,9 @@ type masterActions struct {
 	clarifications []domain.MasterQuestion
 	memory         []string
 	undecodable    bool
+	// questionsPrompted — модели уже дан круг, чтобы задать открытые вопросы
+	// карточкой. Второй раз ход её не ждёт.
+	questionsPrompted bool
 }
 
 func (a *masterActions) execute(name string, arguments json.RawMessage) domain.ToolResult {
@@ -88,18 +92,38 @@ func (a *masterActions) proposeBrief(arguments json.RawMessage) domain.ToolResul
 	if issues := domain.ValidateTaskBriefIssues(brief); len(issues) > 0 {
 		a.rejectedBriefs++
 		lines := make([]string, 0, len(issues))
+		hints := []string{"исправь перечисленные поля и вызови propose_brief снова с полным заданием"}
 		for _, issue := range issues {
 			lines = append(lines, issue.Path+": "+issue.Message)
+			if hint := briefIssueHints[issue.Code]; hint != "" && !slices.Contains(hints, hint) {
+				hints = append(hints, hint)
+			}
 		}
-		return workbenchtools.FailWithHint("invalid_brief", "задание не прошло проверку сервера: "+strings.Join(lines, "; "), "исправь перечисленные поля и вызови propose_brief снова с полным заданием")
+		return workbenchtools.FailWithHint("invalid_brief", "задание не прошло проверку сервера: "+strings.Join(lines, "; "), strings.Join(hints, "; "))
 	}
 	a.brief = &brief
 	a.title = input.Title
 	a.proposalID = strings.TrimSpace(input.ProposalID)
-	return workbenchtools.OK(map[string]any{
-		"accepted": true, "state": brief.State,
-		"note": "Задание принято черновиком; карточку человек увидит под ответом. Не пересказывай его в тексте.",
-	})
+	note := "Задание принято черновиком; карточку человек увидит под ответом. Не пересказывай его в тексте."
+	if a.awaitsQuestionCard() {
+		note = "Задание принято в обсуждении. Открытые вопросы задай вызовом ask_clarifications с вариантами, первым поставь свой; в тексте их не повторяй."
+	}
+	return workbenchtools.OK(map[string]any{"accepted": true, "state": brief.State, "note": note})
+}
+
+// awaitsQuestionCard — задание осталось в обсуждении, а карточки вопросов нет.
+// Открытые вопросы без вариантов человек видит голым списком и отвечает на них
+// текстом; ход даёт модели один круг, чтобы задать их карточкой.
+func (a *masterActions) awaitsQuestionCard() bool {
+	return a.brief != nil && a.brief.State == "discussion" && len(a.clarifications) == 0 && !a.questionsPrompted
+}
+
+// Замечание домена говорит, что не так, но не как исправить. «only a
+// workspace_change task may authorize file changes» модель прочла как запрет
+// писать файлы и гадала, какое из полей уступить. Для частых замечаний
+// подсказка называет само исправление.
+var briefIssueHints = map[string]string{
+	"write_files_result_mismatch": "если результат — созданные или изменённые файлы проекта, поставь resultKind=workspace_change; если код нужен только текстом в ответе, оставь writeFiles=false",
 }
 
 func (a *masterActions) askClarifications(arguments json.RawMessage) domain.ToolResult {
@@ -172,6 +196,8 @@ func (a *masterActions) envelope(reply string) taskIntakeEnvelope {
 // карточка под ответом и так говорит сама за себя.
 func (a *masterActions) silentReply() string {
 	switch {
+	case a.brief != nil && len(a.clarifications) > 0:
+		return "Набросал задание; прежде чем его утверждать, нужно уточнить — вопросы ниже."
 	case a.brief != nil:
 		return "Оформил задание — карточка ниже."
 	case len(a.clarifications) > 0:

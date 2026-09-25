@@ -23,12 +23,18 @@ func taskBriefJSONSchema() map[string]any {
 	verification := object(map[string]any{"id": text, "text": text, "kind": enum("verification"), "tool": text, "arguments": map[string]any{"type": "object"}, "expectedExitCode": map[string]any{"type": "integer", "const": 0}}, "id", "text", "kind", "tool", "arguments")
 	reproduction := object(map[string]any{"id": text, "text": text, "kind": enum("reproduction"), "tool": text, "arguments": map[string]any{"type": "object"}, "expectedExitCode": map[string]any{"type": "integer", "minimum": 0, "maximum": 255}}, "id", "text", "kind", "tool", "arguments", "expectedExitCode")
 	criterion := map[string]any{"anyOf": []any{manual, verification, reproduction}}
+	// Одни имена значений модель читает по-своему: «написать сервис» для неё
+	// code, и задание с writeFiles отклонялось сервером. Смысл значения должен
+	// ехать вместе с перечислением, а не жить только в проверке домена.
+	resultKind := enum("", "code", "report", "workspace_change", "hub_tool")
+	resultKind["description"] = "workspace_change — создать или изменить файлы проекта (новый сервис, правка кода, конфигурация); code — код только текстом в ответе, файлы не меняются; report — отчёт; hub_tool — исходник инструмента Point без регистрации и запуска."
+	writeFiles := map[string]any{"type": "boolean", "description": "true только при resultKind=workspace_change."}
 	return object(map[string]any{
-		"mode": enum("precise", "project", "undecided"), "state": enum("discussion", "ready"), "goal": text, "resultKind": enum("", "code", "report", "workspace_change", "hub_tool"), "audience": text,
+		"mode": enum("precise", "project", "undecided"), "state": enum("discussion", "ready"), "goal": text, "resultKind": resultKind, "audience": text,
 		"scope": list, "outOfScope": list, "openQuestions": list,
 		"criteria":    map[string]any{"type": "array", "items": criterion},
 		"decisions":   map[string]any{"type": "array", "items": object(map[string]any{"topic": text, "decision": text, "source": enum("user", "project", "delegated")}, "topic", "decision", "source")},
-		"permissions": object(map[string]any{"writeFiles": map[string]any{"type": "boolean"}, "executeCommands": map[string]any{"type": "boolean"}, "provisionProjectAgents": map[string]any{"type": "boolean"}, "networkHosts": list}, "writeFiles", "executeCommands", "provisionProjectAgents", "networkHosts"),
+		"permissions": object(map[string]any{"writeFiles": writeFiles, "executeCommands": map[string]any{"type": "boolean"}, "provisionProjectAgents": map[string]any{"type": "boolean"}, "networkHosts": list}, "writeFiles", "executeCommands", "provisionProjectAgents", "networkHosts"),
 		"budget": object(map[string]any{
 			"tokens": map[string]any{"type": "integer"}, "costCents": map[string]any{"type": "integer", "minimum": 0},
 			"activeSeconds": map[string]any{"type": "integer"}, "maxParallel": map[string]any{"type": "integer"},

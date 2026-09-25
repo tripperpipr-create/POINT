@@ -269,6 +269,78 @@ func TestProposeBriefAcceptsBriefSerializedAsString(t *testing.T) {
 	}
 }
 
+// «Написать Go-сервис» модель считала resultKind=code и просила запись файлов:
+// сервер отклонял задание английским «only a workspace_change task may
+// authorize file changes», и человек видел отказ в действиях хода. Смысл
+// значений едет в схеме, а отказ называет само исправление.
+func TestProposeBriefExplainsResultKindForFileChanges(t *testing.T) {
+	schema := masterActionSchema(t, masterActionProposeBrief)
+	for _, want := range []string{"workspace_change — создать или изменить файлы проекта", "code — код только текстом в ответе", "true только при resultKind=workspace_change"} {
+		if !strings.Contains(schema, want) {
+			t.Fatalf("схема propose_brief не объясняет %q", want)
+		}
+	}
+	brief := validBrief()
+	brief.Permissions.WriteFiles = true
+	actions := &masterActions{}
+	result := actions.execute(masterActionProposeBrief, mustJSON(t, map[string]any{"title": "Go-сервис", "brief": brief}))
+	if result.OK || actions.brief != nil || result.Error == nil {
+		t.Fatalf("code с writeFiles принят: %#v", result)
+	}
+	if !strings.Contains(result.Error.Hint, "resultKind=workspace_change") {
+		t.Fatalf("отказ не называет исправление: %q", result.Error.Hint)
+	}
+	brief.ResultKind = "workspace_change"
+	if result = actions.execute(masterActionProposeBrief, mustJSON(t, map[string]any{"title": "Go-сервис", "brief": brief})); !result.OK {
+		t.Fatalf("исправленное задание отвергнуто: %#v", result)
+	}
+}
+
+// Задание в обсуждении без карточки вопросов — ещё не конец хода: вопросы
+// голым списком человек отвечает текстом. Модели даётся один круг, чтобы
+// задать их вариантами.
+func TestDiscussionBriefGetsOneRoundForQuestionCard(t *testing.T) {
+	open := validBrief()
+	open.OpenQuestions = []string{"Что отвечать при недоступной БД?"}
+	question := map[string]any{"items": []map[string]any{{"text": "Что отвечать /health при недоступной БД?", "kind": "single", "options": []string{"503 с деталями", "200 со статусом db=down"}}}}
+	model := &turnModel{rounds: []roundScript{
+		{calls: []providers.ToolCall{proposeBriefCall("b1", "Go-сервис", "", open)}},
+		{calls: []providers.ToolCall{toolCall("q1", masterActionAskClarifications, question)}},
+	}}
+	service := ChatService{Store: newChatStoreStub(), ModelFactory: model.factory()}
+	response, err := service.Chat(context.Background(), intakeRequest("Нужен Go-сервис с health-эндпоинтом"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(model.requests) != 2 {
+		t.Fatalf("кругов %d вместо 2", len(model.requests))
+	}
+	if !strings.Contains(model.requests[1].Messages[len(model.requests[1].Messages)-1].Content, "ask_clarifications") {
+		t.Fatal("модели не сказали, как задать вопросы")
+	}
+	if len(response.Clarifications) != 1 || len(response.Clarifications[0].Options) != 2 {
+		t.Fatalf("вопрос не дошёл карточкой: %#v", response.Clarifications)
+	}
+	if response.Proposal == nil || response.Proposal.Brief.State != "discussion" {
+		t.Fatalf("задание потеряно или объявлено готовым: %#v", response.Proposal)
+	}
+	if response.Reply != "Набросал задание; прежде чем его утверждать, нужно уточнить — вопросы ниже." {
+		t.Fatalf("ответ не говорит о вопросах: %q", response.Reply)
+	}
+
+	// Упрямая модель, снова приславшая задание без карточки, второго круга
+	// ожидания не получает: вопросы уходят списком.
+	stubborn := &turnModel{rounds: []roundScript{{calls: []providers.ToolCall{proposeBriefCall("b1", "Go-сервис", "", open)}}}}
+	service = ChatService{Store: newChatStoreStub(), ModelFactory: stubborn.factory()}
+	response, err = service.Chat(context.Background(), intakeRequest("Нужен Go-сервис с health-эндпоинтом"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(stubborn.requests) != 2 || response.Proposal == nil || len(response.Questions) != 1 {
+		t.Fatalf("ход завис или потерял вопросы: rounds=%d questions=%q", len(stubborn.requests), response.Questions)
+	}
+}
+
 // Реплей обучения пишется новым форматом и хранит только инструменты
 // разговора: чтение проекта уже отработало и едет свидетельством.
 func TestMasterReplayKeepsOnlyConversationTools(t *testing.T) {

@@ -453,14 +453,15 @@ try {
 const threatModel = read('docs/threat-model.md')
 for (const token of [
   'T01', 'T02', 'T03', 'T04', 'T05', 'T06', 'T07', 'T08', 'T09', 'T10',
-  'T11', 'T12', 'T13', 'T14', 'T15', 'T16', 'Privacy inventory', 'Принятые остаточные риски',
-  'tools', 'approval', 'SecretStorage', 'Learning', 'Memory', 'Skill', 'SSH', 'DB', 'network', 'workspace',
+  'T11', 'T12', 'T13', 'T14', 'T15', 'T16', 'T17', 'T18', 'T19', 'T20', 'T21', 'Privacy inventory', 'Принятые остаточные риски',
+  'tools', 'approval', 'SecretStorage', 'Learning', 'Memory', 'Skill', 'SSH', 'DB', 'network', 'workspace', 'MCP', 'GitLab',
 ]) {
   requireText(threatModel, token, 'threat model')
 }
 requireText(threatModel, 'internal/sandbox/container_integration_test.go', 'threat model sandbox evidence')
 const threatRows = [...threatModel.matchAll(/^\| (T\d{2}) \|.*$/gm)]
-if (threatRows.length !== 16) errors.push(`threat model: expected 16 threat rows, found ${threatRows.length}`)
+// T17–T21 (25 сентября 2026): MCP-серверы владельца и плагин GitLab.
+if (threatRows.length !== 21) errors.push(`threat model: expected 21 threat rows, found ${threatRows.length}`)
 for (const row of threatRows) {
   if (!/`(?:internal|cmd|scripts|distribution|\.github|vscode-extension|frontend|docs)[\\/][^`]+`/.test(row[0])) {
     errors.push(`threat model: ${row[1]} has no exact repository evidence path`)

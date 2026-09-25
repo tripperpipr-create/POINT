@@ -39,9 +39,9 @@ func TestMasterReadExecutionIsWorkspaceScopedAndIncludesEvents(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	tools := newMasterReadTools(nil, application.store, view.Workspace.ID, application.ObserveRoster)
+	tools := newMasterReadTools(nil, application.store, view.Workspace.ID)
 	for _, definition := range tools.Definitions() {
-		if definition.Name == masterRosterToolName {
+		if definition.Name == "read_roster" {
 			t.Fatal("Master must delegate roster assembly to agent-selector")
 		}
 	}

@@ -4,6 +4,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"local-agent-workbench/internal/domain"
 	"local-agent-workbench/internal/flowruntime"
 	"local-agent-workbench/internal/security"
+	"local-agent-workbench/internal/storage"
 )
 
 func (a *App) LaunchPendingExecution(executionID, apiKey string) (domain.Run, error) {
@@ -259,9 +261,18 @@ func isWorkOrderQuestV2(quest domain.Quest) bool {
 	return strings.EqualFold(strings.TrimSpace(source), "work_order_v2") || strings.TrimSpace(workOrderID) != ""
 }
 
-func (a *App) blockWorkOrderFinalizationV2(ctx context.Context, quest domain.Quest, message string, cause error) {
+// blockWorkOrderFinalizationV2 отвечает, записан ли `blocked`: если квест
+// успели отменить, приостановить или перевести дальше, итог «заблокировано»
+// публиковать нельзя.
+func (a *App) blockWorkOrderFinalizationV2(ctx context.Context, quest domain.Quest, message string, cause error) bool {
 	redacted := security.Redact(message)
-	if _, err := a.setWorkOrderQuestStatusV2(ctx, quest, domain.QuestBlocked, redacted); err != nil {
+	if _, err := a.setWorkOrderQuestStatusV2(ctx, quest, domain.QuestBlocked, redacted); errors.Is(err, storage.ErrQuestStatusChanged) {
+		// Пока финализатор проверял и доставлял, квест изменился — обычно
+		// человек отменил или приостановил его. Более позднее решение старше
+		// отказа финализатора.
+		slog.Warn("work order finalization kept the newer quest decision", "quest_id", quest.ID, "error", security.Redact(cause.Error()))
+		return false
+	} else if err != nil {
 		slog.Error("work order finalization failure was not persisted", "quest_id", quest.ID, "error", security.Redact(err.Error()))
 	}
 	if err := a.store.ReleaseWriterLeaseV2(ctx, quest.ID); err != nil {
@@ -273,6 +284,7 @@ func (a *App) blockWorkOrderFinalizationV2(ctx context.Context, quest domain.Que
 		"launch_mode", launchMode, "work_order_id", workOrderID, "quest_id", quest.ID,
 		"run_id", a.workOrderRunIDV2(ctx, quest), "evidence_gate", "blocked",
 		"block_reason", redacted, "error", security.Redact(cause.Error()))
+	return true
 }
 
 func (a *App) workOrderRunIDV2(ctx context.Context, quest domain.Quest) string {

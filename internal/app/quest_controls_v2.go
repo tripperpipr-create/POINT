@@ -10,6 +10,7 @@ import (
 
 	"local-agent-workbench/internal/domain"
 	"local-agent-workbench/internal/security"
+	"local-agent-workbench/internal/storage"
 )
 
 type WorkOrderQuestControlRequest struct {
@@ -48,6 +49,11 @@ func (a *App) ControlWorkOrderQuestV2(ctx context.Context, questID, action strin
 	result := WorkOrderQuestControlResult{QuestID: questID, Status: quest.Status, Action: action, FlowRunID: quest.FlowRunID}
 	if err = validateWorkOrderRuntimeControl(quest.Status, action); err != nil {
 		return result, err
+	}
+	// Проверка до управления Flow: иначе прогон прежней версии успевал
+	// вернуться в `running` раньше, чем хранилище отказало в продолжении.
+	if action == "resume" && quest.ControllerState == storage.WorkOrderScopeRevisionState {
+		return result, storage.ErrWorkOrderRevisionPending
 	}
 	if action == "resume" && quest.FlowRunID != "" {
 		flowRun, loadErr := a.store.GetFlowRun(ctx, quest.FlowRunID)

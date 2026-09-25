@@ -70,7 +70,12 @@ func (s *SQLite) SaveWorkOrderV2(ctx context.Context, order domain.WorkOrder) (d
 			now := formatTime(time.Now().UTC())
 			var fromStatus string
 			if scanErr := tx.QueryRowContext(ctx, `SELECT status FROM quests WHERE id=?`, questID).Scan(&fromStatus); scanErr == nil {
-				result, updateErr := tx.ExecContext(ctx, `UPDATE quests SET status='paused',controller_state='scope_revision',updated_at=?,finished_at=NULL WHERE id=? AND status IN ('preflight','running','verifying','applying','awaiting_user','blocked')`, now, questID)
+				// Квест, стоящий в статусе своего вердикта, — законченная
+				// запись: его не ставят на паузу правки, новая версия пойдёт
+				// новым квестом. Перезапущенный после вердикта квест правка
+				// останавливает, как любой живой; квест, уже стоящий на паузе,
+				// тоже помечается правкой — продолжить прежнюю версию нельзя.
+				result, updateErr := tx.ExecContext(ctx, `UPDATE quests SET status='paused',controller_state='scope_revision',updated_at=?,finished_at=NULL WHERE id=? AND status IN ('preflight','running','verifying','applying','awaiting_user','blocked','paused') AND NOT EXISTS (SELECT 1 FROM work_order_completion_gates_v2 gate WHERE gate.quest_id=quests.id AND gate.status=quests.status)`, now, questID)
 				if updateErr != nil {
 					return domain.WorkOrder{}, updateErr
 				}
@@ -516,7 +521,36 @@ func (s *SQLite) ApproveWorkOrderV2(ctx context.Context, id string, version int,
 	}
 	questID := ""
 	_ = tx.QueryRowContext(ctx, `SELECT quest_id FROM work_order_approvals_v2 WHERE work_order_id=? ORDER BY version DESC LIMIT 1`, order.ID).Scan(&questID)
-	isRevisionApproval := questID != ""
+	// Повторное утверждение продолжает квест прошлой версии, только пока у
+	// него нет вердикта шлюза. Вердикт и улики неизменяемы и принадлежат
+	// одному квесту: новая версия на том же квесте наследовала бы вердикт
+	// прошлой и не смогла бы сохранить свои улики. После вердикта новая
+	// версия идёт новым квестом; ростер не пересоздаётся, как и при правке
+	// до вердикта, а аренда рабочей папки у закрытого квеста снимается.
+	followUp := questID != ""
+	isRevisionApproval := followUp
+	if followUp {
+		var verdict string
+		err = tx.QueryRowContext(ctx, `SELECT status FROM work_order_completion_gates_v2 WHERE quest_id=?`, questID).Scan(&verdict)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return domain.WorkOrderApproval{}, err
+		}
+		if err == nil {
+			// Квест прошлой версии возвращается к своему вердикту, в каком
+			// бы живом статусе он ни был после перезапуска, — в том числе в
+			// паузе человека: иначе его можно было продолжить рядом с новым
+			// квестом того же наряда. Аренда рабочей папки переходит к новому.
+			closedAt := formatTime(time.Now().UTC())
+			if _, err = tx.ExecContext(ctx, `UPDATE quests SET status=?,controller_state=?,updated_at=?,finished_at=? WHERE id=? AND status IN ('preflight','running','verifying','applying','awaiting_user','paused')`, verdict, verdict, closedAt, closedAt, questID); err != nil {
+				return domain.WorkOrderApproval{}, err
+			}
+			if _, err = tx.ExecContext(ctx, `UPDATE writer_leases_v2 SET state='released',updated_at=?,released_at=? WHERE quest_id=? AND state='active'`, closedAt, closedAt, questID); err != nil {
+				return domain.WorkOrderApproval{}, err
+			}
+			isRevisionApproval = false
+		}
+		err = nil
+	}
 	if !isRevisionApproval {
 		questID = domain.NewID("quest")
 	}
@@ -534,8 +568,12 @@ func (s *SQLite) ApproveWorkOrderV2(ctx context.Context, id string, version int,
 	if affected, _ := result.RowsAffected(); affected != 1 {
 		return domain.WorkOrderApproval{}, fmt.Errorf("work order approval lost a concurrent update")
 	}
-	if !isRevisionApproval {
-		response.AgentIDs, err = materializeWorkOrderRosterV2(ctx, tx, approved, parseTime(now))
+	// Исполнители — те, что утверждены в этой версии. При повторном
+	// утверждении агенты, уже созданные прошлым утверждением, берутся как
+	// есть, а новые — создаются: иначе запуск шёл бы составом прошлой версии
+	// мимо ростера, который человек только что утвердил.
+	{
+		response.AgentIDs, err = materializeWorkOrderRosterV2(ctx, tx, approved, parseTime(now), followUp)
 		if err != nil {
 			return domain.WorkOrderApproval{}, err
 		}

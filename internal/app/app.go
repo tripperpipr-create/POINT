@@ -34,6 +34,10 @@ type App struct {
 	masterTurnCancels   map[string]context.CancelFunc
 	masterTurnsWG       sync.WaitGroup
 	masterTurnsStopping bool
+	masterTurnSignals   map[string]chan struct{}
+	masterFacts         masterFactsCache
+	masterSummaryMu     sync.Mutex
+	masterSummaryTurns  map[string]int
 	// Запуск утверждённого наряда переживает свой HTTP-запрос: планировщик
 	// milestone идёт к модели минутами. Реестр отмен держит запуск по квесту —
 	// один на квест, и его можно остановить отменой.

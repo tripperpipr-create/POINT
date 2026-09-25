@@ -153,7 +153,18 @@ func (a *App) startMasterTurn(ctx context.Context, req MasterChatRequest, comple
 	go func(turn domain.MasterTurn) {
 		defer a.masterTurnsWG.Done()
 		defer cancel()
-		defer func() { a.masterTurnsMu.Lock(); delete(a.masterTurnCancels, key); a.masterTurnsMu.Unlock() }()
+		defer func() {
+			a.masterTurnsMu.Lock()
+			delete(a.masterTurnCancels, key)
+			// Поток, проснувшийся на «done», мог успеть взять новый канал, пока
+			// ход ещё числился живым; закрытие здесь будит его и не оставляет
+			// в карте канал, который больше никто не закроет.
+			if signal, ok := a.masterTurnSignals[key]; ok {
+				close(signal)
+				delete(a.masterTurnSignals, key)
+			}
+			a.masterTurnsMu.Unlock()
+		}()
 		// Отказ записи события ленты сообщается один раз за ход: событий на ход
 		// десятки, и строка на каждое залила бы журнал одним и тем же отказом.
 		eventSaveReported := false
@@ -162,8 +173,23 @@ func (a *App) startMasterTurn(ctx context.Context, req MasterChatRequest, comple
 				eventSaveReported = true
 				slog.Warn("master turn event not appended", "turn_id", turn.ID, "conversation_id", turn.ConversationID, "type", kind, "error", err)
 			}
+			a.notifyMasterTurn(key)
 		}
 		emit := func(kind, text string) { emitDetail(kind, text, "") }
+		// Растущий ответ пишется не чаще masterReplySaveInterval; непоказанный
+		// хвост уходит перед любым другим событием хода, чтобы порядок в ленте
+		// остался прежним: текст, потом шаг, который за ним последовал.
+		var replySavedAt time.Time
+		replyPending := false
+		flushReply := func() {
+			if !replyPending {
+				return
+			}
+			replyPending = false
+			replySavedAt = time.Now()
+			a.saveMasterTurnState(turn, "progress")
+			emitDetail("reply", turn.Reply, "")
+		}
 		service.OnProgress = func(kind, text, detail string) {
 			switch kind {
 			case "reply":
@@ -172,14 +198,21 @@ func (a *App) startMasterTurn(ctx context.Context, req MasterChatRequest, comple
 				}
 				turn.Reply = text
 				turn.Status = "streaming"
+				replyPending = true
+				if time.Since(replySavedAt) >= masterReplySaveInterval {
+					flushReply()
+				}
+				return
 			case "reasoning":
 				// Размышление не меняет состояние хода: оно идёт и в ожидании модели,
 				// и между обращениями к инструментам. Событие уходит в ленту, а строка
 				// состояния и запись хода остаются прежними — иначе каждая мысль стоила
 				// бы записи в таблицу ходов.
+				flushReply()
 				emitDetail(kind, text, detail)
 				return
 			default:
+				flushReply()
 				turn.Status = "tools"
 			}
 			a.saveMasterTurnState(turn, "progress")
@@ -189,6 +222,7 @@ func (a *App) startMasterTurn(ctx context.Context, req MasterChatRequest, comple
 		a.saveMasterTurnState(turn, "waiting")
 		emit("status", "waiting")
 		result, runErr := a.masterChatPrepared(runCtx, req, w, cfg, briefing, service, sessions)
+		flushReply()
 		if errors.Is(runCtx.Err(), context.DeadlineExceeded) {
 			// Срок и остановка человеком — разные события. Пока оба назывались
 			// «Ответ остановлен», молчание модели выглядело как чужое действие,
@@ -225,6 +259,9 @@ func (a *App) startMasterTurn(ctx context.Context, req MasterChatRequest, comple
 		}
 		a.saveMasterTurnState(turn, "final")
 		emit("done", turn.Status)
+		if turn.Status == "completed" {
+			a.refreshMasterSummary(w, turn.ConversationID, cfg, req.APIKey)
+		}
 	}(turn)
 	return turn, nil
 }

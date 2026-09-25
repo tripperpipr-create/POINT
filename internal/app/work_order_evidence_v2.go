@@ -41,12 +41,32 @@ func (a *App) finalizeWorkOrderQuestAfterFlowV2(approval domain.WorkOrderApprova
 		}
 		return
 	}
+	// Продолжение с живым Flow возвращает квест в `preflight`, и Flow может
+	// завершиться раньше, чем квест снова станет `running`. Такой квест тоже
+	// проверяется: иначе он оставался в `preflight` без улик навсегда. Квест
+	// без своего Flow — новая версия, которая ещё не запущена: завершение,
+	// пришедшее к нему, принадлежит прежнему Flow и вердикта не выносит.
+	if quest.Status == domain.QuestPreflight && strings.TrimSpace(quest.FlowRunID) != "" {
+		quest, err = a.setWorkOrderQuestStatusV2(ctx, quest, domain.QuestRunning, "Flow завершён; переходим к проверке")
+		if err != nil {
+			a.blockWorkOrderFinalizationV2(ctx, quest, "Не удалось начать проверку WorkOrder: "+security.Redact(err.Error()), err)
+			return
+		}
+	}
 	if quest.Status == domain.QuestRunning {
 		quest, err = a.setWorkOrderQuestStatusV2(ctx, quest, domain.QuestVerifying, "Проверяем критерии на итоговой ревизии")
 		if err != nil {
 			a.blockWorkOrderFinalizationV2(ctx, quest, "Не удалось начать проверку WorkOrder: "+security.Redact(err.Error()), err)
 			return
 		}
+	}
+	// Доставляет результат в проект только квест, который всё ещё работает.
+	// Приостановленный, отменённый или уже закрытый квест результат не
+	// получает: снимок, загруженный уже в паузе, раньше шёл прямо к переносу
+	// изменений мимо решения человека.
+	if flowSucceeded && quest.Status != domain.QuestVerifying && quest.Status != domain.QuestApplying {
+		slog.Warn("work order finalization skipped: quest is not active", "quest_id", quest.ID, "status", quest.Status)
+		return
 	}
 	bundle := a.buildWorkOrderEvidenceV2(ctx, approval, quest, flowSucceeded)
 	machineReady := workOrderMachineEvidenceSatisfiedV2(approval.WorkOrder, bundle)
@@ -123,7 +143,12 @@ func (a *App) finalizeWorkOrderQuestAfterFlowV2(approval domain.WorkOrderApprova
 	}
 	status, gateErr := a.store.FinalizeWorkOrderQuestV2(ctx, quest.ID, bundle)
 	if gateErr != nil {
-		a.blockWorkOrderFinalizationV2(ctx, quest, "Evidence gate не принял итог: "+security.Redact(gateErr.Error()), gateErr)
+		// Квест, который успели отменить, приостановить или перевести дальше,
+		// шлюз не принимает — и это не провал работы: итог «заблокировано» в
+		// ленте был бы неправдой.
+		if !a.blockWorkOrderFinalizationV2(ctx, quest, "Evidence gate не принял итог: "+security.Redact(gateErr.Error()), gateErr) {
+			return
+		}
 		bundle.Assurance = domain.WorkOrderAssuranceFailed
 		bundle.OutcomeSummary = "Финализация заблокирована: " + security.Redact(gateErr.Error())
 		a.publishWorkOrderOutcomeV2(ctx, approval, quest, domain.QuestBlocked, bundle)

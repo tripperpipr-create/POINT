@@ -1,6 +1,30 @@
 package domain
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
+
+// MasterReplayFormat — версия записи реплея хода Мастера. Формат 2 — ответ
+// текстом плюс инструменты разговора; прежние записи ждали JSON-конверт в
+// тексте, и сравнивать их с нынешним промптом значит судить методику по
+// чужому контракту. Такие записи обучением пропускаются.
+const MasterReplayFormat = 2
+
+type MasterReplay struct {
+	Format  int             `json:"format"`
+	Request json.RawMessage `json:"request"`
+}
+
+// DecodeMasterReplay достаёт сохранённый запрос, если он записан нынешним
+// форматом хода.
+func DecodeMasterReplay(raw string) (json.RawMessage, bool) {
+	var replay MasterReplay
+	if json.Unmarshal([]byte(raw), &replay) != nil || replay.Format != MasterReplayFormat || len(replay.Request) == 0 {
+		return nil, false
+	}
+	return replay.Request, true
+}
 
 type MasterLearningConfig struct {
 	Enabled bool `json:"enabled"`

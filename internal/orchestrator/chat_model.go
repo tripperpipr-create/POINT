@@ -568,13 +568,24 @@ func (s ChatService) amendPendingProposal(
 func masterConversationPrompt(req ChatRequest) string {
 	system := "\nРежим работы: " + req.WorkMode + "; формат ответа: " + req.ResponseMode + "."
 	if req.WorkMode == "discuss" {
-		system += "\nОбсуждение: только чтение. Для объяснения допустимы примеры и код в reply; поручение оформляй как задание."
+		system += "\nОбсуждение: только чтение. Для объяснения допустимы примеры и код в ответе; поручение оформляй как задание."
+	}
+	// Форма ответа — выбор человека. Пока ответ был полем JSON-конверта с
+	// правилом «1–3 предложения», выбор «Подробно» доезжал до модели одним
+	// словом и ничего не менял.
+	switch req.ResponseMode {
+	case "brief":
+		system += "\nФорма ответа: кратко — 1–4 предложения или короткий список, без вступлений."
+	case "detailed":
+		system += "\nФорма ответа: подробно — разбор с примерами кода и ссылками path:line."
+	case "plan":
+		system += "\nФорма ответа: пронумерованный план шагов с тем, что проверить после каждого."
 	}
 	if req.AutoRunReadOnly && req.WorkMode == "execute" {
 		system += "\nРазрешён ограниченный автозапуск точного анализа: один исполнитель, 20000 токенов, 120 секунд, maxParallel=1, maxAttempts=1, maxReplans=1; только read_file, list_files, search_text, project_map, search_code. Без записи, команд и сети. Не урезай цель ради автозапуска; иное требует утверждения."
 	}
 	if req.ResponseMode == "questions" {
-		system += "\nЗадай только существенные уточнения; сохраняй неполный brief в discussion, не объявляй его готовым."
+		system += "\nЗадай только существенные уточнения через ask_clarifications; сохраняй неполный brief в discussion, не объявляй его готовым."
 	}
 	if req.Summary != "" {
 		system += "\nUNTRUSTED CONVERSATION SUMMARY:\n" + req.Summary

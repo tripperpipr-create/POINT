@@ -11,7 +11,10 @@ import (
 	"local-agent-workbench/internal/domain"
 )
 
-func materializeWorkOrderRosterV2(ctx context.Context, tx *sql.Tx, order domain.WorkOrder, now time.Time) ([]string, error) {
+// materializeWorkOrderRosterV2 создаёт утверждённых исполнителей. С reuse
+// (повторное утверждение наряда) агент, которого прошлое утверждение уже
+// создало под тем же идентификатором в этом проекте, берётся как есть.
+func materializeWorkOrderRosterV2(ctx context.Context, tx *sql.Tx, order domain.WorkOrder, now time.Time, reuse bool) ([]string, error) {
 	if len(order.Roster.Permanent) == 0 && len(order.Roster.Temporary) == 0 {
 		return []string{}, nil
 	}
@@ -31,7 +34,15 @@ func materializeWorkOrderRosterV2(ctx context.Context, tx *sql.Tx, order domain.
 	for _, draft := range order.Roster.Permanent {
 		projectAgentID := draft.ID
 		parentIDs[draft.ID] = projectAgentID
-		if draft.Existing {
+		existing := draft.Existing
+		if !existing && reuse {
+			var found int
+			if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM project_agents WHERE id=?`, projectAgentID).Scan(&found); err != nil {
+				return nil, err
+			}
+			existing = found > 0
+		}
+		if existing {
 			var workspaceID string
 			if err := tx.QueryRowContext(ctx, `SELECT workspace_id FROM project_agents WHERE id=?`, projectAgentID).Scan(&workspaceID); err != nil {
 				if errors.Is(err, sql.ErrNoRows) {

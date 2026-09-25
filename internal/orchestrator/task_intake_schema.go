@@ -2,12 +2,17 @@ package orchestrator
 
 import (
 	"encoding/json"
-	"strings"
+
+	"local-agent-workbench/internal/domain"
 )
 
-// Native constrained output is an additional format guard. Domain validation
-// still owns readiness, versioning and authority; valid JSON is not approval.
-func taskIntakeJSONSchema() json.RawMessage {
+// Схемы инструментов разговора. Структуру задания держит протокол вызова
+// инструментов, а не разбор JSON из текста: прежний конверт заставлял модель
+// заворачивать в JSON и обычный ответ на вопрос, и слабая модель теряла на
+// этом целые ходы. Проверку готовности, версий и прав по-прежнему делает
+// домен — валидная схема не означает утверждения.
+
+func taskBriefJSONSchema() map[string]any {
 	text := map[string]any{"type": "string"}
 	list := map[string]any{"type": "array", "items": text}
 	object := func(properties map[string]any, required ...string) map[string]any {
@@ -18,8 +23,7 @@ func taskIntakeJSONSchema() json.RawMessage {
 	verification := object(map[string]any{"id": text, "text": text, "kind": enum("verification"), "tool": text, "arguments": map[string]any{"type": "object"}, "expectedExitCode": map[string]any{"type": "integer", "const": 0}}, "id", "text", "kind", "tool", "arguments")
 	reproduction := object(map[string]any{"id": text, "text": text, "kind": enum("reproduction"), "tool": text, "arguments": map[string]any{"type": "object"}, "expectedExitCode": map[string]any{"type": "integer", "minimum": 0, "maximum": 255}}, "id", "text", "kind", "tool", "arguments", "expectedExitCode")
 	criterion := map[string]any{"anyOf": []any{manual, verification, reproduction}}
-
-	brief := object(map[string]any{
+	return object(map[string]any{
 		"mode": enum("precise", "project", "undecided"), "state": enum("discussion", "ready"), "goal": text, "resultKind": enum("", "code", "report", "workspace_change", "hub_tool"), "audience": text,
 		"scope": list, "outOfScope": list, "openQuestions": list,
 		"criteria":    map[string]any{"type": "array", "items": criterion},
@@ -32,52 +36,61 @@ func taskIntakeJSONSchema() json.RawMessage {
 			"maxProjectAgents": map[string]any{"type": "integer", "minimum": 0, "maximum": 8},
 		}, "tokens", "costCents", "activeSeconds", "maxParallel", "maxReplans", "maxAttempts", "maxProjectAgents"),
 	}, "mode", "state", "goal", "resultKind", "scope", "outOfScope", "openQuestions", "criteria", "permissions")
-	properties := map[string]any{"conversationSummary": text, "memorySuggestions": map[string]any{"type": "array", "items": text, "maxItems": 3}, "intent": enum("task", "chat"), "reply": text, "questions": map[string]any{"type": "array", "items": text, "maxItems": 2}, "proposalId": text, "title": text, "brief": map[string]any{"anyOf": []any{brief, map[string]any{"type": "null"}}}}
-	// Вопрос с выбором обязан принести сам выбор: "options": [] проходило
-	// required насквозь, и человек получал одиночный выбор без единого чипа.
-	// Свободный ответ остаётся отдельной ветвью — у него вариантов нет по сути.
-	choiceOptions := map[string]any{"type": "array", "items": text, "minItems": 2, "maxItems": 8}
-	freeOptions := map[string]any{"type": "array", "items": text, "maxItems": 0}
-	choiceQuestion := object(map[string]any{"id": text, "text": text, "kind": enum("single", "multiple"), "options": choiceOptions}, "id", "text", "kind", "options")
-	freeQuestion := object(map[string]any{"id": text, "text": text, "kind": enum("text"), "options": freeOptions}, "id", "text", "kind", "options")
-	properties["clarifications"] = map[string]any{"type": "array", "maxItems": 2, "items": map[string]any{"anyOf": []any{choiceQuestion, freeQuestion}}}
-	// intent and brief are a discriminated pair. A task with brief=null
-	// otherwise satisfies JSON syntax but forces repeated repair rounds.
-	taskProperties, chatProperties := map[string]any{}, map[string]any{}
-	for key, value := range properties {
-		taskProperties[key], chatProperties[key] = value, value
-	}
-	taskProperties["intent"], taskProperties["brief"] = enum("task"), brief
-	chatProperties["intent"], chatProperties["brief"] = enum("chat"), map[string]any{"type": "null"}
-	raw, _ := json.Marshal(map[string]any{"anyOf": []any{
-		orderedIntakeEnvelope(taskProperties),
-		orderedIntakeEnvelope(chatProperties),
-	}})
-	return raw
 }
 
-// Ollama's grammar follows property order. Decide intent before the nullable
-// contract; alphabetical map encoding otherwise makes the model choose null
-// before it has emitted the semantic classification.
-func orderedIntakeEnvelope(properties map[string]any) json.RawMessage {
-	keys := []string{"intent", "reply", "questions", "proposalId", "title", "brief", "clarifications", "memorySuggestions", "conversationSummary"}
-	var out strings.Builder
-	out.WriteString(`{"type":"object","additionalProperties":false,"properties":{`)
-	requiredKeys := make([]string, 0, len(keys))
-	for i, key := range keys {
-		if i > 0 {
-			out.WriteByte(',')
-		}
-		name, _ := json.Marshal(key)
-		value, _ := json.Marshal(properties[key])
-		out.Write(name)
-		out.WriteByte(':')
-		out.Write(value)
-		requiredKeys = append(requiredKeys, key)
+// Вопрос с выбором обязан принести сам выбор: "options": [] проходило
+// required насквозь, и человек получал одиночный выбор без единого чипа.
+// Свободный ответ остаётся отдельной ветвью — у него вариантов нет по сути.
+func masterClarificationJSONSchema() map[string]any {
+	text := map[string]any{"type": "string"}
+	enum := func(values ...string) map[string]any { return map[string]any{"type": "string", "enum": values} }
+	object := func(properties map[string]any, required ...string) map[string]any {
+		return map[string]any{"type": "object", "properties": properties, "required": required, "additionalProperties": false}
 	}
-	required, _ := json.Marshal(requiredKeys)
-	out.WriteString(`},"required":`)
-	out.Write(required)
-	out.WriteByte('}')
-	return json.RawMessage(out.String())
+	choiceOptions := map[string]any{"type": "array", "items": text, "minItems": 2, "maxItems": 8}
+	freeOptions := map[string]any{"type": "array", "items": text, "maxItems": 0}
+	choice := object(map[string]any{"text": text, "kind": enum("single", "multiple"), "options": choiceOptions}, "text", "kind", "options")
+	free := object(map[string]any{"text": text, "kind": enum("text"), "options": freeOptions}, "text", "kind")
+	return map[string]any{"anyOf": []any{choice, free}}
+}
+
+func masterActionDefinitions() []domain.ToolDefinition {
+	schema := func(value map[string]any) json.RawMessage {
+		raw, _ := json.Marshal(value)
+		return raw
+	}
+	return []domain.ToolDefinition{
+		{
+			Name:        masterActionProposeBrief,
+			Description: "Оформить или обновить задание на работу. Зови, когда человек поручает работу или обсуждает её требования, даже если известна лишь цель. Карточку задания человек увидит отдельно, повторять её в тексте не нужно. Сервер проверит задание и вернёт замечания, если оно неполно.",
+			InputSchema: schema(map[string]any{
+				"type": "object", "additionalProperties": false, "required": []string{"title", "brief"},
+				"properties": map[string]any{
+					"proposalId": map[string]any{"type": "string", "description": "Идентификатор задания из снимка проекта, если продолжаешь его; для нового задания оставь пустым."},
+					"title":      map[string]any{"type": "string", "description": "Короткое название задания, до 72 знаков."},
+					"brief":      taskBriefJSONSchema(),
+				},
+			}),
+		},
+		{
+			Name:        masterActionAskClarifications,
+			Description: "Задать человеку до двух существенных уточнений, от которых зависит реализация, границы или проверка. Вопросы покажутся карточкой с вариантами; в тексте ответа их не дублируй.",
+			InputSchema: schema(map[string]any{
+				"type": "object", "additionalProperties": false, "required": []string{"items"},
+				"properties": map[string]any{
+					"items": map[string]any{"type": "array", "minItems": 1, "maxItems": 2, "items": masterClarificationJSONSchema()},
+				},
+			}),
+		},
+		{
+			Name:        masterActionSuggestMemory,
+			Description: "Предложить запомнить устойчивое предпочтение или факт о проекте из слов человека. Запись попадёт в память только после его согласия.",
+			InputSchema: schema(map[string]any{
+				"type": "object", "additionalProperties": false, "required": []string{"entries"},
+				"properties": map[string]any{
+					"entries": map[string]any{"type": "array", "minItems": 1, "maxItems": 3, "items": map[string]any{"type": "string"}},
+				},
+			}),
+		},
+	}
 }

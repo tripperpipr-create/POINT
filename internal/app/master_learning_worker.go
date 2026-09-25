@@ -101,14 +101,27 @@ func (a *App) evaluateMasterJob(ctx context.Context, job *domain.MasterLearningJ
 		return
 	}
 	var examples []domain.MasterOperation
+	stale := 0
 	for _, id := range job.ExampleIDs {
 		for _, op := range ops {
-			if op.ID == id && !op.ProviderError && op.Replay != "" {
-				examples = append(examples, op)
+			if op.ID != id || op.ProviderError || op.Replay == "" {
+				continue
 			}
+			if _, current := domain.DecodeMasterReplay(op.Replay); !current {
+				stale++
+				continue
+			}
+			examples = append(examples, op)
 		}
 	}
 	if len(examples) < 3 {
+		// Примеры прежнего формата хода не станут пригодными со временем:
+		// отложенная задача ждала бы их вечно. Отказ освобождает место
+		// следующей задаче, собранной уже из новых ходов.
+		if stale > 0 {
+			reject(errors.New("примеры записаны прежним форматом хода"))
+			return
+		}
 		deferJob(errors.New("недостаточно сохранённых завершённых примеров"))
 		return
 	}
@@ -180,8 +193,9 @@ func (a *App) evaluateMasterJob(ctx context.Context, job *domain.MasterLearningJ
 	instructions := candidate.Skill.Instructions
 	inputs := make([]providers.ModelRequest, 0, len(examples)+3)
 	for _, op := range examples {
+		raw, _ := domain.DecodeMasterReplay(op.Replay)
 		var req providers.ModelRequest
-		if err = json.Unmarshal([]byte(op.Replay), &req); err != nil {
+		if err = json.Unmarshal(raw, &req); err != nil {
 			reject(err)
 			return
 		}
@@ -306,7 +320,16 @@ func (a *App) masterLearningCall(ctx context.Context, model providers.Model, cfg
 	}
 	req.Model = cfg.Model
 	req.Temperature = 0
-	req.Tools = nil
+	// Реплей хранит только инструменты разговора: они оформляют ответ, но
+	// ничего не исполняют. Всё прочее срезается и здесь — на случай записи,
+	// собранной до этого правила.
+	var actionTools []domain.ToolDefinition
+	for _, tool := range req.Tools {
+		if orchestrator.IsMasterActionTool(tool.Name) {
+			actionTools = append(actionTools, tool)
+		}
+	}
+	req.Tools = actionTools
 	if req.MaxOutputTokens <= 0 || req.MaxOutputTokens > 8192 {
 		req.MaxOutputTokens = 8192
 	}
@@ -323,6 +346,7 @@ func (a *App) masterLearningCall(ctx context.Context, model providers.Model, cfg
 		return "", 0, err
 	}
 	var output strings.Builder
+	var calls []providers.ToolCall
 	var tokens int64
 	unknown := false
 	err = model.Stream(ctx, req, func(e providers.ModelEvent) error {
@@ -333,7 +357,10 @@ func (a *App) masterLearningCall(ctx context.Context, model providers.Model, cfg
 			}
 			output.WriteString(e.Delta)
 		case providers.EventToolCall:
-			return errors.New("learning replay cannot call tools")
+			if e.ToolCall == nil || !orchestrator.IsMasterActionTool(e.ToolCall.Name) {
+				return errors.New("learning replay cannot call tools")
+			}
+			calls = append(calls, *e.ToolCall)
 		case providers.EventUsage:
 			tokens += int64(e.InputTokens + e.OutputTokens + e.CacheReadTokens + e.CacheWriteTokens)
 		case providers.EventRetry:
@@ -352,6 +379,9 @@ func (a *App) masterLearningCall(ctx context.Context, model providers.Model, cfg
 	if unknown {
 		tokens = 0
 	} // unknown token costs cannot prove a saving
+	if len(req.Tools) > 0 {
+		return orchestrator.EncodeMasterReplayOutput(output.String(), calls), tokens, err
+	}
 	return output.String(), tokens, err
 }
 

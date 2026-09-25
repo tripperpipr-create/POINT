@@ -34,15 +34,14 @@ type masterReadTools struct {
 	base        *companionReadTools
 	store       masterReadStore
 	workspaceID string
-	observe     masterRosterObserver
 }
 
-func newMasterReadTools(fs *workspace.FS, store masterReadStore, workspaceID string, observe masterRosterObserver) *masterReadTools {
+func newMasterReadTools(fs *workspace.FS, store masterReadStore, workspaceID string) *masterReadTools {
 	var base *companionReadTools
 	if fs != nil {
 		base = newCompanionReadTools(fs, nil)
 	}
-	return &masterReadTools{base: base, store: store, workspaceID: workspaceID, observe: observe}
+	return &masterReadTools{base: base, store: store, workspaceID: workspaceID}
 }
 
 func (t *masterReadTools) Definitions() []domain.ToolDefinition {

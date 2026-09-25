@@ -12,12 +12,8 @@ import (
 func TestTaskIntakeWithoutAgentsAndWithLockedTeam(t *testing.T) {
 	store := newChatStoreStub()
 	b := domain.TaskBrief{Mode: domain.TaskModePrecise, Goal: "Function with a complete contract", ResultKind: "code", Criteria: []domain.AcceptanceCriterion{{ID: "c1", Text: "Follows contract", Kind: "manual"}}}
-	envelope := taskIntakeEnvelope{Reply: "Ready", Brief: &b}
-	var seen providers.ModelRequest
-	service := ChatService{Store: store, ModelFactory: func(providers.Config) (providers.Model, error) {
-		raw, _ := json.Marshal(envelope)
-		return &scriptedModel{reply: string(raw), seen: &seen}, nil
-	}}
+	model := &turnModel{rounds: []roundScript{{text: "Ready", calls: []providers.ToolCall{proposeBriefCall("b1", "Function", "", b)}}}}
+	service := ChatService{Store: store, ModelFactory: model.factory()}
 	req := ChatRequest{WorkspaceID: "ws", TaskIntake: true, Message: "Return the function exactly as described", Config: domain.OrchestratorConfig{Provider: domain.ProviderOllama, Model: "model"}}
 	response, err := service.Chat(context.Background(), req)
 	if err != nil {
@@ -26,7 +22,7 @@ func TestTaskIntakeWithoutAgentsAndWithLockedTeam(t *testing.T) {
 	if response.Proposal == nil || response.Proposal.Brief.State != "ready" || len(response.Questions) != 0 {
 		t.Fatalf("complete precise task was interviewed: %#v", response)
 	}
-	if seen.ContextWindowTokens != intakeContextWindowTokens {
+	if model.requests[0].ContextWindowTokens != intakeContextWindowTokens {
 		t.Fatal("intake runtime context not set")
 	}
 	if domain.IsTaskBriefApproved(*response.Proposal.Brief) {
@@ -35,14 +31,10 @@ func TestTaskIntakeWithoutAgentsAndWithLockedTeam(t *testing.T) {
 	if response.Proposal.Brief.SourceRequest != req.Message {
 		t.Fatal("original detailed request was lost")
 	}
-	foundPreparation := false
 	for _, decision := range response.Proposal.Brief.Decisions {
 		if decision.Topic == "Подготовка исполнителя" {
-			foundPreparation = true
+			t.Fatal("Master invented an agent-preparation decision")
 		}
-	}
-	if foundPreparation {
-		t.Fatal("Master invented an agent-preparation decision")
 	}
 	prior := response.Proposal
 	prior.TeamAgentIDsLocked = true
@@ -50,9 +42,8 @@ func TestTaskIntakeWithoutAgentsAndWithLockedTeam(t *testing.T) {
 	store.proposals[0] = *prior
 	store.agents = []domain.ProjectAgent{{ID: "chosen", Name: "Chosen"}, {ID: "other", Name: "Other"}}
 	req.ProposalID = prior.ID
-	envelope.ProposalID = prior.ID
-	envelope.AgentIDs = []string{"other"}
 	b.Goal = "Updated function"
+	model.rounds = []roundScript{{text: "Updated", calls: []providers.ToolCall{proposeBriefCall("b2", "Function", prior.ID, b)}}}
 	response, err = service.Chat(context.Background(), req)
 	if err != nil {
 		t.Fatal(err)
@@ -60,8 +51,11 @@ func TestTaskIntakeWithoutAgentsAndWithLockedTeam(t *testing.T) {
 	if response.Proposal.Brief.Version != 2 || len(response.Proposal.TeamAgentIDs) != 0 {
 		t.Fatalf("Master retained forbidden agent selection: %#v", response.Proposal)
 	}
-	envelope.Questions = []string{"Which output?"}
 	b.Mode = domain.TaskModeProject
+	model.rounds = []roundScript{{text: "Уточню", calls: []providers.ToolCall{
+		proposeBriefCall("b3", "Function", prior.ID, b),
+		toolCall("q1", masterActionAskClarifications, map[string]any{"items": []map[string]any{{"text": "Which output?", "kind": "text"}}}),
+	}}}
 	response, err = service.Chat(context.Background(), req)
 	if err != nil {
 		t.Fatal(err)
@@ -71,9 +65,12 @@ func TestTaskIntakeWithoutAgentsAndWithLockedTeam(t *testing.T) {
 	}
 }
 
-func TestTaskIntakeRepairsOnlyInvalidSections(t *testing.T) {
+// Неверное задание чинится внутри хода: замечания сервера возвращаются
+// результатом инструмента, и модель присылает исправленное следующим кругом.
+// Отдельного запроса «почини секции» больше нет.
+func TestTaskIntakeFixesInvalidBriefWithinTheTurn(t *testing.T) {
 	store := newChatStoreStub()
-	brief := domain.TaskBrief{
+	invalid := domain.TaskBrief{
 		Mode: domain.TaskModePrecise, Goal: "Create a health endpoint", ResultKind: "workspace_change",
 		Permissions: domain.TaskPermissions{WriteFiles: true, ExecuteCommands: true},
 		Criteria: []domain.AcceptanceCriterion{
@@ -81,22 +78,17 @@ func TestTaskIntakeRepairsOnlyInvalidSections(t *testing.T) {
 			{ID: "c2", Text: "Configuration exists", Kind: "manual"},
 		},
 	}
-	first, _ := json.Marshal(taskIntakeEnvelope{Intent: "task", Reply: "Задание готово.", Brief: &brief})
-	repairedCriteria := []domain.AcceptanceCriterion{
+	fixed := invalid
+	fixed.Criteria = []domain.AcceptanceCriterion{
 		{ID: "c1", Text: "Endpoint returns 200", Kind: "verification", Tool: "execute_command", Arguments: json.RawMessage(`{"command":"curl --fail http://localhost/health"}`)},
 		{ID: "c2", Text: "Configuration exists", Kind: "manual"},
 	}
-	criteriaJSON, _ := json.Marshal(repairedCriteria)
-	second := `{"brief":{"criteria":` + string(criteriaJSON) + `}}`
-	var repairRequest providers.ModelRequest
-	calls := 0
-	service := ChatService{Store: store, ModelFactory: func(providers.Config) (providers.Model, error) {
-		calls++
-		if calls == 1 {
-			return &scriptedModel{reply: string(first)}, nil
-		}
-		return &scriptedModel{reply: second, seen: &repairRequest}, nil
+	model := &turnModel{rounds: []roundScript{
+		{calls: []providers.ToolCall{proposeBriefCall("b1", "Health", "", invalid)}},
+		{text: "Задание готово.", calls: []providers.ToolCall{proposeBriefCall("b2", "Health", "", fixed)}},
 	}}
+	skills := NewMasterSkillSession("intake", nil)
+	service := ChatService{Store: store, Skills: skills, ModelFactory: model.factory()}
 	response, err := service.Chat(context.Background(), ChatRequest{
 		WorkspaceID: "ws", TaskIntake: true, Message: "Create a health endpoint",
 		Config: domain.OrchestratorConfig{Provider: domain.ProviderOllama, Model: "model"},
@@ -104,24 +96,22 @@ func TestTaskIntakeRepairsOnlyInvalidSections(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if calls != 2 || response.Proposal == nil {
-		t.Fatalf("invalid draft was not repaired: calls=%d response=%#v", calls, response)
+	if len(model.requests) != 2 || response.Proposal == nil {
+		t.Fatalf("invalid draft was not fixed in the loop: rounds=%d response=%#v", len(model.requests), response)
 	}
 	got := response.Proposal.Brief.Criteria
 	if len(got) != 2 || got[0].Tool != "execute_command" || got[1].Tool != "" {
-		t.Fatalf("repair did not preserve valid criterion: %#v", got)
+		t.Fatalf("fixed brief lost: %#v", got)
 	}
-	prompt := repairRequest.Messages[len(repairRequest.Messages)-1].Content
-	if !strings.Contains(prompt, `"criteria"`) || strings.Contains(prompt, `ALLOWED SECTIONS: ["goal"`) {
-		t.Fatalf("repair was not limited to criteria: %s", prompt)
+	last := model.requests[1].Messages[len(model.requests[1].Messages)-1]
+	if last.Role != "tool" || !strings.Contains(last.Content, "invalid_brief") {
+		t.Fatalf("server remarks did not reach the model: %#v", last)
 	}
-	for _, message := range repairRequest.Messages {
-		if strings.Contains(message.Content, "Предыдущий ответ на этот вопрос человека не устроил") {
-			t.Fatal("technical repair was confused with user rejection")
-		}
+	if skills.Operation.Repairs != 1 || skills.Operation.ContractError {
+		t.Fatalf("repair accounting wrong: %+v", skills.Operation)
 	}
-	if !strings.Contains(response.Reasoning, "Первая попытка задания") || !strings.Contains(response.Reasoning, "Задание готово.") {
-		t.Fatalf("first answer is not available in response details: %q", response.Reasoning)
+	if response.Reply != "Задание готово." {
+		t.Fatalf("reply lost: %q", response.Reply)
 	}
 }
 
@@ -133,10 +123,8 @@ func TestTaskIntakeRepairsOnlyInvalidSections(t *testing.T) {
 // хода, а окно, которое врёт про расход, хуже отсутствующего.
 func TestMasterTurnRemembersWhatItCost(t *testing.T) {
 	store := newChatStoreStub()
-	brief := domain.TaskBrief{Mode: domain.TaskModePrecise, Goal: "Bounded goal", ResultKind: "code", Criteria: []domain.AcceptanceCriterion{{ID: "c1", Text: "Done", Kind: "manual"}}}
-	raw, _ := json.Marshal(taskIntakeEnvelope{Reply: "Ready", Brief: &brief})
 	service := ChatService{Store: store, ModelFactory: func(providers.Config) (providers.Model, error) {
-		return &meteredModel{reply: string(raw), inputTokens: 1200, outputTokens: 340}, nil
+		return &meteredModel{reply: "Ready", inputTokens: 1200, outputTokens: 340}, nil
 	}}
 	if _, err := service.Chat(context.Background(), ChatRequest{
 		WorkspaceID: "ws", TaskIntake: true, Message: "Prepare the task",
@@ -182,11 +170,9 @@ func (m *meteredModel) Stream(_ context.Context, _ providers.ModelRequest, emit 
 // последствий.
 func TestRejectedAnswerAsksForAnotherPath(t *testing.T) {
 	store := newChatStoreStub()
-	brief := domain.TaskBrief{Mode: domain.TaskModePrecise, Goal: "Bounded goal", ResultKind: "code", Criteria: []domain.AcceptanceCriterion{{ID: "c1", Text: "Done", Kind: "manual"}}}
-	raw, _ := json.Marshal(taskIntakeEnvelope{Reply: "Ready", Brief: &brief})
 	var seen providers.ModelRequest
 	service := ChatService{Store: store, ModelFactory: func(providers.Config) (providers.Model, error) {
-		return &scriptedModel{reply: string(raw), seen: &seen}, nil
+		return &scriptedModel{reply: "Ready", seen: &seen}, nil
 	}}
 	req := ChatRequest{WorkspaceID: "ws", TaskIntake: true, Message: "Prepare the task",
 		Config: domain.OrchestratorConfig{Provider: domain.ProviderOllama, Model: "model"}}
@@ -220,10 +206,8 @@ func TestRejectedAnswerAsksForAnotherPath(t *testing.T) {
 // выходило ничего, и полторы минуты хода human видел одно слово «Думает…».
 func TestMasterTurnShowsHowItGotThere(t *testing.T) {
 	store := newChatStoreStub()
-	brief := domain.TaskBrief{Mode: domain.TaskModePrecise, Goal: "Bounded goal", ResultKind: "code", Criteria: []domain.AcceptanceCriterion{{ID: "c1", Text: "Done", Kind: "manual"}}}
-	raw, _ := json.Marshal(taskIntakeEnvelope{Reply: "Ready", Brief: &brief})
 	service := ChatService{Store: store, ReadTools: readingToolsStub{}, ModelFactory: func(providers.Config) (providers.Model, error) {
-		return &thinkingModel{reply: string(raw)}, nil
+		return &thinkingModel{reply: "Ready"}, nil
 	}}
 	response, err := service.Chat(context.Background(), ChatRequest{
 		WorkspaceID: "ws", TaskIntake: true, Message: "Prepare the task",
@@ -295,15 +279,15 @@ func (readingToolsStub) Execute(context.Context, string, json.RawMessage) domain
 }
 
 func TestTaskIntakePromptKeepsInterviewCheap(t *testing.T) {
-	prompt := taskIntakePrompt + NewMasterSkillSession("intake",nil).Prompt(nil,false)
+	prompt := taskIntakePrompt + NewMasterSkillSession("intake", nil).Prompt(nil, false)
 	if !strings.Contains(prompt, "До двух существенных уточнений") {
 		t.Fatal("prompt must cap clarifications at two")
 	}
 	if !strings.Contains(prompt, "Очевидные безопасные дефолты") {
 		t.Fatal("prompt must prefer defaults over interview")
 	}
-	if !strings.Contains(prompt, "reply — 1–3 предложения") {
-		t.Fatal("prompt must keep reasoning short")
+	if !strings.Contains(prompt, "Текст ответа не пересказывает карточку") {
+		t.Fatal("prompt must keep the card out of the reply text")
 	}
 	if !strings.Contains(prompt, "выбранная пользователем установка разрешает лишь нужные реестры") {
 		t.Fatal("prompt must treat network hosts as consequence of stack choice")
@@ -311,9 +295,11 @@ func TestTaskIntakePromptKeepsInterviewCheap(t *testing.T) {
 	if strings.Contains(taskIntakePrompt, "Сеть только явно согласованная, иначе []") {
 		t.Fatal("old absolute network ban must not remain")
 	}
-	raw := string(taskIntakeJSONSchema())
-	if !strings.Contains(raw, `"maxItems":2`) {
-		t.Fatal("schema must cap clarifications/questions at two")
+	if strings.Contains(prompt, "reply — 1–3 предложения") {
+		t.Fatal("the answer form, not the prompt, decides reply length")
+	}
+	if !strings.Contains(masterActionSchema(t, masterActionAskClarifications), `"maxItems":2`) {
+		t.Fatal("schema must cap clarifications at two")
 	}
 }
 
@@ -326,10 +312,8 @@ func TestTaskIntakeIgnoresUnknownProposalIDFromModel(t *testing.T) {
 		Mode: domain.TaskModePrecise, Goal: "Собрать REST-эндпоинт", ResultKind: "code",
 		Criteria: []domain.AcceptanceCriterion{{ID: "c1", Text: "Эндпоинт отвечает", Kind: "manual"}},
 	}
-	raw, _ := json.Marshal(taskIntakeEnvelope{Intent: "task", Reply: "Готово", ProposalID: "qp_из_воздуха", Brief: &brief})
-	service := ChatService{Store: store, ModelFactory: func(providers.Config) (providers.Model, error) {
-		return &scriptedModel{reply: string(raw)}, nil
-	}}
+	model := &turnModel{rounds: []roundScript{{text: "Готово", calls: []providers.ToolCall{proposeBriefCall("b1", "Эндпоинт", "qp_из_воздуха", brief)}}}}
+	service := ChatService{Store: store, ModelFactory: model.factory()}
 	req := ChatRequest{
 		WorkspaceID: "ws", TaskIntake: true, Message: "Сделай эндпоинт",
 		Config: domain.OrchestratorConfig{Provider: domain.ProviderOllama, Model: "model"},
@@ -365,18 +349,14 @@ func TestTaskIntakeIgnoresUnknownProposalIDFromModel(t *testing.T) {
 func TestClarificationWithoutOptionsBecomesFreeText(t *testing.T) {
 	store := newChatStoreStub()
 	brief := domain.TaskBrief{Mode: domain.TaskModePrecise, Goal: "Развернуть Symfony", ResultKind: "code"}
-	envelope := taskIntakeEnvelope{
-		Reply: "Уточните",
-		Brief: &brief,
-		Clarifications: []domain.MasterQuestion{
+	model := &turnModel{rounds: []roundScript{{text: "Уточните", calls: []providers.ToolCall{
+		proposeBriefCall("b1", "Symfony", "", brief),
+		toolCall("q1", masterActionAskClarifications, map[string]any{"items": []domain.MasterQuestion{
 			{Text: "Какой состав нужен?", Kind: "single"},
 			{Text: "Какая версия Symfony?", Kind: "single", Options: []string{"7.1"}},
-		},
-	}
-	service := ChatService{Store: store, ModelFactory: func(providers.Config) (providers.Model, error) {
-		raw, _ := json.Marshal(envelope)
-		return &scriptedModel{reply: string(raw)}, nil
-	}}
+		}}),
+	}}}}
+	service := ChatService{Store: store, ModelFactory: model.factory()}
 	req := ChatRequest{WorkspaceID: "ws", TaskIntake: true, Message: "Разверни Symfony", Config: domain.OrchestratorConfig{Provider: domain.ProviderOllama, Model: "model"}}
 	response, err := service.Chat(context.Background(), req)
 	if err != nil {
@@ -398,7 +378,7 @@ func TestClarificationWithoutOptionsBecomesFreeText(t *testing.T) {
 // Схема обязана запрещать пустой options у выбора: промпт требует варианты
 // словами, но грамматику слабая модель соблюдает надёжнее прозы.
 func TestTaskIntakeSchemaDemandsOptionsForChoice(t *testing.T) {
-	raw := string(taskIntakeJSONSchema())
+	raw := masterActionSchema(t, masterActionAskClarifications)
 	if !strings.Contains(raw, `"minItems":2`) {
 		t.Fatal("schema must require at least two options for a choice")
 	}
@@ -407,86 +387,9 @@ func TestTaskIntakeSchemaDemandsOptionsForChoice(t *testing.T) {
 	}
 }
 
-// Уточнение исполнителя необязательно.
-//
-// Обязательный шаг, висящий на послушности модели, уже стоил продукту
-// дублирующихся карточек: локальная модель не возвращала proposalId, и
-// уточнение приезжало второй карточкой. Поэтому подбор исполнителя идёт без
-// модели, а поле hire только уточняет черновик: ход без него обязан остаться
-// полноценным.
-func TestTaskIntakeAcceptsTurnWithoutHire(t *testing.T) {
-	store := newChatStoreStub()
-	brief := domain.TaskBrief{
-		Mode: domain.TaskModePrecise, Goal: "Собрать REST-эндпоинт", ResultKind: "code",
-		Criteria: []domain.AcceptanceCriterion{{ID: "c1", Text: "Эндпоинт отвечает", Kind: "manual"}},
-	}
-	raw, _ := json.Marshal(taskIntakeEnvelope{Intent: "task", Reply: "Готово", Brief: &brief})
-	service := ChatService{Store: store, ModelFactory: func(providers.Config) (providers.Model, error) {
-		return &scriptedModel{reply: string(raw)}, nil
-	}}
-	response, err := service.Chat(context.Background(), ChatRequest{
-		WorkspaceID: "ws", TaskIntake: true, Message: "Сделай эндпоинт",
-		Config: domain.OrchestratorConfig{Provider: domain.ProviderOllama, Model: "model"},
-	})
-	if err != nil {
-		t.Fatalf("ход без hire упал: %v", err)
-	}
-	if response.Proposal == nil || response.Proposal.Brief == nil {
-		t.Fatal("задание не собрано")
-	}
-	if response.AgentDraft != nil {
-		t.Fatalf("пустое поле стало черновиком: %#v", response.AgentDraft)
-	}
-}
-
-// Поле hire от старой модели игнорируется: новый путь комплектует отдельный
-// stateless-агент только после ready brief.
-func TestTaskIntakeIgnoresLegacyHireDraft(t *testing.T) {
-	store := newChatStoreStub()
-	brief := domain.TaskBrief{
-		Mode: domain.TaskModePrecise, Goal: "Собрать платёжный шлюз", ResultKind: "code",
-		Criteria: []domain.AcceptanceCriterion{{ID: "c1", Text: "Платёж проходит", Kind: "manual"}},
-	}
-	envelope := taskIntakeEnvelope{
-		Intent: "task", Reply: "Нужен специалист по платежам", Brief: &brief,
-		Hire: &intakeAgentDraft{
-			Name: "Архитектор платежей", Role: "Владелец платёжного контура",
-			Mission: "Собрать приём платежей и подтвердить каждый критерий проверкой.",
-			// Выдуманное имя инструмента отсеет ядро — здесь оно обязано просто
-			// доехать: каталог знает не разговор.
-			RequiredTools: []string{"read_file", "propose_patch", "stripe_console"},
-		},
-	}
-	raw, _ := json.Marshal(envelope)
-	service := ChatService{Store: store, ModelFactory: func(providers.Config) (providers.Model, error) {
-		return &scriptedModel{reply: string(raw)}, nil
-	}}
-	response, err := service.Chat(context.Background(), ChatRequest{
-		WorkspaceID: "ws", TaskIntake: true, Message: "Прими платежи",
-		Config: domain.OrchestratorConfig{Provider: domain.ProviderOllama, Model: "model"},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if response.AgentDraft != nil {
-		t.Fatalf("Master created a forbidden agent draft: %#v", response.AgentDraft)
-	}
-}
-
-// Неполное уточнение — не уточнение: черновик без роли или миссии домен всё
-// равно не примет, и подставлять его поверх собранного нельзя.
-func TestTaskIntakeDropsIncompleteHire(t *testing.T) {
-	if draft := agentDraftFromIntake(&intakeAgentDraft{Name: "Кто-то"}); draft != nil {
-		t.Fatalf("черновик без роли и миссии принят: %#v", draft)
-	}
-	if draft := agentDraftFromIntake(nil); draft != nil {
-		t.Fatal("пустое поле стало черновиком")
-	}
-}
-
 // Промпт и schema не дают Мастеру выбирать или создавать исполнителя.
 func TestTaskIntakePromptDelegatesRosterToSelector(t *testing.T) {
-	prompt := taskIntakePrompt + NewMasterSkillSession("intake",nil).Prompt(nil,false)
+	prompt := taskIntakePrompt + NewMasterSkillSession("intake", nil).Prompt(nil, false)
 	if strings.Contains(taskIntakePrompt, "read_roster") {
 		t.Fatal("Master still calls the legacy roster observer")
 	}
@@ -499,7 +402,7 @@ func TestTaskIntakePromptDelegatesRosterToSelector(t *testing.T) {
 	if !strings.Contains(prompt, "Прямую просьбу создать агента") {
 		t.Fatal("prompt turns a hiring request into a task brief")
 	}
-	raw := string(taskIntakeJSONSchema())
+	raw := masterActionSchema(t, masterActionProposeBrief)
 	if strings.Contains(raw, `"hire"`) || strings.Contains(raw, `"agentIds"`) {
 		t.Fatal("schema still grants Master roster authority")
 	}
@@ -523,7 +426,7 @@ func TestTaskIntakeNeverProposesAgentByKeyword(t *testing.T) {
 			Store: store,
 			NewID: func(prefix string) string { return prefix + "-1" },
 			ModelFactory: func(providers.Config) (providers.Model, error) {
-				return &stubbornModel{replies: []string{`{"intent":"chat","reply":"Исполнителя заводят в Гильдии или при утверждении квеста.","brief":null}`}}, nil
+				return &stubbornModel{replies: []string{"Исполнителя заводят в Гильдии или при утверждении квеста."}}, nil
 			},
 		}
 		response, err := service.Chat(context.Background(), ChatRequest{

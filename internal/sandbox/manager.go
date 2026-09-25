@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -17,6 +18,7 @@ import (
 
 	"local-agent-workbench/internal/domain"
 	"local-agent-workbench/internal/osproc"
+	"local-agent-workbench/internal/workspace"
 )
 
 // Manager creates isolated execution workspaces (git worktree or filtered copy).
@@ -491,12 +493,25 @@ func (m *Manager) Create(ctx context.Context, req CreateRequest) (domain.Sandbox
 			return domain.SandboxRecord{}, err
 		}
 		record.BaseCommit = commit
-		if err := runGit(ctx, req.WorkspacePath, "worktree", "add", "--detach", target, commit); err != nil {
+		worktreeErr := runGit(ctx, req.WorkspacePath, "worktree", "add", "--detach", target, commit)
+		if worktreeErr == nil {
+			// Секреты, которые Git отслеживает, приходят в worktree вместе с
+			// checkout. В рабочую копию они не попадают: ни Diff, ни доставка
+			// их не видят (shouldSkipFile), так что удаление в проект не уедет.
+			worktreeErr = stripWorktreeSecrets(ctx, target)
+		}
+		if worktreeErr != nil {
+			// Частично созданный worktree убирается до запасной копии: иначе
+			// копия ложилась поверх остатков checkout, а Git помнил каталог.
+			// Неудача worktree — не повод не начинать работу: копия даёт ту же
+			// изоляцию файлов.
+			_ = os.RemoveAll(target)
+			_ = runGit(ctx, req.WorkspacePath, "worktree", "remove", "--force", target)
 			record.Kind = "copy"
 			record.BaseCommit = ""
 			record.BaselinePath = target + "-baseline"
 			if copyErr := copyFiltered(req.WorkspacePath, record.BaselinePath); copyErr != nil {
-				return domain.SandboxRecord{}, fmt.Errorf("worktree failed (%v); copy failed: %w", err, copyErr)
+				return domain.SandboxRecord{}, fmt.Errorf("worktree failed (%v); copy failed: %w", worktreeErr, copyErr)
 			}
 			if copyErr := copyFiltered(record.BaselinePath, target); copyErr != nil {
 				_ = os.RemoveAll(record.BaselinePath)
@@ -507,8 +522,8 @@ func (m *Manager) Create(ctx context.Context, req CreateRequest) (domain.Sandbox
 		}
 		record.BaselinePath = target + "-baseline"
 		if err := copyFiltered(target, record.BaselinePath); err != nil {
-			_ = runGit(ctx, req.WorkspacePath, "worktree", "remove", "--force", target)
 			_ = os.RemoveAll(target)
+			_ = runGit(ctx, req.WorkspacePath, "worktree", "remove", "--force", target)
 			_ = os.RemoveAll(record.BaselinePath)
 			return domain.SandboxRecord{}, fmt.Errorf("snapshot worktree baseline: %w", err)
 		}
@@ -545,11 +560,17 @@ func (m *Manager) Close(ctx context.Context, record domain.SandboxRecord, worksp
 			return err
 		}
 	}
-	if record.Kind == "worktree" && isGitRepo(workspacePath) {
-		_ = runGit(ctx, workspacePath, "worktree", "remove", "--force", record.Path)
-	}
+	// Сначала каталог, потом учёт Git. `git worktree remove --force` по
+	// живому каталогу проходит по junction внутри worktree и удаляет
+	// содержимое его цели — файлы вне проекта; os.RemoveAll junction не
+	// разворачивает. По уже удалённому каталогу та же команда только снимает
+	// запись этого worktree — в отличие от prune, который забыл бы и чужие
+	// worktree человека на отключённом носителе.
 	if err := os.RemoveAll(record.Path); err != nil {
 		return err
+	}
+	if record.Kind == "worktree" && isGitRepo(workspacePath) {
+		_ = runGit(ctx, workspacePath, "worktree", "remove", "--force", record.Path)
 	}
 	if strings.TrimSpace(record.BaselinePath) != "" {
 		return os.RemoveAll(record.BaselinePath)
@@ -624,6 +645,26 @@ func (m *Manager) Diff(_ context.Context, basePath, sandboxPath string) ([]DiffE
 	if err != nil {
 		return nil, err
 	}
+	// На Windows переименование только регистром — тот же файл. Пара
+	// «удалить Readme.md, создать README.md» при применении стирала его:
+	// запись и удаление попадали в один и тот же файл.
+	if runtime.GOOS == "windows" {
+		baseByFold := make(map[string]string, len(baseFiles))
+		for path := range baseFiles {
+			baseByFold[strings.ToLower(path)] = path
+		}
+		for path, content := range sandboxFiles {
+			if _, exact := baseFiles[path]; exact {
+				continue
+			}
+			if basePath, ok := baseByFold[strings.ToLower(path)]; ok {
+				if _, taken := sandboxFiles[basePath]; !taken {
+					delete(sandboxFiles, path)
+					sandboxFiles[basePath] = content
+				}
+			}
+		}
+	}
 	seen := map[string]struct{}{}
 	var diffs []DiffEntry
 	for path, proposed := range sandboxFiles {
@@ -646,6 +687,17 @@ func (m *Manager) Diff(_ context.Context, basePath, sandboxPath string) ([]DiffE
 	for path, original := range baseFiles {
 		if _, ok := seen[path]; ok {
 			continue
+		}
+		// Файла нет среди текстовых, но он лежит в песочнице: агент переписал
+		// его в UTF-16 или бинарный вид. Это не удаление — доставка стёрла бы
+		// файл человека вместе с правкой агента.
+		if info, statErr := os.Lstat(filepath.Join(sandboxPath, filepath.FromSlash(path))); statErr == nil && !info.IsDir() {
+			// Пустой файл терять нечего: бинарные файлы наборы изменений и так
+			// не переносят, и его новое содержимое остаётся в песочнице.
+			if original == "" {
+				continue
+			}
+			return nil, fmt.Errorf("файл %s стал нетекстовым в песочнице; перенос остановлен, чтобы не удалить его", path)
 		}
 		diffs = append(diffs, DiffEntry{
 			Path: path, Kind: "delete", OriginalHash: hashText(original), Original: original,
@@ -715,7 +767,9 @@ func copyFiltered(src, dst string) error {
 			}
 			return os.MkdirAll(filepath.Join(dst, rel), 0o755)
 		}
-		if d.Type()&os.ModeSymlink != 0 {
+		// Junction на Windows — ModeIrregular, а не ModeSymlink: копировать
+		// или читать его нельзя, чтение падает и роняет весь Diff.
+		if d.Type()&(os.ModeSymlink|os.ModeIrregular) != 0 {
 			return nil
 		}
 		if shouldSkipFile(base) {
@@ -739,15 +793,137 @@ func shouldSkipFile(name string) bool {
 	if strings.HasSuffix(lower, ".png") || strings.HasSuffix(lower, ".jpg") || strings.HasSuffix(lower, ".jpeg") {
 		return true
 	}
-	if lower == ".env" || strings.HasPrefix(lower, ".env.") || strings.HasSuffix(lower, ".pem") || strings.HasSuffix(lower, ".key") {
-		return true
+	return isSecretFile(name)
+}
+
+// isSecretFile — файл секретов, которому не место в рабочей копии. Список
+// тот же, что закрывает файлы для чтения агентом (собственный узкий список
+// пропускал .npmrc, credentials и ключи SSH), но ключи SSH узнаются по имени
+// целиком: подстрока задела бы исходники вроде id_rsa_parser.go, и сборка
+// в песочнице ломалась бы.
+func isSecretFile(name string) bool {
+	base := strings.ToLower(name)
+	if runtime.GOOS == "windows" {
+		base = strings.TrimRight(base, ". ")
 	}
-	return false
+	// Ключ SSH узнаётся по подстроке (id_rsa_deploy, deploy_id_rsa,
+	// id_ed25519_sk). Ключ с любым расширением (id_rsa.pub, id_rsa.txt) —
+	// тоже ключ; исключение для исходников действует, только когда ключ —
+	// часть более длинного имени: id_rsa_parser.go — код, а не ключ.
+	for _, key := range []string{"id_rsa", "id_ed25519", "id_ecdsa", "id_dsa"} {
+		if !strings.Contains(base, key) {
+			continue
+		}
+		stem := strings.TrimSuffix(base, filepath.Ext(base))
+		if stem == key || stem == key+"_sk" {
+			return true
+		}
+		return !hasSourceExtension(base)
+	}
+	return workspace.IsSensitive(name)
+}
+
+var sourceExtensions = map[string]bool{
+	".go": true, ".py": true, ".js": true, ".mjs": true, ".cjs": true, ".ts": true, ".tsx": true, ".jsx": true,
+	".java": true, ".kt": true, ".rs": true, ".rb": true, ".php": true, ".cs": true, ".c": true, ".h": true,
+	".cpp": true, ".hpp": true, ".swift": true, ".sh": true, ".ps1": true, ".md": true, ".txt": true,
+	".json": true, ".yaml": true, ".yml": true, ".toml": true, ".html": true, ".css": true, ".sql": true,
+}
+
+func hasSourceExtension(name string) bool {
+	return sourceExtensions[strings.ToLower(filepath.Ext(name))]
 }
 
 func shouldSkipDirectory(name string) bool {
-	_, skip := skippedDirectories[name]
+	_, skip := skippedDirectories[strings.ToLower(name)]
 	return skip
+}
+
+// stripWorktreeSecrets убирает секреты из свежего worktree и прячет их
+// удаление от Git. Удаление отслеживаемого файла Git покажет как изменение, и
+// `git_diff` выдал бы модели его содержимое строками удаления; skip-worktree
+// живёт в индексе этого worktree и проект человека не затрагивает. Помечаются
+// только отслеживаемые файлы — неотслеживаемый секрет (например, созданный
+// хуком post-checkout) Git пометить не может, — а пути идут через stdin:
+// тысяча сертификатов-фикстур не помещается в командную строку.
+func stripWorktreeSecrets(ctx context.Context, worktree string) error {
+	removed, err := removeSensitiveFiles(worktree)
+	if err != nil || len(removed) == 0 {
+		return err
+	}
+	listed, err := osproc.CommandContext(ctx, "git", "-C", worktree, "ls-files", "-z").Output()
+	if err != nil {
+		return fmt.Errorf("git ls-files: %w", err)
+	}
+	// На Windows каталоги `Keys` и `keys` из индекса ложатся в один каталог
+	// на диске: путь с диска сопоставляется с написанием из индекса без учёта
+	// регистра, иначе файл остаётся без skip-worktree и его содержимое снова
+	// видно в `git diff`.
+	tracked := map[string]string{}
+	folded := map[string]string{}
+	for _, path := range strings.Split(string(listed), "\x00") {
+		if path != "" {
+			tracked[path] = path
+			folded[strings.ToLower(path)] = path
+		}
+	}
+	var input strings.Builder
+	for _, path := range removed {
+		indexPath, ok := tracked[path]
+		if !ok && runtime.GOOS == "windows" {
+			indexPath, ok = folded[strings.ToLower(path)]
+		}
+		if ok {
+			input.WriteString(indexPath)
+			input.WriteByte(0)
+		}
+	}
+	if input.Len() == 0 {
+		return nil
+	}
+	cmd := osproc.CommandContext(ctx, "git", "-C", worktree, "update-index", "-z", "--skip-worktree", "--stdin")
+	cmd.Stdin = strings.NewReader(input.String())
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("git update-index --skip-worktree: %w (%s)", err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+// removeSensitiveFiles убирает из рабочей копии файлы секретов и называет
+// их пути относительно root.
+func removeSensitiveFiles(root string) ([]string, error) {
+	var removed []string
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			// Секреты ищутся и в каталогах, которые копия пропускает целиком
+			// (build, .vscode, .venv): worktree приносит их вместе с checkout.
+			// Пропускается только сам Git и, ради скорости, node_modules.
+			name := strings.ToLower(d.Name())
+			if path != root && (name == ".git" || name == "node_modules") {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if d.Type()&(os.ModeSymlink|os.ModeIrregular) != 0 {
+			return nil
+		}
+		if !isSecretFile(d.Name()) {
+			return nil
+		}
+		rel, relErr := filepath.Rel(root, path)
+		if relErr != nil {
+			return relErr
+		}
+		if removeErr := os.Remove(path); removeErr != nil {
+			return removeErr
+		}
+		removed = append(removed, filepath.ToSlash(rel))
+		return nil
+	})
+	return removed, err
 }
 
 func copyFile(src, dst string) error {
@@ -786,7 +962,7 @@ func listTextFiles(root string) (map[string]string, error) {
 			}
 			return nil
 		}
-		if d.Type()&os.ModeSymlink != 0 || shouldSkipFile(d.Name()) {
+		if d.Type()&(os.ModeSymlink|os.ModeIrregular) != 0 || shouldSkipFile(d.Name()) {
 			return nil
 		}
 		rel, err := filepath.Rel(root, path)

@@ -138,15 +138,17 @@ func (m masterObservedModel) Stream(ctx context.Context, req providers.ModelRequ
 			}
 		}
 	}
-	toolCalled := false
+	// Реплей снимается с круга, где модель отвечала, а не читала проект: вызовы
+	// разговора (задание, уточнения, память) — часть ответа, чтение — нет.
+	readCalled := false
 	callbackFailed:=false
 	err := m.model.Stream(ctx, req, func(e providers.ModelEvent) error {
 		if e.Kind == providers.EventUsage {
 			m.session.Operation.InputTokens += int64(e.InputTokens + e.CacheReadTokens + e.CacheWriteTokens)
 			m.session.Operation.OutputTokens += int64(e.OutputTokens)
 		}
-		if e.Kind == providers.EventToolCall {
-			toolCalled = true
+		if e.Kind == providers.EventToolCall && (e.ToolCall == nil || !IsMasterActionTool(e.ToolCall.Name)) {
+			readCalled = true
 		}
 		callbackErr:=emit(e)
 		if callbackErr!=nil {callbackFailed=true}
@@ -155,11 +157,12 @@ func (m masterObservedModel) Stream(ctx context.Context, req providers.ModelRequ
 	if err != nil {
 		if callbackFailed {m.session.Operation.ContractError=true} else {m.session.Operation.ProviderError = true}
 	}
-	if !toolCalled && err == nil && len(req.Messages) > 0 && strings.Contains(req.Messages[0].Content, "<master_skill") {
-		// Only text snapshots, never image bytes, signatures, tools, API keys or
-		// executable requests. Replay produces text and cannot dispatch actions.
+	if !readCalled && err == nil && len(req.Messages) > 0 && strings.Contains(req.Messages[0].Content, "<master_skill") {
+		// Only text snapshots, never image bytes, signatures, project tools, API
+		// keys or executable requests. Conversation tools stay: they only draft
+		// the turn, and without them a replay could not express a task at all.
 		copyReq := req
-		copyReq.Tools = nil
+		copyReq.Tools = masterActionToolsOnly(req.Tools)
 		copyReq.Messages = nil
 		for _, msg := range req.Messages {
 			content := msg.Content
@@ -176,7 +179,8 @@ func (m masterObservedModel) Stream(ctx context.Context, req providers.ModelRequ
 			}
 			copyReq.Messages = append(copyReq.Messages, providers.Message{Role: role, Content: security.Redact(content)})
 		}
-		encoded, _ := json.Marshal(copyReq)
+		request, _ := json.Marshal(copyReq)
+		encoded, _ := json.Marshal(domain.MasterReplay{Format: domain.MasterReplayFormat, Request: request})
 		if len(encoded) <= 128*1024 {
 			m.session.Operation.Replay = string(encoded)
 		}
@@ -215,20 +219,18 @@ func (s ChatService) withSkills(req ChatRequest) ChatService {
 // a command, quest, or tool. Semantic comparison is an additional gate.
 func ReplayScore(phase, output string) (int, error) {
 	if phase == "intake" {
-		envelope, ok := decodeTaskIntakeEnvelope(output)
-		if !ok {
-			return 0, fmt.Errorf("invalid intake JSON")
-		}
-		if envelope.Intent == "task" {
-			if envelope.Brief == nil {
-				return 0, fmt.Errorf("missing brief")
+		reply, calls := decodeMasterReplayOutput(output)
+		actions := &masterActions{}
+		for _, call := range calls {
+			if !IsMasterActionTool(call.Name) {
+				return 0, fmt.Errorf("replay called project tool %q", call.Name)
 			}
-			if err := domain.ValidateTaskBrief(*envelope.Brief); err != nil {
-				return 0, err
+			if result := actions.execute(call.Name, call.Arguments); !result.OK && call.Name == masterActionProposeBrief {
+				return 0, fmt.Errorf("invalid brief: %s", result.Error.Message)
 			}
 		}
-		if len(envelope.Questions) > 2 {
-			return 0, fmt.Errorf("too many questions")
+		if strings.TrimSpace(reply) == "" && actions.silentReply() == "" {
+			return 0, fmt.Errorf("empty intake reply")
 		}
 		return 1, nil
 	}
@@ -243,4 +245,45 @@ func ReplayScore(phase, output string) (int, error) {
 		return 0, fmt.Errorf("missing structured reply")
 	}
 	return 1, nil
+}
+
+// masterReplayOutput — ответ модели на реплей: текст и вызовы разговора. Сами
+// вызовы при воспроизведении не исполняются, их только проверяют.
+type masterReplayOutput struct {
+	Reply   string                `json:"reply"`
+	Actions []masterReplayAction `json:"actions,omitempty"`
+}
+
+type masterReplayAction struct {
+	Name      string          `json:"name"`
+	Arguments json.RawMessage `json:"arguments"`
+}
+
+// EncodeMasterReplayOutput записывает ответ на реплей так, чтобы судья и
+// оценка видели и текст, и оформленное задание.
+func EncodeMasterReplayOutput(text string, calls []providers.ToolCall) string {
+	output := masterReplayOutput{Reply: text}
+	for _, call := range calls {
+		output.Actions = append(output.Actions, masterReplayAction{Name: call.Name, Arguments: call.Arguments})
+	}
+	encoded, _ := json.Marshal(output)
+	return string(encoded)
+}
+
+func decodeMasterReplayOutput(output string) (string, []masterReplayAction) {
+	var decoded masterReplayOutput
+	if json.Unmarshal([]byte(output), &decoded) != nil {
+		return output, nil
+	}
+	return decoded.Reply, decoded.Actions
+}
+
+func masterActionToolsOnly(tools []domain.ToolDefinition) []domain.ToolDefinition {
+	var result []domain.ToolDefinition
+	for _, tool := range tools {
+		if IsMasterActionTool(tool.Name) {
+			result = append(result, tool)
+		}
+	}
+	return result
 }

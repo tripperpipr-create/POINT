@@ -6,9 +6,9 @@
 //
 // Список закрыт ядром и ничем больше: companionReadTools собирает девять
 // читающих инструментов (internal/app/companion_tools.go), masterReadTools
-// добавляет к ним три чтения сущностей (internal/app/master_tools.go) и чтение
-// ростера (internal/app/master_roster_tool.go). Пока
-// словарь держался на памяти, в нём жил несуществующий `index_search`, а трёх
+// добавляет к ним три чтения сущностей (internal/app/master_tools.go), а
+// инструменты разговора — задание, уточнения и память — объявлены в
+// internal/orchestrator/master_actions.go. Пока словарь держался на памяти, в нём жил несуществующий `index_search`, а трёх
 // настоящих не было — и разговор писал «обратился к инструменту» там, где мог
 // сказать, к какому. Совпадение сторожит сверка договорённостей.
 //
@@ -27,7 +27,9 @@ export const MASTER_TOOL_NAMES = {
   read_execution: 'прочитал запуск',
   read_changeset: 'прочитал набор правок',
   read_quest: 'прочитал квест',
-  read_roster: 'посмотрел ростер',
+  propose_brief: 'оформил задание',
+  ask_clarifications: 'задал уточнения',
+  suggest_memory: 'предложил запомнить',
 }
 
 export const MASTER_TOOL_NAMES_NOW = {
@@ -43,7 +45,9 @@ export const MASTER_TOOL_NAMES_NOW = {
   read_execution: 'читаю запуск',
   read_changeset: 'читаю набор правок',
   read_quest: 'читаю квест',
-  read_roster: 'смотрю ростер',
+  propose_brief: 'оформляю задание',
+  ask_clarifications: 'формулирую уточнения',
+  suggest_memory: 'предлагаю запомнить',
 }
 
 export function masterToolName(tool) {
@@ -72,7 +76,9 @@ const MASTER_TOOL_ICONS = {
   read_execution: 'terminal',
   read_changeset: 'file-edit',
   read_quest: 'quest',
-  read_roster: 'team',
+  propose_brief: 'quest',
+  ask_clarifications: 'info',
+  suggest_memory: 'memory',
 }
 
 export function masterToolIcon(tool) {

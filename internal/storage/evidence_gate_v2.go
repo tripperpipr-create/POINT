@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -17,10 +18,22 @@ func (s *SQLite) FinalizeWorkOrderQuestV2(ctx context.Context, questID string, b
 		return domain.QuestBlocked, err
 	}
 	defer tx.Rollback()
+	var workOrderID, digest, raw string
+	var version int
+	if err = tx.QueryRowContext(ctx, `SELECT work_order_id,version,digest FROM work_order_approvals_v2 WHERE quest_id=? ORDER BY version DESC LIMIT 1`, questID).Scan(&workOrderID, &version, &digest); err != nil {
+		return domain.QuestBlocked, err
+	}
 	// Flow callbacks are at-least-once. Once the atomic gate exists, replay is
 	// a read: it must not insert a second bundle or finalize milestones twice.
+	// Replay is only valid for the verdict of the same approved version: a
+	// verdict of an earlier version is not evidence for this one.
 	var existingStatus domain.QuestStatus
-	if existingErr := tx.QueryRowContext(ctx, `SELECT status FROM work_order_completion_gates_v2 WHERE quest_id=?`, questID).Scan(&existingStatus); existingErr == nil {
+	var existingVersion int
+	var existingDigest string
+	if existingErr := tx.QueryRowContext(ctx, `SELECT status,version,digest FROM work_order_completion_gates_v2 WHERE quest_id=?`, questID).Scan(&existingStatus, &existingVersion, &existingDigest); existingErr == nil {
+		if existingVersion != version || existingDigest != digest {
+			return domain.QuestBlocked, fmt.Errorf("вердикт квеста %s вынесен версии %d наряда, а утверждена версия %d: чужой вердикт не повторяется", questID, existingVersion, version)
+		}
 		if err = reconcileCompletedWorkOrderGateV2Tx(ctx, tx, questID, existingStatus, time.Now().UTC()); err != nil {
 			return domain.QuestBlocked, err
 		}
@@ -30,11 +43,6 @@ func (s *SQLite) FinalizeWorkOrderQuestV2(ctx context.Context, questID string, b
 		return existingStatus, nil
 	} else if !errors.Is(existingErr, sql.ErrNoRows) {
 		return domain.QuestBlocked, existingErr
-	}
-	var workOrderID, digest, raw string
-	var version int
-	if err = tx.QueryRowContext(ctx, `SELECT work_order_id,version,digest FROM work_order_approvals_v2 WHERE quest_id=? ORDER BY version DESC LIMIT 1`, questID).Scan(&workOrderID, &version, &digest); err != nil {
-		return domain.QuestBlocked, err
 	}
 	if err = tx.QueryRowContext(ctx, `SELECT payload_json FROM work_order_revisions_v2 WHERE id=? AND version=? AND digest=?`, workOrderID, version, digest).Scan(&raw); err != nil {
 		return domain.QuestBlocked, err

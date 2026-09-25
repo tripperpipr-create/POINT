@@ -117,7 +117,7 @@ func (a *App) masterChatService(ctx context.Context, briefing orchestrator.Proje
 	fs := a.currentFS
 	a.mu.RUnlock()
 	workspaceID := a.currentWorldID()
-	reading := newMasterReadTools(fs, a.store, workspaceID, nil)
+	reading := newMasterReadTools(fs, a.store, workspaceID)
 	return orchestrator.ChatService{
 		ReadTools: reading,
 		Store:     a.store,
@@ -206,7 +206,7 @@ func (a *App) masterChatService(ctx context.Context, briefing orchestrator.Proje
 // masterProjectFacts — те же сведения о проекте, что человек видит в заголовке
 // Чертога и в карточке индекса. Без них Мастер отвечал «не понял вопроса» на
 // «расскажи про проект»: в снимке мира не было ни имени папки, ни языков.
-func (a *App) masterProjectFacts(ctx context.Context) orchestrator.ProjectFacts {
+func (a *App) computeMasterProjectFacts(ctx context.Context) orchestrator.ProjectFacts {
 	a.mu.RLock()
 	current := a.currentWorkspace
 	currentFS := a.currentFS
@@ -449,6 +449,7 @@ func (a *App) masterChatPrepared(ctx context.Context, req MasterChatRequest, wor
 	if !temporary {
 		defer a.finishMasterOperation(service.Skills, cfg, req.APIKey)
 	}
+	rules := a.masterProjectRules()
 	response, err := service.Chat(ctx, orchestrator.ChatRequest{
 		AutoRunReadOnly: sessions.AutoRunReadOnly,
 		Summary:         summary,
@@ -460,6 +461,9 @@ func (a *App) masterChatPrepared(ctx context.Context, req MasterChatRequest, wor
 		APIKey:      req.APIKey,
 
 		PreviousAnswerRejected: req.PreviousAnswerRejected,
+		ContextWindowTokens:    a.masterAttachmentReference(ctx, cfg).ContextWindow,
+		ProjectRules:           rules.Text,
+		RuleSources:            rules.Sources,
 	})
 	if response.Proposal != nil {
 		service.Skills.Operation.ProposalID = response.Proposal.ID
@@ -488,23 +492,30 @@ func (a *App) masterChatPrepared(ctx context.Context, req MasterChatRequest, wor
 		if item.ID != sessions.Active {
 			continue
 		}
+		// Заголовок уходит в базу, только если этот ход его придумал: снимок
+		// из начала хода не должен спорить с переименованием, сделанным за это
+		// время человеком.
+		newTitle := ""
 		if item.Title == "Новый разговор" {
 			title := []rune(strings.Join(strings.Fields(req.Message), " "))
 			if len(title) > 60 {
 				title = append(title[:60], '…')
 			}
 			item.Title = string(title)
+			newTitle = item.Title
 		}
-		if summary := strings.TrimSpace(response.ConversationSummary); summary != "" {
-			runes := []rune(summary)
+		summary := ""
+		if trimmed := strings.TrimSpace(response.ConversationSummary); trimmed != "" {
+			runes := []rune(trimmed)
 			if len(runes) > 6000 {
 				runes = runes[:6000]
 			}
-			item.Summary = string(runes)
+			summary = string(runes)
+			item.Summary = summary
 		}
 		item.UpdatedAt = ""
 		item.WorkspaceID = workspaceID
-		if err = a.store.SaveMasterConversation(ctx, item); err != nil {
+		if err = a.store.TouchMasterConversation(ctx, workspaceID, item.ID, newTitle, summary); err != nil {
 			return MasterChatView{}, err
 		}
 		sessions.Items[i] = item

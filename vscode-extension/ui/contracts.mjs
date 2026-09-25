@@ -1087,11 +1087,11 @@ const TYPE_SCALE = new Set(
     coreTools.add(match[1].replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase())
   }
   for (const match of master.matchAll(/masterEntityDefinition\("(\w+)"/g)) coreTools.add(match[1])
-  // Чтение ростера объявлено своей схемой — сводкой требований, а не {id}, —
-  // поэтому под шаблон masterEntityDefinition оно не подходит и ищется по имени
-  // константы. Без этой строки словарь интерфейса считался бы «лишним».
-  const roster = read('internal/app/master_roster_tool.go')
-  for (const match of roster.matchAll(/masterRosterToolName\s*=\s*"(\w+)"/g)) coreTools.add(match[1])
+  // Инструменты разговора — задание, уточнения, память — объявлены
+  // константами оркестратора. Они такие же шаги хода, и в ленте их надо
+  // называть, а не писать «обратился к инструменту».
+  const actions = read('internal/orchestrator/master_actions.go')
+  for (const match of actions.matchAll(/masterAction\w+\s*=\s*"(\w+)"/g)) coreTools.add(match[1])
   // read_skill доступен компаньону с навыками, Мастеру его не дают
   // (newCompanionReadTools(fs, nil)) — но подпись у него общая, и держать её
   // в словаре честнее, чем ловить «обратился к инструменту» при первой же

@@ -18,7 +18,7 @@ func TestMasterTurnStreamsDeduplicatesAndCancels(t *testing.T) {
 	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls.Add(1)
 		w.Header().Set("Content-Type", "application/x-ndjson")
-		_ = json.NewEncoder(w).Encode(map[string]any{"message": map[string]string{"role": "assistant", "content": `{"intent":"chat","reply":"Partial reply`}, "done": false})
+		_ = json.NewEncoder(w).Encode(map[string]any{"message": map[string]string{"role": "assistant", "content": "Partial reply"}, "done": false})
 		w.(http.Flusher).Flush()
 		<-r.Context().Done()
 	}))

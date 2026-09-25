@@ -61,9 +61,10 @@ func (s *Server) masterEvents(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Accel-Buffering", "no")
 	fmt.Fprint(w, ": connected\n\n")
 	flusher.Flush()
-	ticker := time.NewTicker(25 * time.Millisecond)
-	defer ticker.Stop()
 	for {
+		// Канал берётся до чтения базы: событие, записанное между чтением и
+		// ожиданием, закроет уже взятый канал и не потеряется.
+		signal := s.app.MasterTurnSignal(boundTurn)
 		events, turn, err := s.app.MasterTurnStream(r.Context(), boundTurn, after)
 		if err != nil {
 			return
@@ -79,10 +80,14 @@ func (s *Server) masterEvents(w http.ResponseWriter, r *http.Request) {
 		if len(events) < 256 && (turn.Status == "completed" || turn.Status == "failed" || turn.Status == "cancelled" || turn.Status == "interrupted") {
 			return
 		}
+		if len(events) == 256 {
+			continue
+		}
 		select {
 		case <-r.Context().Done():
 			return
-		case <-ticker.C:
+		case <-signal:
+		case <-time.After(s.app.MasterTurnFallbackPoll()):
 		}
 	}
 }

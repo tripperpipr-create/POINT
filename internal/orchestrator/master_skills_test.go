@@ -48,7 +48,7 @@ func TestMasterPromptSizeMeasurement(t *testing.T) {
 	if core*100 > oldRunes*60 {
 		t.Fatalf("core reduction below 40%%: old=%d new=%d", oldRunes, core)
 	}
-	t.Logf("instruction characters: legacy=%d invariant=%d (-%.1f%%), with mandatory skills/catalog/mode=%d; fallback JSON schema separately=%d; actual provider token totals recorded per operation", oldRunes, core, 100*(1-float64(core)/float64(oldRunes)), utf8.RuneCountInString(full), utf8.RuneCount(taskIntakeJSONSchema()))
+	t.Logf("instruction characters: legacy=%d invariant=%d (-%.1f%%), with mandatory skills/catalog/mode=%d; conversation tool schemas separately=%d; actual provider token totals recorded per operation", oldRunes, core, 100*(1-float64(core)/float64(oldRunes)), utf8.RuneCountInString(full), utf8.RuneCount(masterActionSchemas()))
 }
 
 type masterSkillTestModel struct{ request *providers.ModelRequest }
@@ -86,16 +86,21 @@ func TestMasterAttributionAndSecretRedaction(t *testing.T) {
 }
 
 func TestMasterReplayDoesNotAcceptInvalidContracts(t *testing.T) {
-	if _, err := ReplayScore("intake", `{"intent":"task","reply":"done","brief":null}`); err == nil {
-		t.Fatal("accepted missing brief")
+	if _, err := ReplayScore("intake", `{"reply":"done","actions":[{"name":"propose_brief","arguments":{"title":"x","brief":{"mode":"nonsense"}}}]}`); err == nil {
+		t.Fatal("accepted invalid brief")
+	}
+	if _, err := ReplayScore("intake", `{"reply":"done","actions":[{"name":"run_command","arguments":{"command":"echo"}}]}`); err == nil {
+		t.Fatal("accepted a project tool call")
 	}
 	if _, err := ReplayRequestScore("planning", MasterSkillFixtures("planning")[0], `{"agentIds":["foreign"],"rationale":"ok","stages":[{"name":"read","agentId":"foreign","instruction":"read","phase":1}]}`); err == nil {
 		t.Fatal("accepted invented agent")
 	}
 	for _, phase := range []string{"intake", "planning", "explanation", "recovery"} {
 		for _, req := range MasterSkillFixtures(phase) {
-			if len(req.Tools) > 0 {
-				t.Fatal("fixture has executable tools")
+			for _, tool := range req.Tools {
+				if !IsMasterActionTool(tool.Name) {
+					t.Fatalf("fixture has executable tool %s", tool.Name)
+				}
 			}
 		}
 	}

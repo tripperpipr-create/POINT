@@ -88,7 +88,8 @@ func (s *SQLite) SetMasterLearningConfig(ctx context.Context, ws string, v domai
 }
 
 func (s *SQLite) SaveMasterOperation(ctx context.Context, v domain.MasterOperation) error {
-	eligible := !v.ProviderError && len(v.Skills) > 0 && v.Replay != ""
+	_, currentReplay := domain.DecodeMasterReplay(v.Replay)
+	eligible := !v.ProviderError && len(v.Skills) > 0 && currentReplay
 	_, err := s.db.ExecContext(ctx, `INSERT OR IGNORE INTO master_operations VALUES(?,?,?,?,?,?,?,?)`, v.ID, v.WorkspaceID, v.Phase, v.TurnID, formatTime(v.CreatedAt), v.InputTokens+v.OutputTokens, eligible, marshalJSON(v))
 	return err
 }

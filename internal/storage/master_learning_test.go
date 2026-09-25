@@ -62,7 +62,7 @@ func TestMasterLearningQueueIdempotentAndProjectScoped(t *testing.T) {
 	s := masterLearningStore(t)
 	ctx := context.Background()
 	for i := 0; i < 3; i++ {
-		op := domain.MasterOperation{ID: domain.NewID("op"), WorkspaceID: "a", Phase: "intake", Skills: []domain.SkillAttribution{{SkillID: masterskills.Intake}}, Replay: "{}", CreatedAt: time.Now().UTC()}
+		op := domain.MasterOperation{ID: domain.NewID("op"), WorkspaceID: "a", Phase: "intake", Skills: []domain.SkillAttribution{{SkillID: masterskills.Intake}}, Replay: `{"format":2,"request":{}}`, CreatedAt: time.Now().UTC()}
 		if err := s.SaveMasterOperation(ctx, op); err != nil {
 			t.Fatal(err)
 		}
@@ -146,7 +146,7 @@ func TestMasterProviderErrorsAndLegacyNotLearningEvidence(t *testing.T) {
 	s := masterLearningStore(t)
 	ctx := context.Background()
 	for i := 0; i < 6; i++ {
-		op := domain.MasterOperation{ID: domain.NewID("op"), WorkspaceID: "a", Phase: "intake", Replay: "{}", CreatedAt: time.Now().UTC()}
+		op := domain.MasterOperation{ID: domain.NewID("op"), WorkspaceID: "a", Phase: "intake", Replay: `{"format":2,"request":{}}`, CreatedAt: time.Now().UTC()}
 		if i < 3 {
 			op.Skills = []domain.SkillAttribution{{SkillID: masterskills.Intake}}
 			op.ProviderError = true
@@ -159,5 +159,25 @@ func TestMasterProviderErrorsAndLegacyNotLearningEvidence(t *testing.T) {
 	jobs, _ := s.MasterLearningJobs(ctx, "a")
 	if len(jobs) > 0 {
 		t.Fatal("legacy/provider errors became evidence")
+	}
+}
+
+// Реплей прежнего формата ждал JSON-конверт в тексте ответа. Сравнивать с ним
+// нынешний промпт значит судить методику по чужому контракту, поэтому такие
+// ходы в выборку обучения не попадают и задачу не создают.
+func TestMasterLearningSkipsLegacyReplayFormat(t *testing.T) {
+	s := masterLearningStore(t)
+	ctx := context.Background()
+	for i := 0; i < 3; i++ {
+		op := domain.MasterOperation{ID: domain.NewID("op"), WorkspaceID: "a", Phase: "intake", Skills: []domain.SkillAttribution{{SkillID: masterskills.Intake}}, Replay: `{"model":"m","messages":[]}`, CreatedAt: time.Now().UTC()}
+		if err := s.SaveMasterOperation(ctx, op); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := s.QueueMasterLearning(ctx, "a", "intake", masterskills.Intake, "base"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.ClaimMasterLearning(ctx, "a"); err == nil {
+		t.Fatal("задача обучения собрана из реплеев прежнего формата")
 	}
 }

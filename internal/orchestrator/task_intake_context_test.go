@@ -1,6 +1,8 @@
 package orchestrator
 
 import (
+	"context"
+
 	"local-agent-workbench/internal/domain"
 	"local-agent-workbench/internal/providers"
 	"strings"
@@ -41,5 +43,111 @@ func TestIntakeContextRejectsOversizedInputWithoutTruncation(t *testing.T) {
 	request.Messages[0].Content = "complete precise request"
 	if err := validateIntakeContext(request); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// Сжатие жертвует сначала прочитанным в прошлых кругах, потом ранней
+// историей — и никогда системной частью, снимком с заданием, текущей
+// репликой и последним кругом.
+func TestCompactIntakeMessagesSacrificesInOrder(t *testing.T) {
+	big := strings.Repeat("x", 6000)
+	messages := []providers.Message{
+		{Role: "system", Content: "system"},
+		{Role: "user", Content: "world with selected brief"},
+		{Role: "user", Content: "old question " + strings.Repeat("h", 3000)},
+		{Role: "assistant", Content: "old answer " + strings.Repeat("h", 3000)},
+		{Role: "user", Content: "current question"},
+		{Role: "assistant", ToolCalls: []providers.ToolCall{{ID: "1", Name: "read_file"}}},
+		{Role: "tool", ToolCallID: "1", Content: big},
+		{Role: "assistant", ToolCalls: []providers.ToolCall{{ID: "2", Name: "read_file"}}},
+		{Role: "tool", ToolCallID: "2", Content: big},
+	}
+	request := providers.ModelRequest{Messages: messages, MaxOutputTokens: 100}
+	full := intakeContextTokens(request)
+
+	// Окно, в которое влезает всё, кроме полного старого результата.
+	request.ContextWindowTokens = full - 1000
+	got, userIndex, done, err := compactIntakeMessages(request, 2, 4)
+	if err != nil || len(done) != 1 || userIndex != 4 {
+		t.Fatalf("первой жертвой должен стать старый результат: %v %q", err, done)
+	}
+	if len(got[6].Content) >= len(big) || got[8].Content != big {
+		t.Fatal("сжат не тот результат: последний круг неприкосновенен")
+	}
+	if messages[6].Content != big {
+		t.Fatal("сжатие испортило исходные сообщения")
+	}
+
+	// Окно, в которое не влезает и ранняя история.
+	request.ContextWindowTokens = full - 2000
+	got, userIndex, done, err = compactIntakeMessages(request, 2, 4)
+	if err != nil || len(done) != 2 {
+		t.Fatalf("история не пожертвована: %v %q", err, done)
+	}
+	if got[0].Content != "system" || got[1].Content != "world with selected brief" || got[userIndex].Content != "current question" {
+		t.Fatalf("задета неприкосновенная часть: %#v", got[:userIndex+1])
+	}
+	for _, message := range got[:userIndex] {
+		if strings.HasPrefix(message.Content, "old question") {
+			t.Fatal("ранняя реплика осталась дословно")
+		}
+	}
+}
+
+// Текущую реплику с вложениями урезать нельзя: если не влезает даже она, ход
+// честно отказывает, а не отправляет модели обрубок просьбы.
+func TestCompactIntakeMessagesRefusesWhenCurrentRequestAloneOverflows(t *testing.T) {
+	request := providers.ModelRequest{MaxOutputTokens: 100, ContextWindowTokens: 1000, Messages: []providers.Message{
+		{Role: "system", Content: "system"},
+		{Role: "user", Content: "world"},
+		{Role: "user", Content: strings.Repeat("attachment", 2000)},
+	}}
+	got, _, _, err := compactIntakeMessages(request, 2, 2)
+	if err == nil {
+		t.Fatal("непомещающаяся реплика принята")
+	}
+	if got[2].Content != request.Messages[2].Content {
+		t.Fatal("реплика человека урезана")
+	}
+}
+
+// Ход с длинной историей на маленьком окне отвечает, а не падает, и говорит
+// человеку, что контекст сжат.
+func TestMasterTurnCompactsHistoryForSmallWindow(t *testing.T) {
+	store := newChatStoreStub()
+	for i := 0; i < 20; i++ {
+		store.messages = append(store.messages,
+			domain.CompanionMessage{Speaker: "master", Role: "user", Content: "вопрос " + strings.Repeat("о", 800)},
+			domain.CompanionMessage{Speaker: "master", Role: "assistant", Content: "ответ " + strings.Repeat("т", 800)},
+		)
+	}
+	model := &turnModel{rounds: []roundScript{{text: "Отвечаю по сжатому контексту."}}}
+	var compacted []string
+	service := ChatService{Store: store, ModelFactory: model.factory(), OnProgress: func(kind, text, _ string) {
+		if kind == "retry" {
+			compacted = append(compacted, text)
+		}
+	}}
+	// Сначала ход на просторном окне — узнать, сколько он весит целиком.
+	req := intakeRequest("Что дальше?")
+	if _, err := service.Chat(context.Background(), req); err != nil {
+		t.Fatal(err)
+	}
+	full := intakeContextTokens(model.requests[0])
+	compacted = nil
+	service.ModelFactory = model.factory()
+	req.ContextWindowTokens = full - 3000
+	response, err := service.Chat(context.Background(), req)
+	if err != nil {
+		t.Fatalf("длинная история уронила ход: %v", err)
+	}
+	if response.Reply != "Отвечаю по сжатому контексту." {
+		t.Fatalf("ответ потерян: %q", response.Reply)
+	}
+	if len(compacted) != 1 || !strings.Contains(compacted[0], "контекст сжат") {
+		t.Fatalf("сжатие не показано человеку: %q", compacted)
+	}
+	if got := intakeContextTokens(model.requests[0]); got > req.ContextWindowTokens {
+		t.Fatalf("запрос не влез в окно: %d > %d", got, req.ContextWindowTokens)
 	}
 }

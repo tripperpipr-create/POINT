@@ -417,6 +417,13 @@ func (a *App) setWorkOrderQuestStatusV2(ctx context.Context, quest domain.Quest,
 	if quest.Status != status && !domain.CanTransitionWorkOrderQuest(quest.Status, status) {
 		return quest, fmt.Errorf("invalid work order quest transition %s -> %s", quest.Status, status)
 	}
+	original, expected := quest, quest.Status
+	if quest.Controller != nil {
+		original.Controller = make(map[string]any, len(quest.Controller))
+		for key, value := range quest.Controller {
+			original.Controller[key] = value
+		}
+	}
 	quest.Status, quest.ControllerState = status, string(status)
 	if quest.Controller == nil {
 		quest.Controller = map[string]any{}
@@ -429,8 +436,10 @@ func (a *App) setWorkOrderQuestStatusV2(ctx context.Context, quest domain.Quest,
 	} else {
 		quest.FinishedAt = nil
 	}
-	if err := a.store.SaveQuest(ctx, quest); err != nil {
-		return quest, err
+	if err := a.store.SetWorkOrderQuestStatusV2(ctx, quest, expected); err != nil {
+		// Непринятый переход возвращает квест таким, каким он был: снимок с
+		// целевым статусом следующий переход принял бы за правду.
+		return original, err
 	}
 	return quest, nil
 }

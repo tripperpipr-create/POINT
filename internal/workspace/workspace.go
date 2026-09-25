@@ -168,16 +168,16 @@ func (f *FS) Resolve(path string, allowMissing bool) (string, error) {
 	if clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
 		return "", ErrOutsideWorkspace
 	}
-	for _, part := range strings.Split(clean, string(filepath.Separator)) {
-		key := strings.ToLower(part)
-		if !excludedDirs[key] {
-			continue
+	// Двоеточие в звене — альтернативный поток NTFS (`.git::$INDEX_ALLOCATION`,
+	// `file.txt:stream`): имени файла в нём на Windows быть не может.
+	if runtime.GOOS == "windows" {
+		for _, part := range strings.Split(clean, string(filepath.Separator)) {
+			if strings.Contains(part, ":") {
+				return "", ErrOutsideWorkspace
+			}
 		}
-		// Dependency trees are omitted from root listings, but agents may open an
-		// explicit path under vendor/ or node_modules/ to inspect package APIs.
-		if key == "vendor" || key == "node_modules" {
-			continue
-		}
+	}
+	if hasExcludedComponent(clean) {
 		return "", ErrExcluded
 	}
 	candidate := filepath.Join(f.root, clean)
@@ -192,6 +192,10 @@ func (f *FS) Resolve(path string, allowMissing bool) (string, error) {
 		if !isWithin(f.root, resolved) {
 			return "", ErrOutsideWorkspace
 		}
+		// Разрешённый путь несёт длинные имена: `GIT~1` здесь уже `.git`.
+		if rel, relErr := filepath.Rel(f.root, resolved); relErr != nil || hasExcludedComponent(rel) {
+			return "", ErrExcluded
+		}
 		return resolved, nil
 	}
 	if !allowMissing || !os.IsNotExist(err) {
@@ -204,6 +208,9 @@ func (f *FS) Resolve(path string, allowMissing bool) (string, error) {
 			if !isWithin(f.root, resolvedParent) {
 				return "", ErrOutsideWorkspace
 			}
+			if rel, relErr := filepath.Rel(f.root, resolvedParent); relErr != nil || hasExcludedComponent(rel) {
+				return "", ErrExcluded
+			}
 			break
 		}
 		if !os.IsNotExist(parentErr) || samePath(parent, f.root) {
@@ -212,6 +219,31 @@ func (f *FS) Resolve(path string, allowMissing bool) (string, error) {
 		parent = filepath.Dir(parent)
 	}
 	return candidate, nil
+}
+
+// hasExcludedComponent — есть ли в пути служебный каталог, закрытый для
+// агента. Сравнение идёт так, как его видит Windows: без регистра и без
+// хвостовых точек и пробелов, которые Win32 молча отбрасывает, — иначе
+// `.git.` открывал настоящий `.git`, и запись хука в него исполнялась бы
+// следующим `git commit` на машине человека. Короткое имя `GIT~1` ловит
+// повторная проверка уже разрешённого пути.
+func hasExcludedComponent(rel string) bool {
+	for _, part := range strings.Split(rel, string(filepath.Separator)) {
+		key := strings.ToLower(part)
+		if runtime.GOOS == "windows" {
+			key = strings.TrimRight(key, ". ")
+		}
+		if !excludedDirs[key] {
+			continue
+		}
+		// Dependency trees are omitted from root listings, but agents may open an
+		// explicit path under vendor/ or node_modules/ to inspect package APIs.
+		if key == "vendor" || key == "node_modules" {
+			continue
+		}
+		return true
+	}
+	return false
 }
 
 // hasEscapingReparsePoint проверяет каждое звено пути на точку повторного
@@ -261,6 +293,11 @@ func hasEscapingReparsePoint(root, candidate string) bool {
 		if !isWithin(root, filepath.Clean(target)) {
 			return true
 		}
+		// Ссылка внутри проекта, ведущая в служебный каталог (`link` → `.git`),
+		// открывает то же, что `.git` напрямую.
+		if rel, relErr := filepath.Rel(root, filepath.Clean(target)); relErr != nil || hasExcludedComponent(rel) {
+			return true
+		}
 	}
 	return false
 }
@@ -289,6 +326,9 @@ func HasParentDirSegment(value string) bool {
 
 func IsSensitive(path string) bool {
 	base := strings.ToLower(filepath.Base(path))
+	if runtime.GOOS == "windows" {
+		base = strings.TrimRight(base, ". ")
+	}
 	if base == ".env" || strings.HasPrefix(base, ".env.") || base == ".npmrc" || base == ".pypirc" || base == "credentials" {
 		return true
 	}
@@ -407,6 +447,11 @@ func (f *FS) readContent(path string, allowSensitive bool, numbered bool) (FileC
 	abs, err := f.Resolve(path, false)
 	if err != nil {
 		return FileContent{}, err
+	}
+	// Короткое имя (`ENV~1`) или хвостовая точка проходят проверку по
+	// присланному имени, а открывают настоящий `.env`.
+	if IsSensitive(abs) && !allowSensitive {
+		return FileContent{}, ErrSensitive
 	}
 	info, err := os.Stat(abs)
 	if err != nil {

@@ -91,8 +91,13 @@ func (a *App) pauseInterruptedWorkOrderQuestsV2(ctx context.Context) {
 			observability.From(ctx).Error("interrupted quest load failed", "quest_id", item.QuestID, "error", questErr)
 			continue
 		}
+		interruptedStatus := quest.Status
 		if _, saveErr := a.setWorkOrderQuestStatusV2(ctx, quest, domain.QuestPaused, questRecoveryMessageV2); saveErr != nil {
 			observability.From(ctx).Error("interrupted quest pause failed", "quest_id", item.QuestID, "error", saveErr)
+			continue
+		}
+		if recordErr := a.store.RecordWorkOrderQuestPauseV2(ctx, quest.ID, interruptedStatus, questRecoveryMessageV2); recordErr != nil {
+			observability.From(ctx).Error("interrupted quest pause not recorded", "quest_id", item.QuestID, "error", recordErr)
 		}
 	}
 }

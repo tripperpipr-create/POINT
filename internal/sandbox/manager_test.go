@@ -519,7 +519,9 @@ func TestChangeSetApplyIsAtomicAndRevertUsesExactSnapshots(t *testing.T) {
 	if result.ChangeSet.Status != "reverted" {
 		t.Fatalf("revert status=%s", result.ChangeSet.Status)
 	}
-	for path, want := range map[string]string{"a.txt": "a-before", "b.txt": "b-before"} {
+	// b.txt человек изменил до применения; откат возвращает его правку —
+	// состояние до применения, — а не базовую версию из песочницы.
+	for path, want := range map[string]string{"a.txt": "a-before", "b.txt": "user-edit"} {
 		data, readErr := os.ReadFile(filepath.Join(workspace, path))
 		if readErr != nil || string(data) != want {
 			t.Fatalf("%s after revert=%q err=%v want=%q", path, data, readErr, want)

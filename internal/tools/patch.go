@@ -111,6 +111,11 @@ func (m *PatchManager) Execute(_ context.Context, raw json.RawMessage) domain.To
 	if err != nil {
 		return Fail("invalid_path", err.Error())
 	}
+	// Короткое имя (`ENV~1`) проходит проверку по присланному имени, а
+	// разрешается в настоящий `.env`: секретность решает разрешённый путь.
+	if workspace.IsSensitive(abs) {
+		return Fail("sensitive_path", workspace.ErrSensitive.Error())
+	}
 	original := ""
 	originalExisted := false
 	if info, statErr := os.Stat(abs); statErr == nil {
@@ -316,6 +321,9 @@ func (m *PatchManager) Apply(id string) (*domain.PatchProposal, error) {
 	abs, err := m.FS.Resolve(p.Path, true)
 	if err != nil {
 		return nil, err
+	}
+	if workspace.IsSensitive(abs) {
+		return nil, workspace.ErrSensitive
 	}
 	current := ""
 	mode := os.FileMode(0644)

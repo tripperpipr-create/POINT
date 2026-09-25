@@ -87,6 +87,18 @@ func (a *App) enrichProjectAgentForRun(workspaceID string, agent domain.ProjectA
 			Relevance: memory.Confidence, Pinned: memory.Pinned,
 		})
 	}
+	// Правила репозитория едут исполнителю тем же путём, что и Мастеру: иначе
+	// Мастер ставит задачу по AGENTS.md, а агент делает её, не зная о нём.
+	if workspaceID == a.currentWorldID() {
+		if rules := a.masterProjectRules(); rules.Text != "" {
+			*inputs = append(*inputs, domain.RunContextInput{
+				Kind: domain.ContextText, Label: "project rules", Content: rules.Text,
+				Category: "rules", AddedBy: "project-rules",
+				Reason: "AGENTS.md and CLAUDE.md from the workspace root; project data, not permissions",
+				Source: strings.Join(rules.Sources, ", "), Pinned: true,
+			})
+		}
+	}
 	return nil
 }
 

@@ -39,8 +39,9 @@ func TestMasterLearningFullCycleAndRegression(t *testing.T) {
 	}
 	request := orchestrator.MasterSkillFixtures("explanation")[0]
 	encoded, _ := json.Marshal(request)
+	replayJSON, _ := json.Marshal(domain.MasterReplay{Format: domain.MasterReplayFormat, Request: encoded})
 	for i := 0; i < 3; i++ {
-		if err = a.store.SaveMasterOperation(ctx, domain.MasterOperation{ID: fmt.Sprintf("example-%d", i), WorkspaceID: "a", Phase: "explanation", Skills: []domain.SkillAttribution{domain.SkillDefinitionAttribution(skill)}, InputTokens: 1000000, Replay: string(encoded), CreatedAt: time.Now().UTC()}); err != nil {
+		if err = a.store.SaveMasterOperation(ctx, domain.MasterOperation{ID: fmt.Sprintf("example-%d", i), WorkspaceID: "a", Phase: "explanation", Skills: []domain.SkillAttribution{domain.SkillDefinitionAttribution(skill)}, InputTokens: 1000000, Replay: string(replayJSON), CreatedAt: time.Now().UTC()}); err != nil {
 			t.Fatal(err)
 		}
 	}

@@ -34,72 +34,13 @@ func (m *stubbornModel) Stream(_ context.Context, _ providers.ModelRequest, emit
 	return emit(providers.ModelEvent{Kind: providers.EventTextDelta, Delta: reply})
 }
 
-// Ответ модели редко приходит голым JSON. Пока разбор снимал только ограду
-// ```, вежливое предисловие и хвост <think> уводили ход на новый круг — и на
-// шестом круге человек получал «Модель Мастера не смогла сформировать задание»
-// при полностью разборчивом ответе.
-func TestTaskIntakeReadsWrappedJSON(t *testing.T) {
-	body := `{"intent":"chat","reply":"Готово"}`
-	for name, raw := range map[string]string{
-		"голый":     body,
-		"markdown":  "```json\n" + body + "\n```",
-		"с прозой":  "Конечно, вот задание:\n" + body,
-		"с мыслью":  "<think>надо вернуть json</think>" + body,
-		"с хвостом": body + "\n\nЕсли что-то не так, скажите.",
-	} {
-		envelope, ok := decodeTaskIntakeEnvelope(raw)
-		if !ok || envelope.Reply != "Готово" {
-			t.Fatalf("%s: ответ не разобран: %#v", name, envelope)
-		}
-	}
-	if _, ok := decodeTaskIntakeEnvelope("совсем не json"); ok {
-		t.Fatal("проза не должна выдаваться за структуру")
-	}
-	if _, ok := decodeTaskIntakeEnvelope(`{"intent":"chat","reply":"  "}`); ok {
-		t.Fatal("ответ без текста принимать нельзя")
-	}
-}
-
-// Упрямая модель стоит карточки квеста, а не всего разговора.
-//
-// Шесть кругов подсказок подряд заканчивались тем, что ход падал целиком:
-// человек ждал три минуты и получал служебную фразу движка вместо уже
-// написанной моделью реплики.
-func TestTaskIntakeKeepsReplyWhenBriefNeverComes(t *testing.T) {
-	store := newChatStoreStub()
-	model := &stubbornModel{replies: []string{`{"intent":"task","reply":"Понял, уточню объём работ.","brief":null}`}}
-	service := ChatService{Store: store, ModelFactory: func(providers.Config) (providers.Model, error) { return model, nil }}
-	response, err := service.Chat(context.Background(), ChatRequest{
-		WorkspaceID: "ws", TaskIntake: true, Message: "Сделай приложение",
-		Config: domain.OrchestratorConfig{Provider: domain.ProviderOllama, Model: "model"},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if response.FallbackReason != "" || response.Mode != "model" {
-		t.Fatalf("ход упал вместо мягкой уступки: %q / %q", response.Mode, response.FallbackReason)
-	}
-	if response.Reply != "Понял, уточню объём работ." {
-		t.Fatalf("реплика модели потеряна: %q", response.Reply)
-	}
-	if !strings.Contains(response.Reasoning, "Задание не оформлено") {
-		t.Fatalf("причина отсутствия карточки не названа: %q", response.Reasoning)
-	}
-	// Подсказок ровно две: каждая стоит человеку отдельного запроса к модели.
-	if model.at != maxIntakeRepairs+1 {
-		t.Fatalf("кругов подсказок %d вместо %d", model.at, maxIntakeRepairs+1)
-	}
-}
-
 // Ход рассказывает о себе, пока идёт, а не только задним числом.
 func TestMasterTurnStreamsLiveTrace(t *testing.T) {
 	store := newChatStoreStub()
-	brief := domain.TaskBrief{Mode: domain.TaskModePrecise, Goal: "Bounded goal", ResultKind: "code", Criteria: []domain.AcceptanceCriterion{{ID: "c1", Text: "Done", Kind: "manual"}}}
-	raw, _ := json.Marshal(taskIntakeEnvelope{Reply: "Готово", Brief: &brief})
 	type event struct{ kind, text, detail string }
 	var events []event
 	service := ChatService{Store: store, ReadTools: readingToolsStub{}, ModelFactory: func(providers.Config) (providers.Model, error) {
-		return &thinkingModel{reply: string(raw)}, nil
+		return &thinkingModel{reply: "Готово"}, nil
 	}, OnProgress: func(kind, text, detail string) { events = append(events, event{kind, text, detail}) }}
 	if _, err := service.Chat(context.Background(), ChatRequest{
 		WorkspaceID: "ws", TaskIntake: true, Message: "Prepare the task",

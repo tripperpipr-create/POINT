@@ -129,7 +129,7 @@ func (s *SQLite) commitApprovedWorkOrderV2(ctx context.Context, launch FastAgent
 		order.WorkspaceID, order.Workspace.Path, filepath.Base(order.Workspace.Path), nowText); err != nil {
 		return domain.WorkOrderApproval{}, err
 	}
-	agentIDs, err := materializeWorkOrderRosterV2(ctx, tx, approved, now)
+	agentIDs, err := materializeWorkOrderRosterV2(ctx, tx, approved, now, false)
 	if err != nil {
 		return domain.WorkOrderApproval{}, err
 	}

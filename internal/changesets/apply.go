@@ -165,18 +165,18 @@ func (a Applier) Apply(ctx context.Context, workspacePath string, changeSetID st
 				markConflict(item.Path)
 				continue
 			}
-			operations = append(operations, fileOperation{index: index, path: item.Path, target: target, kind: "write", content: []byte(*resolution.Content), before: before, existed: existed, mode: mode})
+			operations = append(operations, fileOperation{index: index, path: item.Path, target: target, kind: "write", content: []byte(*resolution.Content), before: before, existed: existed, mode: mode, drifted: drifted})
 			continue
 		}
 		if item.Kind == "delete" {
-			operations = append(operations, fileOperation{index: index, path: item.Path, target: target, kind: "delete", before: before, existed: existed, mode: mode})
+			operations = append(operations, fileOperation{index: index, path: item.Path, target: target, kind: "delete", before: before, existed: existed, mode: mode, drifted: drifted})
 			continue
 		}
 		content, contentErr := exactProposed(item)
 		if contentErr != nil {
 			return ApplyResult{}, contentErr
 		}
-		operations = append(operations, fileOperation{index: index, path: item.Path, target: target, kind: "write", content: []byte(content), before: before, existed: existed, mode: mode})
+		operations = append(operations, fileOperation{index: index, path: item.Path, target: target, kind: "write", content: []byte(content), before: before, existed: existed, mode: mode, drifted: drifted})
 	}
 	now := time.Now().UTC()
 	set.UpdatedAt = now
@@ -197,6 +197,21 @@ func (a Applier) Apply(ctx context.Context, workspacePath string, changeSetID st
 		completed = append(completed, operation)
 		applied = append(applied, operation.path)
 		set.Items[operation.index].AppliedOperation = operation.kind
+		// Запись поверх файла, который человек изменил после сборки набора:
+		// откат обязан вернуть именно его версию, а не базовую из песочницы.
+		// Снимок того, что лежало на диске, занимает место исходного, а
+		// операция называет, был ли файл вообще.
+		if operation.drifted {
+			if operation.existed {
+				set.Items[operation.index].OriginalContent = string(operation.before)
+				set.Items[operation.index].OriginalHash = hashBytes(operation.before)
+				if operation.kind == "write" {
+					set.Items[operation.index].AppliedOperation = "overwrite"
+				}
+			} else if operation.kind == "write" {
+				set.Items[operation.index].AppliedOperation = "created"
+			}
+		}
 		if operation.kind == "write" {
 			set.Items[operation.index].AppliedHash = hashBytes(operation.content)
 		} else if operation.kind == "kept" && operation.existed {
@@ -222,6 +237,7 @@ type fileOperation struct {
 	content []byte
 	before  []byte
 	existed bool
+	drifted bool
 	mode    os.FileMode
 }
 
@@ -399,7 +415,7 @@ func (a Applier) Revert(ctx context.Context, workspacePath, changeSetID string) 
 			return ApplyResult{}, readErr
 		}
 		switch item.AppliedOperation {
-		case "write":
+		case "write", "overwrite", "created":
 			if !existed || item.AppliedHash == "" || hashBytes(current) != item.AppliedHash {
 				return ApplyResult{}, fmt.Errorf("cannot revert %s: file changed after change set apply", item.Path)
 			}
@@ -410,7 +426,7 @@ func (a Applier) Revert(ctx context.Context, workspacePath, changeSetID string) 
 		default:
 			return ApplyResult{}, fmt.Errorf("cannot revert %s: missing applied operation metadata", item.Path)
 		}
-		if item.Kind == "create" {
+		if item.AppliedOperation == "created" || item.AppliedOperation == "write" && item.Kind == "create" {
 			operations = append(operations, fileOperation{index: index, path: item.Path, target: target, kind: "delete", before: current, existed: existed, mode: mode})
 			continue
 		}

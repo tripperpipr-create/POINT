@@ -39,6 +39,23 @@ func (s *SQLite) SaveMasterConversation(ctx context.Context, v domain.MasterConv
 	_, err := s.db.ExecContext(ctx, `INSERT INTO master_conversations(workspace_id,id,title,archived,pinned,temporary,mode,work_mode,summary,parent_id,updated_at,model) VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(workspace_id,id) DO UPDATE SET title=excluded.title,archived=excluded.archived,pinned=excluded.pinned,mode=excluded.mode,work_mode=excluded.work_mode,summary=excluded.summary,updated_at=excluded.updated_at,model=excluded.model`, v.WorkspaceID, v.ID, v.Title, v.Archived, v.Pinned, v.Temporary, v.Mode, v.WorkMode, v.Summary, v.ParentID, v.UpdatedAt, v.Model)
 	return err
 }
+// TouchMasterConversation — след хода в записи разговора: время, заголовок
+// нового разговора и резюме, если ход его принёс. Остальные колонки не
+// трогаются: за время хода человек мог переименовать или закрепить беседу, а
+// фон — пересчитать резюме, и запись снимком из начала хода стёрла бы и то, и
+// другое.
+func (s *SQLite) TouchMasterConversation(ctx context.Context, w, id, title, summary string) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE master_conversations SET updated_at=?, title=CASE WHEN title='Новый разговор' AND ?<>'' THEN ? ELSE title END, summary=CASE WHEN ?='' THEN summary ELSE ? END WHERE workspace_id=? AND id=?`,
+		time.Now().UTC().Format(time.RFC3339Nano), title, title, summary, summary, w, id)
+	return err
+}
+
+// SaveMasterConversationSummary меняет только резюме разговора.
+func (s *SQLite) SaveMasterConversationSummary(ctx context.Context, w, id, summary string) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE master_conversations SET summary=? WHERE workspace_id=? AND id=?`, summary, w, id)
+	return err
+}
+
 func (s *SQLite) DeleteMasterConversation(ctx context.Context, w, id string) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {

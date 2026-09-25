@@ -75,6 +75,13 @@ type ChatRequest struct {
 	// кнопка отправляла бы тот же вопрос заново, и при низкой температуре модель
 	// возвращала бы тот же ответ слово в слово: нажатие без последствий.
 	PreviousAnswerRejected bool
+	// ContextWindowTokens — окно модели этого хода из справочника и настроек
+	// подключения. Ноль — окно неизвестно, берётся запасное.
+	ContextWindowTokens int
+	// ProjectRules — AGENTS.md и CLAUDE.md из корня проекта, уже очищенные от
+	// секретов; RuleSources называет, откуда они взяты.
+	ProjectRules string
+	RuleSources  []string
 }
 
 // PartyMember объясняет, почему агент попал в отряд. Оценка и совпавшие термины

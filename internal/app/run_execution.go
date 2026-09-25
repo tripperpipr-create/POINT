@@ -543,7 +543,19 @@ func (a *App) StartRun(request StartRunRequest) (domain.Run, error) {
 						BaselinePath: baselinePath, SandboxPath: sandboxRecord.Path, DependsOn: dependencies,
 					})
 					if buildErr != nil {
-						slog.Warn("execution change set build unavailable", "execution_id", execID, "error", buildErr)
+						slog.Warn("execution change set build failed", "execution_id", execID, "error", buildErr)
+						// Работа агента в отдельной рабочей копии, которую нельзя
+						// собрать в набор изменений, не доставлена: успешный прогон с
+						// нулём изменённых файлов выдавал бы потерю работы за готовый
+						// результат. В живом режиме правки уже на диске, а у
+						// отменённого или упавшего прогона статус и причина свои —
+						// их не переписываем, иначе ломается логика повторов Flow.
+						if success && sandboxRecord.Kind != "live" {
+							success = false
+							execution.Status = domain.RunFailed
+							execution.Error = "не удалось собрать набор изменений: " + buildErr.Error()
+							_ = a.store.SaveExecution(context.Background(), execution)
+						}
 					} else if request.WorkContract != nil {
 						if contractErr := validateWorkContractChanges(*request.WorkContract, built); contractErr != nil {
 							success = false

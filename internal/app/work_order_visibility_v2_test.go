@@ -10,13 +10,13 @@ import (
 	"local-agent-workbench/internal/orchestrator"
 )
 
-func TestPlannerFallbackTextExplainsDeadline(t *testing.T) {
-	message := plannerFallbackText(&orchestrator.PlanTimeoutError{Phase: "reasoning", Budget: 5 * time.Minute, Cause: context.DeadlineExceeded})
-	if !strings.Contains(message, "5 минут") || strings.Contains(message, "context deadline exceeded") {
-		t.Fatalf("deadline fallback must be actionable and human-readable: %q", message)
+func TestPlannerFailureTextExplainsDeadline(t *testing.T) {
+	message := plannerFailureText(&orchestrator.PlanTimeoutError{Phase: "reasoning", Budget: 5 * time.Minute, Cause: context.DeadlineExceeded})
+	if !strings.Contains(message, "5 минут") || strings.Contains(message, "context deadline exceeded") || strings.Contains(message, "резервным Flow") {
+		t.Fatalf("deadline failure must be actionable and human-readable: %q", message)
 	}
 	if !strings.Contains(message, "во время рассуждения") {
-		t.Fatalf("deadline fallback must preserve the last visible phase: %q", message)
+		t.Fatalf("deadline failure must preserve the last visible phase: %q", message)
 	}
 }
 

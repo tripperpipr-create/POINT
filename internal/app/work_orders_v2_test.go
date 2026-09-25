@@ -121,24 +121,11 @@ func TestMasterProposalBecomesSingleApprovableWorkOrderV2(t *testing.T) {
 		t.Fatal(err)
 	}
 	approval.Status, approval.FlowID, approval.FlowRunID = string(quest.Status), quest.FlowID, quest.FlowRunID
-	if approval.Status != string(domain.QuestBlocked) || len(approval.AgentIDs) != 1 || approval.FlowID == "" || approval.FlowRunID == "" {
-		t.Fatalf("approval did not reuse the v2 quest and persist its background launch result: %#v", approval)
+	if approval.Status != string(domain.QuestBlocked) || len(approval.AgentIDs) != 1 || approval.FlowID != "" || approval.FlowRunID != "" {
+		t.Fatalf("planner failure must keep the approved v2 quest blocked without a fallback Flow: %#v", approval)
 	}
-	flow, err := application.store.GetFlow(context.Background(), approval.FlowID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, node := range flow.Nodes {
-		if node.Kind != domain.FlowNodeAgent {
-			continue
-		}
-		binding, bindingErr := modelBindingFromNode(node)
-		if bindingErr != nil {
-			t.Fatal(bindingErr)
-		}
-		if binding == nil || binding.ConnectionID != connection.ID || binding.Model != "gpt-test" || binding.Source != "work_order_v2" {
-			t.Fatalf("approved fixed routing was not compiled into node %q: %#v", node.Name, binding)
-		}
+	if message, _ := quest.Controller["statusMessage"].(string); !strings.Contains(message, "после двух попыток") {
+		t.Fatalf("planner failure reason was not shown on the quest: %q", message)
 	}
 	reloaded, err := application.WorkOrderV2(context.Background(), order.ID)
 	if err != nil || reloaded.Runtime == nil || reloaded.Runtime.QuestID != approval.QuestID || reloaded.Runtime.Status != domain.QuestBlocked {

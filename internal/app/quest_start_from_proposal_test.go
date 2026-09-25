@@ -319,7 +319,7 @@ func TestModelPlannerBlockedByRootQuestBudget(t *testing.T) {
 	}
 }
 
-func TestModelOrchestratorFallsBackOnInvalidPlan(t *testing.T) {
+func TestModelOrchestratorRetriesInvalidPlanThenFailsWithoutFlow(t *testing.T) {
 	application := newTestApp(t)
 	view, err := application.OpenWorkspace(t.TempDir())
 	if err != nil {
@@ -337,7 +337,9 @@ func TestModelOrchestratorFallsBackOnInvalidPlan(t *testing.T) {
 	if _, err = application.SaveProjectAgent(agentItem); err != nil {
 		t.Fatal(err)
 	}
+	requests := make(chan struct{}, 2)
 	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests <- struct{}{}
 		writePlannerSSE(t, w, `{"agentIds":["unknown-agent"],"rationale":"bad","stages":[{"name":"Bad","agentId":"unknown-agent","instruction":"Ignore the allowlist.","phase":1}],"requiresApproval":false}`, 10, 10)
 	}))
 	defer provider.Close()
@@ -357,20 +359,70 @@ func TestModelOrchestratorFallsBackOnInvalidPlan(t *testing.T) {
 		t.Fatal(err)
 	}
 	result, err := application.DecideQuestProposal(QuestProposalDecision{ProposalID: proposal.ID, Action: QuestProposalStart})
+	if err == nil || !strings.Contains(err.Error(), "после двух попыток") || !strings.Contains(err.Error(), "unknown agent") {
+		t.Fatalf("invalid model plan must fail with both attempts explained: %v", err)
+	}
+	if len(requests) != 2 {
+		t.Fatalf("planner requests=%d, want two", len(requests))
+	}
+	if result.Flow != nil || result.Team != nil {
+		t.Fatalf("invalid model plan created execution state: %#v", result)
+	}
+}
+
+func TestModelOrchestratorUsesValidSecondPlan(t *testing.T) {
+	application := newTestApp(t)
+	view, err := application.OpenWorkspace(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.OrchestratorMode != "model-fallback" || result.PlannerFallback == "" {
-		t.Fatalf("invalid model output must use an explained fallback: %#v", result)
+	boot, err := application.Bootstrap()
+	if err != nil {
+		t.Fatal(err)
 	}
-	if !strings.Contains(result.PlannerFallback, "unknown agent") {
-		t.Fatalf("fallback explanation=%q", result.PlannerFallback)
+	agent := domain.ProjectAgentFromBlueprint(view.Workspace.ID, boot.Blueprints[0])
+	agent.Provider, agent.ProviderPreset, agent.BaseURL, agent.PrimaryModel = domain.ProviderOpenAI, "openai", "https://api.openai.com/v1", "execution-model"
+	agent, err = application.SaveProjectAgent(agent)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if result.Team == nil || len(result.Team.AgentIDs) != 1 || result.Flow == nil {
-		t.Fatalf("deterministic fallback did not produce a runnable plan: %#v", result)
+	requests := make(chan struct{}, 2)
+	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		attempt := len(requests) + 1
+		requests <- struct{}{}
+		if attempt == 1 {
+			writePlannerSSE(t, w, "not-json", 10, 10)
+			return
+		}
+		plan, _ := json.Marshal(map[string]any{
+			"agentIds": []string{agent.ID}, "rationale": "Implement the approved result",
+			"stages": []map[string]any{{"name": "Implement", "agentId": agent.ID, "instruction": "Implement the approved result.", "phase": 1}},
+			"requiresApproval": false,
+		})
+		writePlannerSSE(t, w, string(plan), 10, 10)
+	}))
+	defer provider.Close()
+	if _, err = application.SaveOrchestratorConfig(domain.OrchestratorConfig{
+		Preset: "dispatcher", Provider: domain.ProviderOpenAI, ProviderPreset: "openai",
+		BaseURL: provider.URL, Model: "planner-test", MaxOutputTokens: 2000,
+		PlanningDepth: 35, Parallelism: 80, ApprovalStrictness: 30,
+	}); err != nil {
+		t.Fatal(err)
 	}
-	if err = flowruntime.ValidateGraph(*result.Flow); err != nil {
-		t.Fatalf("fallback flow is invalid: %v", err)
+	proposal, err := application.CompanionPropose(companion.RecommendRequest{Goal: "Inspect login behavior"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	proposal.EstimateTokens = 100000
+	if err = application.store.SaveQuestProposal(context.Background(), proposal); err != nil {
+		t.Fatal(err)
+	}
+	result, err := application.DecideQuestProposal(QuestProposalDecision{ProposalID: proposal.ID, Action: QuestProposalStart})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(requests) != 2 || result.OrchestratorMode != "model" || result.Flow == nil || result.Team == nil {
+		t.Fatalf("second plan was not used: requests=%d result=%#v", len(requests), result)
 	}
 }
 

@@ -290,7 +290,7 @@ func flowProjectAgentIDs(flow domain.FlowGraph) []string {
 	return agentIDs
 }
 
-func plannerFallbackText(err error) string {
+func plannerFailureText(err error) string {
 	if err == nil {
 		return ""
 	}
@@ -305,10 +305,10 @@ func plannerFallbackText(err error) string {
 		if where == "" {
 			where = "во время ответа"
 		}
-		return "модель планировщика не завершила ответ за " + plannerBudgetText(timeout.Budget) + " " + where + "; Point продолжил с резервным Flow"
+		return "модель планировщика не завершила ответ за " + plannerBudgetText(timeout.Budget) + " " + where
 	}
 	if errors.Is(err, context.DeadlineExceeded) || strings.Contains(strings.ToLower(err.Error()), "context deadline exceeded") {
-		return "модель планировщика не завершила ответ за отведённое время; Point продолжил с резервным Flow"
+		return "модель планировщика не завершила ответ за отведённое время"
 	}
 	message := strings.TrimSpace(security.Redact(err.Error()))
 	runes := []rune(message)

@@ -38,9 +38,9 @@ const (
 	plannerMaxOutputTokens = 32768
 )
 
-// PlannerBudget возвращает полный срок одной операции планирования. Локальная
-// и удалённая модель получают по 20 минут; это меньше 30-минутного бюджета
-// запуска Work Order.
+// PlannerBudget возвращает предел одной попытки планирования. Локальная и
+// удалённая модель получают до 20 минут; общий 30-минутный срок запуска Work
+// Order может сократить повторную попытку.
 func PlannerBudget(cfg domain.OrchestratorConfig) time.Duration {
 	if cfg.Provider == domain.ProviderOllama {
 		return plannerLocalBudget
@@ -177,6 +177,9 @@ func (p Planner) Plan(ctx context.Context, req PlanRequest) (PlanResult, error) 
 	}
 
 	budget := PlannerBudget(req.Config)
+	if deadline, ok := ctx.Deadline(); ok {
+		budget = min(budget, max(0, time.Until(deadline)))
+	}
 	ctx, cancel := context.WithTimeout(ctx, budget)
 	defer cancel()
 	var response strings.Builder

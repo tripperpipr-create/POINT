@@ -51,7 +51,6 @@ func (a *App) startQuestFromProposalUsingQuest(ctx context.Context, ws domain.Wo
 	orchNote := ""
 	orchMode := "deterministic"
 	orchModel := ""
-	plannerFallback := ""
 	agentIDs := proposal.TeamAgentIDs
 	availableAgents := make(map[string]bool, len(runnableAgents))
 	for _, agent := range agents {
@@ -164,6 +163,9 @@ func (a *App) startQuestFromProposalUsingQuest(ctx context.Context, ws domain.Wo
 		}
 	}
 	useModelPlanner := selectedFlow == nil && hasOrchestrator && orchestrator.UsesModelPlanner(cfg) && (proposal.Brief == nil || proposal.Brief.Mode != domain.TaskModePrecise)
+	if selectedFlow == nil && proposal.Brief != nil && proposal.Brief.Mode == domain.TaskModeProject && !useModelPlanner {
+		return QuestProposalResult{}, errors.New("для проектного задания нужна настроенная модель планировщика или явно выбранный Flow")
+	}
 	if useModelPlanner {
 		// Create the root quest before the planner model call so reservation
 		// hits QuestBudgetTokens. On budget failure the quest stays draft.
@@ -199,16 +201,28 @@ func (a *App) startQuestFromProposalUsingQuest(ctx context.Context, ws domain.Wo
 			return QuestProposalResult{}, skillErr
 		}
 		defer a.finishMasterOperation(skills, cfg, orchestratorAPIKey)
-		planned, planErr := (orchestrator.Planner{NewModel: a.budgetedModelFactory(modelBudgetScope{
+		planner := orchestrator.Planner{NewModel: a.budgetedModelFactory(modelBudgetScope{
 			WorkspaceID: ws.ID, QuestID: quest.ID, ProjectAgentID: "master", Outcome: "orchestrator_plan",
-		})}).Plan(ctx, orchestrator.PlanRequest{
+		})}
+		planRequest := orchestrator.PlanRequest{
 			Skills: skills,
 			Config: cfg, Proposal: proposal, Agents: runnableAgents, LockedAgentIDs: locked, APIKey: orchestratorAPIKey,
 			Project: a.masterProjectFacts(ctx), Signals: selectionSignals, ModelCandidates: modelCandidates,
 			Progress: func(progress orchestrator.PlanProgress) {
 				a.updateWorkOrderLaunchProgressV2(ctx, &quest, "planning", progress.Message)
 			},
-		})
+		}
+		planned, planErr := planner.Plan(ctx, planRequest)
+		attempts := 1
+		if planErr != nil && ctx.Err() == nil && !plannerBudgetBlocked(planErr) {
+			a.updateWorkOrderLaunchProgressV2(ctx, &quest, "planning", "Первая попытка планирования не удалась; повторяем запрос модели")
+			firstErr := planErr
+			attempts = 2
+			planned, planErr = planner.Plan(ctx, planRequest)
+			if planErr != nil {
+				planErr = fmt.Errorf("план модели не получен после двух попыток: первая — %s; вторая — %s", plannerFailureText(firstErr), plannerFailureText(planErr))
+			}
+		}
 		if planErr == nil {
 			modelPlan = &planned
 			agentIDs = append([]string(nil), planned.Plan.AgentIDs...)
@@ -223,25 +237,15 @@ func (a *App) startQuestFromProposalUsingQuest(ctx context.Context, ws domain.Wo
 						slog.Warn("draft quest not removed after cancel", "quest_id", draftQuest.ID, "error", err)
 					}
 				}
+				if errors.Is(ctxErr, context.DeadlineExceeded) {
+					if attempts == 2 {
+						return QuestProposalResult{}, planErr
+					}
+					return QuestProposalResult{}, fmt.Errorf("план модели не получен: %s", plannerFailureText(planErr))
+				}
 				return QuestProposalResult{}, ctxErr
 			}
-			if strings.Contains(strings.ToLower(planErr.Error()), "budget blocked") ||
-				strings.Contains(strings.ToLower(planErr.Error()), "reserve model budget") ||
-				strings.Contains(strings.ToLower(planErr.Error()), "quest token budget") ||
-				strings.Contains(strings.ToLower(planErr.Error()), "quest cost budget") {
-				return QuestProposalResult{}, planErr
-			}
-			plannerFallback = plannerFallbackText(planErr)
-			orchMode = "model-fallback"
-			orchModel = cfg.Model
-			if userPickedTeam {
-				orchNote = "отряд выбран пользователем · модель недоступна, Flow собран движком Point"
-			} else {
-				assignment := orchestrator.AssignPartyWithSignals(cfg, runnableAgents, proposal.TeamAgentIDs, goal, selectionSignals)
-				agentIDs = assignment.AgentIDs
-				selectionBreakdown = assignment.Breakdown
-				orchNote = assignment.Reason
-			}
+			return QuestProposalResult{}, planErr
 		}
 	} else if selectedFlow == nil && hasOrchestrator && !userPickedTeam {
 		assignment := orchestrator.AssignPartyWithSignals(cfg, runnableAgents, proposal.TeamAgentIDs, goal, selectionSignals)
@@ -264,8 +268,6 @@ func (a *App) startQuestFromProposalUsingQuest(ctx context.Context, ws domain.Wo
 	}
 	if modelPlan != nil {
 		a.updateWorkOrderLaunchProgressV2(ctx, draftQuest, "compiling", "План модели проверен; движок Point собирает Flow")
-	} else if plannerFallback != "" {
-		a.updateWorkOrderLaunchProgressV2(ctx, draftQuest, "compiling", "Модель не завершила план; движок Point собирает резервный Flow")
 	} else {
 		a.updateWorkOrderLaunchProgressV2(ctx, draftQuest, "compiling", "Движок Point собирает Flow из утверждённого задания")
 	}
@@ -308,7 +310,6 @@ func (a *App) startQuestFromProposalUsingQuest(ctx context.Context, ws domain.Wo
 	}
 
 	var flow domain.FlowGraph
-	var projectGraph *domain.WorkGraph
 	if proposal.Brief != nil && proposal.Brief.Mode == domain.TaskModePrecise {
 		flow = orchestrator.CompileModelFlow(orchestrator.CompileRequest{Title: proposal.Title}, orchestrator.ModelPlan{AgentIDs: agentIDs, Rationale: "Точное поручение: выполнить заданный результат и остановиться", Stages: []orchestrator.PlanStage{{Name: "Выполнить поручение", AgentID: agentIDs[0], Instruction: proposal.Task, Phase: 1}}}, "bounded-task")
 		flow.WorkspaceID = ws.ID
@@ -355,25 +356,10 @@ func (a *App) startQuestFromProposalUsingQuest(ctx context.Context, ws domain.Wo
 		}
 	}
 	if proposal.Brief != nil && proposal.Brief.Mode == domain.TaskModeProject {
-		if selectedFlow == nil && modelPlan == nil {
-			graph := orchestrator.DefaultProjectWorkGraph(agentIDs)
-			compiled, compileErr := orchestrator.CompileWorkGraph(graph, proposal.Title)
-			if compileErr != nil {
-				return QuestProposalResult{}, compileErr
-			}
-			compiled.WorkspaceID = ws.ID
-			annotateFlowVerifier(&compiled, proposal.Brief)
-			if err = a.store.SaveFlow(ctx, compiled); err != nil {
-				return QuestProposalResult{}, err
-			}
-			flow = compiled
-			projectGraph = &graph
-		} else {
-			flow = orchestrator.EnsureProjectPipeline(flow, agentIDs)
-			flow.UpdatedAt = time.Now().UTC()
-			if err = a.store.SaveFlow(ctx, flow); err != nil {
-				return QuestProposalResult{}, err
-			}
+		flow = orchestrator.EnsureProjectPipeline(flow, agentIDs)
+		flow.UpdatedAt = time.Now().UTC()
+		if err = a.store.SaveFlow(ctx, flow); err != nil {
+			return QuestProposalResult{}, err
 		}
 		if err = a.requireIsolatedProjectWriters(flow); err != nil {
 			return QuestProposalResult{}, err
@@ -431,12 +417,6 @@ func (a *App) startQuestFromProposalUsingQuest(ctx context.Context, ws domain.Wo
 		}
 		quest.Controller["planPreview"] = planStagePreview(modelPlan.Plan.Stages)
 	}
-	if projectGraph != nil {
-		if quest.Controller == nil {
-			quest.Controller = map[string]any{}
-		}
-		quest.Controller["workGraph"] = *projectGraph
-	}
 	if err = a.store.SaveQuest(ctx, quest); err != nil {
 		return QuestProposalResult{}, err
 	}
@@ -460,7 +440,7 @@ func (a *App) startQuestFromProposalUsingQuest(ctx context.Context, ws domain.Wo
 	result := QuestProposalResult{
 		Proposal: proposal, Quest: &quest, Team: &team, Flow: &flow,
 		OrchestratorNote: orchNote, OrchestratorMode: orchMode,
-		OrchestratorModel: orchModel, PlannerFallback: plannerFallback,
+		OrchestratorModel: orchModel,
 	}
 	if startFlow {
 		a.updateWorkOrderLaunchProgressV2(ctx, &quest, "launching", "Flow готов; запускаем первого исполнителя")
@@ -489,6 +469,17 @@ func (a *App) startQuestFromProposalUsingQuest(ctx context.Context, ws domain.Wo
 		}
 	}
 	return result, nil
+}
+
+func plannerBudgetBlocked(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "budget blocked") ||
+		strings.Contains(message, "reserve model budget") ||
+		strings.Contains(message, "quest token budget") ||
+		strings.Contains(message, "quest cost budget")
 }
 
 func planStagePreview(stages []orchestrator.PlanStage) []domain.PlanStagePreview {

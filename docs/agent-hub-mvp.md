@@ -228,7 +228,7 @@ Companion Studio is a five-step in-place constructor: Mode → Connection → Pe
 
 Flow tab: node canvas + inspector; structure locked while a flow run is active. Agent nodes launch ordinary sandboxed executions. Tool nodes are limited to an explicit low-risk deterministic allowlist. Loop nodes require `maxIterations` (1-20), distinct `continue`/`done` edges and a single controlled back edge.
 
-Quest Start shows whether its party and Flow came from the configured Orchestrator model or Point's deterministic fallback. The same provenance remains in the created Team and Flow descriptions, so it is not lost when the notification closes.
+Quest Start records the configured Orchestrator model in the created Team and Flow descriptions. If model planning fails, Point retries once and then reports an error without creating a Team or Flow. A user-selected Flow remains an explicit alternative.
 
 Change Sets support atomic Apply / Reject / Revert, dependency lineage, dependency-ordered chain Apply and conflict resolution strategies.
 

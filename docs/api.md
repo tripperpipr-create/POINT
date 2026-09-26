@@ -128,9 +128,10 @@ is checked against every `HandleFunc` registration by `node scripts/check-docs.m
 | `GET` | `/api/v2/master/turns/{id}/events` | Read the ordered event stream for one v2 Master turn |
 | `POST` | `/api/v2/master/turns/{id}/cancel` | Cancel an in-flight v2 Master turn |
 | `GET` | `/api/v2/master/quests/{id}` | Read the v2 quest state exposed through the Master |
-| `GET` | `/api/v2/master/quests/{id}/evidence` | Read the immutable completion evidence and gate state for a v2 quest |
+| `GET` | `/api/v2/master/quests/{id}/evidence` | Read the completion evidence and gate state for a v2 quest, with human decisions on manual criteria overlaid |
 | `POST` | `/api/v2/master/quests/{id}/application/{action}` | Start or stop a verified delivered Docker Compose application; requires matching version, digest, DeliveryReceipt and idempotency key |
 | `POST` | `/api/v2/master/quests/{id}/{action}` | Pause, resume or cancel a v2 quest, or append a redacted user message, through the Master |
+| `POST` | `/api/v2/master/quests/{id}/criteria/{criterionId}/review` | Record the human decision (`accepted` or `rejected`, optional note) on one manual criterion. Decisions are immutable and overlaid on the immutable evidence; the gate re-derives the quest status: `needs_review` → `completed` (verified) or `blocked` |
 | `POST` | `/api/v2/sources/preview` | Create an immutable text, PNG/JPEG/WebP image, file, public HTTPS or Git `SourceSnapshot` |
 | `GET` | `/api/v2/sources/{id}` | Read safe metadata and extracted content for an immutable source snapshot; internal storage paths are omitted |
 | `POST` | `/api/v2/sources/{id}/refresh` | Create a new immutable URL/Git snapshot and return a bounded requirements diff; active WorkOrders keep their approved digest |

@@ -199,6 +199,25 @@ func (a *App) AgentCapabilityFor(ctx context.Context, profile domain.AgentProfil
 	return result
 }
 
+// legacyAgentContextWindow is the window every agent used to be created with,
+// whatever its model.
+const legacyAgentContextWindow = 32768
+
+// widenLegacyContextWindowOnFreeRuntime gives a run the real window of a
+// known model instead of the legacy creation default. The developer agent on
+// Qwen3 (131K) ran with 24K of input, more than half of it spent before its
+// first step. Only the run snapshot changes — the stored profile keeps what
+// the owner saved — and only on a runtime that does not bill tokens, where a
+// larger window costs nothing. Any other window the owner chose is kept.
+func widenLegacyContextWindowOnFreeRuntime(profile *domain.AgentProfile) {
+	if profile == nil || profile.ContextWindowTokens != legacyAgentContextWindow || domain.RuntimeChargesForTokens(profile.Provider, profile.ProviderPreset) {
+		return
+	}
+	if known := domain.DefaultContextWindow(profile.Model); known > profile.ContextWindowTokens {
+		profile.ContextWindowTokens = known
+	}
+}
+
 // normalizeRuntimeProfileDefaults applies the compatibility defaults that the
 // engine historically used implicitly. New writes persist the same values;
 // legacy rows are normalized in memory before readiness and snapshot capture.

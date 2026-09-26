@@ -124,6 +124,7 @@ export function createRunInbox({
         const workOrderRequest = failedRequest === 'approveMasterWorkOrderV2'
           || failedRequest === 'reviseMasterWorkOrderV2'
           || failedRequest === 'controlMasterWorkOrderQuestV2'
+          || failedRequest === 'reviewMasterManualCriterionV2'
           || failedRequest === 'controlMasterApplicationV2'
         if (!failedRequest || workOrderRequest) {
           const failedWorkOrderId = String(message.workOrderId || '')

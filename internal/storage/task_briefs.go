@@ -2,10 +2,14 @@ package storage
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
+	"sync"
 	"time"
 
 	"local-agent-workbench/internal/domain"
@@ -36,12 +40,16 @@ func taskBriefJSON(brief *domain.TaskBrief) (any, error) {
 	if brief == nil {
 		return nil, nil
 	}
-	if err := domain.ValidateTaskBrief(*brief); err != nil {
-		return nil, err
-	}
 	raw, err := json.Marshal(brief)
 	if err != nil {
 		return nil, err
+	}
+	if err := domain.ValidateTaskBrief(*brief); err != nil {
+		// An untouched quarantined brief may be written back so its quest can
+		// still be paused, blocked or cancelled; any change must validate.
+		if brief.Quarantine == "" || brief.QuarantinedJSON != string(raw) {
+			return nil, err
+		}
 	}
 	return string(raw), nil
 }
@@ -55,9 +63,24 @@ func decodeTaskBrief(raw sql.NullString) (*domain.TaskBrief, error) {
 		return nil, fmt.Errorf("decode task brief: %w", err)
 	}
 	if err := domain.ValidateTaskBrief(brief); err != nil {
-		return nil, fmt.Errorf("invalid stored task brief: %w", err)
+		brief.Quarantine = err.Error()
+		if encoded, marshalErr := json.Marshal(brief); marshalErr == nil {
+			brief.QuarantinedJSON = string(encoded)
+		}
+		warnQuarantinedBrief(raw.String, err)
 	}
 	return &brief, nil
+}
+
+var quarantinedBriefsLogged sync.Map
+
+// warnQuarantinedBrief logs each quarantined brief once per process: lists
+// are polled every few seconds, and the reason does not change between reads.
+func warnQuarantinedBrief(raw string, err error) {
+	sum := sha256.Sum256([]byte(raw))
+	if _, seen := quarantinedBriefsLogged.LoadOrStore(hex.EncodeToString(sum[:]), true); !seen {
+		slog.Warn("stored task brief quarantined", "error", err)
+	}
 }
 
 // saveTaskBriefRevision runs in the same transaction as its proposal. The

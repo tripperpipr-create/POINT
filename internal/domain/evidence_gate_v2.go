@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 const CurrentWorkOrderEvidenceVersion = 3
@@ -139,6 +140,7 @@ func WorkOrderEvidenceVerdict(order WorkOrder, bundle EvidenceBundle) GateVerdic
 	// machine-verifiable. A professional-mode quest must never become completed
 	// before the user accepts the isolated result.
 	hasManual := order.Delivery.ApplyMode == "manual"
+	pendingManual := false
 	hasPartial := false
 	actualFailure := false
 	allMachineSatisfied := true
@@ -154,7 +156,16 @@ func WorkOrderEvidenceVerdict(order WorkOrder, bundle EvidenceBundle) GateVerdic
 			continue
 		}
 		if criterion.Kind == "manual" {
-			hasPartial = true
+			switch item.Review {
+			case ManualReviewAccepted:
+				continue
+			case ManualReviewRejected:
+				actualFailure = true
+				allMachineSatisfied = false
+				missing = append(missing, "criterion:"+criterion.ID+" (не принято человеком)")
+				continue
+			}
+			pendingManual = true
 			missing = append(missing, "criterion:"+criterion.ID+" (manual)")
 			continue
 		}
@@ -246,6 +257,12 @@ func WorkOrderEvidenceVerdict(order WorkOrder, bundle EvidenceBundle) GateVerdic
 	if hasManual {
 		return GateVerdict{Status: QuestNeedsReview, Reason: "manual delivery or a manual criterion: a human accepts the result"}
 	}
+	// A manual criterion is part of the approved contract: until a human
+	// decides it, the work is delivered but not accepted. "completed with
+	// limitations" used to stand in for that and read as done.
+	if pendingManual {
+		return GateVerdict{Status: QuestNeedsReview, Assurance: WorkOrderAssurancePartial, Reason: "delivered; a manual criterion waits for the human decision", Missing: missing}
+	}
 	if hasPartial || !allMachineSatisfied {
 		return gatePartial("work completed with checks that require manual review or were unavailable", missing...)
 	}
@@ -295,4 +312,79 @@ func verificationCheckSatisfiesCriterion(criterion AcceptanceCriterion, item Cri
 		expected = *criterion.ExpectedExitCode
 	}
 	return *check.ExitCode == expected && *item.ExitCode == expected
+}
+
+const (
+	ManualReviewAccepted = "accepted"
+	ManualReviewRejected = "rejected"
+)
+
+// ManualCriterionReview is a human decision on a manual criterion. Evidence
+// bundles are immutable, so the decision is stored beside the bundle and
+// overlaid on it; without it a quest with a manual criterion could only end
+// as "blocked" or "completed with limitations", whatever the human saw.
+type ManualCriterionReview struct {
+	QuestID     string    `json:"questId"`
+	CriterionID string    `json:"criterionId"`
+	Decision    string    `json:"decision"`
+	Note        string    `json:"note,omitempty"`
+	CreatedAt   time.Time `json:"createdAt"`
+}
+
+// ApplyManualReviews returns the effective bundle: human decisions on the
+// manual criteria of order, with assurance and summary re-derived by the same
+// gate. A decision on a non-manual criterion is ignored.
+func ApplyManualReviews(order WorkOrder, bundle EvidenceBundle, reviews []ManualCriterionReview) (EvidenceBundle, GateVerdict) {
+	manual := map[string]bool{}
+	for _, criterion := range order.Criteria {
+		if criterion.Kind == "manual" {
+			manual[criterion.ID] = true
+		}
+	}
+	bundle.Criteria = append([]CriterionEvidence(nil), bundle.Criteria...)
+	for _, review := range reviews {
+		if !manual[review.CriterionID] {
+			continue
+		}
+		for index := range bundle.Criteria {
+			item := &bundle.Criteria[index]
+			if item.CriterionID != review.CriterionID {
+				continue
+			}
+			at := review.CreatedAt
+			item.Review, item.ReviewNote, item.ReviewedAt = review.Decision, review.Note, &at
+			item.Satisfied = review.Decision == ManualReviewAccepted
+			item.Summary = "Не принято человеком"
+			if item.Satisfied {
+				item.Summary = "Принято человеком"
+			}
+			if strings.TrimSpace(review.Note) != "" {
+				item.Summary += ": " + strings.TrimSpace(review.Note)
+			}
+		}
+	}
+	verdict := WorkOrderEvidenceVerdict(order, bundle)
+	if verdict.Err != nil {
+		return bundle, verdict
+	}
+	bundle.Assurance = verdict.Assurance
+	limitations := make([]string, 0, len(bundle.KnownLimitations)+1)
+	for _, line := range bundle.KnownLimitations {
+		if !strings.HasPrefix(line, "Шлюз доказательств: ") {
+			limitations = append(limitations, line)
+		}
+	}
+	if strings.TrimSpace(verdict.Reason) != "" {
+		limitations = append(limitations, "Шлюз доказательств: "+verdict.Reason)
+	}
+	bundle.KnownLimitations = limitations
+	switch {
+	case verdict.Status == QuestCompleted && verdict.Assurance == WorkOrderAssuranceVerified:
+		bundle.OutcomeSummary = "Работа доставлена, все проверки выполнены и приняты."
+	case verdict.Status == QuestCompleted:
+		bundle.OutcomeSummary = "Работа доставлена с ограничениями проверки."
+	case verdict.Status == QuestBlocked:
+		bundle.OutcomeSummary = "Работа заблокирована проверкой или доставкой."
+	}
+	return bundle, verdict
 }

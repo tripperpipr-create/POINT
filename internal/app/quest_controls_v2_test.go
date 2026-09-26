@@ -254,3 +254,49 @@ func TestTerminalFailedFlowRejectsNoopResumeAndRecoversPreflight(t *testing.T) {
 	storedRun, err = application.store.GetFlowRun(ctx, flowRun.ID)
 	if err != nil || storedRun.Status != domain.RunFailed { t.Fatalf("recovery flow status=%s err=%v", storedRun.Status, err) }
 }
+
+// A launch cut off by the core's own shutdown used to end "blocked · context
+// canceled", and the human pressed Resume after every restart. It is paused
+// with the real reason, and the runtime tells the extension it may resume.
+func TestLaunchInterruptedByShutdownPausesForAutoResume(t *testing.T) {
+	t.Setenv("REDIS_ADDR", "")
+	application, err := New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { application.Shutdown(context.Background()) })
+	world := openTestWorld(t, application)
+	order := managedWorkOrderV2()
+	order.WorkspaceID = world.ID
+	order.Workspace = domain.WorkspacePlan{Mode: "existing", Path: world.Path, Isolation: "snapshot"}
+	assignReadyRosterForTest(t, application, &order)
+	order, err = application.SaveWorkOrderV2(context.Background(), order)
+	if err != nil {
+		t.Fatal(err)
+	}
+	approval, err := application.store.ApproveWorkOrderV2(context.Background(), order.ID, order.Version, domain.WorkOrderDigest(order), "shutdown-pause")
+	if err != nil {
+		t.Fatal(err)
+	}
+	quest, err := application.workOrderQuestV2(context.Background(), world.ID, approval.QuestID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	quest.Status = domain.QuestPreflight
+	if err = application.store.SaveQuest(context.Background(), quest); err != nil {
+		t.Fatal(err)
+	}
+	if err = application.pauseLaunchInterruptedByShutdownV2(context.Background(), quest); err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err := application.WorkOrderV2(context.Background(), order.ID)
+	if err != nil || reloaded.Runtime == nil {
+		t.Fatalf("runtime unreadable: %#v err=%v", reloaded.Runtime, err)
+	}
+	if reloaded.Runtime.Status != domain.QuestPaused || !reloaded.Runtime.ResumeAfterRestart {
+		t.Fatalf("interrupted launch: status=%s resumeAfterRestart=%v", reloaded.Runtime.Status, reloaded.Runtime.ResumeAfterRestart)
+	}
+	if !strings.Contains(reloaded.Runtime.Message, "Ядро перезапустилось") {
+		t.Fatalf("pause does not name the restart: %q", reloaded.Runtime.Message)
+	}
+}

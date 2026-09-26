@@ -47,6 +47,14 @@ type TaskBrief struct {
 	// auto-approve propose_patch without a Docker OS boundary. Commands stay ASK.
 	FastAgent      bool   `json:"fastAgent,omitempty"`
 	ApprovedDigest string `json:"approvedDigest,omitempty"`
+	// Quarantine is set on read when a stored brief no longer passes today's
+	// rules — typically an approval digest computed before the brief schema
+	// changed. One such record used to fail /api/bootstrap and the whole UI.
+	// A quarantined brief stays readable and its quest can change status, but
+	// it never executes until approved again. Neither field is serialized, so
+	// digests are unaffected.
+	Quarantine      string `json:"-"`
+	QuarantinedJSON string `json:"-"`
 }
 
 type BriefDecision struct {

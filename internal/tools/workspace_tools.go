@@ -377,8 +377,22 @@ type RunCommand struct {
 	Grants              *NetworkGrantBook
 }
 
+// runCommandShellNote names the shell the command really runs in. Agents
+// wrote bash-isms (${PIPESTATUS[0]}) for the sandbox's busybox sh and read
+// "bad substitution" as a failure of the project.
+func (t RunCommand) runCommandShellNote() string {
+	switch {
+	case t.Executor != nil:
+		return " It runs in the sandbox container through POSIX /bin/sh (busybox), not bash: no ${PIPESTATUS}, arrays, [[ ]] or <(...)."
+	case runtime.GOOS == "windows":
+		return " It runs through cmd.exe on Windows."
+	default:
+		return " It runs through POSIX /bin/sh."
+	}
+}
+
 func (t RunCommand) Definition() domain.ToolDefinition {
-	return domain.ToolDefinition{Name: "run_command", Description: "Run one non-interactive command in a workspace directory after user approval.", InputSchema: schema(`{"type":"object","properties":{"command":{"type":"string","description":"One local shell command. Do not background or request elevation."},"cwd":{"type":"string","description":"Workspace-relative directory, for example src. Empty uses the workspace root."},"reason":{"type":"string","description":"Why this command is needed for the current task"},"timeoutSeconds":{"type":"integer","minimum":1,"maximum":600}},"required":["command","reason"],"additionalProperties":false}`)}
+	return domain.ToolDefinition{Name: "run_command", Description: "Run one non-interactive command in a workspace directory after user approval." + t.runCommandShellNote(), InputSchema: schema(`{"type":"object","properties":{"command":{"type":"string","description":"One local shell command. Do not background or request elevation."},"cwd":{"type":"string","description":"Workspace-relative directory, for example src. Empty uses the workspace root."},"reason":{"type":"string","description":"Why this command is needed for the current task"},"timeoutSeconds":{"type":"integer","minimum":1,"maximum":600}},"required":["command","reason"],"additionalProperties":false}`)}
 }
 func (t RunCommand) Execute(ctx context.Context, raw json.RawMessage) domain.ToolResult {
 	started := time.Now()

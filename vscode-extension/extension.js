@@ -31,7 +31,7 @@ const {
   isQuietApiRoute,
   sharedPointStoragePath,
   normalizedWorkspaceRoot,
-  processIsAlive,
+  processIsAlive, stopCallerSummary,
   removeFileIfExists,
   readJsonFile,
   upsertById,
@@ -472,6 +472,7 @@ class BackendService {
     this.flushCoreLog()
     const child = this.process
     const pid = this.corePid()
+    this.hostLog('info', `[service] stop requested pid=${pid || '-'} via ${stopCallerSummary(new Error().stack)}`)
     this.releaseLease()
     let otherLeases = 0
     try { otherLeases = this.otherLiveLeaseCount() } catch { /* runtime directory may already be gone */ }
@@ -1158,6 +1159,7 @@ class AgentViewProvider {
         case 'approveMasterWorkOrderV2':
 		case 'reviseMasterWorkOrderV2':
         case 'controlMasterWorkOrderQuestV2':
+        case 'reviewMasterManualCriterionV2':
         case 'controlMasterApplicationV2':
         // Четыре ветки ниже написаны в master-chat-controller.js давно, но во
         // внешнем разборе их не было: поиск по контексту, вложение по пути,

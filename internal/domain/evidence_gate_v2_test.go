@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -57,7 +58,10 @@ func TestWorkOrderEvidenceStatusRejectsMissingOrMismatchedMachineProof(t *testin
 
 func intPointer(value int) *int { return &value }
 
-func TestWorkOrderEvidenceStatusCompletesManualCriteriaWithPartialAssurance(t *testing.T) {
+// A manual criterion is part of the contract: until a human decides it the
+// work is delivered but not accepted. "completed with limitations" used to
+// stand in for that and read as done.
+func TestWorkOrderEvidenceStatusWaitsForHumanOnManualCriterion(t *testing.T) {
 	order := evidenceGateOrder("manual")
 	bundle := EvidenceBundle{
 		Version: CurrentWorkOrderEvidenceVersion, PointVersion: "test", ID: "e1", QuestID: "q1", BriefDigest: WorkOrderDigest(order), SourceDigest: WorkOrderSourceDigest(order),
@@ -67,11 +71,23 @@ func TestWorkOrderEvidenceStatusCompletesManualCriteriaWithPartialAssurance(t *t
 		ModelCalls:      evidenceGateModelCalls(),
 	}
 	status, err := WorkOrderEvidenceStatus(order, bundle)
-	if err != nil || status != QuestCompleted {
+	if err != nil || status != QuestNeedsReview {
 		t.Fatalf("status=%s err=%v", status, err)
 	}
 	if verdict := WorkOrderEvidenceVerdict(order, bundle); verdict.Assurance != WorkOrderAssurancePartial {
 		t.Fatalf("assurance=%q", verdict.Assurance)
+	}
+	accepted, verdict := ApplyManualReviews(order, bundle, []ManualCriterionReview{{QuestID: "q1", CriterionID: "c1", Decision: ManualReviewAccepted, Note: "проверил вручную", CreatedAt: time.Now().UTC()}})
+	if verdict.Status != QuestCompleted || accepted.Assurance != WorkOrderAssuranceVerified || accepted.Criteria[0].Review != ManualReviewAccepted {
+		t.Fatalf("accepted manual criterion: status=%s assurance=%q criteria=%#v", verdict.Status, accepted.Assurance, accepted.Criteria)
+	}
+	for _, line := range accepted.KnownLimitations {
+		if strings.Contains(line, "manual") {
+			t.Fatalf("stale gate reason survived acceptance: %q", line)
+		}
+	}
+	if _, verdict = ApplyManualReviews(order, bundle, []ManualCriterionReview{{QuestID: "q1", CriterionID: "c1", Decision: ManualReviewRejected, CreatedAt: time.Now().UTC()}}); verdict.Status != QuestBlocked {
+		t.Fatalf("rejected manual criterion must block, got %s", verdict.Status)
 	}
 }
 

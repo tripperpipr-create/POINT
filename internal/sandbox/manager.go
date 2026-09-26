@@ -29,6 +29,9 @@ type Manager struct {
 // Capabilities describes guarantees provided by a sandbox backend. Callers
 // must use these flags instead of treating every backend as an OS boundary.
 type Capabilities struct {
+	// Unavailable is set while the backend cannot execute (Docker Desktop
+	// stopped); the reason is what the user needs to do.
+	Unavailable                   string   `json:"unavailable,omitempty"`
 	Backend                       string   `json:"backend"`
 	Version                       string   `json:"version,omitempty"`
 	APIVersion                    string   `json:"apiVersion,omitempty"`

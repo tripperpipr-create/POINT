@@ -311,6 +311,7 @@ WHERE approval.work_order_id=? ORDER BY approval.version DESC LIMIT 1`, order.ID
 		runtime.Message = message
 	}
 	runtime.LaunchPhase, _ = state["launchPhase"].(string)
+	runtime.ResumeAfterRestart, _ = state["resumeAfterRestart"].(bool)
 	if raw, _ := state["launchStartedAt"].(string); raw != "" {
 		if parsed, parseErr := time.Parse(time.RFC3339Nano, raw); parseErr == nil {
 			runtime.LaunchStartedAt = &parsed

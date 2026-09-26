@@ -179,6 +179,8 @@ func (a *App) publishWorkOrderOutcomeV2(ctx context.Context, approval domain.Wor
 		title, level = "Готово", "success"
 	case status == domain.QuestCompleted:
 		title, level = "Готово с ограничениями", "warning"
+	case status == domain.QuestNeedsReview:
+		title, level = "Ждёт ручной приёмки", "warning"
 	}
 	passed, unavailable, failed := []string{}, []string{}, []string{}
 	action := ""
@@ -232,7 +234,9 @@ func (a *App) publishWorkOrderOutcomeV2(ctx context.Context, approval domain.Wor
 	if bundle.DeliveryReceipt != nil && bundle.DeliveryReceipt.ServicesRunning && strings.TrimSpace(bundle.DeliveryReceipt.URL) != "" {
 		content = append(content, "Приложение: "+bundle.DeliveryReceipt.URL)
 	}
-	if status == domain.QuestBlocked && action != "" {
+	if status == domain.QuestNeedsReview {
+		content = append(content, "Нужно действие: выполните ручные проверки и отметьте каждую в карточке квеста — «Принято» или «Не принято».")
+	} else if status == domain.QuestBlocked && action != "" {
 		content = append(content, action)
 	} else if status == domain.QuestBlocked {
 		content = append(content, "Нужно действие: устраните причину из строки «Ограничения» и повторите запуск квеста.")

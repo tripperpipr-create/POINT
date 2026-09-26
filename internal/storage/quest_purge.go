@@ -71,6 +71,7 @@ var questPurgeJournalTables = map[string]string{
 	"evidence_bundles":                   "улики готовности квеста, триггер evidence_bundles_no_delete",
 	"work_order_quest_control_events_v2": "журнал решений по квесту, триггер work_order_quest_controls_no_delete_v2",
 	"task_brief_revisions":               "подписанные версии задания, триггер task_brief_revisions_immutable_delete",
+	"work_order_manual_reviews_v2":       "решения человека по ручным критериям, триггер work_order_manual_reviews_v2_no_delete",
 }
 
 // PurgeQuest сносит квест проекта со всеми следами и возвращает, чего и сколько

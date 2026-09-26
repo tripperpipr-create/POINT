@@ -97,7 +97,33 @@ function watchMasterWorkOrders(host, master) {
   const conversationId = master?.sessions?.active
   for (const order of master?.workOrders || []) {
     if (isTransientWorkOrder(order)) watchMasterWorkOrder(host, order.id, conversationId)
+    else void resumeAfterRestart(host, order, conversationId)
   }
 }
 
-module.exports = { watchMasterWorkOrder, watchMasterWorkOrders, isTransientWorkOrder, activeStageRunId, runtimeSignature }
+// Запуск, прерванный перезапуском ядра до первого шага, продолжается сам:
+// исполнять ещё было нечего, а «нажмите Продолжить» после каждого перезапуска
+// было единственным, что человек делал в этом квесте. Ключ модели живёт только
+// в SecretStorage расширения, поэтому продолжает расширение, а не ядро, и
+// ровно один раз на квест.
+async function resumeAfterRestart(host, order, conversationId) {
+  const runtime = order?.runtime
+  if (runtime?.status !== 'paused' || !runtime?.resumeAfterRestart || !runtime?.questId || !host?.service) return
+  host.autoResumedQuests ||= new Set()
+  if (host.autoResumedQuests.has(runtime.questId) || typeof host.credentialFor !== 'function') return
+  host.autoResumedQuests.add(runtime.questId)
+  try {
+    const routing = order.routing || {}
+    const connectionId = routing.mode === 'auto' ? routing.routerConnectionId : routing.fixedConnectionId
+    const apiKey = connectionId ? await host.credentialFor({ connectionId }, 'утверждённого маршрута WorkOrder') : await host.credentialForOrchestrator()
+    await host.service.request('/api/v2/master/quests/' + encodeURIComponent(runtime.questId) + '/resume', {
+      method: 'POST', body: JSON.stringify({ message: '', apiKey }),
+    })
+    host.service.hostLog?.('info', `[chat] квест ${runtime.questId} продолжен после перезапуска ядра`)
+    watchMasterWorkOrder(host, order.id, conversationId)
+  } catch (error) {
+    host.service.hostLog?.('warn', `[chat] квест не продолжен после перезапуска ядра: ${String(error?.message || error).slice(0, 200)}`)
+  }
+}
+
+module.exports = { watchMasterWorkOrder, watchMasterWorkOrders, resumeAfterRestart, isTransientWorkOrder, activeStageRunId, runtimeSignature }

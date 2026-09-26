@@ -86,6 +86,7 @@ func (a *App) startWorkOrderLaunchV2(ctx context.Context, approval domain.WorkOr
 		quest.Controller = map[string]any{}
 	}
 	startedAt := time.Now().UTC()
+	delete(quest.Controller, "resumeAfterRestart")
 	quest.Controller["launchPhase"] = "preflight"
 	quest.Controller["launchStartedAt"] = startedAt.Format(time.RFC3339Nano)
 	if started, err := a.setWorkOrderQuestStatusV2(runCtx, quest, domain.QuestPreflight, workOrderLaunchStartedMessage); err == nil {
@@ -125,6 +126,16 @@ func (a *App) runWorkOrderLaunchV2(ctx context.Context, approval domain.WorkOrde
 			// Пока шёл запуск, человек успел отменить или поставить на паузу.
 			// Его решение старше нашего отказа.
 			slog.Warn("work order launch failed after the human moved the quest", "quest_id", approval.QuestID, "status", latest.Status, "error", launchErr)
+			return
+		}
+		// Запуск прервала остановка самого ядра, а не отказ: квест становился
+		// «blocked · context canceled», и человек нажимал «Продолжить» после
+		// каждого перезапуска. Пауза с честной причиной; если исполнять ещё было
+		// нечего, расширение продолжит запуск само.
+		if a.workOrderLaunchesStopping() && errors.Is(launchErr, context.Canceled) {
+			if saveErr := a.pauseLaunchInterruptedByShutdownV2(writeCtx, latest); saveErr != nil {
+				slog.Error("interrupted work order launch not paused", "quest_id", approval.QuestID, "error", saveErr)
+			}
 			return
 		}
 		if _, saveErr := a.setWorkOrderQuestStatusV2(writeCtx, latest, domain.QuestBlocked, message); saveErr != nil {
@@ -180,6 +191,24 @@ func (a *App) cancelWorkOrderLaunchV2(questID string) {
 // waitWorkOrderLaunches ждёт завершения фоновых запусков. Нужен проверкам,
 // которые читают исход сразу после утверждения наряда.
 func (a *App) waitWorkOrderLaunches() { a.workOrderLaunchWG.Wait() }
+
+// pauseLaunchInterruptedByShutdownV2 records a launch the core's own
+// shutdown cut off. Without a FlowRun nothing executed yet, so the extension
+// may resume it by itself after the restart.
+func (a *App) pauseLaunchInterruptedByShutdownV2(ctx context.Context, quest domain.Quest) error {
+	if quest.Controller == nil {
+		quest.Controller = map[string]any{}
+	}
+	quest.Controller["resumeAfterRestart"] = strings.TrimSpace(quest.FlowRunID) == ""
+	_, err := a.setWorkOrderQuestStatusV2(ctx, quest, domain.QuestPaused, questRecoveryMessageV2)
+	return err
+}
+
+func (a *App) workOrderLaunchesStopping() bool {
+	a.workOrderLaunchMu.Lock()
+	defer a.workOrderLaunchMu.Unlock()
+	return a.workOrderLaunchStopping
+}
 
 func (a *App) stopWorkOrderLaunches() {
 	a.workOrderLaunchMu.Lock()

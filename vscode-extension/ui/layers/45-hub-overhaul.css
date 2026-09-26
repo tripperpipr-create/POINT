@@ -78,6 +78,7 @@
 .party-status.running, .party-status.waiting_approval { border-color: var(--ember); color: var(--ember); animation: hub-pulse 1.6s ease-in-out infinite; }
 .hub-flow-approvals { padding: var(--s-4h); border: 1px solid var(--border); border-radius: var(--r-1); background: var(--raised); }
 .hub-sandbox-boundary.limited { border-color: color-mix(in srgb, var(--ember) 60%, var(--border)); }
+.hub-sandbox-unavailable { margin: var(--s-4) 0 0; color: var(--ember); overflow-wrap: anywhere; }
 .hub-sandbox-boundary > div { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-3); margin: var(--s-4) 0; }
 .hub-sandbox-boundary > div > span { display: grid; grid-template-columns: auto 1fr; gap: 1px var(--s-3); align-items: center; padding: var(--s-3); border: 1px solid var(--border); background: var(--panel); }
 .hub-sandbox-boundary > div > span b { grid-row: 1 / 3; color: var(--accent, var(--vital)); }

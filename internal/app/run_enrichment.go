@@ -24,6 +24,7 @@ func (a *App) runtimeSnapshotForProjectAgent(workspaceID string, projectAgent do
 		return domain.RunConfigurationSnapshot{}, err
 	}
 	normalizeRuntimeProfileDefaults(&profile)
+	widenLegacyContextWindowOnFreeRuntime(&profile)
 	if err := a.enrichProjectAgentForRun(workspaceID, projectAgent, &profile, nil); err != nil {
 		return domain.RunConfigurationSnapshot{}, err
 	}

@@ -63,10 +63,14 @@ type WorkOrderRuntime struct {
 	// LaunchPhase is the durable, user-visible step before a FlowRun exists.
 	// Planning can take minutes; a single `preflight` status made that time look
 	// like a frozen button rather than active work.
-	LaunchPhase     string     `json:"launchPhase,omitempty"`
-	LaunchStartedAt *time.Time `json:"launchStartedAt,omitempty"`
-	FlowID          string     `json:"flowId,omitempty"`
-	FlowRunID       string     `json:"flowRunId,omitempty"`
+	LaunchPhase string `json:"launchPhase,omitempty"`
+	// ResumeAfterRestart marks a launch the core's own shutdown interrupted
+	// before any work ran. The extension resumes it once, with the key the
+	// core does not hold.
+	ResumeAfterRestart bool       `json:"resumeAfterRestart,omitempty"`
+	LaunchStartedAt    *time.Time `json:"launchStartedAt,omitempty"`
+	FlowID             string     `json:"flowId,omitempty"`
+	FlowRunID          string     `json:"flowRunId,omitempty"`
 	// AgentIDs — исполнители, созданные утверждением наряда. Карточка обещала
 	// «будет создан» и после утверждения обязана показать, что он создан.
 	AgentIDs        []string           `json:"agentIds,omitempty"`

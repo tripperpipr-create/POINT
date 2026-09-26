@@ -56,6 +56,19 @@ if (!blocked.includes('master-v2-approved is-attention') || blocked.includes('ma
 }
 if (blocked.includes('>✓ Заблокирован')) throw new Error('blocked WorkOrder keeps the success mark')
 
+// Ручной критерий закрывает человек: карточка, которая просит ручную проверку,
+// обязана дать её отметить. Решённый критерий кнопок больше не предлагает.
+const manualCriteria = [{ id: 'db-down', kind: 'manual', text: 'Сбой базы виден в /health' }, { id: 'build', kind: 'verification', text: 'Сборка' }]
+const awaiting = masterWorkOrderCardsHtml([{ ...base, criteria: manualCriteria, runtime: { questId: 'quest-1', status: 'needs_review', evidence: { id: 'evidence-1', criteria: [{ criterionId: 'db-down', satisfied: false }, { criterionId: 'build', satisfied: true }] } } }], esc)
+for (const decision of ['accepted', 'rejected']) {
+  if (!awaiting.includes(`data-action="review-master-manual-criterion-v2" data-id="workorder-1" data-quest-id="quest-1" data-criterion-id="db-down" data-decision="${decision}"`)) {
+    throw new Error(`manual criterion cannot be ${decision} from the card`)
+  }
+}
+if (awaiting.includes('data-criterion-id="build"')) throw new Error('a machine-verified criterion offers a human decision')
+const decided = masterWorkOrderCardsHtml([{ ...base, criteria: manualCriteria, runtime: { questId: 'quest-1', status: 'completed', evidence: { id: 'evidence-1', criteria: [{ criterionId: 'db-down', satisfied: true, review: 'accepted' }] } } }], esc)
+if (decided.includes('review-master-manual-criterion-v2') || !decided.includes('>Принято<')) throw new Error('a decided manual criterion still offers buttons')
+
 // Готовый квест — единственный, кому принадлежит галочка.
 const done = masterWorkOrderCardsHtml([{ ...base, runtime: { questId: 'quest-1', status: 'completed' } }], esc)
 if (!done.includes('master-v2-approved is-done') || !done.includes('✓ Готово')) {

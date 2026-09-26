@@ -2,6 +2,7 @@ import { workOrderRunHtml } from './work-order-execution-views.js'
 import { masterAgentConsent } from './master-agent-card.js'
 import { countOf, list } from './format-units.js'
 import { masterCardMoreAttrs } from './master-card-open.js'
+import { manualReviewHtml } from './master-manual-review.js'
 import { DEFAULT_CRITERION_KIND, questChecklistHtml, questMenuHtml } from './master-quest-views.js'
 
 const labels = {
@@ -251,7 +252,7 @@ export function masterWorkOrderCardsHtml(orders, esc, busyIds = new Set(), deps 
 		checklistHtml: criteriaChecklistHtml(order, esc),
 		applicationHtml: applicationControls,
 		reportHtml: reportControl,
-		evidenceHtml: evidenceSummary,
+		evidenceHtml: manualReviewHtml(order, esc) + evidenceSummary,
 	})
     // Шапка квеста: точка состояния, кикер и мета справа. Гриф «ЕДИНАЯ
     // КАРТОЧКА ЗАПУСКА» прописными ушёл — он называл документ, а не то, что с
@@ -270,7 +271,7 @@ export function masterWorkOrderCardsHtml(orders, esc, busyIds = new Set(), deps 
       ${lifecycleNote}
       ${runtimeControls}
       ${applicationControls}
-	  ${evidenceSummary}
+	  ${manualReviewHtml(order, esc)}${evidenceSummary}
 	  ${editor}
       <footer>
         ${/* Решение одно, остальное — в меню. Четыре кнопки в ряд не говорили,

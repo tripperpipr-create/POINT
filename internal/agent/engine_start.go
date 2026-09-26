@@ -68,6 +68,9 @@ func (e *Engine) Start(input StartInput) (domain.Run, error) {
 	if err != nil {
 		return domain.Run{}, err
 	}
+	if err := refuseQuarantinedBrief(input.TaskBrief); err != nil {
+		return domain.Run{}, err
+	}
 	input.TaskBrief = copyExecutionBrief(input.TaskBrief)
 	profile, restrictErr := RestrictTaskProfile(input.Configuration.Profile, input.TaskBrief, input.Configuration.CustomTools)
 	if restrictErr != nil {
@@ -231,6 +234,9 @@ func (e *Engine) ContinueFromCheckpoint(input StartInput, existing domain.Run, c
 	}
 	fs, err := workspace.Open(fsRoot)
 	if err != nil {
+		return domain.Run{}, err
+	}
+	if err := refuseQuarantinedBrief(input.TaskBrief); err != nil {
 		return domain.Run{}, err
 	}
 	input.TaskBrief = copyExecutionBrief(input.TaskBrief)

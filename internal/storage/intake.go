@@ -171,5 +171,5 @@ func (s *SQLite) GetEvidenceBundle(ctx context.Context, questID string) (domain.
 	}
 	var bundle domain.EvidenceBundle
 	unmarshalJSON(raw, &bundle)
-	return bundle, nil
+	return s.overlayManualReviewsV2(ctx, bundle), nil
 }

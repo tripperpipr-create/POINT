@@ -292,7 +292,18 @@ const TOOL_WINDOW_COMMANDS = new Set([
   'localAgent.openIntegrations',
 ])
 
+// Кто попросил остановить ядро. Двойной SIGTERM сразу после «Утвердить» по
+// журналу ядра не объяснить: оно видит сигнал, но не отправителя. Две первые
+// рамки стека над stop() называют маршрут без полного стека в журнале.
+function stopCallerSummary(stack) {
+  const frames = String(stack || '').split('\n').slice(2)
+    .map(line => line.trim().replace(/^at\s+/, '').replace(/\s*\(.*[\\/]([^\\/]+:\d+):\d+\)$/, ' ($1)'))
+    .filter(Boolean)
+  return frames.slice(0, 2).join(' <- ') || 'unknown'
+}
+
 module.exports = {
+  stopCallerSummary,
   TOOL_WINDOW_COMMANDS,
   decisionResolvePath,
   companionFeedbackMarks,

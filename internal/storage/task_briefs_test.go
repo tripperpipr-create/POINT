@@ -75,3 +75,46 @@ func TestTaskBriefHistoryAndLegacyUpdates(t *testing.T) {
 		t.Fatal("legacy save or restart lost approval")
 	}
 }
+
+// An approval digest computed before the brief schema changed used to make
+// ListQuests fail, and /api/bootstrap took the whole UI down with it. Such a
+// record is now readable and can change status, but stays quarantined.
+func TestStoredBriefThatNoLongerValidatesIsQuarantinedNotFatal(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(filepath.Join(t.TempDir(), "quarantine.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	approved, err := domain.ApproveTaskBrief(domain.NormalizeTaskBrief(domain.TaskBrief{
+		Mode: domain.TaskModePrecise, State: "ready", Goal: "Return function", ResultKind: "code",
+		Criteria: []domain.AcceptanceCriterion{{ID: "c1", Text: "Contract", Kind: "manual"}},
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	quest := domain.Quest{ID: "q", WorkspaceID: "ws", Title: "Quest", Status: domain.QuestRunning, Brief: &approved, CreatedAt: now, UpdatedAt: now}
+	if err = store.SaveQuest(ctx, quest); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.db.ExecContext(ctx, `UPDATE quests SET brief_json=json_set(brief_json,'$.approvedDigest','digest-from-an-older-schema') WHERE id='q'`); err != nil {
+		t.Fatal(err)
+	}
+	quests, err := store.ListQuests(ctx, "ws")
+	if err != nil || len(quests) != 1 {
+		t.Fatalf("one stale approval must not fail the list: quests=%d err=%v", len(quests), err)
+	}
+	stored := quests[0]
+	if stored.Brief == nil || stored.Brief.Quarantine == "" {
+		t.Fatalf("stale approval was not quarantined: %#v", stored.Brief)
+	}
+	stored.Status = domain.QuestPaused
+	if err = store.SaveQuest(ctx, stored); err != nil {
+		t.Fatalf("an untouched quarantined brief must not block a status change: %v", err)
+	}
+	stored.Brief.Goal = "Smuggled goal"
+	if err = store.SaveQuest(ctx, stored); err == nil {
+		t.Fatal("a changed quarantined brief was written without validation")
+	}
+}

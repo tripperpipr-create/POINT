@@ -253,6 +253,15 @@ async function handleMasterMessage(message) {
 		  this.post({type:'masterWorkOrderRevised',workOrder,viewId:message.viewId})
 		  break
 		}
+        case 'reviewMasterManualCriterionV2': {
+          const workOrderId=String(message.workOrderId || '')
+          await this.service.request('/api/v2/master/quests/'+encodeURIComponent(String(message.questId || ''))+'/criteria/'+encodeURIComponent(String(message.criterionId || ''))+'/review',{
+            method:'POST',body:JSON.stringify({decision:String(message.decision || ''),note:String(message.note || '')})
+          })
+          const workOrder=await this.service.request('/api/v2/work-orders/'+encodeURIComponent(workOrderId))
+          this.post({type:'masterWorkOrderControlled',workOrder,viewId:message.viewId})
+          break
+        }
         case 'controlMasterWorkOrderQuestV2': {
           const questId=String(message.questId || '')
           const workOrderId=String(message.workOrderId || '')

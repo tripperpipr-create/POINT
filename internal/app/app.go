@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -312,6 +313,9 @@ func New(dataDir string, options ...Option) (*App, error) {
 			_ = cacheStore.Close()
 			_ = store.Close()
 			return nil, fmt.Errorf("configure execution sandbox: %w", err)
+		}
+		if reason := application.sandboxBackend.Capabilities().Unavailable; reason != "" {
+			slog.Warn("execution sandbox unavailable at startup; quests wait for Docker", "reason", reason)
 		}
 	}
 	application.engine = agent.NewEngine(store, application.emitEvent)

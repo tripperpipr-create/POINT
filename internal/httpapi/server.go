@@ -122,6 +122,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/v2/work-orders/{id}/revise", s.reviseWorkOrderV2)
 	s.mux.HandleFunc("POST /api/v2/work-orders/{id}/approve", s.approveWorkOrderV2)
 	s.mux.HandleFunc("POST /api/v2/master/quests/{id}/{action}", s.controlWorkOrderQuestV2)
+	s.mux.HandleFunc("POST /api/v2/master/quests/{id}/criteria/{criterionId}/review", s.reviewManualCriterionV2)
 	s.mux.HandleFunc("GET /api/v2/master/quests/{id}", s.getWorkOrderQuestV2)
 	s.mux.HandleFunc("GET /api/v2/master/quests/{id}/evidence", s.questEvidenceBundle)
 	s.mux.HandleFunc("POST /api/v2/master/quests/{id}/application/{action}", s.controlDeliveredApplicationV2)

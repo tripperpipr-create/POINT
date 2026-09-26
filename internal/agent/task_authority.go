@@ -3,6 +3,7 @@ package agent
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sort"
 	"strings"
 
@@ -158,4 +159,14 @@ func sortedToolNames(names map[string]struct{}) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// refuseQuarantinedBrief stops execution of a stored brief that no longer
+// passes today's rules. It runs before copyExecutionBrief: the JSON copy drops
+// the non-serialized quarantine marker.
+func refuseQuarantinedBrief(brief *domain.TaskBrief) error {
+	if brief == nil || brief.Quarantine == "" {
+		return nil
+	}
+	return fmt.Errorf("задание квеста не проходит текущие правила и не исполняется, пока его не утвердят заново: %s", brief.Quarantine)
 }

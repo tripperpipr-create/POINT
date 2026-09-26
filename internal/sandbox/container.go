@@ -56,7 +56,23 @@ type ContainerBackend struct {
 	infrastructure       func(context.Context, ...string) error
 	infrastructureOutput func(context.Context, ...string) (string, error)
 	runtimeBuildMu       sync.Mutex
+	availability         deferredProbe
 }
+
+// deferredProbe guards a backend whose daemon was down at startup. Point used
+// to exit instead, and took the chat and the IDE down with it. Until a probe
+// succeeds every sandbox operation fails with a clear reason; nothing ever
+// falls back to host execution.
+type deferredProbe struct {
+	mu      sync.Mutex
+	pending bool
+	lastAt  time.Time
+	lastErr error
+}
+
+// dockerReprobeInterval bounds how often a waiting operation re-asks the
+// daemon: each probe spawns three docker CLI calls.
+const dockerReprobeInterval = 15 * time.Second
 
 func NewContainerBackend(root string) *ContainerBackend {
 	return &ContainerBackend{
@@ -73,6 +89,7 @@ func NewContainerBackend(root string) *ContainerBackend {
 
 func (b *ContainerBackend) Capabilities() Capabilities {
 	return Capabilities{
+		Unavailable:                   b.Unavailable(),
 		Backend:                       "docker",
 		Version:                       b.DockerVersion,
 		APIVersion:                    b.APIVersion,
@@ -98,6 +115,9 @@ func (b *ContainerBackend) Create(ctx context.Context, request CreateRequest) (d
 	if err := b.validate(); err != nil {
 		return domain.SandboxRecord{}, err
 	}
+	if err := b.ensureAvailable(ctx); err != nil {
+		return domain.SandboxRecord{}, err
+	}
 	image, digest, err := b.resolveRuntimeImage(ctx, request.Image, request.Runtime)
 	if err != nil {
 		return domain.SandboxRecord{}, err
@@ -115,6 +135,9 @@ func (b *ContainerBackend) Create(ctx context.Context, request CreateRequest) (d
 
 func (b *ContainerBackend) Merge(ctx context.Context, request MergeRequest) (MergeResult, error) {
 	if err := b.validate(); err != nil {
+		return MergeResult{}, err
+	}
+	if err := b.ensureAvailable(ctx); err != nil {
 		return MergeResult{}, err
 	}
 	image, digest, err := b.resolveRuntimeImage(ctx, "", request.Runtime)
@@ -162,6 +185,9 @@ func (b *ContainerBackend) Probe(ctx context.Context) error {
 
 func (b *ContainerBackend) PrepareProcess(ctx context.Context, request ProcessRequest) (PreparedProcess, error) {
 	if err := b.validate(); err != nil {
+		return PreparedProcess{}, err
+	}
+	if err := b.ensureAvailable(ctx); err != nil {
 		return PreparedProcess{}, err
 	}
 	root, workdir, err := containerPaths(request.WorkspaceRoot, request.WorkingDirectory)
@@ -542,7 +568,9 @@ func BackendFromEnvironment(root string) (Backend, error) {
 		probeCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		if err := backend.Probe(probeCtx); err != nil {
-			return nil, err
+			// A stopped Docker Desktop is a state, not a misconfiguration: the
+			// core starts, and executions wait for the daemon (see Unavailable).
+			backend.deferProbe(err)
 		}
 		return backend, nil
 	default:
@@ -579,4 +607,49 @@ func pinAllowlistHosts(ctx context.Context, policy egress.Policy) ([]string, err
 		args = append(args, "--add-host", fqdn+":"+ip.String())
 	}
 	return args, nil
+}
+
+func (b *ContainerBackend) deferProbe(err error) {
+	b.availability.mu.Lock()
+	defer b.availability.mu.Unlock()
+	b.availability.pending = true
+	b.availability.lastErr = err
+	b.availability.lastAt = time.Now()
+}
+
+// ensureAvailable re-probes a backend that started without its daemon, at
+// most once per dockerReprobeInterval, and succeeds once Docker is up.
+func (b *ContainerBackend) ensureAvailable(ctx context.Context) error {
+	b.availability.mu.Lock()
+	defer b.availability.mu.Unlock()
+	if !b.availability.pending {
+		return nil
+	}
+	if b.availability.lastErr != nil && time.Since(b.availability.lastAt) < dockerReprobeInterval {
+		return dockerUnavailableError(b.availability.lastErr)
+	}
+	probeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	err := b.Probe(probeCtx)
+	b.availability.lastAt = time.Now()
+	if err != nil {
+		b.availability.lastErr = err
+		return dockerUnavailableError(err)
+	}
+	b.availability.pending, b.availability.lastErr = false, nil
+	return nil
+}
+
+// Unavailable says why sandboxed execution cannot run right now, or "".
+func (b *ContainerBackend) Unavailable() string {
+	b.availability.mu.Lock()
+	defer b.availability.mu.Unlock()
+	if !b.availability.pending {
+		return ""
+	}
+	return dockerUnavailableError(b.availability.lastErr).Error()
+}
+
+func dockerUnavailableError(err error) error {
+	return fmt.Errorf("Docker недоступен — запустите Docker Desktop и повторите запуск: %w", err)
 }

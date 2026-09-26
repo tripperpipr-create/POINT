@@ -1703,6 +1703,11 @@ button.hall-panel-row:focus-visible { outline: 1px solid var(--ui-focus); outlin
 .hall-dialogue { --t-base: 13px; --t-small: 11px; }
 .hall-memory-entry { padding: var(--s-5) 0; border-bottom: 1px solid var(--hub-border); }
 .hall-memory-entry > div { display: flex; flex-wrap: wrap; gap: var(--s-4); margin-top: var(--s-4); }
+.master-v2-manual-review { display: grid; gap: var(--s-3); margin-top: var(--s-4); padding: var(--s-3) var(--s-5); border: 1px solid var(--hub-border); border-radius: 8px; font: var(--fw-normal) var(--t-small) / 1.5 var(--font-ui); }
+.master-v2-manual-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-3); }
+.master-v2-manual-row > span { flex: 1 1 16ch; overflow-wrap: anywhere; }
+.master-v2-manual-row > div { display: flex; gap: var(--s-3); }
+.master-v2-manual-row .is-rejected { color: var(--vscode-errorForeground); }
 .hall-memory-inline { margin-top: var(--s-4); padding: var(--s-3) var(--s-5); border: 1px solid var(--hub-border); border-radius: 8px; font: var(--fw-normal) var(--t-small) / 1.5 var(--font-ui); }
 .hall-memory-inline .hall-memory-entry { padding: 0; border-bottom: 0; }
 .hall-memory-inline .hall-memory-entry + .hall-memory-entry { margin-top: var(--s-4); padding-top: var(--s-4); border-top: 1px solid var(--hub-border); }

@@ -362,7 +362,15 @@ func (a *App) ensureNoChangeSetDependents(set domain.ChangeSet, action string) e
 		dependsOnExecution := record.ParentExecutionID == set.ExecutionID || slices.Contains(record.ParentExecutionIDs, set.ExecutionID)
 		dependsOnChangeSet := slices.Contains(record.BaselineChangeSetIDs, set.ID)
 		if dependsOnExecution || dependsOnChangeSet {
-			return fmt.Errorf("cannot %s change set %s while dependent execution %s is %s", action, set.ID, execution.ID, execution.Status)
+			// The refusal is the whole message the card shows. A bare "while
+			// dependent execution … is interrupted" was clicked 15 times in a
+			// row: an interrupted execution never resumes by itself, and nothing
+			// said that stopping it is the way out.
+			verb := map[string]string{"reject": "отклонить", "revert": "откатить"}[action]
+			if verb == "" {
+				verb = action
+			}
+			return fmt.Errorf("нельзя %s набор правок %s: от него зависит исполнение %s (%s). Остановите это исполнение или отмените его квест, затем повторите", verb, set.ID, execution.ID, execution.Status)
 		}
 	}
 	return nil

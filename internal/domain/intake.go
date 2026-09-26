@@ -135,6 +135,12 @@ type CriterionEvidence struct {
 	DurationMs  int64  `json:"durationMs,omitempty"`
 	Summary     string `json:"summary,omitempty"`
 	ArtifactID  string `json:"artifactId,omitempty"`
+	// Review is a human decision on a manual criterion (ManualReviewAccepted
+	// or ManualReviewRejected). It is overlaid from ManualCriterionReview on
+	// read and is never produced by a model or an executor.
+	Review     string     `json:"review,omitempty"`
+	ReviewNote string     `json:"reviewNote,omitempty"`
+	ReviewedAt *time.Time `json:"reviewedAt,omitempty"`
 }
 
 type VerificationCheck struct {

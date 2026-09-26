@@ -10,6 +10,7 @@
 
 import { closeMasterMention, masterMentionState } from './master-mention-ui.js'
 import { masterAgentConsent } from './master-agent-card.js'
+import { handleManualReviewClick } from './master-manual-review.js'
 import { icon } from './ui-icons.js'
 import { masterQueuePause } from './master-compose-keys.js'
 
@@ -94,6 +95,7 @@ export function handleMasterClickAction({ action, target, ui, applyMasterFind, f
     render()
     return true
   }
+  if (action === 'review-master-manual-criterion-v2') return handleManualReviewClick(target, ui, vscode, render)
   if (action === 'control-master-application-v2') {
     const id=String(target.dataset.id || '')
     const questId=String(target.dataset.questId || '')

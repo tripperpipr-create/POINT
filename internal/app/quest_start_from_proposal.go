@@ -208,6 +208,7 @@ func (a *App) startQuestFromProposalUsingQuest(ctx context.Context, ws domain.Wo
 			Skills: skills,
 			Config: cfg, Proposal: proposal, Agents: runnableAgents, LockedAgentIDs: locked, APIKey: orchestratorAPIKey,
 			Project: a.masterProjectFacts(ctx), Signals: selectionSignals, ModelCandidates: modelCandidates,
+			Environment: a.plannerExecutionEnvironment(proposal.Brief),
 			Progress: func(progress orchestrator.PlanProgress) {
 				a.updateWorkOrderLaunchProgressV2(ctx, &quest, "planning", progress.Message)
 			},
@@ -218,6 +219,7 @@ func (a *App) startQuestFromProposalUsingQuest(ctx context.Context, ws domain.Wo
 			a.updateWorkOrderLaunchProgressV2(ctx, &quest, "planning", "Первая попытка планирования не удалась; повторяем запрос модели")
 			firstErr := planErr
 			attempts = 2
+			planRequest.RetryFeedback = plannerFailureText(firstErr)
 			planned, planErr = planner.Plan(ctx, planRequest)
 			if planErr != nil {
 				planErr = fmt.Errorf("план модели не получен после двух попыток: первая — %s; вторая — %s", plannerFailureText(firstErr), plannerFailureText(planErr))

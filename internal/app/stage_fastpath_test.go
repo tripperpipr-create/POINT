@@ -167,19 +167,30 @@ func TestMasterCriteriaSkillNamesOnlyManagedComposeChecks(t *testing.T) {
 		}
 	}
 	commands := regexp.MustCompile("`((?:docker compose|curl -sf) [^`]+)`").FindAllStringSubmatch(instructions, -1)
-	if len(commands) < 3 {
-		t.Fatalf("навык критериев перестал называть управляемые проверки Compose: найдено %d", len(commands))
+	structured := regexp.MustCompile("`(\\{[^`]+\\})`").FindAllStringSubmatch(instructions, -1)
+	if len(commands) < 2 || len(structured) < 2 {
+		t.Fatalf("навык критериев перестал называть управляемые проверки Compose: команд %d, структурных форм %d", len(commands), len(structured))
 	}
+	forms := []json.RawMessage{}
 	for _, match := range commands {
-		command := strings.ReplaceAll(match[1], "ПОРТ", "8080")
-		arguments, _ := json.Marshal(map[string]string{"command": command})
+		arguments, _ := json.Marshal(map[string]string{"command": strings.ReplaceAll(match[1], "ПОРТ", "8080")})
+		forms = append(forms, arguments)
+	}
+	for _, match := range structured {
+		form := strings.NewReplacer("ПОРТ", "8080", "СЕРВИС", "postgres").Replace(match[1])
+		if !json.Valid([]byte(form)) {
+			t.Fatalf("структурная форма навыка — не JSON: %s", form)
+		}
+		forms = append(forms, json.RawMessage(form))
+	}
+	for _, arguments := range forms {
 		criterion := domain.AcceptanceCriterion{ID: "c", Kind: "verification", Tool: "run_command", Arguments: arguments}
 		order := domain.WorkOrder{Criteria: []domain.AcceptanceCriterion{criterion}}
 		if !deferredHostCriterionV2(order, criterion) {
-			t.Fatalf("%q не будет отложена до проверки на хосте", command)
+			t.Fatalf("%s не будет отложена до проверки на хосте", arguments)
 		}
-		if kind, _ := managedComposeCriterionKindV2(order, command); kind == "" {
-			t.Fatalf("%q не имеет управляемой проверки на хосте", command)
+		if check := managedHostCheckFromArgsV2(order, arguments); check.Kind == "" {
+			t.Fatalf("%s не имеет управляемой проверки на хосте", arguments)
 		}
 	}
 }

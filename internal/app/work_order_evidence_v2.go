@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -91,9 +90,9 @@ func (a *App) finalizeWorkOrderQuestAfterFlowV2(approval domain.WorkOrderApprova
 			// commands frozen in the approved WorkOrder, then let the completion
 			// profile restore and verify the final service state.
 			composeChecks := a.runDeferredComposeCriteriaV2(ctx, approval.WorkOrder, approval.WorkOrder.Workspace.Path, &bundle)
-			if failed := failedCompletionCheckKindsV2(composeChecks); len(failed) > 0 {
+			if failed := failedHostCriteriaV2(composeChecks, approval.WorkOrder); len(failed) > 0 {
 				bundle.KnownLimitations = append(bundle.KnownLimitations,
-					"Результат перенесён в проект, но не прошёл Compose-критерии: "+strings.Join(failed, ", "))
+					"Результат перенесён в проект, но не прошёл проверки на хосте: "+strings.Join(failed, "; "))
 			}
 			// The profile runs on the delivered revision: build, tests and a
 			// started service prove the result the user will actually open,
@@ -182,8 +181,18 @@ func (a *App) publishWorkOrderOutcomeV2(ctx context.Context, approval domain.Wor
 		title, level = "Готово с ограничениями", "warning"
 	}
 	passed, unavailable, failed := []string{}, []string{}, []string{}
+	action := ""
+	criterionText := map[string]string{}
+	for _, criterion := range approval.WorkOrder.Criteria {
+		criterionText[criterion.ID] = strings.TrimSpace(criterion.Text)
+	}
 	for _, check := range bundle.VerificationChecks {
-		name := strings.TrimSpace(check.Kind)
+		// Criterion checks share the kind "acceptance"; naming them by kind made
+		// the card say "acceptance, acceptance" instead of what actually failed.
+		name := criterionText[check.ID]
+		if name == "" {
+			name = strings.TrimSpace(check.Kind)
+		}
 		if name == "" {
 			name = check.ID
 		}
@@ -194,6 +203,9 @@ func (a *App) publishWorkOrderOutcomeV2(ctx context.Context, approval domain.Wor
 			unavailable = append(unavailable, name)
 		default:
 			failed = append(failed, name)
+			if action == "" {
+				action = hostCheckActionV2(check.Summary)
+			}
 		}
 	}
 	for _, criterion := range approval.WorkOrder.Criteria {
@@ -220,8 +232,10 @@ func (a *App) publishWorkOrderOutcomeV2(ctx context.Context, approval domain.Wor
 	if bundle.DeliveryReceipt != nil && bundle.DeliveryReceipt.ServicesRunning && strings.TrimSpace(bundle.DeliveryReceipt.URL) != "" {
 		content = append(content, "Приложение: "+bundle.DeliveryReceipt.URL)
 	}
-	if status == domain.QuestBlocked {
-		content = append(content, "Нужно действие: устраните указанную ошибку и повторите запуск квеста.")
+	if status == domain.QuestBlocked && action != "" {
+		content = append(content, action)
+	} else if status == domain.QuestBlocked {
+		content = append(content, "Нужно действие: устраните причину из строки «Ограничения» и повторите запуск квеста.")
 	} else if bundle.Assurance == domain.WorkOrderAssurancePartial && len(unavailable) > 0 {
 		content = append(content, "Нужно действие: при необходимости выполните перечисленные ручные проверки.")
 	}
@@ -374,38 +388,6 @@ func managedComposeLocalURLV2(order domain.WorkOrder, base string) bool {
 	return approvedURL == "" || approvedURL == base
 }
 
-func managedComposeJSONProbeV2(ctx context.Context, probeURL string) (int, string, error) {
-	client := &http.Client{Timeout: 3 * time.Second, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
-	last := "no response"
-	for {
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, probeURL, nil)
-		if err != nil {
-			return 1, "invalid health URL", err
-		}
-		resp, err := client.Do(req)
-		if err == nil {
-			var body struct {
-				Status string `json:"status"`
-			}
-			decodeErr := json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&body)
-			_ = resp.Body.Close()
-			last = resp.Status
-			if resp.StatusCode == http.StatusOK && decodeErr == nil && body.Status == "ok" {
-				return 0, "GET " + probeURL + ": 200, status ok", nil
-			}
-		} else {
-			last = security.Redact(err.Error())
-		}
-		select {
-		case <-ctx.Done():
-			return 1, "GET " + probeURL + ": expected 200 with status ok, last " + last, nil
-		case <-ticker.C:
-		}
-	}
-}
-
 func managedComposeProbeV2(ctx context.Context, probeURL string, expected int) (int, string, error) {
 	client := &http.Client{
 		Timeout:       3 * time.Second,
@@ -445,11 +427,6 @@ func (a *App) runManagedComposeCriterionV2(ctx context.Context, directory, kind,
 			command = "docker compose up -d"
 		}
 		return runner.Run(ctx, directory, command)
-	}
-	if kind == "health-json-ok" {
-		probeCtx, cancel := context.WithTimeout(ctx, 90*time.Second)
-		defer cancel()
-		return managedComposeJSONProbeV2(probeCtx, base+"/health")
 	}
 	compose := "docker compose up -d --wait"
 	if kind == "health-503-live-200" {
@@ -505,15 +482,15 @@ func (a *App) runDeferredComposeCriteriaV2(ctx context.Context, order domain.Wor
 		_ = json.Unmarshal(criterion.Arguments, &args)
 		command := strings.TrimSpace(args.Command)
 		started := time.Now()
-		kind, base := managedComposeCriterionKindV2(order, command)
+		hostCheck := managedHostCheckFromArgsV2(order, criterion.Arguments)
 		var code int
 		var output string
 		var err error
-		if kind == "" {
+		if hostCheck.Kind == "" {
 			err = errors.New("Compose-критерий не имеет поддерживаемой управляемой проверки на хосте")
 		} else {
 			attemptCtx, cancel := context.WithTimeout(ctx, completionCheckTimeout)
-			code, output, err = a.runManagedComposeCriterionV2(attemptCtx, directory, kind, base, runner)
+			code, output, err = a.runManagedHostCheckV2(attemptCtx, directory, hostCheck, runner)
 			cancel()
 		}
 		expected := 0

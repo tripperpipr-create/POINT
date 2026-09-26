@@ -5,8 +5,10 @@ import (
 	"local-agent-workbench/internal/textutil"
 	"net"
 	"net/url"
+	"sort"
 	"strings"
 	"time"
+	"unicode"
 
 	"local-agent-workbench/internal/domain"
 	"local-agent-workbench/internal/environment"
@@ -118,7 +120,7 @@ func (a *App) saveMasterWorkOrderV2(ctx context.Context, proposal *domain.QuestP
 		order.Delivery.CommitMode = "squash"
 	}
 	order.Setup = masterSetupPlanV2(order.Stack.ID, brief)
-	order.Network = masterNetworkGrantsV2(brief, sources, order.Setup)
+	order.Network = masterNetworkGrantsV2(brief, sources, order.Setup, masterToolchainsV2(brief, order.Workspace))
 	order.Completion = masterCompletionProfileV2(order)
 	current, getErr := a.store.GetWorkOrderV2(ctx, order.ID)
 	if getErr == nil {
@@ -455,7 +457,7 @@ func composerDistributionHostsV2() []string {
 	return []string{"repo.packagist.org", "packagist.org", "github.com", "api.github.com", "codeload.github.com", "raw.githubusercontent.com"}
 }
 
-func masterNetworkGrantsV2(brief domain.TaskBrief, sources []domain.SourceSnapshotRef, setup domain.SetupPlan) []domain.NetworkGrant {
+func masterNetworkGrantsV2(brief domain.TaskBrief, sources []domain.SourceSnapshotRef, setup domain.SetupPlan, toolchains []string) []domain.NetworkGrant {
 	grants := map[string]string{}
 	for _, value := range brief.Permissions.NetworkHosts {
 		host := strings.ToLower(strings.TrimSpace(value))
@@ -472,6 +474,18 @@ func masterNetworkGrantsV2(brief domain.TaskBrief, sources []domain.SourceSnapsh
 			grants[net.JoinHostPort(strings.ToLower(parsed.Hostname()), "443")] = "Обновление или проверка утверждённого источника"
 		}
 	}
+	// A package registry of the chosen language is part of the approved stack:
+	// without it the planner "works around" the missing network by hand-writing
+	// what a standard library already does (a PostgreSQL wire protocol instead
+	// of pgx). The grant is shown on the card like any other.
+	for _, toolchain := range toolchains {
+		for _, host := range environment.RegistryHosts(toolchain) {
+			key := net.JoinHostPort(host, "443")
+			if _, ok := grants[key]; !ok {
+				grants[key] = "Загрузка зависимостей: " + masterToolchainLabelV2(toolchain)
+			}
+		}
+	}
 	if setup.ID == "php-symfony-7" {
 		for _, host := range composerDistributionHostsV2() {
 			grants[net.JoinHostPort(host, "443")] = "Загрузка утверждённых Composer-зависимостей Symfony"
@@ -481,5 +495,79 @@ func masterNetworkGrantsV2(brief domain.TaskBrief, sources []domain.SourceSnapsh
 	for host, purpose := range grants {
 		result = append(result, domain.NetworkGrant{Host: host, Purpose: purpose})
 	}
+	sort.Slice(result, func(i, j int) bool { return result[i].Host < result[j].Host })
 	return result
+}
+
+// masterToolchainKeywordsV2 recognises the language a brief commits to. Only
+// whole words count, so "javascript" is not Java and "golang.org" is not Go.
+var masterToolchainKeywordsV2 = map[string][]string{
+	"go":     {"go", "golang", "go.mod", "go.sum"},
+	"node":   {"node", "node.js", "nodejs", "npm", "typescript", "javascript", "express", "nestjs", "next.js"},
+	"python": {"python", "pip", "django", "fastapi", "flask", "pyproject.toml", "requirements.txt"},
+	"php":    {"php", "composer", "laravel", "symfony"},
+	"rust":   {"rust", "cargo"},
+	"java":   {"java", "maven", "gradle", "kotlin"},
+	"dotnet": {"dotnet", ".net", "c#", "asp.net"},
+}
+
+// masterToolchainsV2 combines the manifests already in the workspace with the
+// language named in the approved scope, decisions and criteria. Out-of-scope
+// text is ignored: "без Python-скриптов" must not open PyPI.
+func masterToolchainsV2(brief domain.TaskBrief, workspace domain.WorkspacePlan) []string {
+	found := map[string]bool{}
+	if workspace.Mode == "existing" {
+		for _, toolchain := range environment.ManifestToolchains(workspace.Path) {
+			found[toolchain] = true
+		}
+	}
+	parts := []string{brief.Goal}
+	parts = append(parts, brief.Scope...)
+	for _, decision := range brief.Decisions {
+		parts = append(parts, decision.Topic, decision.Decision)
+	}
+	for _, criterion := range brief.Criteria {
+		parts = append(parts, criterion.Text, string(criterion.Arguments))
+	}
+	words := map[string]bool{}
+	for _, word := range strings.FieldsFunc(strings.ToLower(strings.Join(parts, " ")), func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '.' && r != '#'
+	}) {
+		words[strings.TrimRight(word, ".")] = true
+	}
+	for toolchain, keywords := range masterToolchainKeywordsV2 {
+		for _, keyword := range keywords {
+			if words[keyword] {
+				found[toolchain] = true
+				break
+			}
+		}
+	}
+	result := make([]string, 0, len(found))
+	for toolchain := range found {
+		result = append(result, toolchain)
+	}
+	sort.Strings(result)
+	return result
+}
+
+func masterToolchainLabelV2(toolchain string) string {
+	switch toolchain {
+	case "go":
+		return "Go-модули"
+	case "node":
+		return "npm-пакеты"
+	case "python":
+		return "пакеты Python"
+	case "php":
+		return "Composer-пакеты"
+	case "rust":
+		return "crates Rust"
+	case "java":
+		return "Maven-артефакты"
+	case "dotnet":
+		return "NuGet-пакеты"
+	default:
+		return toolchain
+	}
 }

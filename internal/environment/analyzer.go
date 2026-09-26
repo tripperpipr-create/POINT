@@ -36,6 +36,47 @@ var manifestRules = []manifestRule{
 	{Path: "global.json", Toolchain: "dotnet", Version: "8", Registry: []string{"api.nuget.org"}, Test: command("tests", "Run .NET tests", "dotnet", "test")},
 }
 
+// RegistryHosts returns the package registries of a toolchain from the same
+// table the manifest analyzer reads, so a greenfield brief that picks a
+// language gets the network an existing project with that manifest would get.
+func RegistryHosts(toolchain string) []string {
+	seen := map[string]bool{}
+	hosts := []string{}
+	for _, rule := range manifestRules {
+		if rule.Toolchain != toolchain {
+			continue
+		}
+		for _, host := range rule.Registry {
+			if !seen[host] {
+				seen[host] = true
+				hosts = append(hosts, host)
+			}
+		}
+	}
+	sort.Strings(hosts)
+	return hosts
+}
+
+// ManifestToolchains lists the toolchains whose manifests exist under root.
+func ManifestToolchains(root string) []string {
+	if strings.TrimSpace(root) == "" {
+		return nil
+	}
+	seen := map[string]bool{}
+	toolchains := []string{}
+	for _, rule := range manifestRules {
+		if !seen[rule.Toolchain] && exists(root, rule.Path) {
+			seen[rule.Toolchain] = true
+			toolchains = append(toolchains, rule.Toolchain)
+		}
+	}
+	if !seen["dotnet"] && hasCSProj(root) {
+		toolchains = append(toolchains, "dotnet")
+	}
+	sort.Strings(toolchains)
+	return toolchains
+}
+
 func command(id, purpose, program string, arguments ...string) *domain.EnvironmentCommand {
 	return &domain.EnvironmentCommand{ID: id, Purpose: purpose, Program: program, Arguments: arguments, ProvidesVerification: id == "tests"}
 }

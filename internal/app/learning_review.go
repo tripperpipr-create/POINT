@@ -118,6 +118,15 @@ func (a *App) reviewAgentRun(ctx context.Context, run domain.Run, projectAgentID
 			}
 		}
 	}
+	// A failure used to mint a new Skill whenever the tool set differed a
+	// little: the developer agent ended with 18 near-identical «record
+	// verification evidence» Skills eating half its context. One failure
+	// category keeps one recovery Skill per agent, and the reviewer revises it
+	// with the previous text in view.
+	failureCategory := learningFailureCategory(report)
+	if previous == nil && trigger == learningTriggerFailure {
+		previous = equippedRecoverySkill(skills, agent, failureCategory)
+	}
 	skillLocked := previous != nil && trigger != learningTriggerFeedback && trigger != learningTriggerFailure && runLoadedExactSkillRevision(run, *previous)
 
 	review, mode, modelFailure := a.generateLearningReview(ctx, run, agent, trajectory, previous, trigger, apiKey)
@@ -179,6 +188,9 @@ func (a *App) reviewAgentRun(ctx context.Context, run domain.Run, projectAgentID
 		learned, promotionStatus = buildLearnedSkill(review, previous, agent, blueprint, ownerID, ownerKind, signature, trajectory.Tools, sourceRuns, sourceWorkspaces, sourceAgents, revision, now, trigger == learningTriggerFailure)
 		learned.Configuration["evalGate"] = evaluation
 		learned.Configuration["workflowDigest"] = signature
+		if trigger == learningTriggerFailure {
+			learned.Configuration["failureCategory"] = failureCategory
+		}
 		item.SkillID = learned.ID
 		item.PromotionStatus = promotionStatus
 		item.AfterSkill = skillPointer(learned)

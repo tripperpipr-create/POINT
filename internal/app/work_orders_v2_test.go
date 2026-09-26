@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -80,8 +81,15 @@ func TestMasterProposalBecomesSingleApprovableWorkOrderV2(t *testing.T) {
 	if len(order.Roster.Permanent) != 1 || !order.Roster.Permanent[0].RequiresConsent || order.Roster.Permanent[0].Existing {
 		t.Fatalf("missing agent must remain an in-feed staffing proposal: %#v", order.Roster)
 	}
-	if len(order.Network) != 1 || order.Network[0].Host != "repo.packagist.org:443" {
-		t.Fatalf("network authority was not normalized to exact TLS host: %#v", order.Network)
+	normalized := false
+	for _, grant := range order.Network {
+		if _, _, splitErr := net.SplitHostPort(grant.Host); splitErr != nil {
+			t.Fatalf("network authority was not normalized to exact TLS host: %#v", order.Network)
+		}
+		normalized = normalized || grant.Host == "repo.packagist.org:443"
+	}
+	if !normalized {
+		t.Fatalf("Master-approved host is missing from network authority: %#v", order.Network)
 	}
 	// A staffing proposal blocks approval until its card creates a real agent.
 	if _, consentErr := application.ApproveWorkOrderV2(context.Background(), order.ID, ApproveWorkOrderV2Request{
@@ -135,7 +143,7 @@ func TestMasterProposalBecomesSingleApprovableWorkOrderV2(t *testing.T) {
 
 func TestSymfonySetupDeclaresComposerDistributionHosts(t *testing.T) {
 	setup := masterSetupPlanV2("php-symfony-7", domain.TaskBrief{})
-	grants := masterNetworkGrantsV2(domain.TaskBrief{}, nil, setup)
+	grants := masterNetworkGrantsV2(domain.TaskBrief{}, nil, setup, nil)
 	got := map[string]bool{}
 	for _, grant := range grants {
 		got[grant.Host] = true
@@ -145,8 +153,50 @@ func TestSymfonySetupDeclaresComposerDistributionHosts(t *testing.T) {
 			t.Fatalf("Symfony setup omits Composer distribution host %s: %#v", host, grants)
 		}
 	}
-	if extra := masterNetworkGrantsV2(domain.TaskBrief{}, nil, domain.SetupPlan{}); len(extra) != 0 {
+	if extra := masterNetworkGrantsV2(domain.TaskBrief{}, nil, domain.SetupPlan{}, nil); len(extra) != 0 {
 		t.Fatalf("unrelated setup gained network grants: %#v", extra)
+	}
+}
+
+func TestGreenfieldBriefGrantsRegistryOfChosenLanguage(t *testing.T) {
+	brief := domain.TaskBrief{
+		Goal:       "Go-сервис с эндпоинтом /health, возвращающим статус сервиса и доступность PostgreSQL",
+		Scope:      []string{"Go-сервис на net/http с эндпоинтом GET /health", "docker-compose.yml: сервис + PostgreSQL"},
+		OutOfScope: []string{"Python-скрипты миграций"},
+	}
+	toolchains := masterToolchainsV2(brief, domain.WorkspacePlan{Mode: "managed"})
+	if strings.Join(toolchains, ",") != "go" {
+		t.Fatalf("toolchains = %v, want only go (out-of-scope Python must not count)", toolchains)
+	}
+	got := map[string]string{}
+	for _, grant := range masterNetworkGrantsV2(brief, nil, domain.SetupPlan{}, toolchains) {
+		got[grant.Host] = grant.Purpose
+	}
+	for _, host := range []string{"proxy.golang.org:443", "sum.golang.org:443"} {
+		if !strings.Contains(got[host], "Go-модули") {
+			t.Fatalf("Go brief lacks registry grant %s: %#v", host, got)
+		}
+	}
+	if _, ok := got["pypi.org:443"]; ok {
+		t.Fatalf("out-of-scope Python opened PyPI: %#v", got)
+	}
+	for _, text := range []string{"Сделай страницу на JavaScript", "Лендинг с формой"} {
+		for _, toolchain := range masterToolchainsV2(domain.TaskBrief{Goal: text}, domain.WorkspacePlan{}) {
+			if toolchain == "java" || toolchain == "go" {
+				t.Fatalf("%q matched %s by substring", text, toolchain)
+			}
+		}
+	}
+}
+
+func TestExistingManifestGrantsItsRegistry(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module demo\n\ngo 1.22\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	toolchains := masterToolchainsV2(domain.TaskBrief{Goal: "Добавь эндпоинт /version"}, domain.WorkspacePlan{Mode: "existing", Path: root})
+	if strings.Join(toolchains, ",") != "go" {
+		t.Fatalf("existing go.mod was not recognised: %v", toolchains)
 	}
 }
 

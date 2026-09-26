@@ -341,9 +341,15 @@ func (a *App) masterLearningCall(ctx context.Context, model providers.Model, cfg
 	}
 	encoded, _ := json.Marshal(req)
 	reserved := int64(len(encoded)+req.MaxOutputTokens+512) * 3
-	id, err := a.store.ReserveMasterLearning(ctx, ws, reserved)
-	if err != nil {
-		return "", 0, err
+	// The ceiling guards money. On a free runtime (llmux, Ollama) it only
+	// starved learning: one job deferred on "недостаточно бюджета обучения"
+	// and, being claimed first on every wake, held the whole queue behind it.
+	charged := domain.RuntimeChargesForTokens(cfg.Provider, cfg.ProviderPreset)
+	id := ""
+	if charged {
+		if id, err = a.store.ReserveMasterLearning(ctx, ws, reserved); err != nil {
+			return "", 0, err
+		}
 	}
 	var output strings.Builder
 	var calls []providers.ToolCall
@@ -372,7 +378,12 @@ func (a *App) masterLearningCall(ctx context.Context, model providers.Model, cfg
 	if err != nil || unknown || tokens <= 0 {
 		actual = 0
 	}
-	settleErr := a.store.SettleMasterLearning(context.Background(), id, actual)
+	var settleErr error
+	if charged {
+		settleErr = a.store.SettleMasterLearning(context.Background(), id, actual)
+	} else {
+		settleErr = a.store.RecordMasterLearningSpend(context.Background(), ws, tokens)
+	}
 	if err == nil {
 		err = settleErr
 	}

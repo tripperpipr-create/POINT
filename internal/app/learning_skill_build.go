@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"local-agent-workbench/internal/diagnostics"
 	"local-agent-workbench/internal/domain"
 )
 
@@ -49,7 +50,7 @@ func buildLearnedSkill(review learningReview, previous *domain.SkillDefinition, 
 	}
 	if previous != nil {
 		copy := *previous
-		familyID := fmt.Sprint(previous.Configuration["familyId"])
+		familyID := skillFamilyID(*previous)
 		if familyID == "" {
 			familyID = previous.ID
 		}
@@ -183,4 +184,62 @@ func learningPromotionEvidence(status, reason string, workspaceCount int) string
 		}
 		return "только этот проект · процедура требует проектного профиля tools"
 	}
+}
+
+// maxLearnedSkillsPerAgent bounds how much of an agent's prompt autonomous
+// learning may occupy. The oldest learned Skill leaves first; the binding
+// snapshot in the improvement record lets a rollback bring it back.
+const maxLearnedSkillsPerAgent = 5
+
+func capLearnedSkillIDs(ids []string, keep string, limit int) []string {
+	learned := 0
+	for _, id := range ids {
+		if strings.HasPrefix(id, "skill-learned-") {
+			learned++
+		}
+	}
+	result := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if learned > limit && id != keep && strings.HasPrefix(id, "skill-learned-") {
+			learned--
+			continue
+		}
+		result = append(result, id)
+	}
+	return result
+}
+
+// learningFailureCategory groups failed runs by what went wrong rather than
+// by which tools happened to be called.
+func learningFailureCategory(report diagnostics.RunDiagnostics) string {
+	switch {
+	case report.Verification.Required && !report.Verification.Recorded:
+		return "verification_gap"
+	case report.Tools.Failed > 0:
+		return "tool_failure"
+	default:
+		return "run_failure"
+	}
+}
+
+// equippedRecoverySkill finds the newest recovery Skill of the same failure
+// category already equipped on the agent.
+func equippedRecoverySkill(skills []domain.SkillDefinition, agent domain.ProjectAgent, category string) *domain.SkillDefinition {
+	byID := make(map[string]domain.SkillDefinition, len(skills))
+	for _, skill := range skills {
+		byID[skill.ID] = skill
+	}
+	for index := len(agent.SkillIDs) - 1; index >= 0; index-- {
+		skill, ok := byID[agent.SkillIDs[index]]
+		if !ok {
+			continue
+		}
+		stored, _ := skill.Configuration["failureCategory"].(string)
+		managedBy, _ := skill.Configuration["managedBy"].(string)
+		promotion, _ := skill.Configuration["promotionStatus"].(string)
+		if stored == category && managedBy == agentLearningManagedBy && promotion != "rolled_back" {
+			return &skill
+		}
+	}
+	return nil
 }

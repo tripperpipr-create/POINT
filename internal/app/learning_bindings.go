@@ -171,6 +171,7 @@ func (a *App) learningBindings(ctx context.Context, source domain.ProjectAgent, 
 			if !slices.Contains(boundAgent.SkillIDs, learned.ID) {
 				boundAgent.SkillIDs = append(boundAgent.SkillIDs, learned.ID)
 			}
+			boundAgent.SkillIDs = capLearnedSkillIDs(boundAgent.SkillIDs, learned.ID, maxLearnedSkillsPerAgent)
 		}
 		if instructionTargets[boundAgent.ID] && !slices.Contains(boundAgent.Rules, instruction) {
 			boundAgent.Rules = append(boundAgent.Rules, instruction)

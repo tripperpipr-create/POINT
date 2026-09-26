@@ -1,4 +1,4 @@
-import { masterUsedMemoryHtml } from './master-memory-ui.js'
+import { masterProposedMemoryHtml, masterUsedMemoryHtml } from './master-memory-ui.js'
 import { masterContextAddHtml, masterContextHtml, masterMessageAttachmentsHtml } from './master-context-ui.js'
 import { masterSessionHtml, masterComposerHtml } from './master-session-ui.js'
 import { masterDayKey, masterDayLabel, masterTimeLabel } from './master-feed.js'
@@ -403,7 +403,7 @@ export function createMasterThreadViews(dependencies) {
     // подвалом их отделяла от ответа пустая строка действий, видимых только
     // под указателем.
     const foot = `${mine || broken ? '' : masterAnswerBadgeHtml(item)}${pending ? '' : masterMessageToolsHtml(item, mine, previousAsk)}${stamp}${mine ? '' : masterTurnTimeHtml(item)}${masterUsedMemoryHtml(item.memoryIds,ui.masterData?.sessions?.memoryEntries,esc,item.id,ui.masterOpenReasoning.has('memory:'+item.id))}`
-    const attached = `${masterMessageAttachmentsHtml(item.attachments,esc)}${trail}${String(item.content || '').trim() || !broken ? article : ''}${brokenHtml}${questions}${masterFactsHtml(facts)}${foot ? `<div class="hall-turn-foot">${foot}</div>` : ''}${showProposal === false ? '' : `${masterThreadProposalHtml(item.proposalId)}${masterThreadActionProposalHtml(item.actionProposalId)}`}`
+    const attached = `${masterMessageAttachmentsHtml(item.attachments,esc)}${trail}${String(item.content || '').trim() || !broken ? article : ''}${brokenHtml}${questions}${masterFactsHtml(facts)}${mine || pending ? '' : masterProposedMemoryHtml(item.turnId, ui.masterData?.sessions?.memoryEntries, esc)}${foot ? `<div class="hall-turn-foot">${foot}</div>` : ''}${showProposal === false ? '' : `${masterThreadProposalHtml(item.proposalId)}${masterThreadActionProposalHtml(item.actionProposalId)}`}`
     // Ключ появления (master-feed-motion.js): у ответа — номер хода, тот же, что
     // у блока идущего хода, поэтому готовый ответ не «появляется» второй раз.
     const feedKey = mine ? '' : ` data-feed-key="a:${esc(item.turnId || item.id || '')}"`

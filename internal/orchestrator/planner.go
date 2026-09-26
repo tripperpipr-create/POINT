@@ -93,6 +93,17 @@ type ModelPlan struct {
 	RequiresApproval bool        `json:"requiresApproval"`
 }
 
+// ExecutionEnvironment is what the executor sandbox can do. Without it the
+// planner guessed: it planned Docker stages into a sandbox that has no Docker
+// and, seeing no module proxy, ordered a hand-written PostgreSQL protocol
+// instead of the driver the task needed.
+type ExecutionEnvironment struct {
+	SandboxBackend       string   `json:"sandboxBackend,omitempty"`
+	DockerInSandbox      bool     `json:"dockerInSandbox"`
+	NetworkHosts         []string `json:"networkHosts"`
+	HostVerifiedCriteria []string `json:"hostVerifiedCriteria,omitempty"`
+}
+
 type PlanRequest struct {
 	Skills          *MasterSkillSession
 	Config          domain.OrchestratorConfig
@@ -103,6 +114,12 @@ type PlanRequest struct {
 	Project         ProjectFacts
 	Signals         map[string]CandidateSignal
 	ModelCandidates []domain.ModelCandidate
+	// Environment is nil when the caller does not know the sandbox; the
+	// planner then gets no environment facts and no environment guard runs.
+	Environment *ExecutionEnvironment
+	// RetryFeedback carries why the previous plan was rejected. A bare repeat
+	// of the same request tends to reproduce the same invalid plan.
+	RetryFeedback string
 	// Progress is deliberately coarse and fires only when the model changes
 	// observable phase. It lets a WorkOrder show life while no FlowRun exists.
 	Progress func(PlanProgress)
@@ -211,6 +228,9 @@ func (p Planner) Plan(ctx context.Context, req PlanRequest) (PlanResult, error) 
 		},
 		Tools: nil, Temperature: req.Config.Temperature,
 		MaxOutputTokens: min(max(req.Config.MaxOutputTokens, plannerMinOutputTokens), plannerMaxOutputTokens),
+	}
+	if feedback := strings.TrimSpace(req.RetryFeedback); feedback != "" {
+		request.Messages = append(request.Messages, providers.Message{Role: "user", Content: "Point отклонил предыдущий план: " + plannerText(feedback, 1000) + ". Верни полный исправленный план."})
 	}
 	if req.Config.Provider == domain.ProviderOllama {
 		request.Messages[0].Content = plannerCorePrompt + skillPrompt
@@ -376,6 +396,9 @@ func plannerPayload(req PlanRequest, agents []domain.ProjectAgent) ([]byte, erro
 		"availableAgents":            items,
 		"modelCandidates":            req.ModelCandidates,
 	}
+	if req.Environment != nil {
+		payload["executionEnvironment"] = req.Environment
+	}
 	return json.Marshal(payload)
 }
 
@@ -461,6 +484,9 @@ func validateModelPlan(plan ModelPlan, req PlanRequest, agents []domain.ProjectA
 		}
 		if stage.Phase < 1 || stage.Phase > maxPlannerPhases {
 			return fmt.Errorf("orchestrator model stage %d has invalid phase %d", index+1, stage.Phase)
+		}
+		if err := validateStageEnvironment(*stage, req); err != nil {
+			return fmt.Errorf("orchestrator model stage %d %q: %w", index+1, stage.Name, err)
 		}
 		completeStageModelFromCandidates(stage, req.ModelCandidates)
 		useAgentDefaultForUncataloguedStageModel(stage, req.ModelCandidates, agents)

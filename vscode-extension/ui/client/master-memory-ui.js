@@ -14,3 +14,13 @@ export function masterUsedMemoryHtml(ids, entries, esc, messageId = '', open = f
  const remember=messageId?` data-master-open="memory" data-id="memory:${esc(messageId)}"`:''
  return `<details class="hall-message-context"${remember}${open?' open':''}><summary>Память в контексте ответа · ${ids.length}</summary><ul>${ids.map(id=>`<li>${esc(entries?.find(entry=>entry.id===id)?.content || 'Запись удалена: '+id)}</li>`).join('')}</ul></details>`
 }
+
+// Предложение запомнить стоит под ответом, который его сделал. Спрятанным в
+// меню «•••» его никто не находил: 29 записей остались «proposed», а в промпт
+// попадают только подтверждённые — поправка человека не доживала до
+// следующего задания. Кнопки те же, что в панели памяти, и маршрут тот же.
+export function masterProposedMemoryHtml(turnId, entries, esc) {
+ const proposed=turnId?(entries || []).filter(entry=>entry.status==='proposed' && entry.sourceId===turnId):[]
+ if(!proposed.length)return ''
+ return `<div class="hall-memory-inline" role="group" aria-label="Предложение запомнить">${proposed.map(entry=>masterMemoryEntryHtml(entry,entries,esc)).join('')}</div>`
+}

@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -69,12 +70,15 @@ func (a *App) recordRunLearningEvidence(ctx context.Context, run domain.Run, pro
 		}
 		evaluatedSkills[attribution.SkillID] = true
 	}
+	// One wedged canary must not starve the others: every attributed Skill is
+	// evaluated and all failures are reported together.
+	var canaryErrors []error
 	for skillID := range evaluatedSkills {
 		if err = a.evaluateAppliedSkillCanary(ctx, skillID); err != nil {
-			return fmt.Errorf("evaluate Skill canary %q: %w", skillID, err)
+			canaryErrors = append(canaryErrors, fmt.Errorf("evaluate Skill canary %q: %w", skillID, err))
 		}
 	}
-	return nil
+	return errors.Join(canaryErrors...)
 }
 
 func terminalLearningStatus(status domain.RunStatus) bool {

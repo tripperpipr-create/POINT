@@ -235,7 +235,13 @@ records feed a deterministic three-Run canary gate against up to five exact
 baseline outcomes. Insufficient evidence remains pending. Proven degradation
 invokes the same newest-revision rollback path automatically. Healthy evidence
 from two workspaces only enables an explicit promotion command; background
-code never performs Blueprint-wide distribution. See
+code never performs Blueprint-wide distribution. A project-only Skill without a
+baseline counts as proven after clean runs in three separate root quests of its
+project. A Skill without `familyId` is its own lineage (a revision is tied to
+its predecessor through `supersedesSkillId`), so an unrelated newer Skill never
+blocks the rollback of a regressed one. A failed run revises the equipped
+recovery Skill of the same failure category instead of adding another, and an
+agent keeps at most five learned Skills, the oldest leaving first. See
 [agent-evaluation.md](agent-evaluation.md) for thresholds and API contracts.
 
 Applied patches form the file-change history shown in the Agent Hub. This includes both explicitly accepted `propose_patch` diffs and exact text mutations detected around approved `run_command` or custom process/command tools. Executable tools are snapshotted only after approval, then compared after process exit even when the command fails. One `workspace.changed` event reports the source, total, recorded, non-revertible and omitted changes plus snapshot completeness. Exact bodies are bounded and stored only in local SQLite; event/API payloads omit the duplicate bodies and redact the visible diff. Sensitive, binary, unreadable or oversized content is fingerprinted without being persisted and cannot claim rollback coverage.

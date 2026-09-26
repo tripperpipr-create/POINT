@@ -295,7 +295,7 @@ func skillImprovementFamily(item domain.AgentImprovement) string {
 		if skill == nil {
 			continue
 		}
-		if family := strings.TrimSpace(fmt.Sprint(skill.Configuration["familyId"])); family != "" {
+		if family := skillFamilyID(*skill); family != "" {
 			return family
 		}
 		if skill.ID != "" {
@@ -303,6 +303,22 @@ func skillImprovementFamily(item domain.AgentImprovement) string {
 		}
 	}
 	return item.SkillID
+}
+
+// skillFamilyID reads the lineage of a learned Skill. fmt.Sprint of a missing
+// key is "<nil>", and that string used to put every learned Skill into one
+// shared family: any newer improvement then blocked the rollback of any older
+// regressed one, and the canary stayed wedged on every run.
+func skillFamilyID(skill domain.SkillDefinition) string {
+	for _, key := range []string{"familyId", "supersedesSkillId"} {
+		// Revisions saved while the bug was live carry the literal "<nil>";
+		// their predecessor link still names the lineage.
+		value, _ := skill.Configuration[key].(string)
+		if value = strings.TrimSpace(value); value != "" && value != "<nil>" {
+			return value
+		}
+	}
+	return ""
 }
 
 func mergeAgentImprovements(groups ...[]domain.AgentImprovement) []domain.AgentImprovement {

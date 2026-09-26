@@ -194,6 +194,20 @@ func (a *App) evaluateAppliedSkillCanary(ctx context.Context, skillID string) er
 	}
 	evaluation := evaluateSkillCanary(candidateAttribution, baselineAttribution, outcomes, time.Now().UTC())
 	evaluation.Effect = canaryEffect(evaluation)
+	if item.PromotionStatus == "project_only" && evaluation.Status == "healthy" && evaluation.Baseline == nil {
+		// A brand-new project Skill has no "before" to compare with, so the
+		// before/after gate could only ever call it neutral: none of 24 learned
+		// Skills was ever proven. The owner's rule for project scope is three
+		// clean runs in three separate quests; cross-workspace proof stays the
+		// bar for Blueprint promotion.
+		quests := a.distinctSuccessfulCanaryQuests(ctx, matchingSkillOutcomes(outcomes, candidateAttribution, 1000))
+		if quests >= projectProofQuests {
+			evaluation.Effect = "improved"
+			evaluation.Reasons = append(evaluation.Reasons, fmt.Sprintf("clean runs in %d separate quests of this project", quests))
+		} else {
+			evaluation.Reasons = append(evaluation.Reasons, fmt.Sprintf("project proof needs clean runs in %d separate quests; observed %d", projectProofQuests, quests))
+		}
+	}
 	if evaluation.Status == "healthy" && item.PromotionStatus == "candidate" {
 		workspaceCount := distinctCanaryWorkspaces(matchingSkillOutcomes(outcomes, candidateAttribution, 1000))
 		if workspaceCount < 2 {
@@ -471,4 +485,30 @@ func observedSkillAttribution(outcomes []domain.SkillOutcome, expected domain.Sk
 		SkillID: latest.SkillID, Name: latest.SkillName, Revision: latest.SkillRevision,
 		Digest: latest.SkillDigest, PromotionStatus: latest.PromotionStatus,
 	}
+}
+
+// projectProofQuests is how many separate user quests a project-only Skill
+// must pass cleanly before it counts as proven.
+const projectProofQuests = 3
+
+// distinctSuccessfulCanaryQuests counts root quests whose runs with this exact
+// Skill revision completed healthy with their verification recorded. Stages of
+// one work order are sub-quests of one root and count once.
+func (a *App) distinctSuccessfulCanaryQuests(ctx context.Context, outcomes []domain.SkillOutcome) int {
+	roots := map[string]bool{}
+	for _, outcome := range outcomes {
+		if severeCanaryOutcomes([]domain.SkillOutcome{outcome}) > 0 {
+			continue
+		}
+		execution, err := a.store.GetExecutionByRunID(ctx, outcome.RunID)
+		if err != nil || strings.TrimSpace(execution.QuestID) == "" {
+			continue
+		}
+		root := execution.QuestID
+		if quest, questErr := a.store.GetQuest(ctx, execution.QuestID); questErr == nil && strings.TrimSpace(quest.ParentID) != "" {
+			root = quest.ParentID
+		}
+		roots[root] = true
+	}
+	return len(roots)
 }

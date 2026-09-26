@@ -295,7 +295,9 @@ func TestTaskIntakePromptKeepsInterviewCheap(t *testing.T) {
 	if !strings.Contains(prompt, "Текст ответа не пересказывает карточку") {
 		t.Fatal("prompt must keep the card out of the reply text")
 	}
-	if !strings.Contains(prompt, "выбранная пользователем установка разрешает лишь нужные реестры") {
+	// Реестры стека Point добавляет в карточку сам: без них планировщик
+	// «обошёл» отсутствие сети самописным протоколом PostgreSQL вместо pgx.
+	if !strings.Contains(prompt, "реестры пакетов языка из задания") || !strings.Contains(prompt, "обходить их отсутствие не нужно") {
 		t.Fatal("prompt must treat network hosts as consequence of stack choice")
 	}
 	if strings.Contains(taskIntakePrompt, "Сеть только явно согласованная, иначе []") {

@@ -190,6 +190,8 @@ func (s *SQLite) QueueMasterLearning(ctx context.Context, ws, phase, skillID, ba
 	return tx.Commit()
 }
 
+// ClaimMasterLearning takes fresh jobs before deferred ones: a job deferred for
+// a lasting reason used to be claimed first on every wake and held the queue.
 func (s *SQLite) ClaimMasterLearning(ctx context.Context, ws string) (domain.MasterLearningJob, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -197,7 +199,7 @@ func (s *SQLite) ClaimMasterLearning(ctx context.Context, ws string) (domain.Mas
 	}
 	defer tx.Rollback()
 	var raw string
-	err = tx.QueryRowContext(ctx, `SELECT payload FROM master_learning_jobs WHERE workspace_id=? AND status IN ('queued','deferred') AND NOT EXISTS(SELECT 1 FROM master_learning_jobs WHERE status='running') ORDER BY rowid LIMIT 1`, ws).Scan(&raw)
+	err = tx.QueryRowContext(ctx, `SELECT payload FROM master_learning_jobs WHERE workspace_id=? AND status IN ('queued','deferred') AND NOT EXISTS(SELECT 1 FROM master_learning_jobs WHERE status='running') ORDER BY CASE status WHEN 'queued' THEN 0 ELSE 1 END, rowid LIMIT 1`, ws).Scan(&raw)
 	if err != nil {
 		return domain.MasterLearningJob{}, err
 	}
@@ -261,6 +263,14 @@ func (s *SQLite) ReserveMasterLearning(ctx context.Context, ws string, tokens in
 	}
 	return id, tx.Commit()
 }
+// RecordMasterLearningSpend books learning tokens on a runtime that does not
+// charge for them. The spend stays visible in statistics, but it neither
+// needs nor consumes the 10% learning ceiling, which guards money only.
+func (s *SQLite) RecordMasterLearningSpend(ctx context.Context, ws string, tokens int64) error {
+	_, err := s.db.ExecContext(ctx, `INSERT INTO master_learning_spend VALUES(?,?,?,0,?)`, domain.NewID("master-spend"), ws, formatTime(time.Now().UTC()), max(0, tokens))
+	return err
+}
+
 func (s *SQLite) SettleMasterLearning(ctx context.Context, id string, actual int64) error {
 	// Unknown usage is charged conservatively. Reservations are never negative.
 	_, err := s.db.ExecContext(ctx, `UPDATE master_learning_spend SET spent=CASE WHEN ?>0 THEN MAX(?,spent) ELSE spent+reserved END,reserved=0 WHERE id=? AND reserved>0`, actual, actual, id)

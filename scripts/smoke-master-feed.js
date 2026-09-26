@@ -27,7 +27,7 @@ const HISTORY = [
   { id: 'ma-2', role: 'assistant', mode: 'model', content: 'Обработчик оплаты падает на повторной доставке.', createdAt: at(0, 14, 3) },
 ]
 
-function open({ history = HISTORY, truncated = false, workOrders = [], details, executions = [] } = {}) {
+function open({ history = HISTORY, truncated = false, workOrders = [], details, executions = [], sessions } = {}) {
   const listeners = {}
   const posted = []
   const field = { id: 'master-input', value: '', rows: 2, focus() {}, setSelectionRange() {}, closest: () => null, matches: () => false }
@@ -64,7 +64,7 @@ function open({ history = HISTORY, truncated = false, workOrders = [], details, 
     details,
   } })
   listeners['window:message']({ data: { type: 'master', master: {
-    configured: true, config: { model: 'qwen' }, history, truncated, workOrders,
+    configured: true, config: { model: 'qwen' }, history, truncated, workOrders, sessions,
   } } })
 
   const click = dataset => listeners['root:click']({
@@ -131,6 +131,31 @@ function open({ history = HISTORY, truncated = false, workOrders = [], details, 
   }
   if ((html.match(/data-work-order-id="workorder-qp-feed"/g) || []).length !== 1) {
     throw new Error('running quest is duplicated between its turn and the bottom of the feed')
+  }
+}
+
+// Предложение запомнить стоит под ответом, который его сделал. В меню «•••» его
+// не находили: 29 записей остались неподтверждёнными, а в промпт идут только
+// подтверждённые — поправка человека не доживала до следующего задания.
+{
+  const history = HISTORY.map(item => item.id === 'ma-2' ? { ...item, turnId: 'turn-remember' } : item)
+  const sessions = { active: 'c1', items: [{ id: 'c1', title: 'Разговор' }], memoryEntries: [
+    { id: 'memory-new', content: 'Go + PostgreSQL — pgx/v5', status: 'proposed', sourceId: 'turn-remember' },
+    { id: 'memory-old', content: 'Порт 8080', status: 'accepted', sourceId: 'turn-older' },
+  ] }
+  const html = open({ history, sessions }).root.innerHTML
+  const answer = html.indexOf('Обработчик оплаты падает на повторной доставке.')
+  const card = html.indexOf('class="hall-memory-inline"')
+  const composer = html.indexOf('<form class="hall-compose')
+  if (!(answer >= 0 && answer < card && card < composer)) {
+    throw new Error('proposed memory is not shown under the reply that proposed it')
+  }
+  const inline = html.slice(card, html.indexOf('</div></article></div>', card))
+  if (!inline.includes('data-action="master-session-memory-save" data-id="memory-new"') || !inline.includes('Предлагаю запомнить') || inline.includes('data-memory-id="memory-old"')) {
+    throw new Error('inline memory card lacks the confirm action or shows accepted entries: ' + inline.slice(0, 300))
+  }
+  if ((html.match(/class="hall-memory-inline"/g) || []).length !== 1) {
+    throw new Error('memory card is attached to replies that did not propose it')
   }
 }
 

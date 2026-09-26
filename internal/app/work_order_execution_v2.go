@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"local-agent-workbench/internal/domain"
+	"local-agent-workbench/internal/sandbox"
 	"local-agent-workbench/internal/security"
 )
 
@@ -110,8 +111,15 @@ func (a *App) startWorkOrderLaunchV2(ctx context.Context, approval domain.WorkOr
 // карточке. Исход пишется контекстом без отмены: срок запуска не должен стереть
 // причину отказа.
 func (a *App) runWorkOrderLaunchV2(ctx context.Context, approval domain.WorkOrderApproval, quest domain.Quest, apiKey string) {
-	result, launchErr := a.launchApprovedWorkOrderV2(ctx, approval, quest, apiKey)
 	writeCtx := context.WithoutCancel(ctx)
+	// Без Docker исполнитель не стартует, а план модели — это минуты. Раньше
+	// планировщик отрабатывал 108 с, запуск падал на песочнице, и квест
+	// оставался «выполняется» без единой строки в ленте.
+	if reason := a.sandboxUnavailableV2(ctx); reason != "" {
+		a.waitForSandboxV2(writeCtx, approval, quest, reason)
+		return
+	}
+	result, launchErr := a.launchApprovedWorkOrderV2(ctx, approval, quest, apiKey)
 	latest, err := a.workOrderQuestV2(writeCtx, approval.WorkOrder.WorkspaceID, approval.QuestID)
 	if err != nil {
 		slog.Error("work order launch state unreadable", "quest_id", approval.QuestID, "error", err)
@@ -122,10 +130,16 @@ func (a *App) runWorkOrderLaunchV2(ctx context.Context, approval domain.WorkOrde
 		if message == "" {
 			message = "preflight failed"
 		}
-		if latest.Status != domain.QuestPreflight {
+		if launchMovedByHumanV2(latest.Status) {
 			// Пока шёл запуск, человек успел отменить или поставить на паузу.
-			// Его решение старше нашего отказа.
+			// Его решение старше нашего отказа. `running` сюда не относится:
+			// его ставит сам запуск, когда создаёт Flow, и отказ после этого
+			// раньше молча пропадал — квест «выполнялся» без исполнителя.
 			slog.Warn("work order launch failed after the human moved the quest", "quest_id", approval.QuestID, "status", latest.Status, "error", launchErr)
+			return
+		}
+		if sandbox.IsUnavailable(launchErr) {
+			a.waitForSandboxV2(writeCtx, approval, latest, message)
 			return
 		}
 		// Запуск прервала остановка самого ядра, а не отказ: квест становился
@@ -138,9 +152,12 @@ func (a *App) runWorkOrderLaunchV2(ctx context.Context, approval domain.WorkOrde
 			}
 			return
 		}
-		if _, saveErr := a.setWorkOrderQuestStatusV2(writeCtx, latest, domain.QuestBlocked, message); saveErr != nil {
+		blocked, saveErr := a.setWorkOrderQuestStatusV2(writeCtx, latest, domain.QuestBlocked, message)
+		if saveErr != nil {
 			slog.Error("work order blocked state not persisted", "quest_id", approval.QuestID, "error", saveErr, "launch_error", launchErr)
+			return
 		}
+		a.publishWorkOrderNoticeV2(writeCtx, approval, blocked, "error", "Квест не запущен: "+message)
 		return
 	}
 	var run *domain.FlowRun
@@ -166,14 +183,29 @@ func (a *App) runWorkOrderLaunchV2(ctx context.Context, approval domain.WorkOrde
 		}
 		return
 	}
+	// Квест мог уйти дальше без нас: короткий Flow завершился, финализатор
+	// поставил паузу новой попытки или уже проверяет результат. «running»
+	// поверх этого воскресил бы работу, которой больше нет.
+	if launchMovedByHumanV2(latest.Status) {
+		return
+	}
 	if note != "" {
 		if latest.Controller == nil {
 			latest.Controller = map[string]any{}
 		}
 		latest.Controller["plannerNote"] = note
 	}
-	if _, err = a.setWorkOrderQuestStatusV2(writeCtx, latest, status, message); err != nil {
+	if status == domain.QuestBlocked && sandbox.MentionsUnavailable(message) {
+		a.waitForSandboxV2(writeCtx, approval, latest, message)
+		return
+	}
+	saved, err := a.setWorkOrderQuestStatusV2(writeCtx, latest, status, message)
+	if err != nil {
 		slog.Error("work order running state not persisted", "quest_id", approval.QuestID, "error", err)
+		return
+	}
+	if status == domain.QuestBlocked {
+		a.publishWorkOrderNoticeV2(writeCtx, approval, saved, "error", message)
 	}
 }
 
@@ -200,8 +232,7 @@ func (a *App) pauseLaunchInterruptedByShutdownV2(ctx context.Context, quest doma
 		quest.Controller = map[string]any{}
 	}
 	quest.Controller["resumeAfterRestart"] = strings.TrimSpace(quest.FlowRunID) == ""
-	_, err := a.setWorkOrderQuestStatusV2(ctx, quest, domain.QuestPaused, questRecoveryMessageV2)
-	return err
+	return a.pauseWorkOrderByCoreV2(ctx, quest, questRecoveryMessageV2)
 }
 
 func (a *App) workOrderLaunchesStopping() bool {
@@ -283,6 +314,7 @@ func (a *App) launchApprovedWorkOrderV2(ctx context.Context, approval domain.Wor
 	if result.FlowRun == nil || result.Flow == nil {
 		return result, errors.New("milestone planner did not create a Flow runtime")
 	}
+	a.postWorkOrderRepairContextV2(ctx, quest, result.FlowRun)
 	// Deterministic nodes may complete synchronously while the Flow is being
 	// created.  Their completion callback has already finalized the milestone;
 	// never overwrite that terminal state with a late "running" write.

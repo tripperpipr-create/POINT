@@ -55,6 +55,25 @@ func (a *App) ControlWorkOrderQuestV2(ctx context.Context, questID, action strin
 	if action == "resume" && quest.ControllerState == storage.WorkOrderScopeRevisionState {
 		return result, storage.ErrWorkOrderRevisionPending
 	}
+	// Вердикт шлюза окончателен для своего квеста: улики неизменяемы, а
+	// исправление идёт новой версией наряда и новым квестом. Раньше
+	// «Продолжить» переводило такой квест в `preflight`, ничего не запускало и
+	// переписывало завершённый Flow обратно в `running` — тупик без выхода.
+	if action == "resume" {
+		if verdict, final, verdictErr := a.store.WorkOrderVerdictV2(ctx, questID); verdictErr != nil {
+			return result, verdictErr
+		} else if final {
+			if quest.Status != verdict {
+				// Квест, застрявший после прежнего «Продолжить», возвращается
+				// к своему вердикту, и карточка перестаёт показывать работу.
+				if restored, restoreErr := a.store.FinalizeWorkOrderQuestV2(ctx, questID, domain.EvidenceBundle{}); restoreErr == nil {
+					result.Status = restored
+				}
+			}
+			return result, fmt.Errorf("%w: итог квеста уже вынесен (%s). Опишите Мастеру, что исправить, — он подготовит новую версию наряда, и она пойдёт новым квестом", errWorkOrderVerdictFinalV2, verdict)
+		}
+	}
+	flowFinished := false
 	if action == "resume" && quest.FlowRunID != "" {
 		flowRun, loadErr := a.store.GetFlowRun(ctx, quest.FlowRunID)
 		if loadErr != nil {
@@ -63,13 +82,14 @@ func (a *App) ControlWorkOrderQuestV2(ctx context.Context, questID, action strin
 		if failure, terminal := terminalFailedWorkOrderFlowV2(flowRun); terminal {
 			return result, fmt.Errorf("этап завершился ошибкой: %s; этот Flow нельзя возобновить, подготовьте новую версию наряда", security.Redact(failure))
 		}
+		flowFinished = workOrderFlowFinishedV2(flowRun)
 	}
 	if action == "cancel" || action == "pause" {
 		// Фоновый запуск ждёт планировщика минутами. Решение человека старше:
 		// иначе отменённый квест ещё полчаса держал бы за собой запуск.
 		a.cancelWorkOrderLaunchV2(questID)
 	}
-	if quest.FlowRunID != "" {
+	if quest.FlowRunID != "" && !flowFinished {
 		runtimeRequest := request
 		// A pasted credential must not become a model amendment. The immutable
 		// journal independently applies the same redaction before persistence.
@@ -85,6 +105,17 @@ func (a *App) ControlWorkOrderQuestV2(ctx context.Context, questID, action strin
 	result.Status, err = a.store.ControlWorkOrderQuestV2(ctx, questID, action, request.Message)
 	if err != nil || action != "resume" {
 		return result, err
+	}
+	if flowFinished {
+		// Все этапы уже выполнены, вердикта нет: ядро остановилось между
+		// концом Flow и проверкой. Продолжать исполнителей нечего — нужна сама
+		// проверка, и она идёт тем же путём, что после завершения Flow.
+		a.workOrderLaunchWG.Add(1)
+		go func() {
+			defer a.workOrderLaunchWG.Done()
+			a.finalizeQuestAfterFlow(questID, true)
+		}()
+		return result, nil
 	}
 	if result.Status != domain.QuestPreflight {
 		// Возобновление из паузы возвращает прежний статус — обычно `running`.
@@ -303,4 +334,26 @@ func (a *App) WorkOrderQuestV2(ctx context.Context, questID string) (domain.Ques
 		}
 	}
 	return domain.Quest{}, errors.Join(sql.ErrNoRows, errors.New("work order quest not found"))
+}
+
+// errWorkOrderVerdictFinalV2 refuses to continue a quest the evidence gate has
+// already judged.
+var errWorkOrderVerdictFinalV2 = errors.New("квест завершён вердиктом")
+
+// workOrderFlowFinishedV2 reports a Flow whose every stage completed. Such a
+// Flow has nothing left to resume; writing `running` back into it used to
+// leave a finished Flow that claimed to be working.
+func workOrderFlowFinishedV2(run domain.FlowRun) bool {
+	if run.Status == domain.RunCompleted {
+		return true
+	}
+	if len(run.NodeStates) == 0 {
+		return false
+	}
+	for _, state := range run.NodeStates {
+		if state.Status != "completed" && state.Status != "skipped" {
+			return false
+		}
+	}
+	return true
 }

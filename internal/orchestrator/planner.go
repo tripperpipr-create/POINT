@@ -120,6 +120,10 @@ type PlanRequest struct {
 	// RetryFeedback carries why the previous plan was rejected. A bare repeat
 	// of the same request tends to reproduce the same invalid plan.
 	RetryFeedback string
+	// RepairContext describes the previous attempt of the same milestone: its
+	// result reached the project, but host checks failed. The plan has to fix
+	// that cause on the delivered files instead of building the result again.
+	RepairContext string
 	// Progress is deliberately coarse and fires only when the model changes
 	// observable phase. It lets a WorkOrder show life while no FlowRun exists.
 	Progress func(PlanProgress)
@@ -228,6 +232,11 @@ func (p Planner) Plan(ctx context.Context, req PlanRequest) (PlanResult, error) 
 		},
 		Tools: nil, Temperature: req.Config.Temperature,
 		MaxOutputTokens: min(max(req.Config.MaxOutputTokens, plannerMinOutputTokens), plannerMaxOutputTokens),
+	}
+	if repair := strings.TrimSpace(req.RepairContext); repair != "" {
+		request.Messages = append(request.Messages, providers.Message{Role: "user", Content: "Это повторная попытка того же milestone. Результат прошлой попытки уже лежит в проекте, но проверки Point на хосте не прошли:\n" +
+			plannerText(repair, 6000) +
+			"\nСпланируй исправление причины: этап реализации читает текущие файлы проекта и меняет только то, что нужно для проваленных критериев. Не пересоздавай результат с нуля."})
 	}
 	if feedback := strings.TrimSpace(req.RetryFeedback); feedback != "" {
 		request.Messages = append(request.Messages, providers.Message{Role: "user", Content: "Point отклонил предыдущий план: " + plannerText(feedback, 1000) + ". Верни полный исправленный план."})

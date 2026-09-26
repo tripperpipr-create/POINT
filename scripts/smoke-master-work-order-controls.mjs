@@ -55,6 +55,10 @@ if (!blocked.includes('master-v2-approved is-attention') || blocked.includes('ma
   throw new Error('blocked WorkOrder still reads as success')
 }
 if (blocked.includes('>✓ Заблокирован')) throw new Error('blocked WorkOrder keeps the success mark')
+// Вердикт шлюза окончателен: «Повторить запуск» после него переводил квест в
+// preflight, где ничего не запускалось.
+const judged = masterWorkOrderCardsHtml([{ ...base, runtime: { questId: 'quest-1', status: 'blocked', message: 'Проверки не пройдены', evidence: { id: 'evidence-1' } } }], esc)
+if (judged.includes('data-control="resume"')) throw new Error('a quest with a final verdict still offers a retry that does nothing')
 
 // Ручной критерий закрывает человек: карточка, которая просит ручную проверку,
 // обязана дать её отметить. Решённый критерий кнопок больше не предлагает.
@@ -133,6 +137,13 @@ const watch = fs.readFileSync(path.join(root, 'vscode-extension', 'master-work-o
 for (const expected of ['/api/v2/work-orders/', "type: 'masterWorkOrder'", 'masterWorkOrderWatchers']) {
   if (!watch.includes(expected)) throw new Error(`work order watcher lost: ${expected}`)
 }
+// Пауза ядра — не решение человека: квест, ждущий Docker или готовый
+// продолжиться сам, остаётся под наблюдением и продолжается без кнопки.
+const { isTransientWorkOrder } = (await import('node:module')).createRequire(import.meta.url)(path.join(root, 'vscode-extension', 'master-work-order-watch.js'))
+if (!isTransientWorkOrder({ runtime: { status: 'paused', waitingForSandbox: true } }) || !isTransientWorkOrder({ runtime: { status: 'paused', resumeAfterRestart: true } })) {
+  throw new Error('a quest paused by the core is dropped from watch and never continues')
+}
+if (isTransientWorkOrder({ runtime: { status: 'paused' } })) throw new Error('a human pause is watched as if it were running')
 if (!transport.includes('watchMasterWorkOrder(') || !transport.includes('watchMasterWorkOrders(')) {
   throw new Error('transport does not follow a live WorkOrder quest')
 }

@@ -139,7 +139,10 @@ func runManagedOutageV2(ctx context.Context, directory string, check managedHost
 // JSON fields. The summary always carries the last body: "last 200 OK" alone
 // hid both a db:"down" answer and a foreign container holding the port.
 func managedHTTPExpectV2(ctx context.Context, target string, status int, fields map[string]any) (int, string, error) {
-	client := &http.Client{Timeout: 3 * time.Second, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}
+	// Один запрос ждёт до 10 с: приложение законно держит ответ, пока его
+	// собственный таймаут к БД (обычно 5 с) не истечёт. При 3 с проверка
+	// деградации обрывала честный ответ «db=down» и винила код.
+	client := &http.Client{Timeout: 10 * time.Second, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 	last := "нет ответа"
@@ -245,14 +248,14 @@ func composePortConflictHintV2(ctx context.Context, directory, output string, ru
 	}
 	match := composePortFailureV2.FindStringSubmatch(output)
 	if match == nil {
-		return "Нужно действие: порт приложения уже занят другим процессом; освободите его или смените порт в Compose и перезапустите квест."
+		return "Нужно действие: порт приложения уже занят другим процессом; освободите его или смените порт в Compose, затем попросите Мастера повторить наряд."
 	}
 	port := match[1]
 	lookupCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 	code, holders, err := runner.Run(lookupCtx, directory, `docker ps --filter publish=`+port+` --format "{{.Names}} {{.Labels}}"`)
 	if err != nil || code != 0 || strings.TrimSpace(holders) == "" {
-		return "Нужно действие: порт " + port + " занят программой вне Docker; освободите его или смените порт в Compose и перезапустите квест."
+		return "Нужно действие: порт " + port + " занят программой вне Docker; освободите его или смените порт в Compose, затем попросите Мастера повторить наряд."
 	}
 	line := strings.TrimSpace(strings.SplitN(strings.TrimSpace(holders), "\n", 2)[0])
 	name, labels, _ := strings.Cut(line, " ")
@@ -274,7 +277,7 @@ func composePortConflictHintV2(ctx context.Context, directory, output string, ru
 		}
 		owner += ")"
 	}
-	return "Нужно действие: порт " + port + " занят — " + owner + ". Остановите его (docker stop " + name + ") или смените порт в Compose и перезапустите квест."
+	return "Нужно действие: порт " + port + " занят — " + owner + ". Остановите его (docker stop " + name + ") или смените порт в Compose, затем попросите Мастера повторить наряд."
 }
 
 // failedHostCriteriaV2 names failed host checks by their criterion and last
@@ -325,4 +328,128 @@ func lastSummaryLineV2(summary string) string {
 		return line
 	}
 	return ""
+}
+
+// composeProjectRunnerV2 runs every `docker compose` command of a host check
+// in the quest's own Compose project. The default project is the folder
+// name, so a stack left by an earlier quest in the same folder was recreated
+// in place and kept its database volume: postgres started on foreign data
+// (`role "postgres" does not exist`) and the check blamed correct code. The
+// approved command stays the contract; only the project it acts on is scoped.
+type composeProjectRunnerV2 struct {
+	inner   CompletionCheckRunner
+	project string
+}
+
+func (r composeProjectRunnerV2) Run(ctx context.Context, directory, command string) (int, string, error) {
+	if rest, ok := strings.CutPrefix(strings.TrimSpace(command), "docker compose "); ok {
+		command = "docker compose -p " + r.project + " " + rest
+	}
+	return r.inner.Run(ctx, directory, command)
+}
+
+var composeProjectUnsafeV2 = regexp.MustCompile(`[^a-z0-9]+`)
+
+// composeProjectNameV2 names the verification stack of one quest. It is stable
+// across attempts of the same quest, so each attempt starts by removing what
+// the previous one left.
+func composeProjectNameV2(questID string) string {
+	id := composeProjectUnsafeV2.ReplaceAllString(strings.ToLower(strings.TrimPrefix(questID, "quest_")), "")
+	if len(id) > 16 {
+		id = id[:16]
+	}
+	if id == "" {
+		id = "verify"
+	}
+	return "point-" + id
+}
+
+// resetComposeProjectV2 removes the quest's verification stack together with
+// its volumes. Failure is reported, not fatal: the next command will say what
+// is really wrong with Docker.
+func resetComposeProjectV2(ctx context.Context, directory string, runner CompletionCheckRunner) string {
+	resetCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
+	code, output, err := runner.Run(resetCtx, directory, "docker compose down -v --remove-orphans")
+	if err != nil {
+		return security.Redact(err.Error())
+	}
+	if code != 0 {
+		return lastSummaryLineV2(output)
+	}
+	return ""
+}
+
+// hostDiagnosticsLimit keeps the log tail readable in the card and small
+// enough to hand to the planner of a repair attempt.
+const hostDiagnosticsLimit = 6000
+
+// collectComposeDiagnosticsV2 captures what the containers themselves said
+// when a host check failed.
+func collectComposeDiagnosticsV2(ctx context.Context, directory string, runner CompletionCheckRunner) string {
+	diagCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	parts := []string{}
+	if code, output, err := runner.Run(diagCtx, directory, `docker compose ps -a --format "{{.Service}}: {{.State}} {{.Status}}"`); err == nil && code == 0 && strings.TrimSpace(output) != "" {
+		parts = append(parts, "Контейнеры:\n"+strings.TrimSpace(output))
+	}
+	if code, output, err := runner.Run(diagCtx, directory, "docker compose logs --no-color --tail=40"); err == nil && code == 0 && strings.TrimSpace(output) != "" {
+		parts = append(parts, "Журнал контейнеров (хвост):\n"+strings.TrimSpace(output))
+	}
+	text := security.Redact(strings.Join(parts, "\n\n"))
+	if runes := []rune(text); len(runes) > hostDiagnosticsLimit {
+		text = "…" + string(runes[len(runes)-hostDiagnosticsLimit:])
+	}
+	return text
+}
+
+var diagnosticSignalV2 = regexp.MustCompile(`(?i)\b(fatal|panic|error|exception|refused|denied|does not exist|no such|cannot|failed)\b`)
+
+// hostDiagnosticHighlightsV2 picks the few log lines that explain a failure,
+// for the card: the full tail stays in the evidence bundle.
+func hostDiagnosticHighlightsV2(diagnostics string, limit int) []string {
+	seen := map[string]bool{}
+	lines := []string{}
+	for _, line := range strings.Split(diagnostics, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || !diagnosticSignalV2.MatchString(line) {
+			continue
+		}
+		// Одна и та же ошибка раз в секунду — это одна строка для человека.
+		key := line
+		if _, rest, ok := strings.Cut(line, "|"); ok {
+			key = strings.TrimSpace(rest)
+		}
+		key = logTimestampV2.ReplaceAllString(key, "")
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		if runes := []rune(line); len(runes) > 240 {
+			line = string(runes[:240]) + "…"
+		}
+		lines = append(lines, line)
+		if len(lines) >= limit {
+			break
+		}
+	}
+	return lines
+}
+
+var logTimestampV2 = regexp.MustCompile(`\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(\.\d+)?( UTC)?|\[\d+\]`)
+
+// repairableHostFailuresV2 lists host checks that failed on an observed
+// answer the code can change. A check that could not run (no exit code) or
+// that ends with a concrete "Нужно действие" for the human — a port held by
+// another stack — is the environment's problem, and another attempt by the
+// same executor would only repeat it.
+func repairableHostFailuresV2(checks []domain.VerificationCheck) []domain.VerificationCheck {
+	failed := []domain.VerificationCheck{}
+	for _, check := range checks {
+		if check.Satisfied || check.ExitCode == nil || hostCheckActionV2(check.Summary) != "" {
+			continue
+		}
+		failed = append(failed, check)
+	}
+	return failed
 }

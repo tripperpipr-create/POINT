@@ -249,3 +249,18 @@ func finalizeMilestoneRuntimesV2Tx(ctx context.Context, tx *sql.Tx, questID, wor
 	}
 	return nil
 }
+
+// WorkOrderVerdictV2 returns the evidence gate's verdict for a quest, if one
+// was reached. A verdict is final for its quest: a fix goes as a new version
+// of the work order, which the approval runs as a new quest.
+func (s *SQLite) WorkOrderVerdictV2(ctx context.Context, questID string) (domain.QuestStatus, bool, error) {
+	var verdict domain.QuestStatus
+	err := s.db.QueryRowContext(ctx, `SELECT status FROM work_order_completion_gates_v2 WHERE quest_id=?`, questID).Scan(&verdict)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	return verdict, true, nil
+}

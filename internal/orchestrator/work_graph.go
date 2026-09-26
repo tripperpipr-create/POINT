@@ -202,7 +202,9 @@ func DefaultProjectWorkGraph(agentIDs []string) domain.WorkGraph {
 func DefaultStageInstruction(role string) string {
 	switch role {
 	case domain.StageRoleBootstrap:
-		return "Bootstrap only: inspect composer.json, run composer install --no-interaction if vendor is missing, and stop. Do not implement application source, controllers, or tests. Do not spend the step budget exploring README line-by-line after dependencies exist."
+		// Инструкция не называет стек: «inspect composer.json» в Go-проекте
+		// дала 31 неудачное чтение несуществующего файла.
+		return "Bootstrap only: find the project's dependency manifest (go.mod, composer.json, package.json, pyproject.toml, Cargo.toml or similar) and install dependencies with that toolchain if they are missing, then stop. If there is no manifest yet, stop at once: the implement stage creates it. Do not implement application source, controllers, or tests. Do not spend the step budget exploring README line-by-line after dependencies exist."
 	case domain.StageRoleImplement:
 		return "Implement the approved quest goal in application source. Prefer propose_patch after list_files or a full-file read; do not use shell redirection (cat/echo) to write source. Inspect third-party libraries under vendor/ or node_modules/ with list_files/read_file when needed — do not clone dependencies into /tmp. Stay inside owned paths; do not rewrite lockfiles, vendored trees, or unrelated project scaffolding unless the quest requires it. Do not start long-lived servers or invent verification beyond the stage brief — accept runs declared checks later. Stop once the feature is in the tree."
 	case domain.StageRoleIntegrate:
@@ -210,7 +212,7 @@ func DefaultStageInstruction(role string) string {
 	case domain.StageRoleImplReview:
 		return "Read-only review of the integrated revision: list/read src and key config. Do not write. Report whether the goal looks present; do not re-run full test suites (accept stage verifies)."
 	case domain.StageRoleAccept:
-		return "Verify acceptance criteria on the integrated revision (phpunit / stated commands). Do not write application source. Do not invent new features. Evidence must point at this revision."
+		return "Verify acceptance criteria on the integrated revision with the commands the criteria state, using the project's own toolchain. Criteria that need the host — docker compose, requests to the running service — are run by Point after delivery; do not try to reproduce them in the sandbox. Do not write application source. Do not invent new features. Evidence must point at this revision."
 	default:
 		return ""
 	}

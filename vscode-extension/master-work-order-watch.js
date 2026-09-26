@@ -18,6 +18,7 @@ function runtimeSignature(runtime) {
     // же снимок и не двигался до самого исхода.
     (runtime.stages || []).map(item => `${item.id || ''}:${item.status || ''}:${item.runId || ''}`).join(','),
     runtime.stall ? `${runtime.stall.nodeId || ''}:${runtime.stall.waitReason || ''}` : '',
+    runtime.waitingForSandbox ? 'sandbox' : '', runtime.resumeAfterRestart ? 'auto' : '',
   ].join('|')
 }
 
@@ -30,8 +31,26 @@ function activeStageRunId(order) {
   return String(active?.runId || '')
 }
 
+// Пауза ядра — не решение человека. Квест, который ждёт Docker или уже
+// готов продолжиться сам, остаётся под наблюдением: иначе карточка замирала
+// на «Ждёт Docker» и после того, как Docker запустили.
 function isTransientWorkOrder(order) {
-  return TRANSIENT.has(String(order?.runtime?.status || ''))
+  const runtime = order?.runtime
+  if (TRANSIENT.has(String(runtime?.status || ''))) return true
+  return runtime?.status === 'paused' && Boolean(runtime.waitingForSandbox || runtime.resumeAfterRestart)
+}
+
+// История разговора перечитывается при каждой остановке, а не только в
+// конце: уведомление ядра («ждёт Docker», «запуск отклонён») иначе появлялось
+// в ленте только после исхода квеста.
+async function refreshMasterHistory(host, id, conversationId) {
+  if (!conversationId) return
+  try {
+    const master = await host.service.request('/api/master/history?conversationId=' + encodeURIComponent(conversationId))
+    host.post({ type: 'master', master, loaded: true, completionRefresh: true })
+  } catch (error) {
+    host.service.hostLog('warn', `[chat] итог наряда ${id} сохранён, но история не обновилась: ${String(error?.message || error).slice(0, 200)}`)
+  }
 }
 
 // Наблюдение одно на наряд: три нажатия «Повторить запуск» не должны
@@ -68,19 +87,16 @@ function watchMasterWorkOrder(host, workOrderId, conversationId) {
         if (runId && typeof host.loadRun === 'function') {
           try { await host.loadRun(runId, true, true) } catch { /* прогон мог уже уехать */ }
         }
+        if (order?.runtime?.status === 'paused') {
+          await refreshMasterHistory(host, id, conversationId)
+          if (order.runtime.resumeAfterRestart) void resumeAfterRestart(host, order, conversationId)
+        }
       }
       if (!isTransientWorkOrder(order)) {
         // Finalization persists the deterministic Master reply in the same
         // lifecycle operation. Reload the active history now so the user does
         // not need to close and reopen the panel to see it.
-        if (conversationId) {
-          try {
-            const master = await host.service.request('/api/master/history?conversationId=' + encodeURIComponent(conversationId))
-            host.post({ type: 'master', master, loaded: true, completionRefresh: true })
-          } catch (error) {
-            host.service.hostLog('warn', `[chat] итог наряда ${id} сохранён, но история не обновилась: ${String(error?.message || error).slice(0, 200)}`)
-          }
-        }
+        await refreshMasterHistory(host, id, conversationId)
         return
       }
     }
@@ -96,22 +112,24 @@ function watchMasterWorkOrder(host, workOrderId, conversationId) {
 function watchMasterWorkOrders(host, master) {
   const conversationId = master?.sessions?.active
   for (const order of master?.workOrders || []) {
-    if (isTransientWorkOrder(order)) watchMasterWorkOrder(host, order.id, conversationId)
-    else void resumeAfterRestart(host, order, conversationId)
+    if (!isTransientWorkOrder(order)) continue
+    watchMasterWorkOrder(host, order.id, conversationId)
+    void resumeAfterRestart(host, order, conversationId)
   }
 }
 
-// Запуск, прерванный перезапуском ядра до первого шага, продолжается сам:
-// исполнять ещё было нечего, а «нажмите Продолжить» после каждого перезапуска
-// было единственным, что человек делал в этом квесте. Ключ модели живёт только
-// в SecretStorage расширения, поэтому продолжает расширение, а не ядро, и
-// ровно один раз на квест.
+// Пауза ядра, после которой продолжать можно без человека: запуск прерван
+// перезапуском ядра до первого шага или Docker, которого квест ждал, снова
+// отвечает. «Нажмите Продолжить» было единственным, что человек делал в этом
+// квесте. Ключ модели живёт только в SecretStorage расширения, поэтому
+// продолжает расширение, а не ядро, — один раз на каждую такую паузу.
 async function resumeAfterRestart(host, order, conversationId) {
   const runtime = order?.runtime
   if (runtime?.status !== 'paused' || !runtime?.resumeAfterRestart || !runtime?.questId || !host?.service) return
   host.autoResumedQuests ||= new Set()
-  if (host.autoResumedQuests.has(runtime.questId) || typeof host.credentialFor !== 'function') return
-  host.autoResumedQuests.add(runtime.questId)
+  const pauseKey = `${runtime.questId}:${runtime.updatedAt || ''}`
+  if (host.autoResumedQuests.has(pauseKey) || typeof host.credentialFor !== 'function') return
+  host.autoResumedQuests.add(pauseKey)
   try {
     const routing = order.routing || {}
     const connectionId = routing.mode === 'auto' ? routing.routerConnectionId : routing.fixedConnectionId
@@ -119,10 +137,10 @@ async function resumeAfterRestart(host, order, conversationId) {
     await host.service.request('/api/v2/master/quests/' + encodeURIComponent(runtime.questId) + '/resume', {
       method: 'POST', body: JSON.stringify({ message: '', apiKey }),
     })
-    host.service.hostLog?.('info', `[chat] квест ${runtime.questId} продолжен после перезапуска ядра`)
+    host.service.hostLog?.('info', `[chat] квест ${runtime.questId} продолжен без человека: ${runtime.message || 'пауза ядра'}`)
     watchMasterWorkOrder(host, order.id, conversationId)
   } catch (error) {
-    host.service.hostLog?.('warn', `[chat] квест не продолжен после перезапуска ядра: ${String(error?.message || error).slice(0, 200)}`)
+    host.service.hostLog?.('warn', `[chat] квест не продолжен после паузы ядра: ${String(error?.message || error).slice(0, 200)}`)
   }
 }
 

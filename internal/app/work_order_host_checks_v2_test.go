@@ -81,7 +81,7 @@ func TestHostOutageCriterionProvesDegradedAnswerAndRestores(t *testing.T) {
 	})
 	runner := &scriptedCompletionRunner{results: map[string]int{}}
 	runner.onRun = func(command string) {
-		switch command {
+		switch withoutComposeProject(command) {
 		case "docker compose stop postgres":
 			stopped.Store(true)
 		case "docker compose start postgres":
@@ -92,8 +92,9 @@ func TestHostOutageCriterionProvesDegradedAnswerAndRestores(t *testing.T) {
 	if len(checks) != 1 || !checks[0].Satisfied || checks[0].ExitCode == nil {
 		t.Fatalf("outage criterion was not proven: %#v", checks)
 	}
-	if strings.Join(runner.commands, " | ") != "docker compose stop postgres | docker compose start postgres" {
-		t.Fatalf("outage must stop and then restore the service: %v", runner.commands)
+	stack := "docker compose -p point-verify "
+	if strings.Join(runner.commands, " | ") != stack+"down -v --remove-orphans | "+stack+"stop postgres | "+stack+"start postgres | "+stack+"down -v --remove-orphans" {
+		t.Fatalf("outage must stop and then restore the service on a clean stack: %v", runner.commands)
 	}
 	if stopped.Load() {
 		t.Fatal("the service was left stopped after verification")
@@ -120,7 +121,7 @@ type portConflictRunner struct{ commands []string }
 func (runner *portConflictRunner) Run(_ context.Context, _, command string) (int, string, error) {
 	runner.commands = append(runner.commands, command)
 	switch {
-	case command == "docker compose up -d":
+	case withoutComposeProject(command) == "docker compose up -d":
 		return 1, "Container systemio-app-1  Starting\nError response from daemon: driver failed programming external connectivity on endpoint systemio-app-1: Bind for 0.0.0.0:8080 failed: port is already allocated", nil
 	case strings.HasPrefix(command, "docker ps --filter publish=8080"):
 		return 0, "other-app-1 com.docker.compose.project=other,com.docker.compose.project.working_dir=C:\\work\\other\n", nil
@@ -146,5 +147,73 @@ func TestStackUpPortConflictNamesTheHolder(t *testing.T) {
 	failed := failedHostCriteriaV2(checks, order)
 	if len(failed) != 1 || !strings.Contains(failed[0], "port is already allocated") || strings.Contains(failed[0], "Нужно действие") {
 		t.Fatalf("limitation must carry the reason, not the action: %v", failed)
+	}
+	// A port held by another stack is the environment's problem: another
+	// attempt by the same executor would only repeat it.
+	if repairable := repairableHostFailuresV2(checks); len(repairable) != 0 {
+		t.Fatalf("an environment failure was offered for repair: %#v", repairable)
+	}
+}
+
+// withoutComposeProject strips the quest's own project from a scoped Compose
+// command, so fakes can answer the approved command they know.
+func withoutComposeProject(command string) string {
+	if rest, ok := strings.CutPrefix(command, "docker compose -p "); ok {
+		if _, tail, found := strings.Cut(rest, " "); found {
+			return "docker compose " + tail
+		}
+	}
+	return command
+}
+
+type staleVolumeRunner struct{ commands []string }
+
+func (runner *staleVolumeRunner) Run(_ context.Context, _, command string) (int, string, error) {
+	runner.commands = append(runner.commands, command)
+	switch withoutComposeProject(command) {
+	case "docker compose up -d":
+		return 1, "Container app-1  Error\ndependency failed to start: container postgres-1 exited (1)", nil
+	case "docker compose logs --no-color --tail=40":
+		return 0, "postgres-1  | 2026-09-26 06:36:44.488 UTC [142] FATAL:  role \"postgres\" does not exist\n" +
+			"postgres-1  | 2026-09-26 06:36:45.488 UTC [143] FATAL:  role \"postgres\" does not exist\n" +
+			"app-1  | 2026/09/26 06:36:40 listening on :8080\n", nil
+	}
+	if strings.Contains(command, " ps -a ") {
+		return 0, "postgres: exited Exited (1)\napp: running Up 5 seconds", nil
+	}
+	return 0, "", nil
+}
+
+// Live run 26.09: the default Compose project is the folder name, so the
+// stack of an earlier quest was recreated in place and postgres kept its
+// foreign volume. The quest's own project starts clean, is torn down after,
+// and a failure carries what the containers said.
+func TestHostChecksRunOnACleanQuestStackAndKeepContainerLogs(t *testing.T) {
+	order, bundle := hostCheckOrderV2(t, map[string]any{"stack-up": map[string]any{"command": "docker compose up -d"}})
+	bundle.QuestID = "quest_ae4f2b5a598e036e141070a9"
+	runner := &staleVolumeRunner{}
+	checks := (&App{completionCheckRunner: runner}).runDeferredComposeCriteriaV2(context.Background(), order, t.TempDir(), &bundle)
+	if len(checks) != 1 || checks[0].Satisfied || checks[0].ExitCode == nil {
+		t.Fatalf("failed stack must fail its criterion: %#v", checks)
+	}
+	stack := "docker compose -p point-ae4f2b5a598e036e "
+	if len(runner.commands) < 3 || runner.commands[0] != stack+"down -v --remove-orphans" ||
+		runner.commands[len(runner.commands)-1] != stack+"down -v --remove-orphans" {
+		t.Fatalf("the quest stack must start clean and be torn down: %v", runner.commands)
+	}
+	for _, command := range runner.commands {
+		if !strings.HasPrefix(command, stack) {
+			t.Fatalf("a Compose command escaped the quest project: %q", command)
+		}
+	}
+	if !strings.Contains(bundle.HostDiagnostics, `role "postgres" does not exist`) || !strings.Contains(bundle.HostDiagnostics, "postgres: exited") {
+		t.Fatalf("container logs were not kept: %q", bundle.HostDiagnostics)
+	}
+	highlights := hostDiagnosticHighlightsV2(bundle.HostDiagnostics, 4)
+	if len(highlights) != 1 || !strings.Contains(highlights[0], `role "postgres" does not exist`) {
+		t.Fatalf("the card must show the one line that explains the failure once: %v", highlights)
+	}
+	if repairable := repairableHostFailuresV2(checks); len(repairable) != 1 {
+		t.Fatalf("an observed failure must be offered for repair: %#v", repairable)
 	}
 }

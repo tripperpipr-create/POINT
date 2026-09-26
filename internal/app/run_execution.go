@@ -196,6 +196,7 @@ func (a *App) PreviewAgentRun(request AgentRunPreviewRequest) (AgentRunPreview, 
 	if err != nil {
 		return AgentRunPreview{}, err
 	}
+	widenLegacyContextWindowOnFreeRuntime(&prepared.profile)
 	registry, _ := agent.BuildToolRegistryWithSources(prepared.fs, prepared.customTools, serverProfileBridge{app: a}, a.dbToolAccess(), prepared.profile)
 	definitions := registry.Definitions(prepared.profile.AllowedTools)
 	catalog := make(map[string]domain.ToolCatalogItem)
@@ -302,6 +303,10 @@ func (a *App) StartRun(request StartRunRequest) (domain.Run, error) {
 	if err = a.applyModelBinding(&prepared.profile, request.ModelBinding); err != nil {
 		return domain.Run{}, fmt.Errorf("apply stage model binding: %w", err)
 	}
+	// Окно расширяется здесь, где модель уже окончательна: привязка этапа
+	// могла её сменить. Живой прогон 26.09 шёл с бюджетом ввода 24576, потому
+	// что расширение стояло только в снимке для наборов правок.
+	widenLegacyContextWindowOnFreeRuntime(&prepared.profile)
 	applyStageExecutionBudget(&prepared.profile, request.StageRole)
 	slog.Info("agent start progress", "execution_id", request.ExecutionID, "phase", "lifecycle")
 	if err := a.enforceRunnableSystemLifecycle(context.Background()); err != nil {

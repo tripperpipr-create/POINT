@@ -263,6 +263,7 @@ func (s *SQLite) ReserveMasterLearning(ctx context.Context, ws string, tokens in
 	}
 	return id, tx.Commit()
 }
+
 // RecordMasterLearningSpend books learning tokens on a runtime that does not
 // charge for them. The spend stays visible in statistics, but it neither
 // needs nor consumes the 10% learning ceiling, which guards money only.

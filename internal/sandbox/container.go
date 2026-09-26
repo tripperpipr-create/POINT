@@ -650,6 +650,42 @@ func (b *ContainerBackend) Unavailable() string {
 	return dockerUnavailableError(b.availability.lastErr).Error()
 }
 
+// Recheck asks the daemon again when the backend is waiting for it. It is the
+// same probe Create runs, exposed so the core can notice Docker coming back
+// and continue the quests that stopped for it.
+func (b *ContainerBackend) Recheck(ctx context.Context) error { return b.ensureAvailable(ctx) }
+
+// ErrUnavailable marks a refusal that only a running Docker Desktop cures. A
+// launch that meets it waits for the daemon instead of blocking the quest.
+var ErrUnavailable = errors.New("sandbox backend unavailable")
+
+// Rechecker is implemented by backends that can start without their daemon.
+type Rechecker interface {
+	Recheck(context.Context) error
+}
+
+type unavailableError struct{ cause error }
+
+func (e *unavailableError) Error() string {
+	return unavailablePrefix + ": " + fmt.Sprint(e.cause)
+}
+func (e *unavailableError) Unwrap() error        { return e.cause }
+func (e *unavailableError) Is(target error) bool { return target == ErrUnavailable }
+
+const unavailablePrefix = "Docker недоступен — запустите Docker Desktop и повторите запуск"
+
 func dockerUnavailableError(err error) error {
-	return fmt.Errorf("Docker недоступен — запустите Docker Desktop и повторите запуск: %w", err)
+	return &unavailableError{cause: err}
+}
+
+// IsUnavailable recognises the refusal also after it crossed a boundary as
+// text: Flow node state keeps only the message, not the error chain.
+func IsUnavailable(err error) bool {
+	return err != nil && (errors.Is(err, ErrUnavailable) || MentionsUnavailable(err.Error()))
+}
+
+// MentionsUnavailable is IsUnavailable for a reason that survives only as
+// text, such as a Flow node's start error.
+func MentionsUnavailable(text string) bool {
+	return strings.Contains(text, unavailablePrefix)
 }

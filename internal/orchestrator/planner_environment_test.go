@@ -62,6 +62,29 @@ func TestPlannerSeesExecutionEnvironmentAndRetryFeedback(t *testing.T) {
 	}
 }
 
+// A repair attempt after failed host checks must plan a fix of the delivered
+// files, knowing what the host saw, instead of building the result again.
+func TestPlannerSeesTheReportOfTheFailedAttempt(t *testing.T) {
+	var requests []providers.ModelRequest
+	request := environmentPlannerRequest()
+	request.RepairContext = "Попытка 1 из 3: /health отвечает db=down; FATAL: role \"postgres\" does not exist"
+	planner := Planner{NewModel: func(providers.Config) (providers.Model, error) {
+		return capturingPlannerModel{raw: singleStagePlan("Fix the database connection in main.go and compose"), requests: &requests}, nil
+	}}
+	if _, err := planner.Plan(context.Background(), request); err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, message := range requests[0].Messages {
+		if message.Role == "user" && strings.Contains(message.Content, "повторная попытка") && strings.Contains(message.Content, `role "postgres" does not exist`) {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("repair report did not reach the planner: %#v", requests[0].Messages)
+	}
+}
+
 func TestPlannerRejectsDockerWorkInSandboxWithoutDocker(t *testing.T) {
 	request := environmentPlannerRequest()
 	for instruction, rejected := range map[string]bool{

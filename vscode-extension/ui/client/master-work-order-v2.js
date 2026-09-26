@@ -159,7 +159,8 @@ export function masterWorkOrderCardsHtml(orders, esc, busyIds = new Set(), deps 
 	// стоит на нём, он отдал ключ или авторизовал CLI и просит продолжить.
 	// Пока этого состояния тут не было, у квеста, ждущего ключ, не оставалось
 	// ни одной кнопки — только отмена.
-	const resumable=['paused','blocked','awaiting_user'].includes(runtime?.status) && runtime?.stall?.waitReason!=='stage_failed'
+	// Вердикт шлюза окончателен: исправление идёт новой версией наряда через Мастера.
+	const resumable=['paused','blocked','awaiting_user'].includes(runtime?.status) && runtime?.stall?.waitReason!=='stage_failed' && !(runtime?.status==='blocked' && runtime?.evidence?.id)
 	const resumeLabel=runtime?.status==='paused' ? 'Продолжить' : 'Повторить запуск'
 	// Песочница выключена по умолчанию, и ядро честно отказывается запускать
 	// автономный проект. Отказ без выхода читается как поломка, поэтому рядом

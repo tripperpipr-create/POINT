@@ -58,6 +58,10 @@ func (a *App) reconcileNoopWorkOrderResumesV2(ctx context.Context) {
 		if runErr != nil {
 			continue
 		}
+		if workOrderFlowFinishedV2(run) {
+			a.reconcileFinishedFlowResumeV2(ctx, quest, run)
+			continue
+		}
 		failure, terminal := terminalFailedWorkOrderFlowV2(run)
 		if !terminal {
 			continue
@@ -99,5 +103,31 @@ func (a *App) pauseInterruptedWorkOrderQuestsV2(ctx context.Context) {
 		if recordErr := a.store.RecordWorkOrderQuestPauseV2(ctx, quest.ID, interruptedStatus, questRecoveryMessageV2); recordErr != nil {
 			observability.From(ctx).Error("interrupted quest pause not recorded", "quest_id", item.QuestID, "error", recordErr)
 		}
+	}
+}
+
+// reconcileFinishedFlowResumeV2 repairs what the old "Продолжить" left after a
+// verdict: the quest stuck in `preflight` and its finished Flow rewritten to
+// `running`. The Flow gets its end back, and a quest with a verdict returns to
+// it; one without a verdict is left for the pause that follows, from which
+// continuing runs the check that never happened.
+func (a *App) reconcileFinishedFlowResumeV2(ctx context.Context, quest domain.Quest, run domain.FlowRun) {
+	if run.Status != domain.RunCompleted {
+		now := time.Now().UTC()
+		run.Status, run.Error = domain.RunCompleted, ""
+		if run.FinishedAt == nil {
+			run.FinishedAt = &now
+		}
+		if err := a.store.SaveFlowRun(ctx, run); err != nil {
+			observability.From(ctx).Error("finished flow status not restored", "flow_run_id", run.ID, "error", err)
+		}
+	}
+	if _, final, err := a.store.WorkOrderVerdictV2(ctx, quest.ID); err != nil || !final {
+		return
+	}
+	if status, err := a.store.FinalizeWorkOrderQuestV2(ctx, quest.ID, domain.EvidenceBundle{}); err != nil {
+		observability.From(ctx).Error("quest verdict not restored", "quest_id", quest.ID, "error", err)
+	} else {
+		observability.From(ctx).Info("quest returned to its verdict after a no-op resume", "quest_id", quest.ID, "status", status)
 	}
 }

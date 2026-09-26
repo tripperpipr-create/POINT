@@ -103,6 +103,9 @@ type App struct {
 	masterWatchCancel     context.CancelFunc
 	masterWatchWG         sync.WaitGroup
 	masterWatchIntervened map[string]time.Time
+	sandboxWatchMu        sync.Mutex
+	sandboxWatchCancel    context.CancelFunc
+	sandboxWatchWG        sync.WaitGroup
 	// flowOrchestratorKeys keeps the credential used to start a FlowRun so later
 	// stages can auto-start after scheduleFlowAgentExecutionsFromRun (which has no
 	// request body). Never persisted; cleared when the FlowRun reaches a terminal status.
@@ -396,6 +399,7 @@ func New(dataDir string, options ...Option) (*App, error) {
 		}
 	}
 	application.StartMasterWatch()
+	application.startSandboxWatchV2()
 	return application, nil
 }
 
@@ -429,6 +433,7 @@ func (a *App) Shutdown(ctx context.Context) {
 	a.stopWorkOrderLaunches()
 	a.stopMCPServers()
 	a.stopMasterWatch()
+	a.stopSandboxWatchV2()
 	a.externalMu.Lock()
 	for _, cancel := range a.externalCancels {
 		cancel()

@@ -195,6 +195,11 @@ type EvidenceBundle struct {
 	Assurance                string                   `json:"assurance,omitempty"`
 	OutcomeSummary           string                   `json:"outcomeSummary,omitempty"`
 	CreatedAt                time.Time                `json:"createdAt"`
+	// HostDiagnostics is the container state and log tail Point collected when
+	// a host check failed. The check summary says what was observed; the logs
+	// say why — `role "postgres" does not exist` named a stale volume that the
+	// summary `db=down` alone blamed on the code.
+	HostDiagnostics string `json:"hostDiagnostics,omitempty"`
 }
 
 type IntakeSession struct {

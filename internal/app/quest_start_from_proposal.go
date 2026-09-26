@@ -213,6 +213,9 @@ func (a *App) startQuestFromProposalUsingQuest(ctx context.Context, ws domain.Wo
 				a.updateWorkOrderLaunchProgressV2(ctx, &quest, "planning", progress.Message)
 			},
 		}
+		// Повторная попытка после проваленной проверки на хосте несёт отчёт
+		// прошлой: без него планировщик строил тот же результат заново.
+		planRequest.RepairContext, _ = quest.Controller["repairFeedback"].(string)
 		planned, planErr := planner.Plan(ctx, planRequest)
 		attempts := 1
 		if planErr != nil && ctx.Err() == nil && !plannerBudgetBlocked(planErr) {

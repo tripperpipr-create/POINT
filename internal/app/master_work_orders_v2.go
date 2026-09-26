@@ -68,7 +68,7 @@ func (a *App) saveMasterWorkOrderV2(ctx context.Context, proposal *domain.QuestP
 		Routing: domain.ModelRoutingPolicy{
 			Mode: "fixed", FixedConnectionID: cfg.ConnectionID, FixedModel: cfg.Model,
 			FallbackMode: "auto", Certification: "experimental", Experimental: true,
-			Adapter: domain.AdapterCapabilityManifest{Tools: true, StructuredOutput: true, ContextTokens: 32768, CostVisibility: "unknown"},
+			Adapter: domain.AdapterCapabilityManifest{Tools: true, StructuredOutput: true, ContextTokens: masterRouteContextTokensV2(cfg.Model), CostVisibility: "unknown"},
 		},
 		Budget: domain.BudgetEnvelope{
 			Preset: "medium", Tokens: brief.Budget.Tokens, CostCents: brief.Budget.CostCents,
@@ -549,6 +549,16 @@ func masterToolchainsV2(brief domain.TaskBrief, workspace domain.WorkspacePlan) 
 	}
 	sort.Strings(result)
 	return result
+}
+
+// masterRouteContextTokensV2 берёт окно маршрута из справочника моделей.
+// Прежние жёсткие 32768 записывали в карточку окно, которого у Qwen3 (131072)
+// нет, и расходились с тем, что исполнитель получает на самом деле.
+func masterRouteContextTokensV2(model string) int {
+	if known := domain.DefaultContextWindow(model); known > 0 {
+		return known
+	}
+	return legacyAgentContextWindow
 }
 
 func masterToolchainLabelV2(toolchain string) string {

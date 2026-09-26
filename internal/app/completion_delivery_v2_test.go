@@ -48,7 +48,7 @@ func TestDeliveredResultIsCheckedByTheApprovedProfile(t *testing.T) {
 			runner := &scriptedCompletionRunner{results: map[string]int{}}
 			starts := 0
 			runner.onRun = func(command string) {
-				switch command {
+				switch withoutComposeProject(command) {
 				case "docker compose up -d --wait":
 					starts++
 					stopped.Store(false)
@@ -141,9 +141,15 @@ func TestDeliveredResultIsCheckedByTheApprovedProfile(t *testing.T) {
 				t.Fatalf("receipt claims running=%v while the service check said %v",
 					bundle.DeliveryReceipt.ServicesRunning, services.Satisfied)
 			}
-			if len(runner.commands) < 5 || runner.commands[0] != "docker compose up -d --wait" ||
-				runner.commands[1] != "docker compose stop postgres" || runner.commands[2] != "docker compose start postgres" ||
-				runner.commands[3] != "vendor/bin/phpunit" || runner.commands[4] != "docker compose up -d --wait" {
+			// Host criteria run in the quest's own Compose project, from a clean
+			// slate and torn down afterwards; the profile then starts the
+			// delivered application in the user's own project.
+			stack := "docker compose -p " + composeProjectNameV2(quest.ID) + " "
+			want := []string{
+				stack + "down -v --remove-orphans", stack + "up -d --wait", stack + "stop postgres", stack + "start postgres",
+				stack + "down -v --remove-orphans", "vendor/bin/phpunit", "docker compose up -d --wait",
+			}
+			if strings.Join(runner.commands, " | ") != strings.Join(want, " | ") {
 				t.Fatalf("Compose criteria must run after delivery and before the completion profile: %#v", runner.commands)
 			}
 			for _, id := range []string{"health-200", "health-503-live-200"} {
@@ -215,7 +221,9 @@ func TestApprovedBuildStackAndHealthRunOnDeliveredHost(t *testing.T) {
 	runner := &scriptedCompletionRunner{results: map[string]int{}}
 	application := &App{completionCheckRunner: runner}
 	checks := application.runDeferredComposeCriteriaV2(context.Background(), order, t.TempDir(), &bundle)
-	if len(checks) != 3 || len(runner.commands) != 2 || runner.commands[0] != commands[0] || runner.commands[1] != commands[1] {
+	want := "docker compose -p point-verify down -v --remove-orphans | docker compose -p point-verify build | " +
+		"docker compose -p point-verify up -d | docker compose -p point-verify down -v --remove-orphans"
+	if len(checks) != 3 || strings.Join(runner.commands, " | ") != want {
 		t.Fatalf("host checks=%#v, shell commands=%#v", checks, runner.commands)
 	}
 	for _, check := range checks {

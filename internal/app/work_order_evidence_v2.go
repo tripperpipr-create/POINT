@@ -69,6 +69,7 @@ func (a *App) finalizeWorkOrderQuestAfterFlowV2(approval domain.WorkOrderApprova
 	}
 	bundle := a.buildWorkOrderEvidenceV2(ctx, approval, quest, flowSucceeded)
 	machineReady := workOrderMachineEvidenceSatisfiedV2(approval.WorkOrder, bundle)
+	var hostChecks []domain.VerificationCheck
 	if flowSucceeded && machineReady && approval.WorkOrder.Delivery.ApplyMode == "automatic" {
 		if quest.Status == domain.QuestVerifying {
 			quest, err = a.setWorkOrderQuestStatusV2(ctx, quest, domain.QuestApplying, "Проверки пройдены; переносим результат в проект")
@@ -90,6 +91,7 @@ func (a *App) finalizeWorkOrderQuestAfterFlowV2(approval domain.WorkOrderApprova
 			// commands frozen in the approved WorkOrder, then let the completion
 			// profile restore and verify the final service state.
 			composeChecks := a.runDeferredComposeCriteriaV2(ctx, approval.WorkOrder, approval.WorkOrder.Workspace.Path, &bundle)
+			hostChecks = composeChecks
 			if failed := failedHostCriteriaV2(composeChecks, approval.WorkOrder); len(failed) > 0 {
 				bundle.KnownLimitations = append(bundle.KnownLimitations,
 					"Результат перенесён в проект, но не прошёл проверки на хосте: "+strings.Join(failed, "; "))
@@ -113,6 +115,11 @@ func (a *App) finalizeWorkOrderQuestAfterFlowV2(approval domain.WorkOrderApprova
 		// available for review; it has deliberately not touched the workspace.
 		bundle.DeliveryVerified = true
 		bundle.DeliveryTarget = "isolated_review"
+	}
+	// Проваленная проверка на хосте при оставшихся попытках — не вердикт, а
+	// следующая попытка с отчётом о том, что увидел хост.
+	if flowSucceeded && bundle.DeliveryVerified && a.startWorkOrderRepairAttemptV2(ctx, approval, quest, bundle, hostChecks) {
+		return
 	}
 	if bundle.DeliveryTarget == "" {
 		bundle.DeliveryTarget = approval.WorkOrder.Workspace.Path
@@ -231,6 +238,9 @@ func (a *App) publishWorkOrderOutcomeV2(ctx context.Context, approval domain.Wor
 		line("Проваленные проверки", failed),
 		line("Ограничения", bundle.KnownLimitations),
 	}
+	if highlights := hostDiagnosticHighlightsV2(bundle.HostDiagnostics, 4); len(highlights) > 0 {
+		content = append(content, "Журнал контейнеров: "+strings.Join(highlights, " · "))
+	}
 	if bundle.DeliveryReceipt != nil && bundle.DeliveryReceipt.ServicesRunning && strings.TrimSpace(bundle.DeliveryReceipt.URL) != "" {
 		content = append(content, "Приложение: "+bundle.DeliveryReceipt.URL)
 	}
@@ -239,7 +249,9 @@ func (a *App) publishWorkOrderOutcomeV2(ctx context.Context, approval domain.Wor
 	} else if status == domain.QuestBlocked && action != "" {
 		content = append(content, action)
 	} else if status == domain.QuestBlocked {
-		content = append(content, "Нужно действие: устраните причину из строки «Ограничения» и повторите запуск квеста.")
+		// Вердикт окончателен для квеста: «повторите запуск» вело к кнопке,
+		// которая ничего не запускала.
+		content = append(content, "Нужно действие: опишите Мастеру, что исправить, — он подготовит новую версию наряда, и она пойдёт новым квестом.")
 	} else if bundle.Assurance == domain.WorkOrderAssurancePartial && len(unavailable) > 0 {
 		content = append(content, "Нужно действие: при необходимости выполните перечисленные ручные проверки.")
 	}
@@ -471,15 +483,41 @@ func (a *App) runManagedComposeCriterionV2(ctx context.Context, directory, kind,
 }
 
 func (a *App) runDeferredComposeCriteriaV2(ctx context.Context, order domain.WorkOrder, directory string, bundle *domain.EvidenceBundle) []domain.VerificationCheck {
-	runner := a.completionCheckRunner
+	var runner CompletionCheckRunner = a.completionCheckRunner
 	if runner == nil {
 		runner = shellCompletionCheckRunner{}
 	}
 	results := []domain.VerificationCheck{}
+	hostCriteria := []domain.AcceptanceCriterion{}
 	for _, criterion := range order.Criteria {
-		if !deferredHostCriterionV2(order, criterion) {
-			continue
+		if deferredHostCriterionV2(order, criterion) {
+			hostCriteria = append(hostCriteria, criterion)
 		}
+	}
+	managesStack := false
+	for _, criterion := range hostCriteria {
+		if kind := managedHostCheckFromArgsV2(order, criterion.Arguments).Kind; kind != "" && kind != "http" {
+			managesStack = true
+		}
+	}
+	if managesStack {
+		// Стенд проверки — собственный Compose-проект квеста, начатый с
+		// чистого листа: без этого postgres поднимался на томе прошлого квеста
+		// в той же папке, и проверка винила верный код. После проверки стенд
+		// гасится всегда: работающее приложение по политике доставки поднимает
+		// профиль (`service_start`) уже в проекте человека, и стенд занимал бы
+		// его порт.
+		runner = composeProjectRunnerV2{inner: runner, project: composeProjectNameV2(bundle.QuestID)}
+		if problem := resetComposeProjectV2(ctx, directory, runner); problem != "" {
+			slog.Warn("verification stack reset failed", "quest_id", bundle.QuestID, "problem", problem)
+		}
+		defer func() {
+			if problem := resetComposeProjectV2(context.WithoutCancel(ctx), directory, runner); problem != "" {
+				slog.Warn("verification stack teardown failed", "quest_id", bundle.QuestID, "problem", problem)
+			}
+		}()
+	}
+	for _, criterion := range hostCriteria {
 		var args struct {
 			Command string `json:"command"`
 		}
@@ -526,6 +564,12 @@ func (a *App) runDeferredComposeCriteriaV2(ctx context.Context, order domain.Wor
 			}
 		}
 		results = append(results, check)
+	}
+	for _, check := range results {
+		if managesStack && !check.Satisfied && check.ExitCode != nil {
+			bundle.HostDiagnostics = collectComposeDiagnosticsV2(ctx, directory, runner)
+			break
+		}
 	}
 	return results
 }

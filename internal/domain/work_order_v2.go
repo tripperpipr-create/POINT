@@ -64,13 +64,17 @@ type WorkOrderRuntime struct {
 	// Planning can take minutes; a single `preflight` status made that time look
 	// like a frozen button rather than active work.
 	LaunchPhase string `json:"launchPhase,omitempty"`
-	// ResumeAfterRestart marks a launch the core's own shutdown interrupted
-	// before any work ran. The extension resumes it once, with the key the
-	// core does not hold.
-	ResumeAfterRestart bool       `json:"resumeAfterRestart,omitempty"`
-	LaunchStartedAt    *time.Time `json:"launchStartedAt,omitempty"`
-	FlowID             string     `json:"flowId,omitempty"`
-	FlowRunID          string     `json:"flowRunId,omitempty"`
+	// ResumeAfterRestart marks a pause the extension continues by itself,
+	// with the key the core does not hold: a launch the core's own shutdown
+	// interrupted before any work ran, or a quest whose Docker came back.
+	ResumeAfterRestart bool `json:"resumeAfterRestart,omitempty"`
+	// WaitingForSandbox marks a pause until Docker Desktop answers. The
+	// extension keeps watching such a quest instead of treating the pause as
+	// the human's decision.
+	WaitingForSandbox bool       `json:"waitingForSandbox,omitempty"`
+	LaunchStartedAt   *time.Time `json:"launchStartedAt,omitempty"`
+	FlowID            string     `json:"flowId,omitempty"`
+	FlowRunID         string     `json:"flowRunId,omitempty"`
 	// AgentIDs — исполнители, созданные утверждением наряда. Карточка обещала
 	// «будет создан» и после утверждения обязана показать, что он создан.
 	AgentIDs        []string           `json:"agentIds,omitempty"`

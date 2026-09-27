@@ -27,6 +27,47 @@ type HubBudgetSettings struct {
 	HardStop     bool   `json:"hardStop"`
 }
 
+// GlobalBudgetSettings caps known AI spending across every project in this Point database.
+type GlobalBudgetSettings struct {
+	DailyCents   int64 `json:"dailyCents"`
+	MonthlyCents int64 `json:"monthlyCents"`
+	HardStop     bool  `json:"hardStop"`
+}
+
+const globalBudgetSettingKey = "hub.budget.global.v1"
+
+func (a *App) SaveGlobalBudget(settings GlobalBudgetSettings) (GlobalBudgetSettings, error) {
+	if settings.DailyCents < 0 || settings.MonthlyCents < 0 {
+		return GlobalBudgetSettings{}, errors.New("budget limits cannot be negative")
+	}
+	payload, err := json.Marshal(settings)
+	if err != nil {
+		return GlobalBudgetSettings{}, err
+	}
+	if err = a.store.SaveSetting(context.Background(), globalBudgetSettingKey, string(payload)); err != nil {
+		return GlobalBudgetSettings{}, err
+	}
+	return settings, nil
+}
+
+func (a *App) loadGlobalBudget(ctx context.Context) (GlobalBudgetSettings, error) {
+	value, err := a.store.Setting(ctx, globalBudgetSettingKey)
+	if storage.IsNotFound(err) {
+		return GlobalBudgetSettings{}, nil
+	}
+	if err != nil {
+		return GlobalBudgetSettings{}, err
+	}
+	var settings GlobalBudgetSettings
+	if err = json.Unmarshal([]byte(value), &settings); err != nil {
+		return GlobalBudgetSettings{}, fmt.Errorf("decode global budget: %w", err)
+	}
+	if settings.DailyCents < 0 || settings.MonthlyCents < 0 {
+		return GlobalBudgetSettings{}, errors.New("global budget limits cannot be negative")
+	}
+	return settings, nil
+}
+
 func (a *App) resumeStructuredExecutionIfSafe(previous *domain.ExecutionInstance, apiKey string) (domain.Run, error) {
 	if previous == nil || strings.TrimSpace(previous.RunID) == "" {
 		return domain.Run{}, nil

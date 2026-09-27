@@ -126,9 +126,14 @@ const (
 	GitLabBindManual GitLabBindMode = "manual"
 	// GitLabBindAll — без проекта: MR владельца по всем проектам.
 	GitLabBindAll GitLabBindMode = "all"
+	// GitLabBindOff — проект с GitLab не связан: окно молчит, сервер плагина
+	// ради этого проекта не запускается. Подключение GitLab общее для машины,
+	// а связь — выбор проекта.
+	GitLabBindOff GitLabBindMode = "off"
 )
 
-// GitLabBinding — какой проект GitLab показывать для папки. Username —
+// GitLabBinding — какой проект GitLab показывать для папки. Строки нет —
+// выбор не сделан, и связь выводится из git remote origin. Username —
 // ручная замена имени владельца, если сервер не отвечает на whoami.
 type GitLabBinding struct {
 	WorkspaceID string         `json:"workspaceId"`

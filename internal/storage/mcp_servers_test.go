@@ -60,11 +60,22 @@ func TestMCPServerRoundTripToolsAndDelete(t *testing.T) {
 	if err != nil || len(actions) != 1 || actions[0].BodyLength != 42 {
 		t.Fatalf("actions = %+v, err = %v", actions, err)
 	}
+	// Отказ проекта от GitLab — выбор проекта, а не свойство сервера: он
+	// переживает отключение плагина и повторное подключение.
+	if _, err = store.GetGitLabBinding(ctx, "ws_1"); err == nil {
+		t.Fatal("binding exists before the owner chose")
+	}
+	if err = store.SaveGitLabBinding(ctx, domain.GitLabBinding{WorkspaceID: "ws_1", ServerID: "mcp_gl", Mode: domain.GitLabBindOff, UpdatedAt: now}); err != nil {
+		t.Fatal(err)
+	}
 	if err = store.DeleteMCPServer(ctx, "mcp_gl"); err != nil {
 		t.Fatal(err)
 	}
 	if listed, _ = store.ListMCPTools(ctx, "mcp_gl"); len(listed) != 0 {
 		t.Fatalf("tools outlived their server: %+v", listed)
+	}
+	if binding, getErr := store.GetGitLabBinding(ctx, "ws_1"); getErr != nil || binding.Mode != domain.GitLabBindOff || binding.ServerID != "" {
+		t.Fatalf("binding after plugin removal = %+v, err = %v", binding, getErr)
 	}
 	if err = store.DeleteMCPServer(ctx, "mcp_gl"); err == nil {
 		t.Fatal("second delete succeeded")

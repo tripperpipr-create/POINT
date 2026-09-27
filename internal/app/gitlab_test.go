@@ -112,7 +112,7 @@ func TestGitLabPluginConnectsAndShowsScreens(t *testing.T) {
 	useFakeGitLab(t, application)
 	ctx := context.Background()
 
-	if status := application.GitLabStatus(ctx); status.Reason != GitLabNotConfigured || status.Data.(GitLabStatusView).Configured {
+	if status := application.GitLabStatus(ctx, ""); status.Reason != GitLabNotConfigured || status.Data.(GitLabStatusView).Configured {
 		t.Fatalf("status before connect: %+v", status)
 	}
 	view, err := application.SaveGitLabPlugin(GitLabPluginUpsert{URL: "https://GitLab.example.test/", Token: "glpat-abcdefghijklmnopqrstuvwx"})
@@ -130,7 +130,7 @@ func TestGitLabPluginConnectsAndShowsScreens(t *testing.T) {
 	if _, err = application.SaveMCPServer(MCPServerUpsert{Kind: domain.MCPServerGitLab, Transport: domain.MCPTransportStdio, Command: "npx"}); err == nil {
 		t.Fatal("generic form created a plugin server")
 	}
-	if status := application.GitLabStatus(ctx); status.Reason != GitLabNotTrusted || !strings.Contains(status.Fix, "Доверяю") {
+	if status := application.GitLabStatus(ctx, ""); status.Reason != GitLabNotTrusted || !strings.Contains(status.Fix, "Доверяю") {
 		t.Fatalf("untrusted status: %+v", status)
 	}
 	if response := application.GitLabMergeRequests(ctx, "mine"); response.Reason != GitLabNotTrusted {
@@ -140,8 +140,8 @@ func TestGitLabPluginConnectsAndShowsScreens(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	status := decodeData[GitLabStatusView](t, application.GitLabStatus(ctx))
-	if status.User == nil || status.User.Username != "anna" || status.Binding.Project != "billing/payments" ||
+	status := decodeData[GitLabStatusView](t, application.GitLabStatus(ctx, ""))
+	if status.User == nil || status.User.Username != "anna" || !status.Linked || status.Binding.Project != "billing/payments" ||
 		status.Binding.Branch != "fix/webhook-retry" || status.Binding.Mode != domain.GitLabBindAuto || !status.Capabilities[gitlab.FeatureMerge].Available {
 		t.Fatalf("status: %+v", status)
 	}
@@ -262,7 +262,7 @@ func TestGitLabPluginConnectsAndShowsScreens(t *testing.T) {
 	if view, err = application.SaveGitLabPlugin(GitLabPluginUpsert{URL: "https://gitlab.example.test", Token: fakeGitLabRevoked}); err != nil || !view.Trusted {
 		t.Fatalf("token change: %+v, %v", view, err)
 	}
-	if denied := application.GitLabStatus(ctx); denied.Reason != GitLabAuth || !strings.Contains(denied.Fix, "токен") ||
+	if denied := application.GitLabStatus(ctx, ""); denied.Reason != GitLabAuth || !strings.Contains(denied.Fix, "токен") ||
 		strings.Contains(denied.Problem, fakeGitLabRevoked) {
 		t.Fatalf("revoked token: %+v", denied)
 	}
@@ -272,5 +272,74 @@ func TestGitLabPluginConnectsAndShowsScreens(t *testing.T) {
 	}
 	if _, err = application.SaveGitLabPlugin(GitLabPluginUpsert{URL: "https://gitlab.example.test", CAPath: "ca.pem"}); err == nil {
 		t.Fatal("relative CA path accepted")
+	}
+}
+
+// Подключение GitLab общее, а связь — выбор проекта. Без выбора владельца
+// проект связывает только origin на подключённый сервер; несвязанный проект
+// сервер плагина не запускает и получает спокойное not_linked.
+func TestGitLabProjectLinkIsOptional(t *testing.T) {
+	application := newTestApp(t)
+	useFakeGitLab(t, application)
+	ctx := context.Background()
+	view, err := application.SaveGitLabPlugin(GitLabPluginUpsert{URL: "https://gitlab.example.test", Token: "glpat-abcdefghijklmnopqrstuvwx"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = application.TrustMCPServer(view.ID, view.PendingDigest); err != nil {
+		t.Fatal(err)
+	}
+	unprobed := func(step string) {
+		t.Helper()
+		if servers, listErr := application.ListMCPServers(); listErr != nil || len(servers) != 1 || len(servers[0].Tools) != 0 {
+			t.Fatalf("%s started the plugin server: %+v, %v", step, servers, listErr)
+		}
+	}
+
+	application.gitRunner = gitlabGitRunner{"remote get-url origin": "git@github.com:anna/dotfiles.git", "rev-parse --abbrev-ref HEAD": "main"}
+	unlinked := decodeData[GitLabStatusView](t, application.GitLabStatus(ctx, ""))
+	if unlinked.Linked || unlinked.Binding.Mode != domain.GitLabBindOff || unlinked.Binding.Project != "" || unlinked.User != nil ||
+		unlinked.ServerVersion != "" || !strings.Contains(unlinked.Binding.Note, "github.com") {
+		t.Fatalf("unlinked status: %+v", unlinked)
+	}
+	for _, response := range []GitLabResponse{application.GitLabMergeRequests(ctx, "mine"), application.GitLabPipelines(ctx, "", "", 0)} {
+		if response.State != "error" || response.Reason != GitLabNotLinked || !strings.Contains(response.Fix, "настройках проекта") {
+			t.Fatalf("unlinked screen: %+v", response)
+		}
+	}
+	unprobed("unlinked project")
+	if response := application.GitLabStatus(ctx, "everything"); response.Reason != GitLabBadRequest {
+		t.Fatalf("unknown status scope: %+v", response)
+	}
+	// Карточке плагина в общих настройках нужно здоровье сервера в любом проекте.
+	plugin := decodeData[GitLabStatusView](t, application.GitLabStatus(ctx, GitLabStatusPlugin))
+	if plugin.Linked || plugin.User == nil || plugin.User.Username != "anna" || plugin.Binding.Mode != domain.GitLabBindOff {
+		t.Fatalf("plugin status in an unlinked project: %+v", plugin)
+	}
+
+	// origin на подключённый GitLab связывает проект без выбора владельца.
+	application.gitRunner = gitlabGitRunner{"remote get-url origin": "https://gitlab.example.test/billing/payments.git", "rev-parse --abbrev-ref HEAD": "main"}
+	auto := decodeData[GitLabStatusView](t, application.GitLabStatus(ctx, ""))
+	if !auto.Linked || auto.Binding.Mode != domain.GitLabBindAuto || auto.Binding.Project != "billing/payments" || auto.User == nil {
+		t.Fatalf("auto status: %+v", auto)
+	}
+
+	// Явное «Не связывать» сильнее origin: окно молчит, списков нет.
+	off := decodeData[GitLabBindingView](t, application.SaveGitLabBinding(ctx, GitLabBindingUpsert{Mode: domain.GitLabBindOff}))
+	if off.Mode != domain.GitLabBindOff || off.Project != "" || off.Detected != "billing/payments" || !strings.Contains(off.Note, "отключена") {
+		t.Fatalf("off binding: %+v", off)
+	}
+	if status := decodeData[GitLabStatusView](t, application.GitLabStatus(ctx, "")); status.Linked || status.User != nil {
+		t.Fatalf("status after opting out: %+v", status)
+	}
+	if response := application.GitLabMergeRequests(ctx, "review"); response.Reason != GitLabNotLinked {
+		t.Fatalf("list after opting out: %+v", response)
+	}
+	// Возврат к git remote связывает снова.
+	if back := decodeData[GitLabBindingView](t, application.SaveGitLabBinding(ctx, GitLabBindingUpsert{Mode: domain.GitLabBindAuto})); back.Project != "billing/payments" {
+		t.Fatalf("auto binding: %+v", back)
+	}
+	if mine := decodeData[GitLabMergeRequestsView](t, application.GitLabMergeRequests(ctx, "mine")); mine.Project != "billing/payments" {
+		t.Fatalf("list after linking back: %+v", mine)
 	}
 }

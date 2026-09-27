@@ -17,6 +17,7 @@ import { createViewRuntime } from './view-runtime.js'
 import { createQuestOverviewViews } from './quest-overview-views.js'
 import { createQuestRuntimeViews } from './quest-runtime-views.js'
 import { createHallOnboardingViews } from './hall-onboarding-views.js'
+import { generalSettingsView, modelConnectionsSettingsView } from './general-settings-view.js'
 import { createProjectGalleryViews } from './project-gallery-views.js'
 import { createMasterChatDirectory } from './master-chat-directory.js'
 import { createAgentWorkTranscript } from './agent-work-transcript.js'
@@ -53,6 +54,8 @@ import { handleMasterAgentCardAction, masterAgentCardsAll, masterAgentConsent, r
 import { MASTER_MESSAGE_LIMIT_BYTES, masterComposeCountClass, masterComposeCountState, masterComposeFormClass, masterAnswerRows, masterComposeRows, masterMessageBytes, masterWaitSuffix, oversizedMasterMessageNote } from './master-compose.js'
 import { createMasterFeedRuntime, threadNearBottom } from './master-feed.js'
 import { createMasterStreamView } from './master-stream-view.js'
+import { bindDragAndDrop } from './drag-drop.js'
+import { createUiSnapshot } from './ui-snapshot.js'
 import { closeMasterMenus, handleMasterFieldKey, handleMasterQueueAction, masterQueueHtml, masterQueueOf, masterQueuePush, masterSlashInput, masterSlashOpen, pickMasterSlash } from './master-compose-keys.js'
 import { COMPANION_EXAMPLES, COMPANION_MESSAGE_LIMIT_BYTES, COMPANION_SETUP_STEPS, COMPANION_SETUP_STEP_ALIAS, applyLocalSourceFields, companionBrainMode, companionConfigForBrain, normalizeBrainMode, companionSpendCaveats, companionSceneById, companionModeCardsHtml, companionLocalReadyHtml, companionComposeActionsHtml, companionComposeMetaHtml, companionMessageBytes, companionWaitSuffix, oversizedCompanionMessageNote } from './companion-compose.js'
 // Счётчик отправок нужен защите форм от повторной отправки: обработчик формы
@@ -2119,6 +2122,7 @@ const modularUiState = {
   get blueprintSyncDirection() { return blueprintSyncDirection }, set blueprintSyncDirection(value) { blueprintSyncDirection = value },
   get blueprintSyncPreview() { return blueprintSyncPreview }, set blueprintSyncPreview(value) { blueprintSyncPreview = value },
   get companionActiveRequestId() { return companionActiveRequestId }, set companionActiveRequestId(value) { companionActiveRequestId = value },
+  get companionAutoFollow() { return companionAutoFollow }, set companionAutoFollow(value) { companionAutoFollow = value },
   get companionActivitySteps() { return companionActivitySteps }, set companionActivitySteps(value) { companionActivitySteps = value },
   get companionActionEditId() { return companionActionEditId }, set companionActionEditId(value) { companionActionEditId = value },
   get companionAppliedNotice() { return companionAppliedNotice }, set companionAppliedNotice(value) { companionAppliedNotice = value },
@@ -2189,6 +2193,7 @@ const modularUiState = {
   get gitChecked() { return gitChecked }, set gitChecked(value) { gitChecked = value },
   get gitCollapsed() { return gitCollapsed }, set gitCollapsed(value) { gitCollapsed = value },
   get gitCommitDraft() { return gitCommitDraft }, set gitCommitDraft(value) { gitCommitDraft = value },
+  get gitDragPath() { return gitDragPath }, set gitDragPath(value) { gitDragPath = value },
   get gitFlat() { return gitFlat }, set gitFlat(value) { gitFlat = value },
   get gitFoldedOnce() { return gitFoldedOnce }, set gitFoldedOnce(value) { gitFoldedOnce = value },
   get gitHistoryOpen() { return gitHistoryOpen }, set gitHistoryOpen(value) { gitHistoryOpen = value },
@@ -2582,131 +2587,15 @@ const masterStreamView = createMasterStreamView({
   afterPatch: block => afterMasterStreamPatch(block),
 })
 
-function captureUi() {
-  const active = document.activeElement
-  const focus = active && root.contains(active) && active.id
-    ? { id: active.id, start: active.selectionStart, end: active.selectionEnd }
-    : undefined
-  // У кнопок списка нет id, и по снимку выше они не восстанавливаются. Список
-  // опознаётся своей подписью, элемент — позицией: после перерисовки вернуть
-  // нужно тот же по счёту, а если разметка сменилась — текущий выбранный.
-  const activeList = !focus && active && root.contains(active) ? active.closest?.('[data-keynav]') : undefined
-  const keynav = activeList ? {
-    label: activeList.getAttribute('aria-label') || '',
-    at: [...activeList.querySelectorAll('button')].indexOf(active.closest('button')),
-  } : undefined
-  const companionThread = root.querySelector('#companion-thread')
-  const masterThread = root.querySelector('#master-thread')
-  return {
-    focus,
-    keynav,
-    chatMain: root.querySelector('.chat-main')?.scrollTop ?? 0,
-    conversation: root.querySelector('.conversation')?.scrollTop ?? 0,
-    commandCenter: root.querySelector('.command-center')?.scrollTop ?? 0,
-    setupContent: root.querySelector('.companion-setup-content')?.scrollTop ?? 0,
-    onboarding: root.querySelector('.onboarding')?.scrollTop ?? 0,
-    // Дерево изменений перерисовывается от каждой правки в редакторе: без
-    // переноса прокрутки список прыгал бы к началу под рукой.
-    gitTree: root.querySelector('.point-git-tree')?.scrollTop ?? 0,
-    companionThread: companionThread ? {
-      top: companionThread.scrollTop,
-      follow: companionAutoFollow || threadNearBottom(companionThread),
-    } : undefined,
-    masterThread: masterThread ? {
-      top: masterThread.scrollTop,
-      follow: masterAutoFollow || threadNearBottom(masterThread),
-    } : undefined,
-  }
-}
-
-function restoreUi(snapshot) {
-  // Запас ленты под плавающей карточкой меряется здесь, а не только на нажатии
-  // клавиши: на первой отрисовке раздела нажатий ещё не было, и лента осталась
-  // бы с запасным числом, а карточка с уточнениями закрыла бы хвост разговора.
-  // Стоит до выхода по пустому снимку — снимка нет как раз при первом открытии.
-  applyMasterComposeReserve()
-  // Места узлов графа флоу — оттуда же и по той же причине: холст пересобирает
-  // разметку на каждой отрисовке, а координаты в ней лежат атрибутами, потому
-  // что CSP вебвью не пропускает инлайновый стиль. Разделов без холста это
-  // стоит одного querySelector.
-  applyFlowNodePlacement()
-  if (!snapshot) return
-  const chatScreen=root.querySelector('.is-chat')
-  if(chatScreen){chatScreen.classList.toggle('is-chats-hidden',!!masterClient.historyHidden);chatScreen.classList.toggle('is-chats-open',!!masterClient.historyOpen)}
-  const dialogue=root.querySelector('.hall-dialogue')
-  // Панель задания: класс раздела повторяется после отрисовки по той же
-  // причине, что и рейка разговоров, — разметку собирает не она одна.
-  if(dialogue)dialogue.classList.toggle('is-brief-open',modularUiState.masterBriefPanelOpen&&!!root.querySelector('#master-brief-panel'))
-  const chatMain = root.querySelector('.chat-main')
-  if (chatMain && snapshot.chatMain != null) chatMain.scrollTop = snapshot.chatMain
-  const conversation = root.querySelector('.conversation')
-  if (conversation && snapshot.conversation != null) conversation.scrollTop = snapshot.conversation
-  const commandCenter = root.querySelector('.command-center')
-  if (commandCenter && snapshot.commandCenter != null) commandCenter.scrollTop = snapshot.commandCenter
-  const setupContent = root.querySelector('.companion-setup-content')
-  if (setupContent && snapshot.setupContent != null) setupContent.scrollTop = snapshot.setupContent
-  const onboarding = root.querySelector('.onboarding')
-  if (onboarding && snapshot.onboarding != null) onboarding.scrollTop = snapshot.onboarding
-  const gitTree = root.querySelector('.point-git-tree')
-  if (gitTree && snapshot.gitTree != null) gitTree.scrollTop = snapshot.gitTree
-  const companionThread = root.querySelector('#companion-thread')
-  if (companionThread && snapshot.companionThread) {
-    companionAutoFollow = Boolean(snapshot.companionThread.follow)
-    companionThread.scrollTop = companionAutoFollow ? companionThread.scrollHeight : snapshot.companionThread.top
-    updateCompanionScrollCue()
-  }
-  // Лента Мастера пересобирается целиком на каждой отрисовке, а отрисовку
-  // вызывает и чужое состояние — обновление очереди решений, ответ ядра.
-  // Без переноса прокрутки разговор после каждой такой перерисовки прыгал к
-  // самой первой реплике: свежий ответ и «Думает…» оказывались за экраном.
-  const masterThread = root.querySelector('#master-thread')
-  if (masterThread) {
-    if(masterClient.restoreScroll!=null){snapshot.masterThread={top:masterClient.restoreScroll,follow:!Number.isFinite(masterClient.restoreScroll)};delete masterClient.restoreScroll}
-    // Снимка нет — раздел только что открыли. Разговор показывается с конца,
-    // как его и оставили, а не с начала переписки.
-    const follow = snapshot.masterThread ? Boolean(snapshot.masterThread.follow) : true
-    masterAutoFollow = follow
-    masterThread.scrollTop = follow ? masterThread.scrollHeight : snapshot.masterThread.top
-    afterMasterFeedPaint()
-  }
-  if (snapshot.focus?.id) {
-    const el = root.querySelector(`#${CSS.escape(snapshot.focus.id)}`)
-    if (el && typeof el.focus === 'function') {
-      // Возврат фокуса после отрисовки возвращает каретку, а не показывает
-      // элемент: он и так был на экране. Обычный focus() при этом прокручивал
-      // ближайшего предка с `overflow: hidden`, и в боковой панели помощника
-      // разговор уезжал вверх на каждой перерисовке — то есть на каждой реплике.
-      el.focus({ preventScroll: true })
-      if (typeof snapshot.focus.start === 'number' && typeof el.setSelectionRange === 'function') {
-        try { el.setSelectionRange(snapshot.focus.start, snapshot.focus.end ?? snapshot.focus.start) } catch {}
-      }
-    }
-  } else if (snapshot.keynav) {
-    // Без этого перебор списка работал ровно один раз. Клавиша меняет выбор,
-    // выбор вызывает полную отрисовку, отрисовка уничтожает элемент с фокусом —
-    // и следующая клавиша приходит в body мимо обработчика на root. Проверено
-    // в браузере: так же были сломаны J и K, обещанные подсказкой на экране.
-    const list = [...root.querySelectorAll('[data-keynav]')]
-      .find(node => (node.getAttribute('aria-label') || '') === snapshot.keynav.label)
-    if (list) {
-      const items = [...list.querySelectorAll('button')]
-      const target = list.querySelector('[aria-current="true"]')
-        || items[Math.min(Math.max(snapshot.keynav.at, 0), items.length - 1)]
-      if (target && typeof target.focus === 'function') target.focus()
-    }
-  }
-  // Последним — иначе восстановление курсора по снимку вернуло бы каретку туда,
-  // где она стояла в прежнем, ещё пустом поле.
-  if (masterCaretToEnd) {
-    masterCaretToEnd = false
-    const field = root.querySelector('#master-input')
-    if (field) {
-      // Та же причина, что у поля помощника: фокус не должен двигать ленту.
-      field.focus({ preventScroll: true })
-      try { field.setSelectionRange(field.value.length, field.value.length) } catch {}
-    }
-  }
-}
+// Снимок фокуса, каретки и прокрутки до перерисовки и возврат после неё — в
+// ui-snapshot.js.
+const { captureUi, restoreUi } = createUiSnapshot({
+  root, ui: modularUiState, masterClient,
+  applyMasterComposeReserve: (...args) => applyMasterComposeReserve(...args),
+  applyFlowNodePlacement: (...args) => applyFlowNodePlacement(...args),
+  updateCompanionScrollCue: (...args) => updateCompanionScrollCue(...args),
+  afterMasterFeedPaint: (...args) => afterMasterFeedPaint(...args),
+})
 
 function syncCompanionSetupSelection() {
   const draft = sanitizeCompanionSetupDraft(companionSetupDraft)
@@ -2823,6 +2712,11 @@ function paint() {
   else if (state.selectedTab === 'master') root.innerHTML = masterDialogueHtml()
   else if (state.selectedTab === 'overview') root.innerHTML = overview()
   else if (state.selectedTab === 'agents') root.innerHTML = settings()
+  else if (state.selectedTab === 'general') {
+    if (statisticsStatus === 'idle') { statisticsStatus = 'loading'; setTimeout(() => vscode.postMessage({ type: 'loadStatistics' }), 0) }
+    root.innerHTML = generalSettingsView({ shell, profiles: hubAgents().length ? hubAgents() : (state.boot?.profiles || []), quickChatSettingsHtml, stats: statisticsData, status: statisticsStatus })
+  }
+  else if (state.selectedTab === 'model-connections') root.innerHTML = modelConnectionsSettingsView({ shell, connectionManagerHtml, editingId: connectionEditingId, count: (state.boot?.connections || []).length })
   else if (state.selectedTab === 'teams') root.innerHTML = teamsView()
   else if (state.selectedTab === 'quests' || state.selectedTab === 'quest') root.innerHTML = chat()
   else if (state.selectedTab === 'flows' || state.selectedTab === 'workflows') root.innerHTML = projectFlowsView()
@@ -2833,7 +2727,7 @@ function paint() {
   else if (state.selectedTab === 'memory') root.innerHTML = memoryView()
   else if (state.selectedTab === 'connections') root.innerHTML = connectionsView()
   else if (state.selectedTab === 'databases') root.innerHTML = databasesView()
-  else if (state.selectedTab === 'integrations') root.innerHTML = integrations.guildView()
+  else if (state.selectedTab === 'integrations' || state.selectedTab === 'project-gitlab') root.innerHTML = integrations.guildView(state.selectedTab)
   else if (state.selectedTab === 'changesets') root.innerHTML = changeSetsView()
   else if (state.selectedTab === 'journal') root.innerHTML = journalView()
   else if (state.selectedTab === 'filehistory') root.innerHTML = fileHistoryView()
@@ -3055,7 +2949,7 @@ root.addEventListener('click', event => {
   if(action==='master-load-latest'){masterClient.query='';masterFindQuery='';vscode.postMessage({type:'masterPage',conversationId:masterClient.active});return}
   if (action === 'tab') {
     const tab = canonicalTab(target.dataset.tab)
-    if (tab !== 'onboarding' && hubNavLocked()) return
+    if (!['onboarding', 'general', 'model-connections', 'integrations'].includes(tab) && hubNavLocked()) return
     // Уход в другой раздел закрывает настройку компаньона: панель не должна
     // удерживать оболочку.
     if (companionSetupOpen && tab !== 'overview') companionSetupOpen = false
@@ -3645,106 +3539,9 @@ root.addEventListener('scroll', event => {
     updateMasterScrollCue()
   }
 }, true)
-let draggedWorkflowStep = -1
-// Перетаскивание файла между папками изменений. Целями служат только папки
-// самого человека: конфликты и файлы вне репозитория никуда не переносятся.
-function gitDropTarget(node) {
-  const group = node?.closest?.('.nc-group.tone-change')
-  return group || undefined
-}
-function markGitDrop(group) {
-  for (const node of root.querySelectorAll('.nc-group.is-drop')) {
-    if (node !== group) node.classList.remove('is-drop')
-  }
-  if (group) group.classList.add('is-drop')
-}
-function endGitDrag() {
-  gitDragPath = ''
-  markGitDrop(undefined)
-  for (const node of root.querySelectorAll('.nc-file.is-dragging')) node.classList.remove('is-dragging')
-}
-root.addEventListener('dragstart', event => {
-  const file = event.target.closest?.('.nc-file[draggable="true"]')
-  if (file) {
-    gitDragPath = String(file.dataset.path || '')
-    event.dataTransfer.effectAllowed = 'move'
-    try { event.dataTransfer.setData('text/plain', gitDragPath) } catch { /* не все среды дают буфер */ }
-    file.classList.add('is-dragging')
-    return
-  }
-  const card = event.target.closest?.('.workflow-step')
-  if (!card) return
-  draggedWorkflowStep = Number(card.dataset.index)
-  event.dataTransfer.effectAllowed = 'move'
-})
-root.addEventListener('dragover', event => {
-  if (gitDragPath) {
-    const group = gitDropTarget(event.target)
-    markGitDrop(group)
-    if (group) {
-      event.preventDefault()
-      if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
-    }
-    return
-  }
-  if (event.target.closest?.('.workflow-step')) event.preventDefault()
-})
-root.addEventListener('dragend', () => { if (gitDragPath) endGitDrag() })
-root.addEventListener('drop', event => {
-  if (gitDragPath) {
-    const group = gitDropTarget(event.target)
-    const list = String(group?.dataset.list || '')
-    const path = gitDragPath
-    const from = gitChanges().find(item => String(item.path) === path)
-    endGitDrag()
-    if (!group) return
-    event.preventDefault()
-    if (!list || !from || gitGroupOf(from) === list) return
-    gitPendingAction = `moveToList:${path}`
-    gitNotice = undefined
-    render()
-    vscode.postMessage({ type: 'gitAction', action: 'moveToList', path, list, paths: [], repoRoot: toolWindowData.git?.root || '' })
-    return
-  }
-  const card = event.target.closest?.('.workflow-step')
-  const targetIndex = Number(card?.dataset.index)
-  if (!card || draggedWorkflowStep < 0 || targetIndex === draggedWorkflowStep) return
-  event.preventDefault()
-  const workflow = currentWorkflowForm()
-  if (workflow) {
-    const [step] = workflow.steps.splice(draggedWorkflowStep, 1)
-    workflow.steps.splice(targetIndex, 0, step)
-    workflowDraft = workflow
-    render()
-  }
-  draggedWorkflowStep = -1
-})
-
-// Какой раздел ждёт ответа на какой запрос. Расширение сообщает об отказе одним
-// сообщением на все случаи, а знать, что именно замерло, может только здесь.
-// Незнакомого запроса бояться не нужно: он гасит всё ждущее, а не ничего.
-const FAILED_REQUEST_SECTIONS = {
-  loadDecisions: 'decisions',
-  resolveDecision: 'decisions',
-  loadStatistics: 'statistics',
-  saveBudget: 'statistics',
-  createSystemBackup: 'statistics',
-  restoreSystemBackup: 'statistics',
-  loadDocker: 'docker',
-  loadFileHistory: 'fileHistory',
-  loadContextInspector: 'contextInspector',
-  // Обе половины разговора, а не одна: без loadMaster неудачная загрузка
-  // переписки считалась безымянной и метила ошибкой все ждущие разделы разом —
-  // статистику, Docker, историю файлов, — хотя падал только Мастер.
-  startFastAgent: 'master',
-  loadMaster: 'master',
-  loadChatDirectory: 'chatDirectory',
-  masterChat: 'master',
-  queryDBConnection: 'dbQuery',
-  searchExperience: 'experienceSearch',
-  previewManualLearning: 'manualLearning',
-  applyManualLearning: 'manualLearning',
-}
+// Перетаскивание — файл между папками изменений Git и шаг workflow на новое
+// место — живёт в drag-drop.js; состояние остаётся здесь и приходит мешком ui.
+bindDragAndDrop({ root, vscode, ui: modularUiState, render: (...args) => render(...args), gitChanges, gitGroupOf, currentWorkflowForm })
 
 // Всё вокруг запуска — свой модуль: предпросмотры, старт, откат и разбор
 // отказа, который отпускает всё, что ждало ответа.
@@ -3752,7 +3549,6 @@ const applyRunMessage = createRunInbox({
   ui: modularUiState, render: (...args) => render(...args),
   persistDraft: (...args) => persistDraft(...args),
   countOf: (...args) => countOf(...args),
-  FAILED_REQUEST_SECTIONS,
   invalidateAgentRunPreview: (...args) => invalidateAgentRunPreview(...args),
   requestContextPreview: (...args) => requestContextPreview(...args),
   releaseMasterAgentCards: (...args) => releaseMasterAgentCards(...args),

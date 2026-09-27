@@ -1,5 +1,6 @@
 const Module = require('module')
 const { extensionHostSource } = require('./lib/extension-host-source')
+const { overlaySource: readOverlaySource } = require('./lib/overlay-source')
 const path = require('path')
 
 const commands = []
@@ -397,7 +398,7 @@ async function main() {
   const mediaMain = clientFiles.sort().map(file => fs.readFileSync(file, 'utf8')).join('\n')
   const mediaCss = fs.readFileSync(path.resolve(__dirname, '..', 'vscode-extension', 'media', 'style.css'), 'utf8')
   const packageJson = fs.readFileSync(path.resolve(__dirname, '..', 'vscode-extension', 'package.json'), 'utf8')
-  const overlaySource = fs.readFileSync(path.resolve(__dirname, '..', 'distribution', 'apply-overlay.mjs'), 'utf8')
+  const overlaySource = readOverlaySource()
   const activityCss = fs.readFileSync(path.resolve(__dirname, '..', 'distribution', 'resources', 'point-activitybar.css'), 'utf8')
   const workbenchCss = fs.readFileSync(path.resolve(__dirname, '..', 'distribution', 'resources', 'point-workbench.css'), 'utf8')
   // Ход работы показывает «думающий» пузырь: отдельная полоса активности была
@@ -537,7 +538,7 @@ async function main() {
     throw new Error('Passive Companion observations still activate Git and steal the Inventory sidebar')
   }
 
-  const overlay = fs.readFileSync(path.resolve(__dirname, '..', 'distribution', 'apply-overlay.mjs'), 'utf8')
+  const overlay = readOverlaySource()
   if (!overlay.includes('Point hide upstream Chat view') || !overlay.includes('ContextKeyExpr.false()')) {
     throw new Error('Overlay does not hide upstream Chat view for Point')
   }

@@ -118,7 +118,8 @@ if (clientFiles.length < 10) {
 }
 const main = clientFiles.map((name) => fs.readFileSync(path.join(clientDir, name), 'utf8')).join('\n')
 const transport = fs.readFileSync(path.join(root, 'vscode-extension', 'master-chat-controller.js'), 'utf8')
-const host = fs.readFileSync(path.join(root, 'vscode-extension', 'extension.js'), 'utf8')
+// Оболочка вместе с внешним разбором сообщений: ветки живут в hub-message-router.js.
+const host = ['extension.js', 'hub-message-router.js'].map((name) => fs.readFileSync(path.join(root, 'vscode-extension', name), 'utf8')).join('\n')
 for (const [name, source] of [['webview', main], ['transport', transport], ['extension host', host]]) {
   if (!source.includes('controlMasterWorkOrderQuestV2')) throw new Error(`${name} does not route WorkOrder runtime controls`)
   if (!source.includes('controlMasterApplicationV2')) throw new Error(`${name} does not route delivered application controls`)

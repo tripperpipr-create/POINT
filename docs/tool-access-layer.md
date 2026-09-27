@@ -23,7 +23,7 @@
 4. `isReplayableReadTool` — `internal/agent/engine.go`
 5. `RiskForTool` — `internal/policy/policy.go`
 6. `BuiltInToolCatalog` — `internal/domain/catalog.go`
-7. карта `allowed` в `ValidateProfile` — `internal/storage/sqlite.go`
+7. карта `allowed` в `ValidateProfile` — `internal/storage/validate.go`
 8. `toolLabels` — `frontend/src/i18n.ts`
 9. список ходовых инструментов — `internal/agent/amendments.go`
 
@@ -170,7 +170,7 @@
   списком остались только `http_request`, `fetch_url`, `web_search` — таких
   инструментов не существует, и запрет заведён заранее.
 - Карта `allowed` в `ValidateProfile` строится из каталога
-  (`internal/storage/sqlite.go`). Четыре сломанных имени чинятся именно здесь.
+  (`internal/storage/validate.go`). Четыре сломанных имени чинятся именно здесь.
 - `isReplayableReadTool` читает признак из каталога
   (`internal/agent/engine.go`); особый случай `read_skill` убран из
   `internal/app/agent_capability.go` — он теперь обычная запись каталога.

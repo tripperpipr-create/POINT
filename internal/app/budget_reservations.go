@@ -32,7 +32,12 @@ func (a *App) prepareModelBudgetReservation(ctx context.Context, request agent.M
 	if err != nil {
 		return domain.BudgetReservation{}, domain.BudgetReserveLimits{}, err
 	}
-	limits := domain.BudgetReserveLimits{DailyCents: settings.DailyCents, MonthlyCents: settings.MonthlyCents, HardStop: settings.HardStop}
+	global, err := a.loadGlobalBudget(ctx)
+	if err != nil {
+		return domain.BudgetReservation{}, domain.BudgetReserveLimits{}, err
+	}
+	limits := domain.BudgetReserveLimits{DailyCents: settings.DailyCents, MonthlyCents: settings.MonthlyCents, HardStop: settings.HardStop,
+		GlobalDailyCents: global.DailyCents, GlobalMonthlyCents: global.MonthlyCents, GlobalHardStop: global.HardStop}
 	reservedCents, pricingKnown, err := a.estimateModelCost(ctx, request.WorkspaceID, string(request.Provider), request.Model, request.EstimatedInputTokens, request.MaxOutputTokens)
 	if err != nil {
 		return domain.BudgetReservation{}, domain.BudgetReserveLimits{}, err
@@ -44,7 +49,7 @@ func (a *App) prepareModelBudgetReservation(ctx context.Context, request agent.M
 	if limits.FreeRuntime {
 		reservedCents, pricingKnown = 0, true
 	}
-	if !pricingKnown && (settings.HardStop && (settings.DailyCents > 0 || settings.MonthlyCents > 0)) {
+	if !pricingKnown && ((settings.HardStop && (settings.DailyCents > 0 || settings.MonthlyCents > 0)) || (global.HardStop && (global.DailyCents > 0 || global.MonthlyCents > 0))) {
 		return domain.BudgetReservation{}, domain.BudgetReserveLimits{}, fmt.Errorf("budget blocked: pricing profile is required for %s/%s", request.Provider, request.Model)
 	}
 	limits.PricingUnknown = !pricingKnown

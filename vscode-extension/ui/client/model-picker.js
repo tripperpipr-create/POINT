@@ -241,7 +241,7 @@ export function createModelPicker({ getState, escapeHtml, connectionStatusLabels
       ? `Как у модели — ${formatTokens(inheritedWindow)}. Своё значение переопределит.`
       : 'Модель незнакома: значение нужно указать самому.'
     const empty = !list.length
-      ? '<p class="create-step-error">Сначала заведите подключение в разделе «Связи» — без него агенту некуда идти.</p>'
+      ? '<p class="create-step-error">Сначала заведите подключение в «Общих настройках» → «Модели» — без него агенту некуда идти.</p>'
       : ''
     return `<div class="model-choice">
       ${empty}

@@ -435,6 +435,14 @@ func TestProjectBudgetAPI(t *testing.T) {
 	if saved.WorkspaceID != workspace.Workspace.ID || saved.DailyCents != 125 || !saved.HardStop {
 		t.Fatalf("saved budget=%#v", saved)
 	}
+	globalResponse, err := http.Post(server.URL+"/api/budget/global", "application/json", strings.NewReader(`{"dailyCents":500,"monthlyCents":9000,"hardStop":true}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer globalResponse.Body.Close()
+	if globalResponse.StatusCode != http.StatusOK {
+		t.Fatalf("save global budget status %d", globalResponse.StatusCode)
+	}
 
 	response, err = http.Get(server.URL + "/api/statistics")
 	if err != nil {
@@ -447,6 +455,9 @@ func TestProjectBudgetAPI(t *testing.T) {
 	}
 	if statistics["budgetDailyCents"] != float64(125) || statistics["budgetMonthlyCents"] != float64(2500) || statistics["budgetHardStop"] != true {
 		t.Fatalf("statistics budget=%#v", statistics)
+	}
+	if statistics["globalBudgetDailyCents"] != float64(500) || statistics["globalBudgetMonthlyCents"] != float64(9000) || statistics["globalBudgetHardStop"] != true {
+		t.Fatalf("statistics global budget=%#v", statistics)
 	}
 }
 

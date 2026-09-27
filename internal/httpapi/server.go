@@ -229,6 +229,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("DELETE /api/memories/{id}", s.deleteMemory)
 	s.mux.HandleFunc("POST /api/usage", s.recordUsage)
 	s.mux.HandleFunc("POST /api/budget", s.saveBudget)
+	s.mux.HandleFunc("POST /api/budget/global", s.saveGlobalBudget)
 	s.mux.HandleFunc("POST /api/budget/pricing", s.saveModelPricing)
 	s.mux.HandleFunc("GET /api/statistics", s.statistics)
 	s.mux.HandleFunc("POST /api/agent-improvements/{id}/rollback", s.rollbackAgentImprovement)

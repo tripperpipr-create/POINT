@@ -593,9 +593,10 @@ const TYPE_SCALE = new Set(
     fail('интерфейс снова показывает человеку любые подсказки — включая указания модели')
   }
 
+  // Пакетами, а не файлами: инструменты git и run_command 27.09.2026 уехали из
+  // workspace_tools.go в соседние файлы, и чтение по имени ослепло бы молча.
   const hints = { human: 0, agent: 0 }
-  for (const file of ['internal/tools/workspace_tools.go', 'internal/tools/sql_tools.go', 'internal/tools/docker.go', 'internal/agent/engine.go']) {
-    const source = read(file)
+  for (const source of [readGoPackage('internal/tools'), readGoPackage('internal/agent')]) {
     for (const hit of source.matchAll(/FailWithHint\([^,]+,\s*[^,]+,\s*"([^"]{10,200})"/g)) {
       if (/[а-яё]/i.test(hit[1])) hints.human += 1
       else hints.agent += 1
@@ -1187,7 +1188,9 @@ const TYPE_SCALE = new Set(
 //     повторять настройку Мастера в каждой новой папке и нарушает master-first
 //     контракт ещё до первого сообщения.
 {
-  const host = read('vscode-extension/extension.js')
+  // Оболочка вместе с внешним разбором сообщений: входы в Мастера и запись
+  // флага стоят и в методах провайдера, и в ветках hub-message-router.js.
+  const host = [read('vscode-extension/extension.js'), read('vscode-extension/hub-message-router.js')].join('\n')
   const key = 'point.agentHubV2.onboardingComplete'
   if (!host.includes(`globalState?.get?.('${key}'`)) {
     fail('Hub v2 не читает глобальный флаг onboarding — новая папка снова покажет первый запуск')

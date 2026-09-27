@@ -190,6 +190,7 @@ is checked against every `HandleFunc` registration by `node scripts/check-docs.m
 | `POST` | `/api/quests/{id}/revert` | Revert the safely published output chain of a Quest |
 | `POST` | `/api/usage` | Append immutable UsageRecord for the **current** world. `workspaceId` is forced to the open folder; a foreign id is rejected. Client `costCents` is ignored so spend cannot be spoofed into the hard-stop budget. |
 | `POST` | `/api/budget` | Save daily/monthly cost limits and hard-stop policy for the current workspace |
+| `POST` | `/api/budget/global` | Save additional daily/monthly cost limits and hard-stop policy across all workspaces. Active reservations and recorded spending are counted atomically with each new reservation. |
 | `POST` | `/api/budget/pricing` | Save the current workspace's explicit per-model input/output price in integer cents per million tokens. Hard cost limits reject unpriced model calls instead of treating unknown cost as zero. |
 | `GET` | `/api/statistics` | Aggregated usage/agent/quest stats for a workspace |
 | `POST` | `/api/agent-improvements/{id}/rollback` | Roll back the newest applied autonomous or manually confirmed Skill/Memory/Rules revision while retaining its audit record |
@@ -229,10 +230,10 @@ is checked against every `HandleFunc` registration by `node scripts/check-docs.m
 | `GET` | `/api/mcp/servers/{id}/log` | Redacted tail of the server's stderr and protocol log |
 | `POST` | `/api/mcp/import/preview` | Parse an `mcp.json` (Claude/Cursor `mcpServers` or VS Code `servers`) into candidates without saving |
 | `POST` | `/api/mcp/secrets/unlock` | Supply MCP secret values (`point.mcp.*` refs only) for the current in-memory session |
-| `GET` | `/api/integrations/gitlab/status` | GitLab plugin state: server, token owner (`whoami`), folder binding, capabilities; failures come back as `{state:"error", reason, problem, fix}` |
+| `GET` | `/api/integrations/gitlab/status` | GitLab state for the open folder: server, token owner (`whoami`), binding, `linked`, capabilities; a configured plugin with an unlinked folder answers `ok` at once without starting the server. `scope=plugin` checks the plugin's health in any folder (general settings card). Failures come back as `{state:"error", reason, problem, fix}` |
 | `POST` | `/api/integrations/gitlab/plugin` | Connect/update the GitLab plugin: URL, optional CA path and token; builds the pinned `@zereight/mcp-gitlab` launch, which needs the owner's trust |
-| `PUT` | `/api/integrations/gitlab/binding` | Bind the open folder: `auto` (git remote origin), `manual` project path, or `all` projects; optional username override |
-| `GET` | `/api/integrations/gitlab/merge-requests` | Open MRs by `scope` (`mine`, `review`, `project`) for the bound project (or all projects) |
+| `PUT` | `/api/integrations/gitlab/binding` | Link the open folder: `auto` (git remote origin), `manual` project path, `all` projects, or `off` (not linked); optional username override. Without a saved choice the folder is linked only when its origin points to the plugin's GitLab |
+| `GET` | `/api/integrations/gitlab/merge-requests` | Open MRs by `scope` (`mine`, `review`, `project`) for the bound project (or all projects); an unlinked folder gets `not_linked` without starting the server |
 | `GET` | `/api/integrations/gitlab/merge-request` | MR card by `project` and `iid`: detail, approvals, MR pipelines, `mine` and `approvedByMe` |
 | `GET` | `/api/integrations/gitlab/merge-request/discussions` | MR discussions (up to 5 pages of 100) |
 | `GET` | `/api/integrations/gitlab/merge-request/changes` | Changed files of an MR |
@@ -408,5 +409,8 @@ contains `/`, so project, MR and file are query parameters. Every answer is
 `{state, reason, problem, fix, data}`: a screen that could not load is `200`
 with a reason (`not_configured`, `not_trusted`, `secret_locked`,
 `tool_missing`, `unreachable`, `auth`, `not_found`, `refused`, `format`,
-`no_project`), an invalid request is `400` with `bad_request`. See
+`no_project`, `not_linked`), an invalid request is `400` with `bad_request`.
+The GitLab connection is shared by all projects, the link is each folder's
+choice: `not_linked` is a calm state, not a failure. MR cards and owner
+actions address an explicit `project` and do not depend on the link. See
 [integrations-gitlab.md](integrations-gitlab.md).

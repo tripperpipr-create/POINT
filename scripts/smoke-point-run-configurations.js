@@ -1,5 +1,6 @@
 const Module = require('module')
 const { extensionHostSource } = require('./lib/extension-host-source')
+const { overlaySource: readOverlaySource } = require('./lib/overlay-source')
 const originalLoad = Module._load
 Module._load = function load(request, parent, isMain) {
   if (request === 'vscode') {
@@ -85,7 +86,7 @@ const actionSource = fs.readFileSync(path.resolve(__dirname, '..', 'vscode-exten
 if (!extensionSource.includes("require('./ide-action-controller')") || !actionSource.includes("'setContext', 'point.runConfiguration'")) {
   throw new Error('run configuration must be published for the title bar chip')
 }
-const overlaySource = fs.readFileSync(path.resolve(__dirname, '..', 'distribution', 'apply-overlay.mjs'), 'utf8')
+const overlaySource = readOverlaySource()
 if (!overlaySource.includes('point-run-chip') || !overlaySource.includes('localAgent.selectRunConfiguration')) {
   throw new Error('title bar must carry the run configuration chip')
 }

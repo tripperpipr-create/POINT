@@ -13,7 +13,7 @@
 //
 // Состояние приходит общим мешком `ui`, как в `companion-transport.js`.
 
-import { failedRequestOwnsForm } from './request-failure-routing.js'
+import { FAILED_REQUEST_SECTIONS, failedRequestOwnsForm } from './request-failure-routing.js'
 
 const RUN_MESSAGES = new Set([
   'contextAdded', 'contextPreview', 'contextPreviewError',
@@ -28,7 +28,6 @@ export function createRunInbox({
   render,
   persistDraft,
   countOf,
-  FAILED_REQUEST_SECTIONS,
   invalidateAgentRunPreview,
   requestContextPreview,
   releaseMasterAgentCards,

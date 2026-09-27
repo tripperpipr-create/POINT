@@ -1,11 +1,15 @@
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
+
+// Оверлей читается вместе с его модулями overlay-*.mjs: заплаты переезжают
+// между ними, и чтение одного файла ослепло бы на переезде.
+const { overlaySource } = createRequire(import.meta.url)('./lib/overlay-source.js');
 
 const projectRoot = path.resolve(import.meta.dirname, '..');
 const sourcePackage = path.join(projectRoot, 'vscode-extension', 'package.json');
 const packaged = path.join(projectRoot, '.cache', 'VSCode-win32-x64', 'resources', 'app', 'extensions', 'local-agent-workbench', 'package.json');
 const workbenchCss = path.join(projectRoot, '.cache', 'VSCode-win32-x64', 'resources', 'app', 'out', 'vs', 'workbench', 'workbench.desktop.main.css');
-const overlayDefaults = path.join(projectRoot, 'distribution', 'apply-overlay.mjs');
 const checklist = [
   'tabs (modified highlight + close on hover)',
   'suggest / hover / parameter hints',
@@ -20,7 +24,7 @@ const checklist = [
   'keyboard focus-visible rings',
 ];
 
-const overlay = fs.readFileSync(overlayDefaults, 'utf8');
+const overlay = overlaySource(projectRoot);
 for (const fragment of [
   "'workbench.editor.highlightModifiedTabs': true",
   "'window.commandCenter': true",

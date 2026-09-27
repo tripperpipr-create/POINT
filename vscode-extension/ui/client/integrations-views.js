@@ -1,5 +1,6 @@
-// Гильдия → «Интеграции»: встроенные плагины сверху, свои MCP-серверы и
-// импорт mcp.json ниже.
+// Общие настройки → «Интеграции и MCP»: встроенные плагины сверху, свои
+// MCP-серверы и импорт mcp.json ниже. Связь конкретного проекта с GitLab
+// здесь только названа — правится она в настройках проекта.
 //
 // Страница говорит правду о трёх вещах, которые владелец обязан видеть до
 // запуска: что именно запустится на его машине (программа, аргументы,
@@ -97,9 +98,17 @@ export function createIntegrationsViews({ getState, shell, toolPageHeading }) {
     </article>`
   }
 
+  // «Этот проект» — одна строка о текущем мире со ссылкой на его вкладку:
+  // подключение общее, а связь — выбор проекта.
+  function projectLink(binding, linked) {
+    if (!binding.workspace) return '<dt>Этот проект</dt><dd>папка не открыта — окно показывает MR по всем вашим проектам</dd>'
+    const link = binding.mode === 'all' ? 'все мои проекты' : linked ? `связан с ${binding.project}` : 'не связан'
+    return `<dt>Этот проект</dt><dd class="int-project-link"><span>${esc(`${binding.workspace}: ${link}`)}</span><button type="button" class="gl-btn is-quiet" data-action="tab" data-tab="project-gitlab">Настроить</button></dd>`
+  }
+
   function gitlabCard(state) {
     const server = (state.servers || []).find(item => item.id === GITLAB_ID)
-    const status = state.status
+    const status = state.pluginStatus
     const editing = state.pluginEditing || !server
     const user = status?.data?.user
     let pill = ['mute', 'не подключён']
@@ -116,7 +125,7 @@ export function createIntegrationsViews({ getState, shell, toolPageHeading }) {
     </div>` : ''
     const details = server && !editing ? `<dl class="int-facts">
         <dt>Адрес</dt><dd>${esc(url)}</dd>
-        <dt>Проект окна</dt><dd>${esc(status?.data?.binding?.mode === 'all' ? 'все мои проекты' : status?.data?.binding?.project || status?.data?.binding?.note || '—')}</dd>
+        ${status?.data?.binding ? projectLink(status.data.binding, status.data.linked) : ''}
         <dt>Сервер</dt><dd><code>${esc(status?.data?.pinned || '@zereight/mcp-gitlab@2.1.66')}</code> · вне песочницы</dd>
       </dl>
       ${status?.state === 'error' ? `<div class="int-problem">${glIcon('warning', 13)}<p><b>${esc(status.problem || '')}</b>${status.fix ? `<span>${esc(status.fix)}</span>` : ''}</p></div>` : ''}

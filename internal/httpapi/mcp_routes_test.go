@@ -97,6 +97,12 @@ func TestGitLabRoutesAnswerWithState(t *testing.T) {
 	if status != http.StatusOK || value.State != "error" || value.Reason != app.GitLabNotConfigured || !strings.Contains(body, `"pinned":"@zereight/mcp-gitlab@2.1.66"`) {
 		t.Fatalf("status=%d body=%s", status, body)
 	}
+	if status, value, body = call("GET", "/api/integrations/gitlab/status?scope=plugin", ""); status != http.StatusOK || value.Reason != app.GitLabNotConfigured {
+		t.Fatalf("plugin status=%d body=%s", status, body)
+	}
+	if status, value, body = call("GET", "/api/integrations/gitlab/status?scope=everything", ""); status != http.StatusBadRequest || value.Reason != app.GitLabBadRequest {
+		t.Fatalf("unknown scope status=%d body=%s", status, body)
+	}
 	if status, value, body = call("GET", "/api/integrations/gitlab/merge-request?project=billing/payments&iid=12", ""); status != http.StatusOK || value.Reason != app.GitLabNotConfigured {
 		t.Fatalf("merge request status=%d body=%s", status, body)
 	}
@@ -106,8 +112,10 @@ func TestGitLabRoutesAnswerWithState(t *testing.T) {
 	if status, _, body = call("POST", "/api/integrations/gitlab/merge-request/merge", `{"project":"billing/payments","iid":12,"force":true}`); status != http.StatusBadRequest || !strings.Contains(body, "invalid_json") {
 		t.Fatalf("unknown field status=%d body=%s", status, body)
 	}
-	if status, value, body = call("PUT", "/api/integrations/gitlab/binding", `{"mode":"all"}`); status != http.StatusBadRequest || value.Reason != app.GitLabBadRequest {
-		t.Fatalf("binding without a folder status=%d body=%s", status, body)
+	for _, mode := range []string{"all", "off"} {
+		if status, value, body = call("PUT", "/api/integrations/gitlab/binding", `{"mode":"`+mode+`"}`); status != http.StatusBadRequest || value.Reason != app.GitLabBadRequest {
+			t.Fatalf("%s binding without a folder status=%d body=%s", mode, status, body)
+		}
 	}
 	if status, _, body = call("POST", "/api/integrations/gitlab/plugin", `{"url":"ftp://gitlab.local"}`); status != http.StatusBadRequest {
 		t.Fatalf("plugin status=%d body=%s", status, body)

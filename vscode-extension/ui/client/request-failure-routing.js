@@ -13,6 +13,7 @@ const FORM_REQUESTS = {
   'workflow-run-form': ['startWorkflow'],
   'companion-setup-form': ['saveCompanionConfig'],
   'budget-form': ['saveBudget'],
+  'global-budget-form': ['saveGlobalBudget'],
   'team-form': ['saveTeam'],
   'skill-form': ['saveSkill'],
   'connection-form': ['saveConnection'],
@@ -34,6 +35,7 @@ const FORM_ACKNOWLEDGEMENTS = {
   workflowRunStarted: ['workflow-run-form'],
   companionConfigSaved: ['companion-setup-form'],
   budgetSaved: ['budget-form'],
+  globalBudgetSaved: ['global-budget-form'],
   teamSaved: ['team-form'],
   skillSaved: ['skill-form'],
   connectionSaved: ['connection-form'],
@@ -62,4 +64,31 @@ export function acknowledgesForm(formId, message) {
   // отношения не имеет и не должен снимать её guard.
   if (message.type === 'runStarted' && message.fastAgent) return false
   return (FORM_ACKNOWLEDGEMENTS[message.type] || []).includes(formId)
+}
+
+// Какой раздел ждёт ответа на какой запрос. Расширение сообщает об отказе одним
+// сообщением на все случаи, а знать, что именно замерло, может только здесь.
+// Незнакомого запроса бояться не нужно: он гасит всё ждущее, а не ничего.
+export const FAILED_REQUEST_SECTIONS = {
+  loadDecisions: 'decisions',
+  resolveDecision: 'decisions',
+  loadStatistics: 'statistics',
+  saveBudget: 'statistics',
+  saveGlobalBudget: 'statistics',
+  createSystemBackup: 'statistics',
+  restoreSystemBackup: 'statistics',
+  loadDocker: 'docker',
+  loadFileHistory: 'fileHistory',
+  loadContextInspector: 'contextInspector',
+  // Обе половины разговора, а не одна: без loadMaster неудачная загрузка
+  // переписки считалась безымянной и метила ошибкой все ждущие разделы разом —
+  // статистику, Docker, историю файлов, — хотя падал только Мастер.
+  startFastAgent: 'master',
+  loadMaster: 'master',
+  loadChatDirectory: 'chatDirectory',
+  masterChat: 'master',
+  queryDBConnection: 'dbQuery',
+  searchExperience: 'experienceSearch',
+  previewManualLearning: 'manualLearning',
+  applyManualLearning: 'manualLearning',
 }

@@ -36,7 +36,10 @@ assert.deepEqual(upsertById(original, { id: 'c', value: 4 }), [{ id: 'c', value:
 assert.deepEqual(removeById(original, 'a'), [{ id: 'b', value: 2 }])
 assert.deepEqual(original, [{ id: 'a', value: 1 }, { id: 'b', value: 2 }], 'patch helpers must not mutate the prior snapshot')
 
-const source = fs.readFileSync(extensionPath, 'utf8')
+// Оболочка вместе с внешним разбором сообщений: ветки `case` живут в
+// hub-message-router.js, а запросы бутстрапа — в методах провайдера.
+const source = [extensionPath, path.resolve(__dirname, '..', 'vscode-extension', 'hub-message-router.js')]
+  .map(file => fs.readFileSync(file, 'utf8')).join('\n')
 const fullBootstrapCalls = source.match(/request\('\/api\/bootstrap'\)/g) || []
 assert.equal(fullBootstrapCalls.length, 1, `full bootstrap regression: ${fullBootstrapCalls.length} calls (cold-start budget 1)`)
 assert.ok(source.includes("request('/api/state/runtime')"), 'runtime snapshot endpoint is not used')
@@ -52,8 +55,11 @@ const directPatchCases = [
 for (const name of directPatchCases) {
   const start = source.indexOf(`case '${name}'`)
   assert.ok(start >= 0, `missing message handler ${name}`)
-  const next = source.indexOf("\n        case '", start + 8)
-  const handler = source.slice(start, next < 0 ? source.length : next)
+  // Следующая ветка — по слову `case`, а не по отступу: разбор переезжал, и
+  // отступ вместе с ним.
+  const rest = source.slice(start + 8)
+  const next = rest.search(/\n\s*case '/)
+  const handler = source.slice(start, next < 0 ? source.length : start + 8 + next)
   assert.ok(!handler.includes("request('/api/bootstrap')"), `${name} returned to a full bootstrap refresh`)
 }
 

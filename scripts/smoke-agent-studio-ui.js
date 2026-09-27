@@ -2288,3 +2288,23 @@ root.querySelector = originalSecondDBQuerySelector
 if (!posted.slice(beforeSecondDBQuery).some(message => message.type === 'queryDBConnection' && message.sql === 'SELECT id, name FROM items' && message.allowWrite === false)) {
   throw new Error('Database query form stayed locked after the previous query result')
 }
+
+click('tab', { tab: 'general' })
+if (!root.innerHTML.includes('Общие настройки') || !root.innerHTML.includes('Интеграции и свои MCP') || !root.innerHTML.includes('global-budget-form') || !root.innerHTML.includes('quick-chat-profile')) {
+  throw new Error('General settings page is missing shared controls')
+}
+const originalBudgetQuery = root.querySelector
+root.querySelector = selector => ({ '#global-budget-daily': { value: '12.50' }, '#global-budget-monthly': { value: '50' }, '#global-budget-hard-stop': { checked: true } }[selector] || originalBudgetQuery.call(root, selector))
+listeners['root:submit']({ preventDefault() {}, target: { id: 'global-budget-form' } })
+root.querySelector = originalBudgetQuery
+if (!posted.some(message => message.type === 'saveGlobalBudget' && message.budget.dailyCents === 1250 && message.budget.monthlyCents === 5000 && message.budget.hardStop === true)) {
+  throw new Error('General budget form is not wired to global budget persistence')
+}
+click('tab', { tab: 'model-connections' })
+if (!root.innerHTML.includes('Подключения к моделям') || !root.innerHTML.includes('connection-form')) {
+  throw new Error('Model connections are not available from general settings')
+}
+click('tab', { tab: 'integrations' })
+if (!root.innerHTML.includes('Свои MCP-серверы')) {
+  throw new Error('MCP integrations are not available from general settings')
+}

@@ -28,6 +28,15 @@ func (s *Server) saveBudget(w http.ResponseWriter, r *http.Request) {
 	s.result(w, value, err)
 }
 
+func (s *Server) saveGlobalBudget(w http.ResponseWriter, r *http.Request) {
+	var input app.GlobalBudgetSettings
+	if !s.decode(w, r, &input) {
+		return
+	}
+	value, err := s.app.SaveGlobalBudget(input)
+	s.result(w, value, err)
+}
+
 func (s *Server) saveModelPricing(w http.ResponseWriter, r *http.Request) {
 	var input domain.ModelPricingProfile
 	if !s.decode(w, r, &input) {

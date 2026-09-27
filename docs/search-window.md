@@ -228,12 +228,12 @@ Search, `Ctrl+Alt+Shift+N` — «Перейти к классу»; окно не
 редактора или в боковую панель), а данные ему нужны от служб самой оболочки.
 
 - Исходник слоя: `distribution/resources/point-search-window.ts.txt`.
-- Накладывает [`distribution/apply-overlay.mjs`](../distribution/apply-overlay.mjs):
-  копирует файл в `src/vs/workbench/contrib/search/browser/pointSearchWindow.contribution.ts`
+- Накладывает [`distribution/overlay-titlebar.mjs`](../distribution/overlay-titlebar.mjs)
+  (модуль верхней панели, его зовёт `apply-overlay.mjs`): копирует файл в `src/vs/workbench/contrib/search/browser/pointSearchWindow.contribution.ts`
   и добавляет одну строку импорта во вклад поиска. Команды, сочетания и вклад
   двойного Shift регистрирует сам слой — апстрим правится одной строкой.
 - Поле поиска в верхней полосе вызывает `point.searchWindow` (заплата
-  командного центра в том же `apply-overlay.mjs`).
+  командного центра в том же `overlay-titlebar.mjs`).
 - Правка слоя требует полной пересборки Code-OSS. Правка только стилей —
   нет: блок стилей дописывается в собранный `workbench.desktop.main.css`, после
   чего обязателен `node distribution/refresh-product-checksums.mjs`, иначе окно

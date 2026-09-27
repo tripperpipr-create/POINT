@@ -1,6 +1,7 @@
-// Интеграции в вебвью: вкладка Гильдии, окно GitLab и карточка MR.
+// Интеграции в вебвью: общая страница «Интеграции и MCP», вкладка проекта
+// «GitLab», окно GitLab и карточка MR.
 //
-// Одно состояние на поверхность и три вида над ним. main.js знает о модуле
+// Одно состояние на поверхность и четыре вида над ним. main.js знает о модуле
 // пять строк: создать, отдать ему нажатие, отдать сообщение, нарисовать
 // вкладку и карточку. Черновики полей и прокрутка списков живут здесь же:
 // фоновое обновление состояния перерисовывает страницу целиком, и без этого
@@ -12,29 +13,19 @@
 import { createGitLabToolView, draftId } from './gitlab-views.js'
 import { createGitLabMergeRequestView } from './gitlab-mr-views.js'
 import { createIntegrationsViews } from './integrations-views.js'
+import { createGitLabProjectView } from './gitlab-project-view.js'
+import { createMcpServerActions } from './mcp-server-actions.js'
 
 const SCROLLERS = ['.gl-scroll', '.hall-body']
-
-function parsePairs(text, separator, label) {
-  const values = {}
-  for (const raw of String(text || '').split('\n')) {
-    const line = raw.trim()
-    if (!line) continue
-    const at = line.indexOf(separator)
-    if (at <= 0) throw new Error(`${label}: строка «${line.slice(0, 40)}» — ожидается ИМЯ${separator.trim() === ':' ? ': ' : '='}значение`)
-    values[line.slice(0, at).trim()] = line.slice(at + separator.length).trim()
-  }
-  return values
-}
 
 export function createIntegrationsUi({ root, vscode, render, shell, toolPageHeading, markdown }) {
   const dataset = document.body?.dataset || {}
   const layout = String(dataset.layout || '')
   const state = {
-    // Гильдия
-    servers: undefined, logs: {}, toolsOpen: '', logOpen: '', formOpen: false, formId: '', importOpen: false,
+    // Общая страница: pluginStatus — здоровье плагина в любом проекте
+    servers: undefined, pluginStatus: undefined, logs: {}, toolsOpen: '', logOpen: '', formOpen: false, formId: '', importOpen: false,
     importCandidates: [], pluginEditing: false, journalOpen: false, actions: undefined, error: '',
-    // Окно GitLab
+    // Окно GitLab и вкладка проекта: status — связь и данные проекта папки
     status: undefined, section: 'mrs', scope: 'mine', lists: {}, pipelines: undefined, jobs: {}, openPipeline: 0,
     bindingOpen: false, notice: null,
     // Карточка MR
@@ -54,21 +45,29 @@ export function createIntegrationsUi({ root, vscode, render, shell, toolPageHead
     setTimeout(send, 0)
   }
   const forget = (...keys) => keys.forEach(key => requested.delete(key))
+  const dropBindingDrafts = () => ['bindingMode', 'bindingProject', 'bindingUsername'].forEach(key => delete state.drafts[key])
   const notice = (tone, text) => { state.notice = text ? { tone, text } : null }
   const mrTarget = () => ({ project: state.project, iid: state.iid })
 
   const tool = createGitLabToolView({ getState: () => state, shell })
   const card = createGitLabMergeRequestView({ getState: () => state, markdown, pipelineRows: tool.pipelineRows })
   const guild = createIntegrationsViews({ getState: () => state, shell, toolPageHeading })
+  const project = createGitLabProjectView({ getState: () => state, shell, toolPageHeading, bindingEditor: tool.bindingEditor })
+  const servers = createMcpServerActions({ state, mcp, render })
+  // Мир и ядро, чей статус лежит в state: смена проекта в Чертоге и перезапуск
+  // ядра не пересоздают вебвью, и без этих меток окно показывало бы связь
+  // прошлого мира или ответ ядра, которого больше нет.
+  let workspacePath
+  let coreRunning
 
   function loadSection() {
-    if (state.status?.state !== 'ok') return
+    if (state.status?.state !== 'ok' || state.status.data?.linked === false) return
     if (state.section === 'pipelines') once('pipelines', () => gitlab('pipelines'))
     else once(`list:${state.scope}`, () => gitlab('mergeRequests', { scope: state.scope }))
   }
 
   function resetGitLab() {
-    state.status = undefined
+    state.status = state.pluginStatus = undefined
     state.lists = {}
     state.pipelines = undefined
     state.jobs = {}
@@ -82,9 +81,14 @@ export function createIntegrationsUi({ root, vscode, render, shell, toolPageHead
   }
 
   // ── Виды ────────────────────────────────────────────────────────────────
-  function guildView() {
+  // Общая страница спрашивает здоровье плагина, вкладка проекта — его связь.
+  function guildView(tab = 'integrations') {
+    if (tab === 'project-gitlab') {
+      once('status', () => gitlab('status'))
+      return project.projectView()
+    }
     once('servers', () => mcp('list'))
-    once('status', () => gitlab('status'))
+    once('pluginStatus', () => gitlab('status', { scope: 'plugin' }))
     return guild.integrationsView()
   }
 
@@ -102,6 +106,15 @@ export function createIntegrationsUi({ root, vscode, render, shell, toolPageHead
   // ── Сообщения хоста ─────────────────────────────────────────────────────
   function message(msg) {
     const response = msg?.response
+    if (msg?.type === 'state') {
+      const path = String(msg.workspacePath || '')
+      const running = msg.service?.state === 'running'
+      const moved = workspacePath !== undefined && path !== workspacePath
+      if ((moved || (running && coreRunning === false)) && layout !== 'gitlab-mr') { resetGitLab(); state.bindingOpen = false; dropBindingDrafts() }
+      workspacePath = path
+      coreRunning = running
+      return false
+    }
     switch (msg?.type) {
       case 'mcpServers':
         state.servers = Array.isArray(msg.servers) ? msg.servers : []
@@ -112,7 +125,7 @@ export function createIntegrationsUi({ root, vscode, render, shell, toolPageHead
           for (const key of Object.keys(state.drafts)) if (key.startsWith('form.') || key.startsWith('plugin.')) delete state.drafts[key]
         }
         // Доверие, проверка и токен меняют и состояние плагина GitLab.
-        if (layout !== 'gitlab-mr' && layout !== 'tool-gitlab') { forget('status'); if (state.status) gitlab('status') }
+        if (layout !== 'gitlab-mr' && layout !== 'tool-gitlab') { forget('status', 'pluginStatus'); if (state.status) gitlab('status'); if (state.pluginStatus) gitlab('status', { scope: 'plugin' }) }
         break
       case 'mcpLog':
         state.logs[String(msg.id || '')] = String(msg.log || '')
@@ -127,18 +140,22 @@ export function createIntegrationsUi({ root, vscode, render, shell, toolPageHead
         state.error = String(msg.message || 'Действие не выполнилось')
         break
       case 'gitlabStatus':
-        state.status = response
+        state[msg.scope === 'plugin' ? 'pluginStatus' : 'status'] = response
         state.busy = ''
-        requested.add('status')
+        requested.add(msg.scope === 'plugin' ? 'pluginStatus' : 'status')
         if (layout === 'tool-gitlab') loadSection()
         break
       case 'gitlabBinding':
+        // Ответ Хаба долетает и сюда общей рассылкой; чужое сохранение окну
+        // объявит gitlabChanged, второй сброс дал бы второй запрос статуса.
+        if (state.busy !== 'binding') return true
         state.busy = ''
         if (response?.state === 'ok') {
           state.bindingOpen = false
-          for (const key of ['bindingMode', 'bindingProject', 'bindingUsername']) delete state.drafts[key]
+          dropBindingDrafts()
           resetGitLab()
-        } else notice('error', response?.problem || 'Привязка не сохранилась')
+        } else if (layout === 'tool-gitlab') notice('error', response?.problem || 'Связь не сохранилась')
+        else state.error = response?.problem || 'Связь не сохранилась'
         break
       case 'gitlabMergeRequests':
         state.lists[String(msg.scope || state.scope)] = response
@@ -201,85 +218,11 @@ export function createIntegrationsUi({ root, vscode, render, shell, toolPageHead
   }
 
   // ── Нажатия ─────────────────────────────────────────────────────────────
-  function saveServerForm() {
-    const d = key => state.drafts[`form.${key}`]
-    const editing = (state.servers || []).find(item => item.id === state.formId)
-    const transport = d('transport') || editing?.transport || 'stdio'
-    const pairs = (key, fallback, separator, label) => d(key) !== undefined ? parsePairs(d(key), separator, label) : fallback
-    const server = { id: state.formId, displayName: d('displayName') ?? editing?.displayName ?? '', transport }
-    const secrets = {}
-    if (transport === 'http') {
-      server.url = d('url') ?? editing?.url ?? ''
-      server.headers = pairs('headers', editing?.headers || {}, ':', 'Заголовки')
-      const secret = pairs('secretHeaders', Object.fromEntries(Object.keys(editing?.secretHeaders || {}).map(name => [name, ''])), ':', 'Секретные заголовки')
-      server.secretHeaders = Object.keys(secret)
-      for (const [name, value] of Object.entries(secret)) if (value) secrets[`header:${name}`] = value
-      const allow = d('allowPrivate') ?? Boolean(editing?.allowPrivateHost)
-      try { server.allowPrivateHost = allow ? new URL(server.url).hostname : '' } catch { server.allowPrivateHost = '' }
-    } else {
-      server.command = d('command') ?? editing?.command ?? ''
-      server.args = d('args') !== undefined ? d('args').split('\n').map(line => line.trim()).filter(Boolean) : editing?.args || []
-      server.dir = d('dir') ?? editing?.dir ?? ''
-      server.env = pairs('env', editing?.env || {}, '=', 'Переменные')
-      const secret = pairs('secretEnv', Object.fromEntries(Object.keys(editing?.secretEnv || {}).map(name => [name, ''])), '=', 'Секретные переменные')
-      server.secretEnv = Object.keys(secret)
-      for (const [name, value] of Object.entries(secret)) if (value) secrets[`env:${name}`] = value
-    }
-    state.busy = 'save'
-    mcp('save', { server, secrets })
-  }
-
   function click(action, target) {
+    if (servers.click(action, target)) return true
     const data = target?.dataset || {}
-    const id = String(data.id || '')
     switch (action) {
-      // Гильдия: свои серверы
-      case 'mcp-trust': state.busy = 'trust'; state.error = ''; mcp('trust', { id }); break
-      case 'mcp-probe': state.busy = 'probe'; state.error = ''; mcp('probe', { id }); break
-      case 'mcp-stop': mcp('stop', { id }); break
-      case 'mcp-delete': state.error = ''; mcp('delete', { id }); break
-      case 'mcp-log':
-        state.logOpen = state.logOpen === id ? '' : id
-        if (state.logOpen) { delete state.logs[id]; mcp('log', { id }) }
-        break
-      case 'mcp-tools-toggle': state.toolsOpen = state.toolsOpen === id ? '' : id; break
-      case 'mcp-tool-toggle': mcp('tool', { id, name: String(data.name || ''), enabled: Boolean(target.checked), risk: '' }); return true
-      case 'mcp-tool-risk': mcp('tool', { id, name: String(data.name || ''), enabled: data.enabled === '1', risk: String(data.risk || '') }); break
-      case 'mcp-secret': {
-        const key = String(data.draftKey || '')
-        const value = String(state.drafts[key] || '')
-        if (!value) { state.error = 'Введите значение секрета.'; break }
-        delete state.drafts[key]
-        mcp('secret', { id, key: String(data.key || ''), value })
-        break
-      }
-      case 'mcp-edit':
-        for (const key of Object.keys(state.drafts)) if (key.startsWith('form.')) delete state.drafts[key]
-        Object.assign(state, { formOpen: true, formId: id, importOpen: false })
-        break
-      case 'mcp-form-open':
-        for (const key of Object.keys(state.drafts)) if (key.startsWith('form.')) delete state.drafts[key]
-        Object.assign(state, { formOpen: true, formId: '', importOpen: false })
-        break
-      case 'mcp-form-cancel': Object.assign(state, { formOpen: false, formId: '' }); break
-      case 'mcp-form-transport': state.drafts['form.transport'] = String(data.transport || 'stdio'); break
-      case 'mcp-form-save':
-        try { state.error = ''; saveServerForm() } catch (error) { state.error = error instanceof Error ? error.message : String(error) }
-        break
-      case 'mcp-import-open': Object.assign(state, { importOpen: true, formOpen: false }); break
-      case 'mcp-import-close': Object.assign(state, { importOpen: false, importCandidates: [] }); mcp('importClear'); break
-      case 'mcp-import-preview': state.busy = 'import'; state.error = ''; mcp('importPreview', { text: String(state.drafts['import.text'] || '') }); break
-      case 'mcp-import-pick': state.error = ''; mcp('importPreview', { pick: true }); break
-      case 'mcp-import-add': {
-        const name = String(data.name || '')
-        const candidate = state.importCandidates.find(item => item.name === name)
-        const values = {}
-        for (const key of candidate?.needsValue || []) values[key] = String(state.drafts[`importValue:${name}:${key}`] || '')
-        state.busy = 'import'
-        mcp('importAdd', { name, values })
-        break
-      }
-      case 'mcp-dismiss-error': state.error = ''; break
+      // Общая страница: журнал действий во внешних сервисах
       case 'integrations-journal': state.journalOpen = true; state.actions = undefined; gitlab('actions'); break
       // Гильдия: плагин GitLab
       case 'gitlab-plugin-edit': state.pluginEditing = true; break
@@ -321,6 +264,11 @@ export function createIntegrationsUi({ root, vscode, render, shell, toolPageHead
       case 'gitlab-binding-toggle': state.bindingOpen = !state.bindingOpen; break
       case 'gitlab-binding-mode': state.drafts.bindingMode = String(target.value || 'auto'); break
       case 'gitlab-binding-cancel': state.bindingOpen = false; break
+      // Один клик: origin уже ведёт на этот GitLab, и связь — «по git remote».
+      case 'gitlab-link-detected':
+        state.busy = 'binding'
+        gitlab('binding', { mode: 'auto', project: '', username: String(state.status?.data?.binding?.username || '') })
+        break
       case 'gitlab-binding-save': {
         const binding = state.status?.data?.binding || {}
         const mode = state.drafts.bindingMode || binding.mode || 'auto'

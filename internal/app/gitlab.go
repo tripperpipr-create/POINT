@@ -44,6 +44,9 @@ const (
 	GitLabFormat     GitLabReason = "format"
 	GitLabNoProject  GitLabReason = "no_project"
 	GitLabBadRequest GitLabReason = "bad_request"
+	// GitLabNotLinked — проект папки с GitLab не связан. Это не сбой, а выбор:
+	// окно отвечает спокойно, и сервер плагина ради него не запускается.
+	GitLabNotLinked GitLabReason = "not_linked"
 )
 
 // GitLabResponse — ответ каждого экрана GitLab. Несостоявшийся экран — это
@@ -83,7 +86,7 @@ func explainGitLab(server domain.MCPServer, err error) *gitlabFailure {
 	if errors.As(err, &failure) {
 		return failure
 	}
-	pinned := fmt.Sprintf("Point рассчитан на %s@%s — нажмите «Проверить» в карточке GitLab (Гильдия → Интеграции)", gitlab.ServerPackage, gitlab.ServerVersion)
+	pinned := fmt.Sprintf("Point рассчитан на %s@%s — нажмите «Проверить» в карточке GitLab (Общие настройки → Интеграции и MCP)", gitlab.ServerPackage, gitlab.ServerVersion)
 	var adapter *gitlab.Error
 	if errors.As(err, &adapter) {
 		switch adapter.Reason {
@@ -97,18 +100,18 @@ func explainGitLab(server domain.MCPServer, err error) *gitlabFailure {
 		case gitlab.ReasonFormat:
 			return &gitlabFailure{GitLabFormat, "ответ сервера GitLab не разобрался", pinned}
 		default:
-			return &gitlabFailure{GitLabRefused, "GitLab отказал: " + adapter.Detail, "подробности — в журнале сервера GitLab (Гильдия → Интеграции)"}
+			return &gitlabFailure{GitLabRefused, "GitLab отказал: " + adapter.Detail, "подробности — в журнале сервера GitLab (Общие настройки → Интеграции и MCP)"}
 		}
 	}
 	kind := mcpclient.KindOf(err)
 	problem, fix := describeMCPFailure(server, err)
 	switch kind {
 	case mcpclient.KindNotTrusted:
-		return &gitlabFailure{GitLabNotTrusted, "запуск сервера GitLab не одобрен", "Гильдия → Интеграции → GitLab: посмотрите команду и нажмите «Доверяю»"}
+		return &gitlabFailure{GitLabNotTrusted, "запуск сервера GitLab не одобрен", "Общие настройки → Интеграции и MCP → GitLab: посмотрите команду и нажмите «Доверяю»"}
 	case mcpclient.KindSecretLocked:
-		return &gitlabFailure{GitLabSecretLocked, "ядро не получило токен GitLab", "введите токен в карточке GitLab (Гильдия → Интеграции)"}
+		return &gitlabFailure{GitLabSecretLocked, "ядро не получило токен GitLab", "введите токен в карточке GitLab (Общие настройки → Интеграции и MCP)"}
 	case mcpclient.KindTool:
-		return &gitlabFailure{GitLabRefused, "сервер GitLab отказал: " + problem, "подробности — в журнале сервера GitLab (Гильдия → Интеграции)"}
+		return &gitlabFailure{GitLabRefused, "сервер GitLab отказал: " + problem, "подробности — в журнале сервера GitLab (Общие настройки → Интеграции и MCP)"}
 	case "":
 		return &gitlabFailure{GitLabRefused, err.Error(), ""}
 	default:
@@ -188,16 +191,16 @@ func (a *App) gitlabSession(ctx context.Context) (gitlabSession, error) {
 	server, err := a.store.GetMCPServer(ctx, gitlabServerID)
 	if err != nil {
 		return gitlabSession{}, &gitlabFailure{GitLabNotConfigured, "GitLab не подключён",
-			"Гильдия → Интеграции → GitLab: адрес сервера и личный токен"}
+			"Общие настройки → Интеграции и MCP → GitLab: адрес сервера и личный токен"}
 	}
 	view := a.mcpServerView(ctx, server, nil)
 	if !view.Trusted {
 		return gitlabSession{server: server}, &gitlabFailure{GitLabNotTrusted, "запуск сервера GitLab не одобрен",
-			"Гильдия → Интеграции → GitLab: посмотрите команду и нажмите «Доверяю»"}
+			"Общие настройки → Интеграции и MCP → GitLab: посмотрите команду и нажмите «Доверяю»"}
 	}
 	if len(view.SecretsLocked) > 0 {
 		return gitlabSession{server: server}, &gitlabFailure{GitLabSecretLocked, "ядро не получило токен GitLab",
-			"введите токен в карточке GitLab (Гильдия → Интеграции)"}
+			"введите токен в карточке GitLab (Общие настройки → Интеграции и MCP)"}
 	}
 	tools := liveMCPTools(view.Tools)
 	if len(tools) == 0 {
@@ -268,10 +271,19 @@ type GitLabBindingView struct {
 	Note      string `json:"note,omitempty"`
 }
 
+// linked — окну есть что показать: проект найден или выбраны «все мои
+// проекты». Сохранённый auto, чей origin больше не ведёт на этот GitLab,
+// тоже не связан — причину называет Note.
+func (v GitLabBindingView) linked() bool {
+	return v.Mode == domain.GitLabBindAll || (v.Mode != domain.GitLabBindOff && v.Project != "")
+}
+
 // gitlabBinding: проект — по git remote origin открытой папки, если
-// владелец не назвал его сам. Ветка — текущая ветка папки.
+// владелец не назвал его сам. Ветка — текущая ветка папки. Пока владелец
+// не выбрал ничего, проект связан, только если origin ведёт на подключённый
+// GitLab: не каждый проект обязан жить в нём.
 func (a *App) gitlabBinding(ctx context.Context, server domain.MCPServer) GitLabBindingView {
-	view := GitLabBindingView{Mode: domain.GitLabBindAuto}
+	view := GitLabBindingView{}
 	workspace, err := a.requireWorkspace()
 	if err != nil {
 		view.Mode, view.Note = domain.GitLabBindAll, "папка не открыта — показаны MR по всем вашим проектам"
@@ -303,6 +315,16 @@ func (a *App) gitlabBinding(ctx context.Context, server domain.MCPServer) GitLab
 		if branch := strings.TrimSpace(string(out)); branch != "HEAD" && gitlabRefPattern.MatchString(branch) {
 			view.Branch = branch
 		}
+	}
+	// Выбор владельца сильнее git remote; без выбора связь даёт только origin,
+	// ведущий на этот GitLab.
+	switch {
+	case view.Mode == domain.GitLabBindOff:
+		view.Note = "связь с GitLab отключена в настройках проекта"
+	case view.Mode == "" && view.Detected != "":
+		view.Mode = domain.GitLabBindAuto
+	case view.Mode == "":
+		view.Mode = domain.GitLabBindOff
 	}
 	switch view.Mode {
 	case domain.GitLabBindManual:
@@ -343,7 +365,7 @@ func (a *App) SaveGitLabBinding(ctx context.Context, req GitLabBindingUpsert) Gi
 		if !validGitLabProject(binding.ProjectPath) {
 			return a.gitlabRespond(server, nil, gitlabBadRequest("путь проекта %q не похож на путь GitLab (группа/проект)", clipText(binding.ProjectPath, 80)))
 		}
-	case domain.GitLabBindAuto, domain.GitLabBindAll:
+	case domain.GitLabBindAuto, domain.GitLabBindAll, domain.GitLabBindOff:
 	default:
 		return a.gitlabRespond(server, nil, gitlabBadRequest("неизвестный режим привязки %q", clipText(string(req.Mode), 20)))
 	}
@@ -361,7 +383,7 @@ func validGitLabProject(path string) bool {
 }
 
 // GitLabStatusView — шапка окна: куда подключён плагин, кто владелец токена,
-// какой проект и что умеет сервер.
+// какой проект и что умеет сервер. Linked — связан ли с GitLab проект папки.
 type GitLabStatusView struct {
 	ServerID      string                               `json:"serverId"`
 	Configured    bool                                 `json:"configured"`
@@ -370,18 +392,36 @@ type GitLabStatusView struct {
 	ServerVersion string                               `json:"serverVersion,omitempty"`
 	User          *gitlab.User                         `json:"user,omitempty"`
 	Binding       GitLabBindingView                    `json:"binding"`
+	Linked        bool                                 `json:"linked"`
 	Capabilities  map[gitlab.Feature]gitlab.Capability `json:"capabilities,omitempty"`
 }
 
+// Чей статус спрашивают: окна проекта (по умолчанию) или карточки плагина в
+// общих настройках. Карточке нужно здоровье сервера в любом проекте.
+const (
+	GitLabStatusProject = "project"
+	GitLabStatusPlugin  = "plugin"
+)
+
 // GitLabStatus — состояние окна. Даже при сбое в data остаются адрес и
 // привязка: окно показывает, что подключено, и кнопку следующего шага.
-func (a *App) GitLabStatus(ctx context.Context) GitLabResponse {
+// Проекту, не связанному с GitLab, сервер плагина не нужен: ответ приходит
+// сразу, без запуска npx и whoami — и без таймаута, если GitLab за VPN.
+func (a *App) GitLabStatus(ctx context.Context, scope string) GitLabResponse {
 	status := GitLabStatusView{ServerID: gitlabServerID, Pinned: gitlab.ServerPackage + "@" + gitlab.ServerVersion}
 	server, err := a.store.GetMCPServer(ctx, gitlabServerID)
-	if err == nil {
+	if scope != "" && scope != GitLabStatusProject && scope != GitLabStatusPlugin {
+		return a.gitlabRespond(server, nil, gitlabBadRequest("неизвестная область статуса %q", clipText(scope, 20)))
+	}
+	configured := err == nil
+	if configured {
 		status.Configured, status.URL = true, server.Settings["url"]
 	}
 	status.Binding = a.gitlabBinding(ctx, server)
+	status.Linked = status.Binding.linked()
+	if configured && !status.Linked && scope != GitLabStatusPlugin {
+		return a.gitlabRespond(server, status, nil)
+	}
 	session, err := a.gitlabSession(ctx)
 	if err != nil {
 		return a.gitlabRespond(session.server, status, err)

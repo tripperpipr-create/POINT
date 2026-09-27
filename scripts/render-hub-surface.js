@@ -1316,18 +1316,27 @@ if (pick(COMPANION_LAYOUTS, requestedSurface) && seedStep === 'markdown') {
 // Интеграции: ответы ядра в форме GitLabResponse {state, reason, problem, fix,
 // data}. MR, обсуждение и пайплайн — те же, что в фикстурах адаптера
 // (internal/integrations/gitlab/testdata/zereight-2.1.66/responses).
-if (['tool-gitlab', 'gitlab-mr', 'integrations'].includes(requestedSurface)) {
+if (['tool-gitlab', 'gitlab-mr', 'integrations', 'project-gitlab'].includes(requestedSurface)) {
   const send = data => listeners['window:message']({ data })
   const ok = data => ({ state: 'ok', data })
   const anna = { id: 7, username: 'anna', name: 'Анна Петрова' }
   const boris = { id: 9, username: 'boris', name: 'Борис' }
   const head = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678'
   const variant = process.argv[3] || ''
-  const binding = { mode: 'auto', project: 'billing/payments', detected: 'billing/payments', remote: 'gitlab.example.test/billing/payments', branch: 'fix/webhook-retry', workspace: 'ai-ide' }
+  // Проект вне GitLab: origin на GitHub, выбора владельца нет — связь выключена
+  // без сбоя, и сервер плагина ради него не запускался.
+  // «relink» — связь выключили вручную, а origin ведёт на этот GitLab: вернуть её один клик.
+  const unlinked = variant === 'unlinked' || variant === 'relink'
+  const binding = variant === 'relink'
+    ? { mode: 'off', remote: 'gitlab.example.test/billing/payments', detected: 'billing/payments', branch: 'fix/webhook-retry', workspace: 'ai-ide', note: 'связь с GitLab отключена в настройках проекта' }
+    : unlinked
+    ? { mode: 'off', remote: 'github.com/anna/dotfiles', branch: 'main', workspace: 'dotfiles', note: 'origin ведёт на github.com, а плагин подключён к gitlab.example.test' }
+    : { mode: 'auto', project: 'billing/payments', detected: 'billing/payments', remote: 'gitlab.example.test/billing/payments', branch: 'fix/webhook-retry', workspace: 'ai-ide' }
   const status = variant === 'problem'
-    ? { state: 'error', reason: 'not_trusted', problem: 'запуск сервера GitLab не одобрен', fix: 'Гильдия → Интеграции → GitLab: посмотрите команду и нажмите «Доверяю»',
-      data: { serverId: 'mcp-gitlab', configured: true, url: 'https://gitlab.example.test', pinned: '@zereight/mcp-gitlab@2.1.66', binding } }
-    : ok({ serverId: 'mcp-gitlab', configured: true, url: 'https://gitlab.example.test', pinned: '@zereight/mcp-gitlab@2.1.66', serverVersion: '2.1.66', user: anna, binding })
+    ? { state: 'error', reason: 'not_trusted', problem: 'запуск сервера GitLab не одобрен', fix: 'Общие настройки → Интеграции и MCP → GitLab: посмотрите команду и нажмите «Доверяю»',
+      data: { serverId: 'mcp-gitlab', configured: true, url: 'https://gitlab.example.test', pinned: '@zereight/mcp-gitlab@2.1.66', binding, linked: true } }
+    : unlinked ? ok({ serverId: 'mcp-gitlab', configured: true, url: 'https://gitlab.example.test', pinned: '@zereight/mcp-gitlab@2.1.66', binding, linked: false })
+      : ok({ serverId: 'mcp-gitlab', configured: true, url: 'https://gitlab.example.test', pinned: '@zereight/mcp-gitlab@2.1.66', serverVersion: '2.1.66', user: anna, binding, linked: true })
   const mergeRequests = [
     { projectId: 42, projectPath: 'billing/payments', iid: 12, title: 'Идемпотентность вебхука оплаты', state: 'opened', sourceBranch: 'fix/webhook-retry', targetBranch: 'main',
       author: anna, reviewers: [boris], mergeStatus: 'mergeable', sha: head, updatedAt: yesterday(17, 30) },
@@ -1348,7 +1357,7 @@ if (['tool-gitlab', 'gitlab-mr', 'integrations'].includes(requestedSurface)) {
   ]
   if (requestedSurface === 'tool-gitlab') {
     send({ type: 'gitlabStatus', response: status })
-    if (variant !== 'problem') send({ type: 'gitlabMergeRequests', scope: 'mine', response: ok({ scope: 'mine', project: 'billing/payments', items: mergeRequests }) })
+    if (variant !== 'problem' && !unlinked) send({ type: 'gitlabMergeRequests', scope: 'mine', response: ok({ scope: 'mine', project: 'billing/payments', items: mergeRequests }) })
     if (variant === 'pipelines') {
       click({ action: 'gitlab-section', section: 'pipelines' })
       send({ type: 'gitlabPipelines', response: ok({ project: 'billing/payments', ref: 'fix/webhook-retry', items: pipelines }) })
@@ -1385,6 +1394,12 @@ if (['tool-gitlab', 'gitlab-mr', 'integrations'].includes(requestedSurface)) {
       send({ type: 'gitlabJobs', pipeline: 3301, response: ok({ project: 'billing/payments', pipelineId: 3301, jobs }) })
     }
   }
+  // Гильдия → «GitLab»: связь проекта; варианты — связан, не связан, без подключения.
+  if (requestedSurface === 'project-gitlab') {
+    send({ type: 'gitlabStatus', response: variant === 'empty'
+      ? { state: 'error', reason: 'not_configured', problem: 'GitLab не подключён', fix: 'Общие настройки → Интеграции и MCP → GitLab: адрес сервера и личный токен', data: { serverId: 'mcp-gitlab', configured: false, pinned: '@zereight/mcp-gitlab@2.1.66', binding } }
+      : status })
+  }
   if (requestedSurface === 'integrations') {
     const tool = (name, risk, extra = {}) => ({ serverId: 'x', name, description: `Инструмент ${name}`, risk, state: 'ok', enabled: false, ...extra })
     const gitlabTools = ['list_merge_requests', 'get_merge_request', 'mr_discussions', 'create_merge_request_note', 'approve_merge_request', 'merge_merge_request']
@@ -1403,7 +1418,7 @@ if (['tool-gitlab', 'gitlab-mr', 'integrations'].includes(requestedSurface)) {
         tools: [tool('search_docs', 'LOW', { enabled: true }), tool('open_page', 'LOW', { state: 'changed', description: 'Открыть страницу. Описание изменилось после одобрения.' }), tool('old_search', 'MEDIUM', { state: 'missing' })], secretRefs: {} },
     ]
     send({ type: 'mcpServers', servers })
-    send({ type: 'gitlabStatus', response: variant === 'empty' ? { state: 'error', reason: 'not_configured', problem: 'GitLab не подключён', fix: 'Гильдия → Интеграции → GitLab: адрес сервера и личный токен', data: { serverId: 'mcp-gitlab', configured: false, pinned: '@zereight/mcp-gitlab@2.1.66', binding } } : status })
+    send({ type: 'gitlabStatus', scope: 'plugin', response: variant === 'empty' ? { state: 'error', reason: 'not_configured', problem: 'GitLab не подключён', fix: 'Общие настройки → Интеграции и MCP → GitLab: адрес сервера и личный токен', data: { serverId: 'mcp-gitlab', configured: false, pinned: '@zereight/mcp-gitlab@2.1.66', binding } } : status })
     if (variant === 'tools') click({ action: 'mcp-tools-toggle', id: 'mcp-docs' })
     if (variant === 'form') click({ action: 'mcp-form-open' })
     if (variant === 'import') {

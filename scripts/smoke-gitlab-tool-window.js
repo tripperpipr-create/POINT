@@ -4,6 +4,10 @@
 // - окно спрашивает состояние, а после ответа — список своего раздела, и
 //   каждый запрос помечен поверхностью `tool`: ответ придёт этому окну;
 // - сбой — состояние с причиной и кнопкой следующего шага, а не пустой список;
+// - проект, не связанный с GitLab, — спокойная строка и «Связать…», а не
+//   сбой; списки при этом не спрашиваются, «Не связывать» уходит хосту;
+// - смена мира (другой workspacePath) и перезапуск ядра перечитывают
+//   состояние окна; найденный по origin проект связывается одним кликом;
 // - MR открывается карточкой с тем проектом и номером, что нажат;
 // - карточка спрашивает MR, обсуждение и изменения от своего имени
 //   (`mr:<проект>!<номер>`), описание GitLab проходит разборщик и `<script>`
@@ -39,7 +43,7 @@ check('кнопка открывает Интеграции разрешённо
 
 tool.send({ type: 'gitlabChanged' })
 check('смена подключения перечитывает состояние', tool.take().some(m => m.action === 'status'))
-tool.send({ type: 'gitlabStatus', response: ok({ configured: true, url: 'https://gitlab.example.test', user: anna,
+tool.send({ type: 'gitlabStatus', response: ok({ configured: true, url: 'https://gitlab.example.test', user: anna, linked: true,
   binding: { mode: 'auto', project: 'billing/payments', branch: 'fix/webhook-retry' } }) })
 sent = tool.take()
 check('после состояния окно спрашивает «Мои»', sent.some(m => m.action === 'mergeRequests' && m.scope === 'mine' && m.surface === 'tool'), JSON.stringify(sent))
@@ -69,6 +73,57 @@ tool.click({ action: 'gitlab-retry-job', project: 'billing/payments', job: '7700
 check('перезапуск джоба уходит хосту', tool.take().some(m => m.action === 'retry' && m.job === 77002 && m.pipeline === 3301))
 tool.send({ type: 'gitlabActionResult', action: 'retry', project: 'billing/payments', pipeline: 3301, response: ok({ job: { id: 77010 } }) })
 check('после перезапуска джобы перечитываются', tool.take().some(m => m.action === 'jobs' && m.pipeline === 3301 && m.project === 'billing/payments'))
+
+// ── Проект вне GitLab ──────────────────────────────────────────────────────
+const quiet = bootWebview({ layout: 'tool-gitlab' })
+quiet.state({ workspacePath: 'C:/work/dotfiles' })
+quiet.take()
+quiet.send({ type: 'gitlabStatus', response: ok({ configured: true, url: 'https://gitlab.example.test', linked: false,
+  binding: { mode: 'off', workspace: 'dotfiles', remote: 'github.com/anna/dotfiles', note: 'origin ведёт на github.com, а плагин подключён к gitlab.example.test' } }) })
+html = quiet.root.innerHTML
+sent = quiet.take()
+check('несвязанный проект назван спокойно', html.includes('Проект «dotfiles» не связан с GitLab') && html.includes('origin ведёт на github.com'), html.slice(0, 400))
+check('несвязанный проект — не сбой', !html.includes('gl-problem'))
+check('несвязанному проекту списки не спрашиваются', !sent.some(m => m.action === 'mergeRequests' || m.action === 'pipelines'), JSON.stringify(sent))
+check('есть «Связать…»', html.includes('data-action="gitlab-binding-toggle"') && html.includes('Связать…'))
+quiet.click({ action: 'gitlab-binding-toggle' })
+html = quiet.root.innerHTML
+check('редактор связи предлагает «Не связывать» и отмечает его', /value="off" data-action="gitlab-binding-mode" checked/.test(html), html.slice(0, 600))
+check('подсказка git remote называет чужой узел', html.includes('origin ведёт на github.com — не на этот GitLab'))
+quiet.click({ action: 'gitlab-binding-mode' }, { value: 'manual' })
+quiet.type('bindingProject', 'dotfiles/mirror')
+quiet.click({ action: 'gitlab-binding-save' })
+sent = quiet.take()
+check('ручной проект уходит хосту', sent.some(m => m.action === 'binding' && m.mode === 'manual' && m.project === 'dotfiles/mirror' && m.surface === 'tool'), JSON.stringify(sent))
+quiet.send({ type: 'gitlabBinding', response: ok({ mode: 'manual', project: 'dotfiles/mirror' }) })
+check('сохранённая связь перечитывает состояние', quiet.take().some(m => m.action === 'status'))
+quiet.send({ type: 'gitlabBinding', response: ok({ mode: 'off' }) })
+check('чужое сохранение из Хаба не даёт второго запроса', !quiet.take().some(m => m.action === 'status'))
+quiet.send({ type: 'gitlabStatus', response: ok({ configured: true, linked: false, binding: { mode: 'off', workspace: 'dotfiles' } }) })
+quiet.state({ workspacePath: 'C:/work/dotfiles' })
+check('тот же мир не перечитывает состояние', !quiet.take().some(m => m.action === 'status'))
+quiet.state({ workspacePath: 'C:/work/payments' })
+check('смена мира перечитывает состояние окна', quiet.take().some(m => m.action === 'status' && m.surface === 'tool'))
+
+// Связь выключили вручную, а origin ведёт на этот GitLab: вернуть её — один клик.
+quiet.send({ type: 'gitlabStatus', response: ok({ configured: true, linked: false,
+  binding: { mode: 'off', workspace: 'payments', detected: 'billing/payments', note: 'связь с GitLab отключена в настройках проекта' } }) })
+html = quiet.root.innerHTML
+check('найденный проект связывается одной кнопкой', html.includes('data-action="gitlab-link-detected"') && html.includes('Связать с billing/payments'), html.slice(0, 400))
+check('рядом остаётся выбор другого проекта', html.includes('Другой проект…'))
+quiet.take()
+quiet.click({ action: 'gitlab-link-detected' })
+check('один клик сохраняет связь «по git remote»', quiet.take().some(m => m.action === 'binding' && m.mode === 'auto' && m.surface === 'tool'))
+quiet.send({ type: 'gitlabBinding', response: ok({ mode: 'auto', project: 'billing/payments' }) })
+quiet.take()
+
+// Перезапуск ядра: статус прошлого процесса больше не правда — окно спрашивает заново.
+quiet.send({ type: 'gitlabStatus', response: ok({ configured: true, linked: false, binding: { mode: 'off', workspace: 'payments' } }) })
+quiet.take()
+quiet.state({ workspacePath: 'C:/work/payments', service: { state: 'stopped' } })
+check('остановленное ядро ничего не спрашивает', !quiet.take().some(m => m.action === 'status'))
+quiet.state({ workspacePath: 'C:/work/payments' })
+check('поднятое ядро перечитывает состояние окна', quiet.take().some(m => m.action === 'status' && m.surface === 'tool'))
 
 // ── Карточка MR ────────────────────────────────────────────────────────────
 const card = bootWebview({ layout: 'gitlab-mr', dataset: { gitlabProject: 'billing/payments', gitlabIid: '12' } })

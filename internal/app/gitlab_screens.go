@@ -30,17 +30,20 @@ type GitLabMergeRequestsView struct {
 
 // GitLabMergeRequests — «Мои», «На моём ревью», «Все открытые» проекта папки.
 func (a *App) GitLabMergeRequests(ctx context.Context, scope string) GitLabResponse {
+	selected := gitlab.Scope(scope)
+	if selected != gitlab.ScopeMine && selected != gitlab.ScopeReview && selected != gitlab.ScopeProject {
+		return a.gitlabRespond(domain.MCPServer{}, nil, gitlabBadRequest("неизвестный раздел %q", clipText(scope, 20)))
+	}
+	binding, err := a.gitlabFolderBinding(ctx)
+	if err != nil {
+		return a.gitlabRespond(domain.MCPServer{}, nil, err)
+	}
 	session, err := a.gitlabSession(ctx)
 	if err != nil {
 		return a.gitlabRespond(session.server, nil, err)
 	}
-	selected := gitlab.Scope(scope)
-	if selected != gitlab.ScopeMine && selected != gitlab.ScopeReview && selected != gitlab.ScopeProject {
-		return a.gitlabRespond(session.server, nil, gitlabBadRequest("неизвестный раздел %q", clipText(scope, 20)))
-	}
-	binding := a.gitlabBinding(ctx, session.server)
-	if binding.Project == "" && (binding.Mode != domain.GitLabBindAll || selected == gitlab.ScopeProject) {
-		return a.gitlabRespond(session.server, nil, gitlabNoProject(binding))
+	if binding.Project == "" && selected == gitlab.ScopeProject {
+		return a.gitlabRespond(session.server, nil, gitlabNoProject())
 	}
 	username := binding.Username
 	if username == "" && selected == gitlab.ScopeReview {
@@ -57,12 +60,34 @@ func (a *App) GitLabMergeRequests(ctx context.Context, scope string) GitLabRespo
 	return a.gitlabRespond(session.server, GitLabMergeRequestsView{Scope: selected, Project: binding.Project, Items: items}, nil)
 }
 
-func gitlabNoProject(binding GitLabBindingView) error {
-	problem := "у папки нет проекта GitLab"
+// gitlabFolderBinding — привязка папки до запуска сервера плагина: проекту,
+// не связанному с GitLab, списки не нужны, и npx ради них не поднимается.
+// Неподключённый плагин объяснит сессия.
+func (a *App) gitlabFolderBinding(ctx context.Context) (GitLabBindingView, error) {
+	server, err := a.store.GetMCPServer(ctx, gitlabServerID)
+	binding := a.gitlabBinding(ctx, server)
+	if err == nil && !binding.linked() {
+		return binding, gitlabNotLinked(binding)
+	}
+	return binding, nil
+}
+
+func gitlabNotLinked(binding GitLabBindingView) error {
+	problem := "проект не связан с GitLab"
+	if binding.Workspace != "" {
+		problem = fmt.Sprintf("проект «%s» не связан с GitLab", binding.Workspace)
+	}
 	if binding.Note != "" {
 		problem += ": " + binding.Note
 	}
-	return &gitlabFailure{GitLabNoProject, problem, "выберите проект вручную в шапке окна или включите «Все мои проекты»"}
+	return &gitlabFailure{GitLabNotLinked, problem, "свяжите его в настройках проекта (Гильдия → GitLab) или в шапке окна GitLab"}
+}
+
+// gitlabNoProject — «Все мои проекты» не дают окну своего проекта, а
+// «Все открытые» и пайплайны ветки без него не показать.
+func gitlabNoProject() error {
+	return &gitlabFailure{GitLabNoProject, "в режиме «Все мои проекты» у окна нет своего проекта GitLab",
+		"выберите проект по git remote или вручную — в шапке окна GitLab или в настройках проекта"}
 }
 
 // GitLabMergeRequestView — карточка MR: шапка, одобрения, пайплайны.
@@ -180,14 +205,20 @@ type GitLabPipelinesView struct {
 // GitLabPipelines: без проекта — проект папки, без ветки — текущая ветка
 // папки; mr > 0 — пайплайны MR.
 func (a *App) GitLabPipelines(ctx context.Context, project, ref string, mr int) GitLabResponse {
+	var binding GitLabBindingView
+	if project == "" {
+		var err error
+		if binding, err = a.gitlabFolderBinding(ctx); err != nil {
+			return a.gitlabRespond(domain.MCPServer{}, nil, err)
+		}
+	}
 	session, err := a.gitlabSession(ctx)
 	if err != nil {
 		return a.gitlabRespond(session.server, nil, err)
 	}
 	if project == "" {
-		binding := a.gitlabBinding(ctx, session.server)
 		if binding.Project == "" {
-			return a.gitlabRespond(session.server, nil, gitlabNoProject(binding))
+			return a.gitlabRespond(session.server, nil, gitlabNoProject())
 		}
 		project = binding.Project
 		if ref == "" && mr == 0 {

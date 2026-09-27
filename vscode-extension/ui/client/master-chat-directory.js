@@ -180,6 +180,7 @@ export function createMasterChatDirectory(dependencies) {
       </header>
       <input type="search" id="chat-directory-search" data-master-sidebar-search placeholder="Поиск по всем чатам" aria-label="Поиск по чатам всех проектов" value="${esc(query)}">
       <div class="hall-chats-groups">${groups || empty}${groups && query.trim() && !list.some(world => world.chats.some(chat => matches(chat.title))) ? `<p class="hall-chats-blank">Ничего не нашлось по запросу «${esc(query.trim())}»</p>` : ''}${groups ? temporary : ''}</div>
+      <footer class="hall-chats-footer"><button type="button" class="hall-chats-settings" data-action="tab" data-tab="general">${icon('settings')}<span>Общие настройки</span></button></footer>
     </aside>`
   }
 
@@ -209,9 +210,10 @@ export function createMasterChatDirectory(dependencies) {
     const onChat = wide && ui.state.selectedTab === 'master'
     // Компаньону и окнам инструментов чат без мира не нужен: они живут в окне
     // IDE, где проект уже есть, и им довольно короткого «выберите проект».
-    if (!ui.state.workspace && !onChat) return dependencies.projectRequired()
+    const globalSettings = wide && ['general', 'model-connections', 'integrations'].includes(ui.state.selectedTab)
+    if (!ui.state.workspace && !onChat && !globalSettings) return dependencies.projectRequired()
     // Первый запуск: та же раскладка, что и всегда.
-    if (!ui.state.workspace) return dependencies.shell(masterWithoutWorldHtml())
+    if (!ui.state.workspace && onChat) return dependencies.shell(masterWithoutWorldHtml())
     const switching = dependencies.projectSwitchInfo()
     if (!switching) return undefined
     // Переключение мира не убирает список чатов: он не про тот мир, который

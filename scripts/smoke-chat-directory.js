@@ -48,7 +48,7 @@ const PROJECTS = [
   { path: 'C:\\worlds\\frontend', parent: 'C:\\worlds', name: 'frontend', hash: 'cccccccccccccccccccccccc', pinned: false, lastOpenedAt: 0, branch: '', core: 'idle', slow: false },
 ]
 
-function surface({ changeSets = [] } = {}) {
+function surface({ changeSets = [], workspace = 'ai-ide' } = {}) {
   const listeners = {}
   const posted = []
   const root = {
@@ -71,7 +71,7 @@ function surface({ changeSets = [] } = {}) {
   const send = data => listeners['window:message']({ data })
   send({
     type: 'state', service: { state: 'running' }, workspaceTrusted: true,
-    workspace: 'ai-ide', workspacePath: 'C:\\worlds\\ai-ide', selectedTab: 'master',
+    workspace, workspacePath: workspace ? 'C:\\worlds\\ai-ide' : '', selectedTab: 'master',
     boot: { changeSets, runs: [], profiles: [], usageRecords: [] },
   })
   send({ type: 'projects', active: 'C:\\worlds\\ai-ide', projects: PROJECTS })
@@ -95,7 +95,8 @@ function surface({ changeSets = [] } = {}) {
 }
 
 const failures = []
-const check = (name, ok, detail) => { if (!ok) failures.push(`${name}: ${detail}`) }
+let checks = 0
+const check = (name, ok, detail) => { checks++; if (!ok) failures.push(`${name}: ${detail}`) }
 
 const view = surface({ changeSets: [{ id: 'set-1', status: 'pending' }, { id: 'set-2', status: 'pending' }] })
 const html = () => view.root.innerHTML
@@ -105,6 +106,8 @@ const asideText = view.asideText
 // Экран чата: рейки разделов нет, список чатов есть, вход в настройки один.
 check('рейки разделов нет', !html().includes('hall-nav'), 'на экране чата осталась рейка из шести разделов')
 check('список чатов на месте', html().includes('hall-chats'), 'левой панели чатов нет')
+check('общие настройки под списком', /hall-chats-groups[\s\S]*<footer class="hall-chats-footer"><button[^>]*data-tab="general"/.test(aside()), 'кнопка общих настроек не стоит внизу панели чатов')
+check('панель целиком скрывается', /\.is-chat\.is-chats-hidden \.hall-chats\s*\{\s*display:\s*none/.test(fs.readFileSync(path.join(repo, 'vscode-extension/media/style.css'), 'utf8')), 'скрытие списка не охватывает его нижнюю кнопку')
 check('вход в настройки один', (html().match(/data-tab="overview"/g) || []).length === 1,
   `входов в настройки ${(html().match(/data-tab="overview"/g) || []).length}, а должен быть один`)
 check('имя мира в шапке', /hall-chat-heading[\s\S]{0,200}ai-ide/.test(html()), 'шапка не называет мир — в кросс-проектном списке это обязательно')
@@ -155,9 +158,26 @@ view.click({ action: 'chat-new', world: 'ws-front', path: 'C:\\worlds\\frontend'
 const created = view.posted.at(-1)
 check('новый чат в чужом мире', created?.type === 'openProjectChat' && created.newChat === true && created.path === 'C:\\worlds\\frontend', JSON.stringify(created))
 
+view.click({ action: 'tab', tab: 'general' })
+check('общие настройки открываются', view.text().includes('Общие настройки'), 'кнопка не открыла страницу общих настроек')
+check('общие настройки отделены от проекта', html().includes('is-general-settings') && !html().includes('aria-label="Разделы проекта"') && !html().includes('point-gallery-chip'), 'общий экран использует проектную оболочку')
+check('в общих настройках только общие разделы', /<nav class="hall-nav" aria-label="Общие настройки">[\s\S]*?data-tab="general"[\s\S]*?data-tab="model-connections"[\s\S]*?data-tab="integrations"[\s\S]*?<\/nav>/.test(html()), 'навигация общих настроек неполна')
+check('проектные индикаторы не показаны', !html().includes('hall-gauge') && !html().includes('hall-rail-foot'), 'общий экран показывает состояние проекта')
+view.click({ action: 'tab', tab: 'model-connections' })
+check('подраздел модели остаётся в общей оболочке', html().includes('is-general-settings') && !html().includes('point-gallery-chip'), 'подключения моделей попали в настройки проекта')
+view.click({ action: 'tab', tab: 'integrations' })
+check('подраздел интеграций остаётся в общей оболочке', html().includes('is-general-settings') && !html().includes('point-gallery-chip'), 'интеграции попали в настройки проекта')
+view.click({ action: 'tab', tab: 'master' })
+view.click({ action: 'tab', tab: 'overview' })
+check('проектная рейка осталась отдельной', html().includes('aria-label="Разделы проекта"') && html().includes('point-gallery-chip') && !html().includes('data-tab="general"'), 'настройки проекта смешались с общими')
+
+const withoutWorld = surface({ workspace: '' })
+withoutWorld.click({ action: 'tab', tab: 'general' })
+check('общие настройки доступны без проекта', withoutWorld.root.innerHTML.includes('is-general-settings'), 'общие настройки требуют открытого проекта')
+
 if (failures.length) {
   console.error('КАТАЛОГ ЧАТОВ ПРОВАЛЕН:')
   for (const line of failures) console.error('  · ' + line)
   process.exit(1)
 }
-console.log(JSON.stringify({ chatDirectory: 'ok', worlds: DIRECTORY.worlds.length, checks: 20 }))
+console.log(JSON.stringify({ chatDirectory: 'ok', worlds: DIRECTORY.worlds.length, checks }))

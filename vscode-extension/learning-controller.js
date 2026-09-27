@@ -121,6 +121,15 @@ async function handleLearningMessage(message) {
       this.post({ type: 'statistics', statistics })
       break
     }
+    case 'saveGlobalBudget': {
+      await this.service.request('/api/budget/global', {
+        method: 'POST', body: JSON.stringify(message.budget || {}),
+      })
+      const statistics = await this.loadStatisticsSnapshot()
+      this.post({ type: 'globalBudgetSaved' })
+      this.post({ type: 'statistics', statistics })
+      break
+    }
   }
 }
 

@@ -1,5 +1,6 @@
 const Module = require('module')
 const { extensionHostSource } = require('./lib/extension-host-source')
+const { overlaySource: readOverlaySource } = require('./lib/overlay-source')
 const path = require('path')
 const assert = require('assert')
 const fs = require('fs')
@@ -86,9 +87,13 @@ assert.match(formatVcsError('Push недоступен', new Error('remote rejec
 const extensionSource = extensionHostSource()
 const infraSource = fs.readFileSync(path.resolve(__dirname, '..', 'vscode-extension', 'infra-controller.js'), 'utf8')
 const gitHostSource = `${extensionSource}\n${infraSource}`
-const uiEntrySource = fs.readFileSync(path.resolve(__dirname, '..', 'vscode-extension', 'ui', 'client', 'main.js'), 'utf8')
-const gitViewSource = fs.readFileSync(path.resolve(__dirname, '..', 'vscode-extension', 'ui', 'client', 'git-views.js'), 'utf8')
-const uiSource = `${uiEntrySource}\n${gitViewSource}`
+// Вебвью читается деревом модулей, а не парой файлов: обработчики переезжают
+// из main.js в свои модули (перетаскивание — в drag-drop.js), и проверка по
+// имени файла падала бы на переезде, а отрицательная — проходила вхолостую.
+const uiClientDir = path.resolve(__dirname, '..', 'vscode-extension', 'ui', 'client')
+const uiModules = fs.readdirSync(uiClientDir).filter(name => name.endsWith('.js')).sort()
+assert.ok(uiModules.includes('main.js') && uiModules.includes('git-views.js') && uiModules.length > 50, `webview module tree looks empty: ${uiModules.length}`)
+const uiSource = uiModules.map(name => fs.readFileSync(path.join(uiClientDir, name), 'utf8')).join('\n')
 const gitCss = fs.readFileSync(path.resolve(__dirname, '..', 'vscode-extension', 'ui', 'layers', '96-tool-windows.css'), 'utf8')
 
 assert.match(extensionSource, /case 'gitAction'/, 'Git tool window must route its own actions')
@@ -129,7 +134,7 @@ assert.doesNotMatch(uiSource, /gitCompactDirs/, 'the nested tree must be gone')
 // собственного толчка заголовок и строка состояния молчат о ветке до первого
 // открытия панели Git.
 assert.match(extensionSource, /void provider\.gitContext\(\)\.catch/, 'the extension must wake the Git extension on startup')
-const overlaySource = fs.readFileSync(path.resolve(__dirname, '..', 'distribution', 'apply-overlay.mjs'), 'utf8')
+const overlaySource = readOverlaySource()
 assert.match(overlaySource, /point-branch-chip/, 'the title bar must carry the branch chip')
 assert.match(overlaySource, /scmActiveRepositoryBranchName/, 'the chip must read the branch from the SCM context key')
 assert.match(extensionSource, /if \(amend\) args\.push\('--amend'\)/, 'the panel must be able to amend the last commit')

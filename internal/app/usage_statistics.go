@@ -286,5 +286,26 @@ func (a *App) Statistics(workspaceID string) (map[string]any, error) {
 	if budget.HardStop {
 		stats["budgetHardStop"] = true
 	}
+	globalBudget, err := a.loadGlobalBudget(ctx)
+	if err != nil {
+		return nil, err
+	}
+	globalDailySpent, globalDailyReserved, globalMonthlySpent, globalMonthlyReserved, err := a.store.GlobalBudgetUsage(ctx, dayStart, monthStart)
+	if err != nil {
+		return nil, err
+	}
+	stats["globalBudgetDailyCents"] = globalBudget.DailyCents
+	stats["globalBudgetMonthlyCents"] = globalBudget.MonthlyCents
+	stats["globalBudgetHardStop"] = globalBudget.HardStop
+	stats["globalDailySpentCents"] = globalDailySpent
+	stats["globalDailyReservedCents"] = globalDailyReserved
+	stats["globalMonthlySpentCents"] = globalMonthlySpent
+	stats["globalMonthlyReservedCents"] = globalMonthlyReserved
+	if warning := budgetWarning(globalDailySpent+globalDailyReserved, globalBudget.DailyCents); warning != "" {
+		stats["globalDailyBudgetWarning"] = warning
+	}
+	if warning := budgetWarning(globalMonthlySpent+globalMonthlyReserved, globalBudget.MonthlyCents); warning != "" {
+		stats["globalMonthlyBudgetWarning"] = warning
+	}
 	return stats, nil
 }

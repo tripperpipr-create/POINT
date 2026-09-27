@@ -278,7 +278,7 @@ for (const fault of [
 ]) {
   if (!soak.requiredFaults?.includes(fault)) errors.push(`soak profile: missing required fault ${fault}`)
 }
-const soakHarness = read('cmd/point-soak/main.go')
+const soakHarness = readGoPackage('cmd/point-soak')
 for (const token of [
   'exerciseCancelledRun', 'exerciseProviderTimeout', 'exerciseTemporaryDiskWriteLoss',
   'exerciseNearDiskLimitRefusal', 'seedInterruptedWorkload', 'verifyInterruptedRecovery',
@@ -292,7 +292,7 @@ for (const token of [
 ]) {
   requireText(soakController, token, 'soak desktop/Docker fault profile')
 }
-const storageRecovery = read('internal/storage/sqlite.go')
+const storageRecovery = readGoPackage('internal/storage')
 for (const token of ['UPDATE flow_runs SET status=?', 'UPDATE executions SET status=?']) {
   requireText(storageRecovery, token, 'startup interrupted recovery')
 }
@@ -601,10 +601,13 @@ for (const token of [
   "require('./core-log')", "require('./core-lease')",
   "require('./git-tool-controller')", "require('./hub-surfaces-controller')",
   "require('./hub-polling-controller')", "require('./companion-thread-controller')",
-  "require('./integrations-controller')",
+  "require('./integrations-controller')", "require('./hub-message-router')",
 ]) {
   requireText(extensionSource, token, 'extension module boundary')
 }
+// Ветки внешнего разбора сообщений живут в hub-message-router.js: подтверждения
+// форм, которые шлёт сам разбор, ищутся в оболочке вместе с ним.
+const hubMessageSource = `${extensionSource}\n${read('vscode-extension/hub-message-router.js')}`
 // Удаление последнего квеста может каскадно убрать его схему. Локальная правка
 // только массива quests оставляет удалённую схему в webview до перезапуска и
 // визуально продолжает держать её агентов. После DELETE нужен цельный runtime
@@ -649,8 +652,8 @@ const webviewSource = read('vscode-extension/ui/client/main.js')
   const acknowledgements = [
     [read('vscode-extension/learning-controller.js'), "type: 'budgetSaved'", 'budget'],
     [read('vscode-extension/roster-controller.js'), "type: 'teamSaved'", 'team'],
-    [extensionSource, "type: 'memorySaved'", 'memory'],
-    [extensionSource, "type: 'connectionSaved'", 'connection'],
+    [hubMessageSource, "type: 'memorySaved'", 'memory'],
+    [hubMessageSource, "type: 'connectionSaved'", 'connection'],
   ]
   const routing = read('vscode-extension/ui/client/request-failure-routing.js')
   for (const [source, token, label] of acknowledgements) {
@@ -685,6 +688,7 @@ for (const token of [
   "from './companion-transport.js'", "from './master-inbox.js'",
   "from './hub-entity-inbox.js'", "from './run-inbox.js'",
   "from './world-state-inbox.js'", "from './integrations-ui.js'",
+  "from './drag-drop.js'", "from './ui-snapshot.js'",
 ]) {
   requireText(webviewSource, token, 'webview module boundary')
 }
@@ -699,14 +703,23 @@ for (const token of [
 for (const [file, maximum] of Object.entries({
   'internal/storage/hub.go': 100,
   'internal/domain/hub.go': 1077,
-  'internal/flowruntime/runtime.go': 987,
-  'internal/storage/sqlite.go': 985,
-  'internal/tools/workspace_tools.go': 960,
-  'cmd/point-soak/main.go': 967,
+  // 27.09.2026 четыре Go-файла у потолка разрезаны по пакету: входы и
+  // результаты узлов, циклы и шаблоны Flow; инструменты git и run_command;
+  // проверки и машинные определения хранилища; отказы и нагрузка soak.
+  'internal/flowruntime/runtime.go': 590,
+  'internal/storage/sqlite.go': 566,
+  'internal/tools/workspace_tools.go': 142,
+  'cmd/point-soak/main.go': 542,
   // Потолок опущен с 5068: заплаты первого кадра окон (фон, скелет верстака,
-  // раскладка sessions-окна Чертога) ушли в overlay-first-frame.mjs.
-  'distribution/apply-overlay.mjs': 4984,
+  // раскладка sessions-окна Чертога) ушли в overlay-first-frame.mjs. С 4984 —
+  // 27.09.2026: рейки, верхняя панель и сравнение ушли в свои модули; раскол
+  // сверен наложением старого и нового оверлея на чистый Code-OSS — деревья
+  // совпали побайтно.
+  'distribution/apply-overlay.mjs': 3309,
   'distribution/overlay-first-frame.mjs': 200,
+  'distribution/overlay-rail.mjs': 419,
+  'distribution/overlay-titlebar.mjs': 1120,
+  'distribution/overlay-diff-editor.mjs': 193,
   'vscode-extension/ui/layers/07-master-quiet.css': 2110,
   'vscode-extension/ui/layers/05-hall.css': 1841,
   // Три файла пишутся руками мимо `ui/build.mjs`: главная и Летопись
@@ -717,7 +730,10 @@ for (const [file, maximum] of Object.entries({
   'vscode-extension/media/chronicle.js': 59,
   'internal/app/app.go': 720,
   'internal/companion/service.go': 600,
-  'vscode-extension/extension.js': 3750,
+  // Опущен с 3750 (27.09.2026): внешний разбор сообщений вебвью — пятьсот
+  // строк веток — ушёл в hub-message-router.js. Новая ветка растёт там.
+  'vscode-extension/extension.js': 3232,
+  'vscode-extension/hub-message-router.js': 600,
   'vscode-extension/git-tool-controller.js': 400,
   'vscode-extension/hub-surfaces-controller.js': 400,
   'vscode-extension/hub-polling-controller.js': 300,
@@ -734,7 +750,11 @@ for (const [file, maximum] of Object.entries({
   // Потолок опущен с 4400: ветки поля Мастера (очередь, «/», Enter, слот
   // уточнений) ушли в master-compose-keys.js, и отвоёванное не должно
   // зарасти обратно.
-  'vscode-extension/ui/client/main.js': 4330,
+  // И с 4330 (27.09.2026): перетаскивание — в drag-drop.js, снимок фокуса и
+  // прокрутки — в ui-snapshot.js, таблица отказов — к их маршрутам.
+  'vscode-extension/ui/client/main.js': 4118,
+  'vscode-extension/ui/client/drag-drop.js': 100,
+  'vscode-extension/ui/client/ui-snapshot.js': 160,
   'vscode-extension/ui/client/infra-actions.js': 220,
   // Опущен с 280: блок приложения и отчёт ушли в quest-app-actions.js.
   'vscode-extension/ui/client/master-actions.js': 255,
@@ -793,10 +813,13 @@ for (const [file, maximum] of Object.entries({
   'vscode-extension/ui/client/hub-entity-inbox.js': 220,
   'vscode-extension/ui/client/run-inbox.js': 240,
   'vscode-extension/ui/client/world-state-inbox.js': 180,
-  // Интеграции: состояние и нажатия, вкладка Гильдии, окно GitLab, карточка MR.
-  'vscode-extension/ui/client/integrations-ui.js': 420,
+  // Интеграции: состояние и нажатия, общая страница, вкладка проекта, окно GitLab, карточка MR.
+  // Опущен с 420: нажатия по своим MCP-серверам ушли в mcp-server-actions.js.
+  'vscode-extension/ui/client/integrations-ui.js': 360,
+  'vscode-extension/ui/client/mcp-server-actions.js': 130,
   'vscode-extension/ui/client/integrations-views.js': 260,
   'vscode-extension/ui/client/gitlab-views.js': 260,
+  'vscode-extension/ui/client/gitlab-project-view.js': 90,
   'vscode-extension/ui/client/gitlab-mr-views.js': 180,
 })) {
   const actual = lineCount(read(file))

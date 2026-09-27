@@ -85,6 +85,22 @@ func reserveBudgetWith(ctx context.Context, db budgetSQL, reservation *domain.Bu
 	if limits.HardStop && limits.MonthlyCents > 0 && monthlySpent+monthlyReserved+reservation.ReservedCents > limits.MonthlyCents {
 		return fmt.Errorf("%w: monthly spent=%d reserved=%d request=%d limit=%d cents", ErrBudgetLimitExceeded, monthlySpent, monthlyReserved, reservation.ReservedCents, limits.MonthlyCents)
 	}
+	if limits.GlobalHardStop && (limits.GlobalDailyCents > 0 || limits.GlobalMonthlyCents > 0) {
+		globalDailySpent, globalDailyReserved, err := budgetPeriodUsage(ctx, db, limits.DayStart)
+		if err != nil {
+			return err
+		}
+		globalMonthlySpent, globalMonthlyReserved, err := budgetPeriodUsage(ctx, db, limits.MonthStart)
+		if err != nil {
+			return err
+		}
+		if budgetWouldExceed(limits.GlobalDailyCents, globalDailySpent, globalDailyReserved, reservation.ReservedCents) {
+			return fmt.Errorf("%w: global daily spent=%d reserved=%d request=%d limit=%d cents", ErrBudgetLimitExceeded, globalDailySpent, globalDailyReserved, reservation.ReservedCents, limits.GlobalDailyCents)
+		}
+		if budgetWouldExceed(limits.GlobalMonthlyCents, globalMonthlySpent, globalMonthlyReserved, reservation.ReservedCents) {
+			return fmt.Errorf("%w: global monthly spent=%d reserved=%d request=%d limit=%d cents", ErrBudgetLimitExceeded, globalMonthlySpent, globalMonthlyReserved, reservation.ReservedCents, limits.GlobalMonthlyCents)
+		}
+	}
 	if err := checkQuestBudget(ctx, db, reservation, limits); err != nil {
 		return err
 	}
@@ -92,6 +108,28 @@ func reserveBudgetWith(ctx context.Context, db budgetSQL, reservation *domain.Bu
 		reservation.ID, reservation.WorkspaceID, reservation.QuestID, reservation.BudgetScopeQuestID, reservation.ExecutionID, reservation.RunID, reservation.Provider, reservation.Model,
 		reservation.EstimatedInputTokens, reservation.MaxOutputTokens, reservation.ReservedTokens, reservation.ReservedCents, 0, 0, 0, 0, domain.BudgetReserved, formatTime(reservation.CreatedAt))
 	return err
+}
+
+func budgetPeriodUsage(ctx context.Context, db budgetSQL, start time.Time) (spent, reserved int64, err error) {
+	if err = db.QueryRowContext(ctx, `SELECT COALESCE(SUM(cost_cents),0) FROM usage_records WHERE created_at>=? AND id NOT LIKE 'usage_budget_%'`, formatTime(start)).Scan(&spent); err != nil {
+		return
+	}
+	var settled int64
+	if err = db.QueryRowContext(ctx, `SELECT COALESCE(SUM(CASE WHEN status=? THEN actual_cents WHEN status=? THEN reserved_cents ELSE 0 END),0) FROM budget_reservations WHERE created_at>=?`, domain.BudgetReconciled, domain.BudgetConservative, formatTime(start)).Scan(&settled); err != nil {
+		return
+	}
+	spent += settled
+	err = db.QueryRowContext(ctx, `SELECT COALESCE(SUM(reserved_cents),0) FROM budget_reservations WHERE status=? AND created_at>=?`, domain.BudgetReserved, formatTime(start)).Scan(&reserved)
+	return
+}
+
+func (s *SQLite) GlobalBudgetUsage(ctx context.Context, dayStart, monthStart time.Time) (dailySpent, dailyReserved, monthlySpent, monthlyReserved int64, err error) {
+	dailySpent, dailyReserved, err = budgetPeriodUsage(ctx, s.db, dayStart)
+	if err != nil {
+		return
+	}
+	monthlySpent, monthlyReserved, err = budgetPeriodUsage(ctx, s.db, monthStart)
+	return
 }
 
 func (s *SQLite) ReconcileBudget(ctx context.Context, id string, inputTokens, outputTokens, actualCents int64, usageReported bool, now time.Time) error {

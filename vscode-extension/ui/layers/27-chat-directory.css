@@ -120,6 +120,32 @@
   overflow-y: auto;
 }
 
+.hall-chats-footer {
+  flex: 0 0 auto;
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--hub-border-soft);
+}
+
+.hall-chats-settings {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  width: 100%;
+  min-height: var(--hit);
+  padding: 0 var(--s-3);
+  border: 0;
+  border-radius: var(--r-2);
+  background: transparent;
+  color: var(--hub-text-3);
+  font: var(--fw-normal) var(--t-body) / 1.3 var(--font-ui);
+  text-align: left;
+  cursor: pointer;
+}
+
+.hall-chats-settings .hall-icon { width: var(--s-5); height: var(--s-5); }
+.hall-chats-settings:hover { background: var(--hub-raised); color: var(--hub-text); }
+.hall-chats-settings:focus-visible { outline: 1px solid var(--ui-focus); outline-offset: -1px; }
+
 .hall-chats-world {
   display: flex;
   align-items: center;

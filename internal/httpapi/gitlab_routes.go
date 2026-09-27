@@ -64,10 +64,13 @@ func queryInt(r *http.Request, name string) int {
 	return value
 }
 
+// gitlabStatus: scope=plugin — здоровье плагина для карточки общих
+// настроек; без scope — окно проекта, которому несвязанный проект сервер
+// плагина не запускает.
 func (s *Server) gitlabStatus(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := gitlabContext(r)
 	defer cancel()
-	s.gitlabWrite(w, s.app.GitLabStatus(ctx))
+	s.gitlabWrite(w, s.app.GitLabStatus(ctx, r.URL.Query().Get("scope")))
 }
 
 func (s *Server) saveGitLabPlugin(w http.ResponseWriter, r *http.Request) {

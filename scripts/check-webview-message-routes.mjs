@@ -1,6 +1,6 @@
 // Каждое сообщение вебвью обязано иметь ветку во внешнем разборе оболочки.
 //
-// Разбор в extension.js кончается `default:` — тип без ветки исчезает. Кнопка
+// Разбор в hub-message-router.js кончается `default:` — тип без ветки исчезает. Кнопка
 // при этом выглядит нажатой и не делает ничего: ни ошибки, ни последствия.
 // Так «СНЕСТИ КВЕСТ» доехал до выложенного приложения мёртвым: вебвью слал
 // `purgeQuest`, roster-controller его ждал, а внешний switch о таком типе не
@@ -9,8 +9,10 @@
 // Проверять «есть ли маршрут хоть где-нибудь в оболочке» бесполезно — первая
 // версия этой проверки именно так и ошиблась: ветка в roster-controller.js
 // нашлась, и затвор отчитался «ok» на сломанной кнопке. Вход в разбор ровно
-// один — `switch (message.type)` внутри handleMessage; контроллеры получают
-// сообщение только из его веток. Поэтому проверяется этот switch и только он.
+// один — handleMessage в extension.js отдаёт сообщение routeHubMessage из
+// hub-message-router.js, и контроллеры получают сообщение только из веток её
+// `switch (message.type)`. Поэтому проверяется этот switch и только он — и то,
+// что handleMessage действительно его зовёт.
 //
 // Ни один существующий затвор этого не видел: смоуки Хаба исполняют собранный
 // media/main.js с фейковым DOM и проверяют, что сообщение ОТПРАВЛЕНО, — до
@@ -48,7 +50,14 @@ const start = hostSource.indexOf('async handleMessage(message) {');
 if (start < 0) fail('в extension.js не найден handleMessage — разбор переехал, проверку надо переписать');
 const after = hostSource.slice(start + 1).search(/\n {2}(?:async )?[A-Za-z_][A-Za-z0-9_]*\s*\(/);
 if (after < 0) fail('не найдена граница handleMessage — проверку надо переписать');
-const dispatcher = hostSource.slice(start, start + 1 + after);
+const handler = hostSource.slice(start, start + 1 + after);
+if (!/await routeHubMessage\.call\(this, message\)/.test(handler)) {
+  fail('handleMessage не отдаёт сообщение routeHubMessage — разбор переехал, проверку надо переписать');
+}
+const dispatcher = read('vscode-extension/hub-message-router.js');
+if (!dispatcher.includes('return async function routeHubMessage(message) {')) {
+  fail('в hub-message-router.js не найдена routeHubMessage — проверку надо переписать');
+}
 const routed = new Set();
 for (const match of dispatcher.matchAll(/case\s+['"]([A-Za-z0-9_]+)['"]\s*:/g)) routed.add(match[1]);
 if (routed.size < 50) fail(`во внешнем разборе найдено ${routed.size} веток — срез взят не тот`);

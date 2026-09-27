@@ -181,17 +181,35 @@ export function createGitLabToolView({ getState, shell }) {
     }).join('')
   }
 
-  function bindingEditor(state, binding) {
+  // Связь проекта с GitLab: окно и вкладка проекта «GitLab» правят её одним
+  // редактором. На вкладке он открыт всегда, поэтому без «Отмены».
+  function bindingEditor(state, binding, { cancel = true } = {}) {
     const mode = state.drafts.bindingMode || binding.mode || 'auto'
     const radio = (value, label, hint) => `<label class="gl-radio"><input type="radio" name="gitlab-binding-mode" value="${value}" data-action="gitlab-binding-mode"${mode === value ? ' checked' : ''}><span><b>${esc(label)}</b><small>${esc(hint)}</small></span></label>`
-    return `<section class="gl-binding-edit" aria-label="Проект GitLab">
-      ${radio('auto', 'По git remote', binding.detected ? `origin → ${binding.detected}` : binding.note || 'origin папки не ведёт на этот GitLab')}
+    // Подсказка у «По git remote» говорит, что даст origin, при любом текущем
+    // выборе: Note к этому моменту может объяснять уже другое.
+    const origin = binding.detected ? `origin → ${binding.detected}`
+      : binding.remote ? `origin ведёт на ${binding.remote.split('/')[0]} — не на этот GitLab` : 'у папки нет git remote origin'
+    return `<section class="gl-binding-edit" aria-label="Связь проекта с GitLab">
+      ${radio('auto', 'По git remote', origin)}
       ${radio('manual', 'Выбрать проект', 'путь вида группа/проект')}
       ${mode === 'manual' ? `<input id="${draftId('bindingProject')}" class="gl-input is-sub" data-draft="bindingProject" value="${esc(state.drafts.bindingProject ?? binding.manual ?? '')}" placeholder="group/project" autocomplete="off" spellcheck="false">` : ''}
       ${radio('all', 'Все мои проекты', 'MR, где вы автор или ревьюер, без привязки к папке')}
-      <label class="gl-field"><span>Имя пользователя GitLab <small>необязательно — Point узнаёт его по токену</small></span><input id="${draftId('bindingUsername')}" class="gl-input" data-draft="bindingUsername" value="${esc(state.drafts.bindingUsername ?? binding.username ?? '')}" placeholder="${esc(state.status?.data?.user?.username || 'username')}" autocomplete="off" spellcheck="false"></label>
-      <footer><button type="button" class="gl-btn is-primary" data-action="gitlab-binding-save"${state.busy ? ' disabled' : ''}>Сохранить</button><button type="button" class="gl-btn" data-action="gitlab-binding-cancel">Отмена</button></footer>
+      ${radio('off', 'Не связывать', 'проект живёт вне этого GitLab — окно молчит, сервер плагина ради него не запускается')}
+      ${mode === 'off' ? '' : `<label class="gl-field"><span>Имя пользователя GitLab <small>необязательно — Point узнаёт его по токену</small></span><input id="${draftId('bindingUsername')}" class="gl-input" data-draft="bindingUsername" value="${esc(state.drafts.bindingUsername ?? binding.username ?? '')}" placeholder="${esc(state.status?.data?.user?.username || 'username')}" autocomplete="off" spellcheck="false"></label>`}
+      <footer><button type="button" class="gl-btn is-primary" data-action="gitlab-binding-save"${state.busy ? ' disabled' : ''}>Сохранить</button>${cancel ? '<button type="button" class="gl-btn" data-action="gitlab-binding-cancel">Отмена</button>' : ''}</footer>
     </section>`
+  }
+
+  // Проект вне GitLab — не сбой: спокойная строка и один шаг, без красного.
+  // Если origin всё же ведёт на этот GitLab (связь выключили вручную), шаг —
+  // один клик; иначе — выбор проекта в редакторе.
+  function unlinkedHtml(state, binding) {
+    const name = binding.workspace ? `Проект «${binding.workspace}»` : 'Проект'
+    const actions = state.bindingOpen ? ''
+      : binding.detected ? `<div class="gl-unlinked-actions"><button type="button" class="gl-btn is-primary" data-action="gitlab-link-detected"${state.busy ? ' disabled' : ''}>Связать с ${esc(binding.detected)}</button><button type="button" class="gl-btn" data-action="gitlab-binding-toggle">Другой проект…</button></div>`
+        : '<button type="button" class="gl-btn" data-action="gitlab-binding-toggle">Связать…</button>'
+    return `<div class="point-tool-empty compact gl-unlinked"><strong>${esc(name)} не связан с GitLab</strong><p>${esc(binding.note || 'Окно покажет merge requests и пайплайны, когда проект будет связан.')}</p>${actions}</div>`
   }
 
   function toolView() {
@@ -201,15 +219,15 @@ export function createGitLabToolView({ getState, shell }) {
       <span class="nc-brand">${glIcon('mr', 14)}<b>GitLab</b></span>
       ${tabs}
       <i class="nc-gap"></i>
-      <button type="button" class="nc-icon-btn${state.bindingOpen ? ' is-on' : ''}" data-action="gitlab-binding-toggle" title="Проект окна: по git remote, вручную или все" aria-label="Выбрать проект" aria-pressed="${state.bindingOpen ? 'true' : 'false'}"${status?.data?.configured ? '' : ' disabled'}>${glIcon('settings', 14)}</button>
+      <button type="button" class="nc-icon-btn${state.bindingOpen ? ' is-on' : ''}" data-action="gitlab-binding-toggle" title="Связь проекта с GitLab: по git remote, вручную, все мои проекты или не связывать" aria-label="Связь проекта с GitLab" aria-pressed="${state.bindingOpen ? 'true' : 'false'}"${status?.data?.configured ? '' : ' disabled'}>${glIcon('settings', 14)}</button>
       <button type="button" class="nc-icon-btn" data-action="gitlab-reload" title="Обновить" aria-label="Обновить">${glIcon('refresh', 14)}</button>
     </header>`
     if (!status) return shell(`<main class="nc-app gl-app">${head()}${loadingHtml('Спрашиваем GitLab…')}</main>`)
     const binding = status.data?.binding || {}
-    if (status.state !== 'ok') {
+    if (status.state !== 'ok' || status.data?.linked === false) {
       return shell(`<main class="nc-app gl-app">${head()}
         ${state.bindingOpen ? bindingEditor(state, binding) : ''}
-        <div class="nc-scroll gl-scroll">${problemHtml(status, { retry: 'gitlab-reload' })}</div></main>`)
+        <div class="nc-scroll gl-scroll">${status.state === 'ok' ? unlinkedHtml(state, binding) : problemHtml(status, { retry: 'gitlab-reload' })}</div></main>`)
     }
     const tabs = `<div class="nc-tabs" role="tablist" data-keynav="row">${[['mrs', 'mr', 'Merge requests'], ['pipelines', 'pipeline', 'Пайплайны']].map(([id, glyph, label]) =>
       `<button type="button" role="tab" class="nc-tab${state.section === id ? ' is-active' : ''}" aria-selected="${state.section === id ? 'true' : 'false'}" tabindex="${state.section === id ? '0' : '-1'}" data-action="gitlab-section" data-section="${id}">${glIcon(glyph, 13)}<span>${esc(label)}</span></button>`).join('')}</div>`
@@ -233,5 +251,5 @@ export function createGitLabToolView({ getState, shell }) {
     return shell(`<main class="nc-app gl-app">${head(tabs)}${strip}${state.bindingOpen ? bindingEditor(state, binding) : ''}${notice}${body}</main>`)
   }
 
-  return { toolView, jobRows, pipelineRows }
+  return { toolView, jobRows, pipelineRows, bindingEditor }
 }

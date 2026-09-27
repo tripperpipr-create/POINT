@@ -176,6 +176,25 @@ export function handleFormSubmit({
     })
   }
   if (event.target.id === 'connection-form') { saveConnectionFromFields() }
+  if (event.target.id === 'global-budget-form') {
+    const cents = selector => {
+      const raw = root.querySelector(selector)?.value.trim() || ''
+      if (!raw) return 0
+      const amount = Number(raw)
+      if (!Number.isFinite(amount) || amount < 0) throw new Error('Лимит должен быть неотрицательным числом')
+      return Math.round(amount * 100)
+    }
+    try {
+      const budget = { dailyCents: cents('#global-budget-daily'), monthlyCents: cents('#global-budget-monthly'), hardStop: Boolean(root.querySelector('#global-budget-hard-stop')?.checked) }
+      ui.statisticsStatus = 'loading'
+      ui.transientError = ''
+      vscode.postMessage({ type: 'saveGlobalBudget', budget })
+    } catch (error) {
+      ui.transientError = error.message
+      render()
+    }
+    return
+  }
   if (event.target.id === 'server-form') {
     const existing = ui.serverEditingId
       ? (ui.state.boot?.serverProfiles || []).find(item => item.id === ui.serverEditingId)

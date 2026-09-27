@@ -24,6 +24,12 @@ webview. У них нет ни `require`, ни `vscode` — только объ�
 
 ## Хост: три приёма
 
+Внешний разбор сообщений вебвью — `vscode-extension/hub-message-router.js`:
+`handleMessage` провайдера проверяет доверие к папке, пишет журнал и зовёт
+`routeHubMessage.call(this, message)`, а ветки `switch (message.type)` живут
+там. Новое сообщение вебвью требует ветки и в разборе, и в своём контроллере —
+затвор `scripts/check-webview-message-routes.mjs` читает именно этот файл.
+
 **Группа сообщений** — `handleXxxMessage.call(this, message)`. Однородное
 семейство `case`-веток уезжает в модуль, провайдер приходит как `this`. Так
 устроены `vscode-extension/master-chat-controller.js`,
@@ -94,7 +100,11 @@ webview. У них нет ни `require`, ни `vscode` — только объ�
 имя не передали вовсе.
 
 Формы всех поверхностей — двадцать штук — разбирает один
-`vscode-extension/ui/client/form-submit.js`. Экранирование живёт в одном месте
+`vscode-extension/ui/client/form-submit.js`; какой запрос держит какую форму
+и какой раздел ждёт ответа — `vscode-extension/ui/client/request-failure-routing.js`.
+Снимок фокуса, каретки и прокрутки до перерисовки и возврат после неё —
+`vscode-extension/ui/client/ui-snapshot.js`; перетаскивание файлов Git и шагов
+workflow — `vscode-extension/ui/client/drag-drop.js`. Экранирование живёт в одном месте
 (`vscode-extension/ui/client/html-escape.js`), склонение и единицы — в другом
 (`vscode-extension/ui/client/format-units.js`). Оба вынесены потому, что уже
 расходились копиями, и смоуки экранировали слабее продукта.
@@ -159,14 +169,23 @@ webview. У них нет ни `require`, ни `vscode` — только объ�
 `vscode-extension/ui/client/master-inspector.js`, оформление —
 `vscode-extension/ui/layers/07d-master-inspector.css`.
 
-Интеграции в вебвью — один модуль состояния и три вида над ним:
+Интеграции в вебвью — один модуль состояния, нажатия своих MCP-серверов и
+четыре вида над ними:
 
 - `vscode-extension/ui/client/integrations-ui.js` — состояние окна GitLab,
-  карточки MR и вкладки Гильдии, приём ответов хоста, нажатия и черновики
-  полей. Черновик живёт в модуле, а у поля есть стабильный id, поэтому фоновая
-  перерисовка не теряет набранное и фокус. main.js знает о модуле пять строк;
-- `vscode-extension/ui/client/integrations-views.js` — Гильдия → «Интеграции»:
-  плагин GitLab, свои MCP-серверы, инструменты с риском, форма, импорт, журнал;
+  карточки MR, общей страницы и вкладки проекта, приём ответов хоста, нажатия
+  и черновики полей. Черновик живёт в модуле, а у поля есть стабильный id,
+  поэтому фоновая перерисовка не теряет набранное и фокус. Статус плагина
+  (`pluginStatus`, общая страница) и статус проекта (`status`, окно и вкладка
+  проекта) лежат раздельно; смена `workspacePath` в `state` сбрасывает
+  GitLab-состояние прошлого мира. main.js знает о модуле пять строк;
+- `vscode-extension/ui/client/mcp-server-actions.js` — нажатия по своим
+  MCP-серверам и разбор их формы; состояние общее с `integrations-ui.js`;
+- `vscode-extension/ui/client/integrations-views.js` — Общие настройки →
+  «Интеграции и MCP»: плагин GitLab со строкой «Этот проект», свои
+  MCP-серверы, инструменты с риском, форма, импорт, журнал;
+- `vscode-extension/ui/client/gitlab-project-view.js` — Гильдия → «GitLab»:
+  связь текущего проекта с GitLab тем же редактором, что в шапке окна;
 - `vscode-extension/ui/client/gitlab-views.js` — окно GitLab в регистре окна
   Git (`nc-*`), а также общие для GitLab значки, статусы и время;
 - `vscode-extension/ui/client/gitlab-mr-views.js` — карточка MR вкладкой

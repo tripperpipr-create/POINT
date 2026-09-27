@@ -1226,7 +1226,22 @@ export function createQuestRuntimeViews(dependencies) {
         </main>
       </div>`
     }
-    // Всё остальное — настройки проекта: рейка с возвратом в чат и разделами,
+    if (GENERAL_SETTINGS_TABS.some(([tab]) => tab === ui.state.selectedTab)) {
+      return `<div class="hall is-general-settings">
+        <aside class="hall-rail">
+          <div class="hall-rail-head"><div class="hall-mark">P</div><div class="hall-wordmark"><b>Point</b><span>Общие настройки</span></div></div>
+          <button type="button" class="hall-rail-back" data-action="tab" data-tab="master" aria-label="Вернуться к разговору с Мастером"><i aria-hidden="true">←</i><span>Чат с Мастером</span></button>
+          <nav class="hall-nav" aria-label="Общие настройки">${GENERAL_SETTINGS_TABS.map(([tab, label, glyph]) => `<button type="button" class="${ui.state.selectedTab === tab ? 'is-active' : ''}" data-action="tab" data-tab="${tab}"${ui.state.selectedTab === tab ? ' aria-current="page"' : ''}><em class="hall-glyph" aria-hidden="true">${glyph}</em><span>${label}</span></button>`).join('')}</nav>
+        </aside>
+        <main class="hall-main">
+          <header class="hall-head"><div class="hall-crumb">${/* Как в настройках проекта: рейка называет место, крошка — раздел. Два
+               «Общих настройки» подряд ловил аудит повторов. */''}${esc(GENERAL_SETTINGS_TABS.find(([tab]) => tab === ui.state.selectedTab)?.[1] || 'Общие настройки')}</div><button type="button" class="hall-btn is-sm hall-head-icon" data-action="show-output" aria-label="Журнал ядра" title="Открыть журнал ядра">${icon('list')}</button></header>
+          ${ui.transientError ? `<div class="error-banner"><span>!</span><p>${esc(ui.transientError)}</p><button data-action="dismiss-error">×</button></div>` : ''}
+          <div class="hall-body">${content}</div>
+        </main>
+      </div>`
+    }
+    // Настройки проекта: рейка с возвратом в чат и разделами,
     // шапка с названием раздела и строка вкладок подраздела под ней.
     return `<div class="hall is-setup">
       <aside class="hall-rail">
@@ -1293,6 +1308,7 @@ export function createQuestRuntimeViews(dependencies) {
   // Мастера здесь нет намеренно: чат — дом, а не раздел настроек. Вход в него
   // один — кнопка «← В чат» в шапке; второй вход с рейки разошёлся бы с ним
   // подсветкой активного раздела.
+  const GENERAL_SETTINGS_TABS = [['general', 'Основные', '⚙'], ['model-connections', 'Модели', '◇'], ['integrations', 'Интеграции и MCP', '⬡']]
   const HALL_SECTIONS = [
     { id: 'overview', icon: '◇', label: 'Обзор', title: 'Что требует внимания прямо сейчас', tabs: ['overview'] },
     { id: 'decisions', icon: '!', label: 'Решения', title: 'Всё, что ждёт вашего решения', tabs: ['decisions'] },
@@ -1302,9 +1318,9 @@ export function createQuestRuntimeViews(dependencies) {
     { id: 'quests', icon: '⚑', label: 'Квесты', title: 'Квесты проекта, их история и схемы',
       tabs: ['quests', 'quest', 'history', 'flows'],
       subtabs: [['quests', 'Квесты'], ['history', 'История'], ['flows', 'Схемы']] },
-    { id: 'guild', icon: '⬡', label: 'Гильдия', title: 'Агенты, отряды, навыки, инструменты, связи и интеграции',
-      tabs: ['agents', 'teams', 'skills', 'tools', 'memory', 'connections', 'databases', 'integrations', 'onboarding'],
-      subtabs: [['agents', 'Агенты'], ['teams', 'Отряды'], ['skills', 'Навыки'], ['tools', 'Инструменты'], ['memory', 'Память'], ['connections', 'Связи'], ['databases', 'Базы'], ['integrations', 'Интеграции'], ['onboarding', 'Настройка']] },
+    { id: 'guild', icon: '⬡', label: 'Гильдия', title: 'Агенты, отряды, навыки, инструменты и данные проекта',
+      tabs: ['agents', 'teams', 'skills', 'tools', 'memory', 'connections', 'databases', 'project-gitlab', 'onboarding'],
+      subtabs: [['agents', 'Агенты'], ['teams', 'Отряды'], ['skills', 'Навыки'], ['tools', 'Инструменты'], ['memory', 'Память'], ['connections', 'Серверы'], ['databases', 'Базы'], ['project-gitlab', 'GitLab'], ['onboarding', 'Настройка']] },
   ]
   
   // Незнакомая вкладка не подсвечивает ни одного раздела. Раньше запасным

@@ -348,6 +348,31 @@
       ]
     },
     {
+      "page": "project-gitlab",
+      "surface": "project-gitlab"
+    },
+    {
+      "page": "project-gitlab-unlinked",
+      "surface": "project-gitlab",
+      "args": [
+        "unlinked"
+      ]
+    },
+    {
+      "page": "project-gitlab-relink",
+      "surface": "project-gitlab",
+      "args": [
+        "relink"
+      ]
+    },
+    {
+      "page": "project-gitlab-empty",
+      "surface": "project-gitlab",
+      "args": [
+        "empty"
+      ]
+    },
+    {
       "page": "tools",
       "surface": "tools"
     },
@@ -577,6 +602,50 @@
         [
           420,
           900
+        ],
+        [
+          255,
+          700
+        ]
+      ]
+    },
+    {
+      "page": "tool-gitlab-unlinked",
+      "surface": "tool-gitlab",
+      "args": [
+        "unlinked"
+      ],
+      "root": ".point-tool-app",
+      "sizes": [
+        [
+          420,
+          900
+        ],
+        [
+          300,
+          840
+        ],
+        [
+          255,
+          700
+        ]
+      ]
+    },
+    {
+      "page": "tool-gitlab-relink",
+      "surface": "tool-gitlab",
+      "args": [
+        "relink"
+      ],
+      "root": ".point-tool-app",
+      "sizes": [
+        [
+          420,
+          900
+        ],
+        [
+          300,
+          840
         ],
         [
           255,

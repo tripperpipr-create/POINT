@@ -1,10 +1,14 @@
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
+
+// Оверлей читается вместе с его модулями overlay-*.mjs: заплаты переезжают
+// между ними, и чтение одного файла ослепло бы на переезде.
+const { overlaySource } = createRequire(import.meta.url)('./lib/overlay-source.js');
 
 const projectRoot = path.resolve(import.meta.dirname, '..');
 const extensionPath = path.join(projectRoot, 'vscode-extension', 'package.json');
 const extensionSourcePath = path.join(projectRoot, 'vscode-extension', 'extension.js');
-const overlayPath = path.join(projectRoot, 'distribution', 'apply-overlay.mjs');
 const productPath = path.join(projectRoot, 'distribution', 'product-overrides.json');
 const codeOssExtensions = path.join(projectRoot, '.cache', 'code-oss', 'extensions');
 
@@ -12,7 +16,7 @@ const manifest = JSON.parse(fs.readFileSync(extensionPath, 'utf8'));
 const source = fs.readFileSync(extensionSourcePath, 'utf8');
 const actionSource = fs.readFileSync(path.join(projectRoot, 'vscode-extension', 'ide-action-controller.js'), 'utf8');
 const sourceOnly = process.argv.includes('--source-only');
-const overlay = fs.readFileSync(overlayPath, 'utf8');
+const overlay = overlaySource(projectRoot);
 const product = JSON.parse(fs.readFileSync(productPath, 'utf8'));
 
 const requiredCommands = [

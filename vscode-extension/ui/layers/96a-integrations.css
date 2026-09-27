@@ -1,8 +1,9 @@
-/* Интеграции: окно GitLab, карточка MR и вкладка Гильдии «Интеграции».
+/* Интеграции: окно GitLab, карточка MR, общая страница «Интеграции и MCP» и
+   вкладка проекта «GitLab».
 
    Окно и карточка стоят на грунте окон инструментов (`nc-*`, 96-tool-windows):
    это IDE, а не Чертог, — плотно, тихо, цветом отмечено только состояние.
-   Вкладка Гильдии живёт в регистре Хаба. Общие детали (кнопка, поле, сбой)
+   Страницы Хаба живут в его регистре. Общие детали (кнопка, поле, сбой)
    берут цвета из локальных `--gl-*`, которые задаёт каждая из двух оболочек,
    поэтому одна и та же кнопка читается в обеих.
 
@@ -208,6 +209,9 @@
 .gl-field { color: var(--gl-muted); display: grid; font-size: var(--t-small); gap: var(--s-2); }
 .gl-field small { color: var(--gl-faint); font-size: var(--t-micro); }
 .gl-binding-edit footer { display: flex; gap: var(--s-3); }
+/* Проект вне GitLab: связать в один клик с тем, что нашёл origin, или выбрать
+   другой проект — две кнопки одной строкой, переносом на узком окне. */
+.gl-unlinked-actions { display: flex; flex-wrap: wrap; gap: var(--s-3); }
 
 /* ── Карточка MR ─────────────────────────────────────────────────────────── */
 .gl-mr { height: 100vh; }
@@ -326,7 +330,7 @@
 .gl-file-mark.is-ren { background: var(--mana-wash); color: var(--mana); }
 .gl-file-mark.is-mod { background: var(--caution-wash); color: var(--caution); }
 
-/* ── Гильдия → Интеграции ────────────────────────────────────────────────── */
+/* ── Общие настройки → Интеграции и MCP; Гильдия → GitLab ───────────────── */
 .int-page { display: flex; flex-direction: column; gap: var(--s-7); max-width: 980px; }
 .int-section { display: grid; gap: var(--s-4); }
 .int-section > h2 {
@@ -442,6 +446,10 @@
 .int-facts dt { color: var(--gl-faint); }
 .int-facts dd { color: var(--gl-text-2); margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .int-facts code { font-family: var(--font-mono); }
+.int-project-link { align-items: center; display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-4); }
+/* Редактор связи на вкладке проекта стоит внутри карточки: полоса окна
+   (фон панели и нижняя линия) здесь была бы второй рамкой. */
+.int-page .gl-binding-edit { background: none; border: 0; padding: 0; }
 
 .int-form { display: grid; gap: var(--s-5); }
 .int-form > header .nc-seg { margin-left: auto; }

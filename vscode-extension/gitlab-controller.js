@@ -3,7 +3,7 @@
 //
 // Данные дают маршруты ядра /api/integrations/gitlab/*; хост их не толкует,
 // а доставляет ответ той поверхности, что спросила: окну, карточке MR или
-// вкладке «Интеграции». Модели здесь нет.
+// Хабу (общие «Интеграции» и вкладка проекта «GitLab»). Модели здесь нет.
 //
 // Diff свой не рисуется: файл на базе и на голове MR открываются документами
 // схемы point-gitlab: только для чтения, и сравнивает их штатный vscode.diff —
@@ -70,9 +70,15 @@ function createGitLabController({ vscode, provider, request, secrets, unlock, pu
   }
 
   // Любое изменение подключения — повод окну GitLab перечитать состояние.
-  function announceChange() {
-    void provider.toolWindows.get('gitlab')?.webview.postMessage({ type: 'gitlabChanged' })
-    for (const panel of panels.values()) void panel.webview.postMessage({ type: 'gitlabChanged' })
+  // Смена связи проекта касается окна и Хаба (вкладка проекта, строка общей
+  // карточки), но не карточек MR: у них свой явный проект. Спросившей
+  // поверхности ответ уже пришёл — второй сброс дал бы второй запрос. Хабу
+  // пишем напрямую: provider.post раздаёт и окнам инструментов.
+  function announceChange({ tool = true, cards = true, hub = false } = {}) {
+    const message = { type: 'gitlabChanged' }
+    if (tool) void provider.toolWindows.get('gitlab')?.webview.postMessage(message)
+    if (cards) for (const panel of panels.values()) void panel.webview.postMessage(message)
+    if (hub) for (const view of [provider.view, provider.panel]) void view?.webview.postMessage(message)
   }
 
   function openMergeRequest(message) {
@@ -195,9 +201,12 @@ function createGitLabController({ vscode, provider, request, secrets, unlock, pu
     try {
       switch (action) {
         case 'status': {
-          const response = await call('/api/integrations/gitlab/status')
+          // plugin — здоровье плагина для общей карточки; без него — окно
+          // проекта, которому несвязанный проект сервер не запускает.
+          const scope = message.scope === 'plugin' ? 'plugin' : ''
+          const response = await call(`/api/integrations/gitlab/status${query({ scope })}`)
           remember(response)
-          deliver(surface, { type: 'gitlabStatus', response })
+          deliver(surface, { type: 'gitlabStatus', scope, response })
           return
         }
         case 'savePlugin':
@@ -212,6 +221,7 @@ function createGitLabController({ vscode, provider, request, secrets, unlock, pu
             body: JSON.stringify({ mode: String(message.mode || ''), project, username: String(message.username || '') }),
           })
           deliver(surface, { type: 'gitlabBinding', response })
+          if (response?.state === 'ok') announceChange({ tool: surface !== 'tool', cards: false, hub: surface !== 'hub' })
           return
         }
         case 'mergeRequests': {

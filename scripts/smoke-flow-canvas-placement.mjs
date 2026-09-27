@@ -128,10 +128,16 @@ if (wrap.classes.has('is-placed')) throw new Error('холст помечен р
 // --- обе половины обязаны быть подключены ------------------------------------
 
 // Расстановка живёт после отрисовки, а не внутри разметки: вызов у неё ровно
-// один, и без него холст снова складывается в угол — молча.
+// один, и без него холст снова складывается в угол — молча. Зовёт её возврат
+// снимка интерфейса (ui-snapshot.js) после каждой отрисовки, а функцию ему
+// отдаёт main.js — проверяются обе половины.
 const main = readFileSync(path.join(clientDir, 'main.js'), 'utf8')
-if (!/^\s*applyFlowNodePlacement\(\)/m.test(main)) {
-  throw new Error('main.js не вызывает расстановку после отрисовки')
+const snapshot = readFileSync(path.join(clientDir, 'ui-snapshot.js'), 'utf8')
+if (!/^\s*applyFlowNodePlacement\(\)/m.test(snapshot)) {
+  throw new Error('возврат снимка не вызывает расстановку после отрисовки')
+}
+if (!/applyFlowNodePlacement: \(\.\.\.args\) => applyFlowNodePlacement\(\.\.\.args\)/.test(main)) {
+  throw new Error('main.js не отдаёт расстановку возврату снимка')
 }
 const layer = readFileSync(path.join(root, 'vscode-extension', 'ui', 'layers', '60-suggestions.css'), 'utf8')
 for (const rule of ['.flow-canvas-wrap.is-placed .flow-node { position: absolute; }', '.flow-canvas-wrap:not(.is-placed) .flow-edges']) {

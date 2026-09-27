@@ -36,9 +36,12 @@ type BudgetReservation struct {
 }
 
 type BudgetReserveLimits struct {
-	DailyCents   int64
-	MonthlyCents int64
-	HardStop     bool
+	DailyCents         int64
+	MonthlyCents       int64
+	HardStop           bool
+	GlobalDailyCents   int64
+	GlobalMonthlyCents int64
+	GlobalHardStop     bool
 	// PricingUnknown prevents a child from bypassing an ancestor cost cap.
 	PricingUnknown bool
 	// FreeRuntime снимает токеновый потолок квеста: за бесплатным рантаймом

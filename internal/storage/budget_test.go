@@ -47,6 +47,55 @@ func TestConcurrentBudgetReservationsCannotExceedLimit(t *testing.T) {
 	if succeeded != 1 || blocked != 1 {
 		t.Fatalf("succeeded=%d blocked=%d", succeeded, blocked)
 	}
+	dailySpent, dailyReserved, monthlySpent, monthlyReserved, err := store.GlobalBudgetUsage(context.Background(), limits.DayStart, limits.MonthStart)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dailySpent != 0 || monthlySpent != 0 || dailyReserved != 6 || monthlyReserved != 6 {
+		t.Fatalf("global usage: daily=%d+%d monthly=%d+%d", dailySpent, dailyReserved, monthlySpent, monthlyReserved)
+	}
+}
+
+func TestGlobalBudgetCountsConcurrentProjects(t *testing.T) {
+	store, err := Open(filepath.Join(t.TempDir(), "global-budget.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	now := time.Now().UTC()
+	limits := domain.BudgetReserveLimits{GlobalDailyCents: 10, GlobalMonthlyCents: 10, GlobalHardStop: true, DayStart: now.Add(-time.Hour), MonthStart: now.Add(-24 * time.Hour)}
+	var wg sync.WaitGroup
+	results := make(chan error, 2)
+	for _, workspace := range []string{"first", "second"} {
+		wg.Add(1)
+		go func(workspace string) {
+			defer wg.Done()
+			_, reserveErr := store.ReserveBudget(context.Background(), domain.BudgetReservation{ID: workspace, WorkspaceID: workspace, RunID: "run-" + workspace, Provider: "openai", Model: "model", ReservedCents: 6, CreatedAt: now}, limits)
+			results <- reserveErr
+		}(workspace)
+	}
+	wg.Wait()
+	close(results)
+	succeeded, blocked := 0, 0
+	for reserveErr := range results {
+		if reserveErr == nil {
+			succeeded++
+		} else if errors.Is(reserveErr, ErrBudgetLimitExceeded) {
+			blocked++
+		} else {
+			t.Fatalf("reserve: %v", reserveErr)
+		}
+	}
+	if succeeded != 1 || blocked != 1 {
+		t.Fatalf("succeeded=%d blocked=%d", succeeded, blocked)
+	}
+	dailySpent, dailyReserved, monthlySpent, monthlyReserved, err := store.GlobalBudgetUsage(context.Background(), limits.DayStart, limits.MonthStart)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dailySpent != 0 || monthlySpent != 0 || dailyReserved != 6 || monthlyReserved != 6 {
+		t.Fatalf("cross-project usage: daily=%d+%d monthly=%d+%d", dailySpent, dailyReserved, monthlySpent, monthlyReserved)
+	}
 }
 
 func TestMissingProviderUsageKeepsConservativeReservation(t *testing.T) {

@@ -161,6 +161,33 @@ func TestSaveHubBudgetIsProjectScopedAndValidated(t *testing.T) {
 	}
 }
 
+func TestGlobalBudgetPersistsAcrossProjects(t *testing.T) {
+	application, err := New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer application.Shutdown(context.Background())
+	if _, err = application.SaveGlobalBudget(GlobalBudgetSettings{DailyCents: -1}); err == nil {
+		t.Fatal("negative global limit accepted")
+	}
+	if _, err = application.SaveGlobalBudget(GlobalBudgetSettings{DailyCents: 700, MonthlyCents: 3000, HardStop: true}); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 2; i++ {
+		world, openErr := application.OpenWorkspace(t.TempDir())
+		if openErr != nil {
+			t.Fatal(openErr)
+		}
+		stats, statsErr := application.Statistics(world.Workspace.ID)
+		if statsErr != nil {
+			t.Fatal(statsErr)
+		}
+		if stats["globalBudgetDailyCents"] != int64(700) || stats["globalBudgetMonthlyCents"] != int64(3000) || stats["globalBudgetHardStop"] != true {
+			t.Fatalf("global budget in project %d: %#v", i, stats)
+		}
+	}
+}
+
 func TestEnforceHubBudgetBlocksStart(t *testing.T) {
 	application, err := New(t.TempDir())
 	if err != nil {

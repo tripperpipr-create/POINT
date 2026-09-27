@@ -52,6 +52,7 @@
     "onCommand:localAgent.openDocker",
     "onCommand:localAgent.openDatabases",
     "onCommand:localAgent.openIntegrations",
+    "onCommand:localAgent.gitlabProjectLink",
     "onCommand:localAgent.connectServer",
     "onCommand:localAgent.openTerminal",
     "onCommand:localAgent.newConsoleChannel",
@@ -438,6 +439,12 @@
         "title": "Интеграции: GitLab и MCP-серверы",
         "category": "Point",
         "icon": "$(plug)"
+      },
+      {
+        "command": "localAgent.gitlabProjectLink",
+        "title": "GitLab: связь проекта",
+        "category": "Point",
+        "icon": "$(git-merge)"
       },
       {
         "command": "localAgent.connectServer",

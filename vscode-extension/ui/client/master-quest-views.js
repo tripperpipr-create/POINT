@@ -32,7 +32,10 @@ export const DEFAULT_CRITERION_KIND = 'verification'
 
 // Условия готовности — чек-лист со счётчиком и полосой.
 //
-// `rows` — { text, kind, done }. Закрытость приходит извне: до запуска её
+// `rows` — { text, kind, done, failed, meta, title }. `meta` — чем условие
+// доказано (команда, код, время), `title` — хвост вывода проверки: у
+// законченного квеста условие отвечает не только «закрыто», но и «чем».
+// Закрытость приходит извне: до запуска её
 // неоткуда взять, после — её знает только прогон по своим проверкам. Обещать
 // прогресс там, где его неоткуда взять, нельзя, поэтому счётчик считает всегда,
 // а полоса до первого закрытого условия показывает засечку, а не пустоту.
@@ -49,7 +52,7 @@ export function questChecklistHtml(title, rows, esc, { empty = '' } = {}) {
          закрытым набором. Слой 11-progress-fill переводит атрибут в --fill;
          засечку вместо пустоты держит min-width самой полосы. */''}
     <div class="hall-quest-bar"><span ${fillAttribute(share)}></span></div>
-    <ul>${items.map(row => `<li${row.done ? ' class="is-done"' : ''}><i aria-hidden="true">${row.done ? '✓' : ''}</i><span>${esc(row.text)}</span>${row.kind ? `<em>${esc(CRITERION_KIND[row.kind] || row.kind)}</em>` : ''}</li>`).join('')}</ul>
+    <ul>${items.map(row => `<li${row.done ? ' class="is-done"' : row.failed ? ' class="is-failed"' : ''}${row.title ? ` title="${esc(row.title)}"` : ''}><i aria-hidden="true">${row.done ? icon('check') : row.failed ? icon('x') : ''}</i><span>${esc(row.text)}${row.meta ? `<small class="hall-quest-proof">${esc(row.meta)}</small>` : ''}</span>${row.kind ? `<em>${esc(CRITERION_KIND[row.kind] || row.kind)}</em>` : ''}</li>`).join('')}</ul>
   </div>`
 }
 

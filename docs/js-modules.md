@@ -135,6 +135,22 @@ webview. У них нет ни `require`, ни `vscode` — только объ�
 Точный список тегов с атрибутами держит `scripts/lib/chat-markup.cjs`, а сверяет
 `scripts/smoke-chat-markup-escaping.js`. Новый тег в разборе без правки этого
 списка роняет смоук — так и задумано.
+Прогон квеста в ленте Мастера собирает
+`vscode-extension/ui/client/quest-run-views.js`: строку с полосой этапов,
+вердикт, действия, условия с доказательствами и свёрнутые разделы итога. Журнал
+идущего этапа — `vscode-extension/ui/client/quest-journal-views.js`, его отдаёт
+общий `agentWorkTranscriptHtml` по просьбе `journal`. Русские имена этапов —
+`vscode-extension/ui/client/stage-labels.js`, тона и счёт diff —
+`vscode-extension/ui/client/diff-view.js`, оформление —
+`vscode-extension/ui/layers/08b-quest-run.css`.
+Блок доставленного приложения и строку итогового отчёта рисует
+`vscode-extension/ui/client/quest-app-views.js`; их живое состояние (ответы
+хоста `masterApplicationState` и `masterReportState`) держит
+`vscode-extension/ui/client/quest-app-state.js`, нажатия разбирает
+`vscode-extension/ui/client/quest-app-actions.js`. Вид приложения, способ
+запуска и вывод `docker compose` отдаёт ядро: `GET
+/api/v2/master/quests/{id}/application` (`internal/app/delivered_app_state_v2.go`).
+
 Полосу идущего квеста над полем ввода считает
 `vscode-extension/ui/client/master-quest-strip.js` из наряда v2; подписи
 состояний она берёт у карточки наряда (`runtimePresentation`). Правая панель

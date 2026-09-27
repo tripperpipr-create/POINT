@@ -74,6 +74,11 @@ const context = {
       const cardOpen = {
         'agent-card': { active: 'pay', cardOpen: { pay: { 'agent:order:workorder-bench:agentdraft-bench': true } } },
         'work-order-open': { active: 'ship', cardOpen: { ship: { 'order:workorder-bench': true } } },
+        // Готовый квест в ленте свёрнут до строки: раскрытый прогон и diff
+        // правки у идущего страница показывает тем же сохранённым состоянием.
+        'work-order-approved': { active: 'ship', cardOpen: { ship: { 'run-live:workorder-bench': true } } },
+        'work-order-app-starting': { active: 'ship', cardOpen: { ship: { 'run-live:workorder-bench': true } } },
+        'work-order-running': { active: 'ship', cardOpen: { ship: { 'journal-file:run-node-scaffold:patch-health': true } } },
         'brief-open': { active: 'pay', cardOpen: { pay: { 'brief:qp-brief': true } } },
       }[String(process.argv[3] || '')]
       if (requestedSurface === 'master' && cardOpen) return { masterChat: cardOpen }
@@ -956,14 +961,23 @@ if (process.argv[2] === 'master') {
     listeners['root:input']({ target: { id: 'master-input', value: oversized, closest: () => null, matches: () => false } })
     click({ action: 'master-send' })
   } else if (variant.startsWith('work-order')) {
-    // Единая карточка запуска. Её не рисовал ни один стенд, поэтому раскладку
-    // карточки — самого крупного объекта ленты — не мерил ни один замер.
-    // Три состояния разведены по страницам: у них разные блоки, и общего
-    // снимка, на котором видно и вопросы, и доказательства, не бывает.
-    const state = variant === 'work-order-ready' ? 'ready' : variant === 'work-order-approved' ? 'approved' : 'discussion'
+    // Единая карточка запуска и прогон квеста. Их не рисовал ни один стенд,
+    // поэтому раскладку самого крупного объекта ленты не мерил ни один замер.
+    // Состояния разведены по страницам: у них разные блоки, и общего снимка,
+    // на котором видно и вопросы, и журнал, и доказательства, не бывает.
+    //
+    // Значения — из договора ядра, а не из словарей вида: события прогона
+    // (internal/agent: tool.requested с callId и arguments, tool.finished с
+    // durationMs и result.output.exitCode), коды защиты и отказов
+    // (inspection_required, skill_not_equipped), виды проверок завершения
+    // (supportedCompletionCheckV2). Образец, списанный с вида, проверял бы вид
+    // сам собой.
+    const run = ['work-order-running', 'work-order-approved', 'work-order-blocked', 'work-order-app-starting'].includes(variant)
+    const state = run ? 'approved' : variant === 'work-order-ready' ? 'ready' : 'discussion'
+    const ago = minutes => new Date(Date.now() - minutes * 60_000).toISOString()
     const order = {
       id: 'workorder-bench', version: state === 'discussion' ? 1 : 2, state,
-      digest: 'sha256:bench', conversationId: 'ship',
+      digest: 'sha256:bench', conversationId: 'ship', proposalId: 'qp-bench',
       goal: 'Рабочий Symfony-проект в рабочей области с задокументированным запуском',
       scope: ['composer create-project на актуальной мажорной версии Symfony', 'минимальный health-endpoint (GET /health)', 'composer install и проверка запуска', 'README с командами запуска'],
       assumptions: ['версия Symfony: актуальная мажорная (7.x)', 'health-endpoint: GET /health возвращает 200 JSON', 'запуск: symfony serve или php -S localhost:8000'],
@@ -990,66 +1004,164 @@ if (process.argv[2] === 'master') {
       ] },
       delivery: { applyMode: 'automatic', commitMode: 'none', keepPartialDays: 30, keepServicesRunning: true, applicationUrl: 'http://localhost:8080' },
     }
-    // Квест в пути: строка с пульсом, этапы наполовину, поток работы агента
-    // раскрыт. Состояния квеста расходятся именно между «идёт» и «взят», и без
-    // этой страницы первое не мерил никто.
+    // Этапы — как их называет ядро: шаблоны конвейера по-английски и один этап,
+    // названный моделью. Роль этапа лежит в config узла Flow, а не в этапе.
+    const stageNodes = [
+      { id: 'node-input', name: 'Input', kind: 'input' },
+      { id: 'node-scaffold', name: 'Scaffold Symfony app with health endpoint', kind: 'agent', config: { planner: 'model' } },
+      { id: 'node-verify', name: 'Verify result', kind: 'verifier' },
+      { id: 'node-review', name: 'Implementation review', kind: 'agent', config: { stageRole: 'impl_review' } },
+      { id: 'node-accept', name: 'Accept', kind: 'agent', config: { stageRole: 'accept' } },
+      { id: 'node-output', name: 'Output', kind: 'output' },
+    ]
+    boot.flows = [...(boot.flows || []), { id: 'flow-bench', name: 'AI plan · Symfony', nodes: stageNodes }]
+    const stagesAt = (states) => stageNodes.map((node, index) => {
+      const [status, startedMinutesAgo, finishedMinutesAgo] = states[index] || ['pending']
+      return {
+        id: node.id, name: node.name, kind: node.kind, status,
+        ...(node.kind === 'agent' ? { agentId: 'agentdraft-bench', runId: status === 'pending' ? '' : `run-${node.id}` } : {}),
+        ...(startedMinutesAgo != null ? { startedAt: ago(startedMinutesAgo) } : {}),
+        ...(finishedMinutesAgo != null ? { finishedAt: ago(finishedMinutesAgo) } : {}),
+      }
+    })
     if (variant === 'work-order-running') {
-      order.state = 'approved'
+      // Квест в пути: полоса этапов, строка «сейчас» и журнал идущего этапа —
+      // действия сводкой, предупреждения по-русски, правка файла с diff и
+      // незакрытый вызов, который агент выполняет прямо сейчас.
       order.runtime = {
-        questId: 'quest-bench', status: 'running', flowRunId: 'flowrun-bench',
+        questId: 'quest-bench', status: 'running', flowId: 'flow-bench', flowRunId: 'flowrun-bench', launchStartedAt: ago(6),
         agentIds: ['agentdraft-bench'],
-        stages: [
-          { id: 'node-scaffold', name: 'Развернуть Symfony', kind: 'agent', status: 'completed', agentId: 'agentdraft-bench', runId: 'run-bench-1' },
-          { id: 'node-health', name: 'Добавить health-эндпоинт', kind: 'agent', status: 'running', agentId: 'agentdraft-bench', runId: 'run-bench-2' },
-          { id: 'node-verify', name: 'Проверить запуск и README', kind: 'verifier', status: 'pending' },
-        ],
+        stages: stagesAt([['completed', 6, 6], ['running', 5]]),
       }
     }
-    if (state === 'approved') {
-      const zero = 0
+    if (variant === 'work-order-blocked') {
+      // Шлюз доказательств остановил квест: одно условие не доказано, доставка
+      // не подтверждена. Причина шлюза — английская машинная строка ядра.
       order.runtime = {
-        questId: 'quest-bench', status: 'completed', message: 'Проверки пройдены, результат перенесён',
-        // Утверждённый наряд сворачивает состав и отдаёт место экрану
-        // выполнения: этапы приходят вместе с самим нарядом, а созданный
-        // исполнитель называется по имени.
+        questId: 'quest-bench', status: 'blocked', flowId: 'flow-bench', launchStartedAt: ago(19),
+        message: 'Работа заблокирована проверкой или доставкой.',
         agentIds: ['agentdraft-bench'],
-        stages: [
-          { id: 'node-scaffold', name: 'Развернуть Symfony', kind: 'agent', status: 'completed', agentId: 'agentdraft-bench', runId: 'run-bench-1' },
-          { id: 'node-health', name: 'Добавить health-эндпоинт', kind: 'agent', status: 'completed', agentId: 'agentdraft-bench', runId: 'run-bench-2' },
-          { id: 'node-verify', name: 'Проверить запуск и README', kind: 'verifier', status: 'completed', agentId: 'agentdraft-bench', runId: 'run-bench-3' },
-        ],
-        deliveryReceipt: { id: 'delivery-bench', url: 'http://localhost:8080', commitId: 'a1b2c3d', workspaceRevision: 'sha256:tree', target: 'C:\\Users\\Rif\\Point\\systemio', servicesRunning: true, composeFile: 'compose.yaml' },
+        stages: stagesAt([['completed', 19, 19], ['completed', 18, 9], ['completed', 9, 8], ['completed', 8, 6], ['failed', 6, 5], ['pending']]),
         evidence: {
-          id: 'evidence-bench', version: 3, workspaceRevision: 'sha256:tree', deliveryTarget: 'C:\\Users\\Rif\\Point\\systemio',
-          changedFiles: ['composer.json', 'src/Controller/HealthController.php', 'README.md'], commitIds: ['a1b2c3d'],
-          knownLimitations: [],
-          // Закрытость условий ядро кладёт сюда — по записи на каждое условие
-          // наряда, включая ручное. Ручное остаётся незакрытым даже у взятого
-          // квеста: его закрывает человек, а не прогон, и страница обязана
-          // показывать именно это, а не круглое «всё зелёное».
+          id: 'evidence-blocked', version: 3, workspaceRevision: 'sha256:9f2c41d07ab3e6b1c5d8', deliveryTarget: 'C:\\Users\\Rif\\Point\\systemio',
+          changedFiles: ['composer.json', 'src/Controller/HealthController.php'], commitIds: [],
+          knownLimitations: ['Шлюз доказательств: work is not proven: criterion:health, delivery_verified'],
           criteria: [
-            { criterionId: 'compose', satisfied: true, command: 'composer show symfony/framework-bundle', exitCode: zero },
-            { criterionId: 'health', satisfied: true, command: 'curl -fsS http://localhost:8080/health', exitCode: zero },
+            { criterionId: 'compose', satisfied: true, tool: 'run_command', command: 'composer show symfony/framework-bundle', exitCode: 0, durationMs: 1800 },
+            { criterionId: 'health', satisfied: false, tool: 'run_command', command: 'curl -fsS http://localhost:8080/health', exitCode: 7, durationMs: 240, summary: 'curl: (7) Failed to connect to localhost port 8080' },
             { criterionId: 'readme', satisfied: false, summary: 'Требуется ручная приёмка' },
           ],
           verificationChecks: [
-            { id: 'completion:automated_tests', kind: 'automated_tests', command: 'vendor/bin/phpunit', exitCode: zero, satisfied: true },
-            { id: 'completion:service_start', kind: 'service_start', command: 'docker compose up -d --wait', exitCode: zero, satisfied: true },
-            { id: 'completion:health', kind: 'health', command: 'curl -fsS http://localhost:8080', exitCode: zero, satisfied: true },
+            { id: 'completion:service_start', kind: 'service_start', command: 'docker compose up -d --wait', exitCode: 1, satisfied: false, durationMs: 31000, summary: 'service "app" failed to build' },
           ],
-          modelCalls: [{ id: 'call-1', provider: 'openai-compatible', model: 'Qwen3.8-27B', inputTokens: 18400, outputTokens: 3100, costCents: 0, costKnown: false }],
+          modelCalls: [
+            { stageId: 'node-scaffold', model: 'Qwen3.8-27B', inputTokens: 118400, outputTokens: 9100, costKnown: true, costCents: 0, activeMillis: 212000 },
+            { stageId: 'node-review', model: 'Qwen3.8-27B', inputTokens: 26400, outputTokens: 1800, costKnown: true, costCents: 0, activeMillis: 41000 },
+          ],
         },
       }
+    }
+    if (variant === 'work-order-approved' || variant === 'work-order-app-starting') {
+      // Квест взят: строка с чипами итога, вердикт, действия, условия с тем,
+      // чем каждое доказано, изменения; этапы, расход и технические детали
+      // свёрнуты. Ручное условие остаётся незакрытым даже у взятого квеста: его
+      // закрывает человек, и страница обязана показывать именно это.
+      order.runtime = {
+        questId: 'quest-bench', status: 'completed', flowId: 'flow-bench', launchStartedAt: ago(14),
+        message: 'Работа доставлена, все доступные проверки выполнены успешно.',
+        agentIds: ['agentdraft-bench'],
+        stages: stagesAt([['completed', 14, 14], ['completed', 13, 6], ['completed', 6, 5], ['completed', 5, 3], ['completed', 3, 2], ['completed', 2, 2]]),
+        deliveryReceipt: { id: 'delivery-bench', url: 'http://localhost:8080', commitId: 'a1b2c3d', workspaceRevision: 'sha256:7db6010eda16fbb3464612', target: 'C:\\Users\\Rif\\Point\\systemio', servicesRunning: true, composeFile: 'compose.yaml' },
+        evidence: {
+          id: 'evidence-c97f0c264ab30216', version: 3, workspaceRevision: 'sha256:7db6010eda16fbb3464612', deliveryTarget: 'C:\\Users\\Rif\\Point\\systemio',
+          changedFiles: ['composer.json', 'src/Controller/HealthController.php', 'README.md'], commitIds: ['a1b2c3d'],
+          knownLimitations: [],
+          criteria: [
+            { criterionId: 'compose', satisfied: true, tool: 'run_command', command: 'composer show symfony/framework-bundle', exitCode: 0, durationMs: 1800 },
+            { criterionId: 'health', satisfied: true, tool: 'run_command', command: 'curl -fsS http://localhost:8080/health', exitCode: 0, durationMs: 240, summary: '{"status":"ok"}' },
+            { criterionId: 'readme', satisfied: false, summary: 'Требуется ручная приёмка' },
+          ],
+          verificationChecks: [
+            { id: 'completion:automated_tests', kind: 'automated_tests', command: 'vendor/bin/phpunit', exitCode: 0, satisfied: true, durationMs: 6400 },
+            { id: 'completion:service_start', kind: 'service_start', command: 'docker compose up -d --wait', exitCode: 0, satisfied: true, durationMs: 41000 },
+            { id: 'completion:health', kind: 'health', command: 'curl -fsS http://localhost:8080', exitCode: 0, satisfied: true, durationMs: 190 },
+          ],
+          modelCalls: [
+            { stageId: 'node-scaffold', model: 'Qwen3.8-27B', inputTokens: 212400, outputTokens: 31100, costKnown: true, costCents: 0, activeMillis: 318000 },
+            { stageId: 'node-review', model: 'Qwen3.8-27B', inputTokens: 34900, outputTokens: 2200, costKnown: true, costCents: 0, activeMillis: 52000 },
+            { stageId: 'node-accept', model: 'Qwen3.8-27B', inputTokens: 2400, outputTokens: 653, costKnown: true, costCents: 0, activeMillis: 9000 },
+          ],
+        },
+      }
+    }
+    const history = [
+      { id: 'wo-1', role: 'user', content: 'Сделай рабочий Symfony-проект с health-эндпоинтом и README', createdAt: today(14, 45) },
+      { id: 'wo-2', role: 'assistant', mode: 'model', model: 'Qwen3.8-27B', content: 'Собрал карточку запуска. Проверьте объём работ и критерии готовности.', proposalId: 'qp-bench', createdAt: today(14, 48) },
+    ]
+    // Отчёт ядра о квесте (publishWorkOrderOutcomeV2) — текстом, как его пишет
+    // ядро. Над карточкой прогона он сворачивается до вердикта.
+    if (variant !== 'work-order-running' && run) {
+      const done = variant !== 'work-order-blocked'
+      history.push({ id: 'wo-3', role: 'assistant', mode: 'quest_completion', proposalId: 'qp-bench', createdAt: today(15, 2), content: done
+        ? 'Готово\nИзменено файлов: 3\nФайлы: composer.json, src/Controller/HealthController.php, README.md\nВыполненные проверки: composer.json содержит symfony/framework-bundle 7.x, GET /health возвращает HTTP 200 с JSON-телом\nНевыполненные/ручные проверки: README описывает команды установки и запуска\nПроваленные проверки: нет\nОграничения: нет'
+        : 'Заблокировано\nИзменено файлов: 2\nПроваленные проверки: GET /health возвращает HTTP 200 с JSON-телом\nОграничения: Шлюз доказательств: work is not proven: criterion:health, delivery_verified\nНужно действие: устраните причину из строки «Ограничения» и повторите запуск квеста.' })
     }
     listeners['window:message']({ data: { type: 'master', master: {
       configured: true, config: boot.orchestrator,
       sessions: { active: 'ship', mode: 'auto', workMode: 'plan', items: [{ id: 'ship', title: 'Symfony-проект' }] },
-      history: [
-        { id: 'wo-1', role: 'user', content: 'Сделай рабочий Symfony-проект с health-эндпоинтом и README', createdAt: today(14, 45) },
-        { id: 'wo-2', role: 'assistant', mode: 'model', model: 'Qwen3.8-27B', content: 'Собрал карточку запуска. Проверьте объём работ и критерии готовности.', createdAt: today(14, 48) },
-      ],
+      history,
       workOrders: [order],
     } } })
+    // Приложение квеста — ответы хоста (masterApplicationState), как их шлёт
+    // master-chat-controller.js: ядро отдаёт вид, способ запуска и вывод
+    // `docker compose` с пробой адреса (DeliveredApplicationState).
+    const appState = { questId: 'quest-bench', kind: 'web', launch: 'compose', url: 'http://localhost:8080', target: 'C:\Users\Rif\Point\systemio', composeFile: 'compose.yaml', action: 'start' }
+    const composeLines = ['$ docker compose -f compose.yaml up -d', 'Network systemio_default  Creating', 'Network systemio_default  Created', 'Container systemio-db-1  Creating', 'Container systemio-db-1  Created', 'Container systemio-app-1  Creating', 'Container systemio-app-1  Created', 'Container systemio-db-1  Starting', 'Container systemio-db-1  Started', 'Container systemio-app-1  Starting']
+    if (variant === 'work-order-approved') {
+      listeners['window:message']({ data: { type: 'masterApplicationState', questId: 'quest-bench', workOrderId: order.id, final: true, opened: 'browser', state: {
+        ...appState, status: 'running', inFlight: false, services: 2, probed: true, ready: true, httpStatus: 200, contentType: 'text/html; charset=utf-8',
+        lines: [...composeLines, 'Container systemio-app-1  Started', 'Ждём ответа http://localhost:8080 …', 'Отвечает: 200 · text/html'],
+      } } })
+      listeners['window:message']({ data: { type: 'masterReportState', workOrderId: order.id, phase: 'ready', path: '.point/reports/202609270931-symfony-health-report.html', uri: 'file:///c%3A/Users/Rif/Point/systemio/.point/reports/202609270931-symfony-health-report.html' } })
+    }
+    if (variant === 'work-order-app-starting') {
+      listeners['window:message']({ data: { type: 'masterApplicationState', questId: 'quest-bench', workOrderId: order.id, state: {
+        ...appState, status: 'executing', inFlight: true, services: 0, startedAt: ago(0.4), lines: composeLines,
+      } } })
+      listeners['window:message']({ data: { type: 'masterReportState', workOrderId: order.id, phase: 'working' } })
+    }
+    if (variant === 'work-order-running') {
+      // Журнал идущего этапа. Реплики агента — по-английски, как их пишет
+      // модель; всё вокруг них вебвью обязан назвать по-русски.
+      listeners['window:message']({ data: { type: 'runDelta', details: {
+        run: { id: 'run-node-scaffold', questId: 'quest-bench', status: 'running', step: 7, requestCount: 9, changedFiles: ['src/Controller/HealthController.php'], model: 'Qwen3.8-27B' },
+        approvals: [],
+        patches: [{
+          id: 'patch-health', path: 'src/Controller/HealthController.php', status: 'applied', sourceTool: 'propose_patch',
+          diff: '--- /dev/null\n+++ b/src/Controller/HealthController.php\n@@ -0,0 +1,12 @@\n+<?php\n+namespace App\\Controller;\n+\n+use Symfony\\Component\\HttpFoundation\\JsonResponse;\n+use Symfony\\Component\\Routing\\Attribute\\Route;\n+\n+final class HealthController\n+{\n+    #[Route(\'/health\')]\n+    public function __invoke(): JsonResponse { return new JsonResponse([\'status\' => \'ok\']); }\n+}\n',
+        }],
+        events: [
+          { type: 'model.responded', step: 1, createdAt: ago(5), data: { content: 'The workspace is empty and PHP 8.3 with Composer is available. I will scaffold the project first, then add the health controller and the README.' } },
+          { type: 'tool.requested', step: 1, createdAt: ago(5), data: { tool: 'project_map', callId: 'call-1', arguments: {} } },
+          { type: 'tool.finished', step: 1, createdAt: ago(5), data: { tool: 'project_map', callId: 'call-1', durationMs: 310, result: { ok: true, output: { topDirectories: [], symbols: [] } } } },
+          { type: 'tool.requested', step: 2, createdAt: ago(5), data: { tool: 'read_skill', callId: 'call-2', arguments: { name: 'verification-discipline' } } },
+          { type: 'tool.finished', step: 2, createdAt: ago(5), data: { tool: 'read_skill', callId: 'call-2', durationMs: 4, result: { ok: false, error: { code: 'skill_not_equipped', message: 'skill is not equipped for this agent', hint: 'use one of: none' } } } },
+          { type: 'tool.requested', step: 3, createdAt: ago(4), data: { tool: 'run_command', callId: 'call-3', arguments: { command: 'composer create-project symfony/skeleton .' } } },
+          { type: 'tool.finished', step: 3, createdAt: ago(4), data: { tool: 'run_command', callId: 'call-3', durationMs: 41200, result: { ok: true, output: { exitCode: 0, durationMs: 41200, timedOut: false } } } },
+          { type: 'workspace.changed', step: 3, createdAt: ago(4), data: { tool: 'run_command', totalChanges: 1, recordedChanges: 0, nonRevertibleChanges: 1, snapshotComplete: true } },
+          { type: 'model.responded', step: 4, createdAt: ago(3), data: { content: 'Skeleton is in place. Adding the health controller next.' } },
+          { type: 'tool.requested', step: 4, createdAt: ago(3), data: { tool: 'read_file', callId: 'call-4', arguments: { path: 'composer.json' } } },
+          { type: 'tool.finished', step: 4, createdAt: ago(3), data: { tool: 'read_file', callId: 'call-4', durationMs: 6, result: { ok: true, output: { path: 'composer.json', content: '{\n  "name": "symfony/skeleton"\n}' } } } },
+          { type: 'agent.guardrail', step: 5, createdAt: ago(3), data: { code: 'inspection_required', path: 'config/routes.yaml', requiredTool: 'search_code', message: 'inspect the target before editing it' } },
+          { type: 'tool.requested', step: 5, createdAt: ago(2), data: { tool: 'propose_patch', callId: 'call-5', arguments: { path: 'src/Controller/HealthController.php' } } },
+          { type: 'tool.finished', step: 5, createdAt: ago(2), data: { tool: 'propose_patch', callId: 'call-5', durationMs: 12, result: { ok: true } } },
+          { type: 'patch.proposed', step: 5, createdAt: ago(2), data: { id: 'patch-health' } },
+          { type: 'tool.requested', step: 6, createdAt: ago(1), data: { tool: 'run_command', callId: 'call-6', arguments: { command: 'php bin/console lint:container' } } },
+          { type: 'tool.finished', step: 6, createdAt: ago(1), data: { tool: 'run_command', callId: 'call-6', durationMs: 2300, result: { ok: true, output: { exitCode: 1, durationMs: 2300, timedOut: false } } } },
+          { type: 'tool.requested', step: 7, createdAt: ago(0.2), data: { tool: 'run_command', callId: 'call-7', arguments: { command: 'vendor/bin/phpunit' } } },
+        ],
+      } } })
+    }
     // Согласие на создание исполнителя ушло в свою карточку ленты и меряется
     // отдельной страницей (вариант agent-card). Здесь остаётся сама карточка
     // запуска с запертой кнопкой и причиной рядом с ней.

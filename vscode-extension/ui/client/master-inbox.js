@@ -9,6 +9,7 @@
 // Состояние приходит общим мешком `ui`, как в `companion-transport.js`.
 
 import { masterQueueAfterTurn, masterQueuePause } from './master-compose-keys.js'
+import { acceptQuestAppState, acceptQuestReportState, questAppsToProbe } from './quest-app-state.js'
 
 const MASTER_MESSAGES = new Set([
 	'masterDevelopment', 'masterDevelopmentError',
@@ -16,7 +17,7 @@ const MASTER_MESSAGES = new Set([
   'masterStreamError', 'masterWorkOrder', 'masterWorkOrderApproved',
   'masterWorkOrderDeleted', 'masterWorkOrderRevised', 'masterWorkOrderControlled',
   'masterApplicationControlled', 'masterPage', 'masterContextSuggestions',
-  'masterContext',
+  'masterContext', 'masterApplicationState', 'masterReportState',
 ])
 
 export function createMasterInbox({
@@ -105,6 +106,13 @@ export function createMasterInbox({
         ui.masterComposeNote=''
         render()
       }
+      // Живой вывод запуска приложения и фазы отчёта: блок перерисовывается
+      // вместе с лентой, а занятость наряда снимает финальный ответ.
+      if (message.type==='masterApplicationState' && acceptQuestAppState(message)) {
+        if (message.final) ui.masterWorkOrderBusy.delete(String(message.workOrderId || ''))
+        if (!replaceMasterThreadHtml()) render()
+      }
+      if (message.type==='masterReportState' && acceptQuestReportState(message) && !replaceMasterThreadHtml()) render()
       if (message.type==='masterPage' && message.conversationId===masterClient.active && (message.query || '')===masterClient.query){const items=message.page.items || [];ui.masterData.history=items;ui.masterData.paginated=true;ui.masterData.before=message.page.before;ui.masterData.truncated=message.page.hasMore;ui.masterLoadingEarlier=false;replaceMasterThreadHtml();syncMasterComposeState();applyMasterFind()}
       if (message.type === 'masterContextSuggestions') { if (acceptMasterMentionItems(message.query, message.items)) render() }
       if (message.type === 'masterContext') { try {receiveMasterContext(message);ui.masterDraft=ui.masterDraft.replace(/@$/, '');persistDraft();render()} catch(error){ui.masterComposeNote=error.message;render()} }
@@ -166,6 +174,11 @@ export function createMasterInbox({
           replaceMasterThreadHtml()
           syncMasterComposeState()
         }
+      }
+      // Законченный квест с доставкой: работает ли его приложение сейчас, знает
+      // только Docker. Спрашиваем ядро один раз, когда квест впервые в ленте.
+      if (message.type==='master' || message.type==='masterWorkOrder') {
+        for (const item of questAppsToProbe(ui.masterData?.workOrders)) vscode.postMessage({type:'controlMasterApplicationV2',workOrderId:item.workOrderId,questId:item.questId,action:'status'})
       }
     return true
   }

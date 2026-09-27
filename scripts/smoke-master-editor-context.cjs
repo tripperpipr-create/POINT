@@ -4,7 +4,7 @@ const assert = require('node:assert/strict')
 const posted = []
 let body
 const editor = {selection:{isEmpty:false,start:{line:4}},document:{uri:{},getText:()=>'func main() {}'}}
-const sandbox = {module:{exports:{}},require:name=>{if(name==='./master-context-controller')return {};if(name==='./master-turn-stream')return {followMasterTurn:async()=>{}};if(name==='./master-work-order-watch')return {watchMasterWorkOrder:async()=>{},watchMasterWorkOrders:async()=>{}};assert.equal(name,'vscode');return {window:{activeTextEditor:editor},workspace:{getWorkspaceFolder:()=>({}),asRelativePath:()=> 'main.go'}}},Buffer,AbortController}
+const sandbox = {module:{exports:{}},require:name=>{if(name==='./master-context-controller')return {};if(name==='./master-turn-stream')return {followMasterTurn:async()=>{}};if(name==='./master-work-order-watch')return {watchMasterWorkOrder:async()=>{},watchMasterWorkOrders:async()=>{}};if(name==='child_process')return {spawn:()=>{throw new Error('spawn is not expected in the editor-context smoke')}};assert.equal(name,'vscode');return {window:{activeTextEditor:editor},workspace:{getWorkspaceFolder:()=>({}),asRelativePath:()=> 'main.go'}}},Buffer,AbortController}
 vm.runInNewContext(fs.readFileSync('vscode-extension/master-chat-controller.js','utf8'),sandbox)
 const host = {post:value=>posted.push(value),credentialForOrchestrator:async()=>'',service:{request:async(path,options)=>{const payload=JSON.parse(options.body);if(path==='/api/v2/sources/preview')return {id:'src-1',kind:payload.kind,label:payload.label,canonicalUrl:'point://text/src-1',digest:'d1',mediaType:'text/plain',content:payload.content};body=payload;return {history:[]}}}}
 const contents = []

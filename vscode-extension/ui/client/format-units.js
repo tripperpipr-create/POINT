@@ -100,3 +100,32 @@ export function fillAttribute(value) {
   const percent = Math.max(0, Math.min(100, Math.round(Number(value) || 0)))
   return `data-fill="${Math.round(percent / 5) * 5}"`
 }
+
+// Длительность одного действия: «340 мс», «6,1 с», «2 мин 5 с». Жила в
+// quest-runtime-views.js, а карточке прогона понадобилась вторая — переехала сюда.
+// Дробная часть — через запятую, как пишут по-русски.
+export function formatDuration(value) {
+  const milliseconds = Math.max(0, Number(value || 0))
+  if (milliseconds < 1000) return `${Math.round(milliseconds)} мс`
+  if (milliseconds < 60_000) return `${(milliseconds / 1000).toFixed(milliseconds < 10_000 ? 1 : 0).replace('.', ',')} с`
+  const minutes = Math.floor(milliseconds / 60_000)
+  const seconds = Math.round((milliseconds % 60_000) / 1000)
+  return `${minutes} мин ${seconds} с`
+}
+
+// Сколько шла работа: «40 с», «4 мин», «6 мин 48 с», «1 ч 12 мин». Секунды при
+// минутах — по просьбе: у идущего квеста они дёргали бы строку каждый опрос.
+export function formatElapsed(milliseconds, { seconds = false } = {}) {
+  const total = Math.max(0, Math.round((Number(milliseconds) || 0) / 1000))
+  if (total < 60) return `${Math.max(1, total)} с`
+  const minutes = Math.floor(total / 60)
+  if (minutes >= 60) return `${Math.floor(minutes / 60)} ч ${minutes % 60} мин`
+  return seconds && total % 60 ? `${minutes} мин ${total % 60} с` : `${minutes} мин`
+}
+
+// Крупное число коротко: «283 тыс.» вместо «283 653». Точное — в подсказке рядом.
+export function formatCompactCount(value) {
+  const n = Math.max(0, Number(value) || 0)
+  if (n < 10_000) return n.toLocaleString('ru-RU')
+  return n < 1_000_000 ? `${Math.round(n / 1000)} тыс.` : `${(n / 1_000_000).toFixed(1).replace('.', ',')} млн`
+}

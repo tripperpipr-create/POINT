@@ -49,6 +49,8 @@ const PATHS = {
   plus: '<path d="M8 3v10M3 8h10"/>',
   chat: '<path d="M2.5 4A1.5 1.5 0 0 1 4 2.5h8A1.5 1.5 0 0 1 13.5 4v5.5A1.5 1.5 0 0 1 12 11H7.2l-3.2 2.5V11A1.5 1.5 0 0 1 2.5 9.5z"/>',
   play: '<path d="M5 3.5v9l7-4.5z"/>',
+  pause: '<path d="M5.75 3.5v9M10.25 3.5v9"/>',
+  'file-plus': '<path d="M4 2.5h5l3 3v8H4z"/><path d="M9 2.5v3h3M8 7.5v4M6 9.5h4"/>',
   memory: '<path d="M3 3.5h4a1.5 1.5 0 0 1 1 .4 1.5 1.5 0 0 1 1-.4h4v9H9a1 1 0 0 0-1 1 1 1 0 0 0-1-1H3z"/><path d="M8 4v9.5"/>',
 }
 

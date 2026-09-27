@@ -129,7 +129,8 @@ is checked against every `HandleFunc` registration by `node scripts/check-docs.m
 | `POST` | `/api/v2/master/turns/{id}/cancel` | Cancel an in-flight v2 Master turn |
 | `GET` | `/api/v2/master/quests/{id}` | Read the v2 quest state exposed through the Master |
 | `GET` | `/api/v2/master/quests/{id}/evidence` | Read the completion evidence and gate state for a v2 quest, with human decisions on manual criteria overlaid |
-| `POST` | `/api/v2/master/quests/{id}/application/{action}` | Start or stop a verified delivered Docker Compose application; requires matching version, digest, DeliveryReceipt and idempotency key |
+| `POST` | `/api/v2/master/quests/{id}/application/{action}` | Start or stop a verified delivered Docker Compose application; requires matching version, digest, DeliveryReceipt and idempotency key. Streams compose output into the live state below; after `start` waits up to 60 s for the loopback delivery URL and returns `ready`, `httpStatus`, `contentType`. A second action while one runs is refused |
+| `GET` | `/api/v2/master/quests/{id}/application` | Live state of the delivered application: `kind` (web, service, cli, desktop, data), `launch` (compose, terminal, folder), URL, target, terminal command, in-flight action with its output lines, last journaled result; `probe=1` also counts running compose containers |
 | `POST` | `/api/v2/master/quests/{id}/{action}` | Pause, resume or cancel a v2 quest, or append a redacted user message, through the Master |
 | `POST` | `/api/v2/master/quests/{id}/criteria/{criterionId}/review` | Record the human decision (`accepted` or `rejected`, optional note) on one manual criterion. Decisions are immutable and overlaid on the immutable evidence; the gate re-derives the quest status: `needs_review` → `completed` (verified) or `blocked` |
 | `POST` | `/api/v2/sources/preview` | Create an immutable text, PNG/JPEG/WebP image, file, public HTTPS or Git `SourceSnapshot` |

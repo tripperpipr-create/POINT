@@ -15,7 +15,9 @@
 // называется условиями готовности. Назвать его планом значило бы обещать
 // прогресс там, где его неоткуда взять.
 
-const PLAN_MARK = { done: '✔', now: '□', wait: '□' }
+import { stageLabelText } from './stage-labels.js'
+
+const PLAN_MARK = { done: '✔', now: '□', wait: '□', fail: '✕' }
 
 // Состояние узла прогона → состояние пункта. Ожидание решения — это «идёт»:
 // работа стоит на человеке, а не на очереди.
@@ -77,8 +79,11 @@ export function questPlanRows(boot, questId, nodeKindLabels = {}) {
     : Object.keys(run.nodeStates).map(id => ({ id }))
   return nodes.map(node => {
     const status = String(run.nodeStates[node.id]?.status || 'pending')
+    // Имя узла — по-русски тем же правилом, что и в ленте (stage-labels.js):
+    // шаблонные «Input» и «Verify result» переводятся, имя модели остаётся
+    // после русской роли.
     return {
-      text: node.name || nodeKindLabels?.[node.kind] || node.id,
+      text: stageLabelText({ id: node.id, name: node.name, kind: node.kind }, { node, kindLabels: nodeKindLabels || {} }),
       state: masterPlanState(status),
       note: STAGE_NOTE[status] || '',
     }

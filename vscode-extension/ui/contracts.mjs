@@ -137,6 +137,10 @@ const fail = message => failures.push(message)
     // русский текст у них свой — имя состояния на вкладке, подпись панели,
     // счётчик отвеченного у кнопки.
     ['master', 'brief-panel'],
+    // Прогон квеста: журнал этапа, вердикт, доказательства. Карточка говорила
+    // «EvidenceBundle», «acceptance · exit 0» и сырое имя инструмента, и ни
+    // одна проверка этого не видела — прогон не рендерился.
+    ['master', 'work-order-running'], ['master', 'work-order-approved'], ['master', 'work-order-blocked'], ['master', 'work-order-app-starting'],
     // Первый запуск: пустые состояния шагов. Их текст не проверялся ни разу —
     // мир фикстуры всегда был обжитым, и «ещё не настроено» не рендерилось.
     ['onboarding', 'orchestrator-brain', 'fresh'], ['onboarding', 'orchestrator-choose', 'fresh'],

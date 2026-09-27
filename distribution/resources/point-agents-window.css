@@ -1,8 +1,7 @@
 /* Окно агентов Point — это Чертог, а не сессии агентов из апстрима.
    ----------------------------------------------------------------------------
-   Этот CSS относится только к диагностическому fallback POINT_SESSIONS_HUB=1.
-   Production Hub открывается как auxiliary editor window и не получает этот
-   upstream chrome. Fallback открывается через sessions-окно Code-OSS, и с ним
+   Хаб открывается в sessions-окне Code-OSS (запасной путь через auxiliary
+   editor window включается только POINT_AUXILIARY_HUB=1), и с окном
    приезжает его собственный хром: командный центр «New Session» шириной 449px,
    стрелки назад/вперёд, кнопка «Открыть в редакторе», действия сессии и
    переключатели раскладки. Ниже — полоса вкладок редактора с единственной
@@ -18,7 +17,7 @@
    закрыть. Поэтому скрывается содержимое титульной панели, а не она сама.
 
    Правила ограничены классом .agent-sessions-workbench — его ставит только
-   sessions-окно fallback, обычное окно IDE своего командного центра не теряет. */
+   sessions-окно Хаба, обычное окно IDE своего командного центра не теряет. */
 
 .agent-sessions-workbench .titlebar-center,
 .agent-sessions-workbench .left-toolbar-container,
@@ -28,5 +27,14 @@
 }
 
 .agent-sessions-workbench .editor-group-container > .title {
+	display: none !important;
+}
+
+/* Пустая группа редактора — это миг до того, как расширение откроет в ней
+   Хаб. Водяной знак Code-OSS (letterpress: рамка с колонкой строк) в этот миг
+   выглядел заготовкой чужого приложения посреди окна. Другого содержимого,
+   кроме Хаба, у группы здесь не бывает, так что знак не нужен вовсе: пустая
+   группа остаётся ровным фоном. */
+.agent-sessions-workbench .editor-group-watermark {
 	display: none !important;
 }

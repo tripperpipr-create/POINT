@@ -16,6 +16,7 @@ import { masterAgentCardFromAction, masterAgentCardHtml, masterAgentCardsFor, ma
 import { masterCardMoreAttrs } from './master-card-open.js'
 import { monogram } from './master-agent-sheet.js'
 import { createMasterTrail, trailModelFromItem } from './master-trail.js'
+import { questCompletionMessageHtml } from './quest-run-views.js'
 
 // Диалог с Мастером: лента, реплика и всё, что к ней приложено.
 //
@@ -376,7 +377,11 @@ export function createMasterThreadViews(dependencies) {
   function masterMessageHtml(item, facts, answered, previousAsk, showProposal) {
     const mine = item.role === 'user'
     const answersCard = mine ? masterAnswersCardHtml(item.content) : ''
-    const body = answersCard || formatCompanionMarkdown(String(item.content || ''))
+    const proposalHtml = showProposal === false ? '' : masterThreadProposalHtml(item.proposalId)
+    // Отчёт ядра о квесте сворачивается до вердикта, когда прямо под ним стоит
+    // карточка прогона: она говорит то же самое строкой и доказательствами.
+    const completion = !mine && item.mode === 'quest_completion' && proposalHtml.includes('master-v2-run')
+    const body = answersCard || (completion ? questCompletionMessageHtml(item, esc, formatCompanionMarkdown) : formatCompanionMarkdown(String(item.content || '')))
     const pending = item.id === 'pending-user'
     // Говорящего называет форма, а не подпись: своя реплика — плашка, ответ —
     // текст по колонке. Имя и время остаются для читалки экрана; глазу время
@@ -403,7 +408,7 @@ export function createMasterThreadViews(dependencies) {
     // подвалом их отделяла от ответа пустая строка действий, видимых только
     // под указателем.
     const foot = `${mine || broken ? '' : masterAnswerBadgeHtml(item)}${pending ? '' : masterMessageToolsHtml(item, mine, previousAsk)}${stamp}${mine ? '' : masterTurnTimeHtml(item)}${masterUsedMemoryHtml(item.memoryIds,ui.masterData?.sessions?.memoryEntries,esc,item.id,ui.masterOpenReasoning.has('memory:'+item.id))}`
-    const attached = `${masterMessageAttachmentsHtml(item.attachments,esc)}${trail}${String(item.content || '').trim() || !broken ? article : ''}${brokenHtml}${questions}${masterFactsHtml(facts)}${mine || pending ? '' : masterProposedMemoryHtml(item.turnId, ui.masterData?.sessions?.memoryEntries, esc)}${foot ? `<div class="hall-turn-foot">${foot}</div>` : ''}${showProposal === false ? '' : `${masterThreadProposalHtml(item.proposalId)}${masterThreadActionProposalHtml(item.actionProposalId)}`}`
+    const attached = `${masterMessageAttachmentsHtml(item.attachments,esc)}${trail}${String(item.content || '').trim() || !broken ? article : ''}${brokenHtml}${questions}${masterFactsHtml(facts)}${mine || pending ? '' : masterProposedMemoryHtml(item.turnId, ui.masterData?.sessions?.memoryEntries, esc)}${foot ? `<div class="hall-turn-foot">${foot}</div>` : ''}${showProposal === false ? '' : `${proposalHtml}${masterThreadActionProposalHtml(item.actionProposalId)}`}`
     // Ключ появления (master-feed-motion.js): у ответа — номер хода, тот же, что
     // у блока идущего хода, поэтому готовый ответ не «появляется» второй раз.
     const feedKey = mine ? '' : ` data-feed-key="a:${esc(item.turnId || item.id || '')}"`

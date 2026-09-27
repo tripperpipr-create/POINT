@@ -56,15 +56,43 @@ type DeliveryReceipt struct {
 }
 
 type DeliveredApplicationControl struct {
-	QuestID           string    `json:"questId"`
-	DeliveryReceiptID string    `json:"deliveryReceiptId"`
-	WorkOrderDigest   string    `json:"workOrderDigest"`
-	Action            string    `json:"action"` // start | stop
-	Status            string    `json:"status"` // executing | running | stopped | failed | unknown_outcome
-	URL               string    `json:"url,omitempty"`
-	Summary           string    `json:"summary,omitempty"`
-	Replayed          bool      `json:"replayed,omitempty"`
-	UpdatedAt         time.Time `json:"updatedAt"`
+	QuestID           string `json:"questId"`
+	DeliveryReceiptID string `json:"deliveryReceiptId"`
+	WorkOrderDigest   string `json:"workOrderDigest"`
+	Action            string `json:"action"` // start | stop
+	Status            string `json:"status"` // executing | running | stopped | failed | unknown_outcome
+	URL               string `json:"url,omitempty"`
+	Summary           string `json:"summary,omitempty"`
+	Replayed          bool   `json:"replayed,omitempty"`
+	// Ready reports that the delivered URL answered after start; HTTPStatus and
+	// ContentType tell the client whether it is a page, an API or neither.
+	Ready       bool      `json:"ready,omitempty"`
+	HTTPStatus  int       `json:"httpStatus,omitempty"`
+	ContentType string    `json:"contentType,omitempty"`
+	UpdatedAt   time.Time `json:"updatedAt"`
+}
+
+// DeliveredApplicationState is the live view of a delivered application: how
+// it is launched, what it is doing now and what the last action printed.
+type DeliveredApplicationState struct {
+	QuestID     string    `json:"questId"`
+	Kind        string    `json:"kind"`   // web | service | cli | desktop | data
+	Launch      string    `json:"launch"` // compose | terminal | folder
+	URL         string    `json:"url,omitempty"`
+	Target      string    `json:"target,omitempty"`
+	ComposeFile string    `json:"composeFile,omitempty"`
+	Command     string    `json:"command,omitempty"` // terminal launch command
+	Action      string    `json:"action,omitempty"`  // in-flight or last action: start | stop
+	Status      string    `json:"status"`            // idle | executing | running | stopped | failed | unknown_outcome
+	InFlight    bool      `json:"inFlight"`
+	Lines       []string  `json:"lines,omitempty"`
+	Services    int       `json:"services"`
+	Probed      bool      `json:"probed,omitempty"`
+	Ready       bool      `json:"ready,omitempty"`
+	HTTPStatus  int       `json:"httpStatus,omitempty"`
+	ContentType string    `json:"contentType,omitempty"`
+	StartedAt   time.Time `json:"startedAt,omitzero"`
+	UpdatedAt   time.Time `json:"updatedAt,omitzero"`
 }
 
 // ContextDisclosureEntry is a local-only audit record. Content is identified

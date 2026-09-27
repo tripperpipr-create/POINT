@@ -703,7 +703,10 @@ for (const [file, maximum] of Object.entries({
   'internal/storage/sqlite.go': 985,
   'internal/tools/workspace_tools.go': 960,
   'cmd/point-soak/main.go': 967,
-  'distribution/apply-overlay.mjs': 5068,
+  // Потолок опущен с 5068: заплаты первого кадра окон (фон, скелет верстака,
+  // раскладка sessions-окна Чертога) ушли в overlay-first-frame.mjs.
+  'distribution/apply-overlay.mjs': 4984,
+  'distribution/overlay-first-frame.mjs': 200,
   'vscode-extension/ui/layers/07-master-quiet.css': 2110,
   'vscode-extension/ui/layers/05-hall.css': 1841,
   // Три файла пишутся руками мимо `ui/build.mjs`: главная и Летопись
@@ -733,7 +736,8 @@ for (const [file, maximum] of Object.entries({
   // зарасти обратно.
   'vscode-extension/ui/client/main.js': 4330,
   'vscode-extension/ui/client/infra-actions.js': 220,
-  'vscode-extension/ui/client/master-actions.js': 280,
+  // Опущен с 280: блок приложения и отчёт ушли в quest-app-actions.js.
+  'vscode-extension/ui/client/master-actions.js': 255,
   'vscode-extension/ui/client/run-actions.js': 280,
   'vscode-extension/ui/client/flow-actions.js': 180,
   'vscode-extension/ui/client/roster-actions.js': 330,
@@ -746,13 +750,24 @@ for (const [file, maximum] of Object.entries({
   // Общие чистые помощники вебвью: экранирование и единицы. Растут только
   // тем, что в них съезжается очередная разошедшаяся копия.
   'vscode-extension/ui/client/html-escape.js': 40,
-  'vscode-extension/ui/client/format-units.js': 120,
+  // Вырос со 120 на впитанную копию formatDuration из quest-runtime-views.js
+  // и два формата карточки прогона: время работы и крупные числа.
+  'vscode-extension/ui/client/format-units.js': 132,
   'vscode-extension/ui/client/keyboard-navigation.js': 300,
   'vscode-extension/ui/client/model-picker.js': 400,
   'vscode-extension/ui/client/companion-studio-views.js': 400,
   'vscode-extension/ui/client/companion-setup-wizard.js': 300,
-  'vscode-extension/ui/client/work-order-execution-views.js': 300,
-  'vscode-extension/ui/client/master-work-order-v2.js': 300,
+  // Опущены с 300: сборка прогона, доказательства и управление ушли в
+  // quest-run-views.js, журнал этапа — в quest-journal-views.js.
+  'vscode-extension/ui/client/work-order-execution-views.js': 190,
+  'vscode-extension/ui/client/master-work-order-v2.js': 270,
+  'vscode-extension/ui/client/quest-run-views.js': 420,
+  'vscode-extension/ui/client/quest-app-views.js': 140,
+  'vscode-extension/ui/client/quest-app-state.js': 90,
+  'vscode-extension/ui/client/quest-app-actions.js': 80,
+  'vscode-extension/ui/client/quest-journal-views.js': 340,
+  'vscode-extension/ui/client/stage-labels.js': 80,
+  'vscode-extension/ui/client/diff-view.js': 60,
   'vscode-extension/ui/client/master-hiring-card.js': 300,
   'vscode-extension/ui/client/master-agent-card.js': 450,
   // Лист персонажа вынесен из карточки исполнителя: словарь классов, шкалы

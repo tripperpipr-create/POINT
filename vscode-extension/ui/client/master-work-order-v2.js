@@ -1,4 +1,4 @@
-import { workOrderRunHtml } from './work-order-execution-views.js'
+import { completionCheckName, questRunHtml } from './quest-run-views.js'
 import { masterAgentConsent } from './master-agent-card.js'
 import { countOf, list } from './format-units.js'
 import { masterCardMoreAttrs } from './master-card-open.js'
@@ -28,8 +28,10 @@ const runtimeMarks = {
   completed:'✓', needs_review:'!', blocked:'!', failed:'✕', awaiting_user:'?', cancelled:'✕', paused:'‖',
   preflight:'·', running:'·', verifying:'·', applying:'·',
 }
+// Провал — тоном отказа (--wound), а не тем же «вниманием», что у квеста,
+// ждущего человека: из провала выход один — новая версия наряда.
 const runtimeTones = {
-  completed:'is-done', needs_review:'is-attention', blocked:'is-attention', failed:'is-attention', awaiting_user:'is-attention',
+  completed:'is-done', needs_review:'is-attention', blocked:'is-attention', failed:'is-failed', awaiting_user:'is-attention',
   cancelled:'is-quiet', paused:'is-quiet',
   preflight:'is-active', running:'is-active', verifying:'is-active', applying:'is-active',
 }
@@ -71,14 +73,24 @@ function criteriaDoneIds(order) {
 
 // Чек-лист условий готовности — главный герой карточки квеста. Рисует его
 // общая ячейка (master-quest-views.js): та же форма стоит в составе задания и
-// в предложении квеста, и расходиться им незачем.
-function criteriaChecklistHtml(order, esc) {
+// в предложении квеста, и расходиться им незачем. Прогон добавляет к рядам то,
+// чем каждое условие доказано (quest-run-views.js), поэтому ряды отдельно.
+function criteriaRows(order) {
   const done = criteriaDoneIds(order)
-  return questChecklistHtml('Условия готовности', list(order.criteria).map(item => ({
+  return list(order.criteria).map(item => ({
+    id: String(item.id || ''),
     text: item.text || item.id,
     kind: item.kind || DEFAULT_CRITERION_KIND,
     done: done.has(String(item.id)),
-  })), esc, { empty: 'Условия готовности не заданы' })
+  }))
+}
+
+// Значения договора — закрытые списки ядра (internal/domain/work_order_v2.go):
+// режим папки, изоляция, маршрут моделей, сертификация, коммит.
+const WORD = {
+  existing: 'существующая', managed: 'управляемая Point', snapshot: 'снимок', git_worktree: 'отдельная копия Git', live_write: 'запись напрямую',
+  fixed: 'одна модель', auto: 'маршрутизатор', certified: 'проверенная', experimental: 'экспериментальная',
+  squash: 'один коммит', staged: 'изменения в индексе', none: 'без коммита',
 }
 
 function rows(values, esc) {
@@ -112,33 +124,13 @@ export function masterWorkOrderCardsHtml(orders, esc, busyIds = new Set(), deps 
 	// обещание «будет создан», человек искал создание агента, которого ядро уже
 	// создало.
 	const createdAgents=new Set(list(runtime?.agentIds))
-	const receipt=runtime?.deliveryReceipt
-	const evidence=runtime?.evidence
-	const checks=list(evidence?.verificationChecks)
-	const calls=list(evidence?.modelCalls)
-	const knownCost=calls.filter(item=>item.costKnown).reduce((sum,item)=>sum+Number(item.costCents||0),0)
-	const unknownCost=calls.filter(item=>!item.costKnown).length
-	const tokens=calls.reduce((sum,item)=>sum+Number(item.inputTokens||0)+Number(item.outputTokens||0),0)
-	const passedChecks=checks.filter(item=>item.satisfied).length
-	const finalCommit=list(evidence?.commitIds).at(-1) || receipt?.commitId || ''
-	const evidenceSummary=evidence?.id ? `<details class="master-v2-evidence"${masterCardMoreAttrs(`run-evidence:${order.id}`,{esc,open:runtime?.status==='completed'})}>
-		<summary>Доказательства результата · ${passedChecks}/${countOf(checks.length,'проверка','проверки','проверок')}</summary>
-        <div class="master-v2-grid">
-          <section><b>EvidenceBundle</b><strong>v${Number(evidence.version)||0}</strong><code>${esc(evidence.id)}</code></section>
-          <section><b>Проверки</b>${checks.length?checks.map(item=>`<span>${item.satisfied?'✓':'!'} ${esc(item.kind || item.id)}${item.command?` · <code>${esc(item.command)}</code>`:''}${item.exitCode!=null?` · exit ${Number(item.exitCode)}`:''}</span>`).join(''):'<span>Машинные проверки не записаны</span>'}</section>
-          <section><b>Изменения</b><strong>${countOf(list(evidence.changedFiles).length,'файл','файла','файлов')}</strong>${finalCommit?`<code>${esc(finalCommit)}</code>`:'<span>Без итогового commit</span>'}</section>
-          <section><b>Модели и расход</b><strong>${tokens.toLocaleString('ru-RU')} токенов</strong><span>${countOf(calls.length, 'вызов', 'вызова', 'вызовов')} · известная стоимость $${(knownCost/100).toFixed(2)}${unknownCost?` · ${unknownCost} без цены`:''}</span></section>
-          <section><b>Ограничения</b>${rows(evidence.knownLimitations,esc)}</section>
-          <section><b>Ревизия доставки</b><code>${esc(evidence.workspaceRevision || receipt?.workspaceRevision || '')}</code><span>${esc(evidence.deliveryTarget || receipt?.target || '')}</span></section>
-        </div>
-      </details>` : ''
 	const editor=order.state!=='approved' ? `<details class="master-v2-editor"${masterCardMoreAttrs(`order-edit:${order.id}`,{esc})}>
         <summary>Редактировать карточку без запроса к модели</summary>
         <div class="master-v2-editor-simple">
           <label><span>Цель</span><input data-work-order-field="goal" maxlength="4096" value="${esc(order.goal || '')}"></label>
           <label><span>Что будет сделано · один пункт на строку</span><textarea data-work-order-field="scope" rows="4">${esc(list(order.scope).join('\n'))}</textarea></label>
           <label><span>Предположения · один пункт на строку</span><textarea data-work-order-field="assumptions" rows="3">${esc(list(order.assumptions).join('\n'))}</textarea></label>
-          <label><span>Вне scope · один пункт на строку</span><textarea data-work-order-field="outOfScope" rows="3">${esc(list(order.outOfScope).join('\n'))}</textarea></label>
+          <label><span>Вне задачи · один пункт на строку</span><textarea data-work-order-field="outOfScope" rows="3">${esc(list(order.outOfScope).join('\n'))}</textarea></label>
         </div>
         <details class="master-v2-editor-advanced"${masterCardMoreAttrs(`order-edit-json:${order.id}`,{esc})}><summary>Профессиональные настройки</summary>
           <p>JSON редактирует точный контракт. Сервер проверит версии, права, секреты, сеть и критерии до создания новой immutable-версии.</p>
@@ -166,19 +158,9 @@ export function masterWorkOrderCardsHtml(orders, esc, busyIds = new Set(), deps 
 	// автономный проект. Отказ без выхода читается как поломка, поэтому рядом
 	// стоит само действие: настройка плюс перезапуск ядра.
 	const sandboxFix=runtime?.status==='blocked' && /docker\s*sandbox/i.test(String(runtime.message || ''))
-		? `<button type="button" class="hall-btn" data-action="enable-docker-sandbox">Включить Docker sandbox</button>` : ''
 	const cancellable=runtime && ['preflight','running','verifying','applying','paused','awaiting_user','needs_review','blocked'].includes(runtime.status)
 	const messageable=runtime && ['running','verifying','applying'].includes(runtime.status)
 		&& list(runtime.stages).some(stage => stage.runId && ['running','waiting_approval'].includes(stage.status))
-	const runtimeControls=order.state==='approved' && runtime?.questId && cancellable ? `<div class="master-v2-runtime-controls">
-        <div>${pausable?`<button type="button" class="hall-btn" data-action="control-master-work-order-v2" data-control="pause" data-id="${esc(order.id)}" data-quest-id="${esc(runtime.questId)}" ${busy?'disabled':''}>Пауза</button>`:''}${sandboxFix}${resumable?`<button type="button" class="hall-btn is-primary" data-action="control-master-work-order-v2" data-control="resume" data-id="${esc(order.id)}" data-quest-id="${esc(runtime.questId)}" ${busy?'disabled':''}>${resumeLabel}</button>`:''}<button type="button" class="hall-btn" data-action="control-master-work-order-v2" data-control="cancel" data-id="${esc(order.id)}" data-quest-id="${esc(runtime.questId)}" ${busy?'disabled':''}>Отменить</button></div>
-		${messageable?`<label><span>Сообщение активному квесту</span><input data-work-order-message maxlength="32768" placeholder="Уточнение без изменения scope"><button type="button" class="hall-btn" data-action="control-master-work-order-v2" data-control="message" data-id="${esc(order.id)}" data-quest-id="${esc(runtime.questId)}" ${busy?'disabled':''}>Отправить</button></label>`:''}
-      </div>` : ''
-	const applicationControls=runtime?.status==='completed' && receipt?.id ? `<div class="master-v2-runtime-controls master-v2-application-controls">
-        <div><strong>Приложение готово</strong>${receipt.url?`<a href="${esc(receipt.url)}" title="Открыть приложение">${esc(receipt.url)}</a>`:'<span>Локальный URL не указан</span>'}</div>
-        <div><button type="button" class="hall-btn is-primary" data-action="control-master-application-v2" data-control="start" data-id="${esc(order.id)}" data-quest-id="${esc(runtime.questId)}" data-version="${Number(order.version)||1}" data-digest="${esc(order.digest || '')}" data-receipt-id="${esc(receipt.id)}" ${busy?'disabled':''}>Запустить</button><button type="button" class="hall-btn" data-action="control-master-application-v2" data-control="stop" data-id="${esc(order.id)}" data-quest-id="${esc(runtime.questId)}" data-version="${Number(order.version)||1}" data-digest="${esc(order.digest || '')}" data-receipt-id="${esc(receipt.id)}" ${busy?'disabled':''}>Остановить</button></div>
-      </div>` : ''
-	const reportControl=runtime?.status==='completed' ? `<div class="master-v2-runtime-controls"><div><strong>Итоговый документ</strong><span>Архивариус соберёт видимые результаты этого плана в MD, HTML или XLSX.</span></div><button type="button" class="hall-btn" data-action="generate-work-order-report" data-id="${esc(order.id)}">Собрать отчёт</button></div>` : ''
 	// Утверждённый наряд перестаёт быть предложением: решать в нём больше
 	// нечего, а место нужно тому, что происходит сейчас. Состав уходит под один
 	// раскрывающийся заголовок, на его месте — экран выполнения.
@@ -197,18 +179,18 @@ export function masterWorkOrderCardsHtml(orders, esc, busyIds = new Set(), deps 
         ${rows(order.openQuestions,esc)}
       </div>`:''
 	const detailsGridHtml=`<div class="master-v2-grid">
-          <section><b>Workspace</b><code>${esc(order.workspace?.path || '')}</code><span>${esc(order.workspace?.mode || '')} · ${esc(order.workspace?.isolation || '')}${order.workspace?.initializeGit?' · Git':''}</span></section>
-          <section><b>Стек</b><strong>${esc(order.stack?.id || 'recommended')}</strong><span>${esc(order.stack?.category || '')} · preset ${esc(order.stack?.version || '')}</span></section>
-          <section><b>Модели</b><strong>${esc(order.routing?.fixedModel || order.routing?.routerModel || '')}</strong><span>${esc(order.routing?.mode || 'fixed')} · ${esc(order.routing?.certification || 'experimental')}${order.routing?.costKnown?'':' · стоимость неизвестна'}</span></section>
+          <section><b>Рабочая папка</b><code>${esc(order.workspace?.path || '')}</code><span>${esc(WORD[order.workspace?.mode] || order.workspace?.mode || '')} · ${esc(WORD[order.workspace?.isolation] || order.workspace?.isolation || '')}${order.workspace?.initializeGit?' · Git':''}</span></section>
+          <section><b>Стек</b><strong>${esc(order.stack?.id || 'рекомендованный')}</strong><span>${esc(order.stack?.category || '')} · версия набора ${esc(order.stack?.version || '')}</span></section>
+          <section><b>Модели</b><strong>${esc(order.routing?.fixedModel || order.routing?.routerModel || '')}</strong><span>${esc(WORD[order.routing?.mode || 'fixed'] || order.routing?.mode)} · ${esc(WORD[order.routing?.certification || 'experimental'] || order.routing?.certification)}${order.routing?.costKnown?'':' · стоимость неизвестна'}</span></section>
           <section><b>Бюджет</b><strong>${Number(order.budget?.tokens || 0).toLocaleString('ru-RU')} токенов</strong><span>${Number(order.budget?.activeSeconds || 0)} сек · ${countOf(Number(order.budget?.maxSteps || 0), 'шаг', 'шага', 'шагов')} · параллельно ${Number(order.budget?.maxParallel || 1)}</span></section>
           <section><b>Агенты</b>${agents.length?agents.map(agent=>{const created=agent.existing || createdAgents.has(agent.id);return `<span>${created?'✓':'＋'} ${esc(agent.name)} · ${esc(agent.role)}${agent.requiresConsent?(created?' · создан':' · будет создан'):''}</span>`}).join(''):'<span>Постоянные агенты не нужны</span>'}${temporary.map(agent=>`<span>↳ ${esc(agent.role)} · временный</span>`).join('')}</section>
           <section><b>Источники</b><strong>${sourceCount}</strong><span>Каждый привязан к неизменяемому digest</span></section>
           <section><b>Сеть</b>${network.length?network.map(item=>`<span><code>${esc(item.host)}</code> — ${esc(item.purpose)}</span>`).join(''):'<span>Исходящая сеть не требуется</span>'}</section>
           <section><b>Секреты</b>${secrets.length?secrets.map(item=>`<span>${item.satisfied?'✓':'!'} ${esc(item.name)} — ${esc(item.purpose)}</span>`).join(''):'<span>Не требуются</span>'}</section>
-          <section><b>Проверки завершения</b>${completionChecks.length?completionChecks.map(item=>`<span>${esc(item.kind)}${item.command?` · <code>${esc(item.command)}</code>`:' · по критериям приёмки'}</span>`).join(''):'<span>Профиль не задан</span>'}</section>
-          <section><b>Доставка</b><strong>${order.delivery?.applyMode==='manual'?'Ручная приёмка':'Автоматически после проверок'}</strong><span>${esc(order.delivery?.commitMode || 'squash')} · частичный результат ${countOf(Number(order.delivery?.keepPartialDays || 30), 'день', 'дня', 'дней')}</span></section>
+          <section><b>Проверки завершения</b>${completionChecks.length?completionChecks.map(item=>`<span>${esc(completionCheckName(item.kind))}${item.command?` · <code>${esc(item.command)}</code>`:' · по критериям приёмки'}</span>`).join(''):'<span>Профиль не задан</span>'}</section>
+          <section><b>Доставка</b><strong>${order.delivery?.applyMode==='manual'?'Ручная приёмка':'Автоматически после проверок'}</strong><span>${esc(WORD[order.delivery?.commitMode || 'squash'] || order.delivery?.commitMode)} · частичный результат ${countOf(Number(order.delivery?.keepPartialDays || 30), 'день', 'дня', 'дней')}</span></section>
           <section><b>Предположения</b>${rows(order.assumptions,esc)}</section>
-          <section><b>Вне scope</b>${rows(order.outOfScope,esc)}</section>
+          <section><b>Вне задачи</b>${rows(order.outOfScope,esc)}</section>
         </div>`
 	const compositionHtml=executing
 		? `<details class="master-v2-composition"${masterCardMoreAttrs(`run:${order.id}`,{esc})}><summary>Состав задания</summary>${summaryHtml}${questionsHtml}${detailsGridHtml}</details>`
@@ -242,18 +224,15 @@ export function masterWorkOrderCardsHtml(orders, esc, busyIds = new Set(), deps 
 	// отметки в ней заполняются: до запуска — счёт условий, после — какие
 	// именно закрыты. Пока чек-лист рисовала только незапущенная карточка,
 	// заполняться было нечему, и «0 / 4» оставалось единственным его видом.
-	if (executing) return workOrderRunHtml(order, deps.ui, {
+	if (executing) return questRunHtml(order, deps.ui, {
 		...deps, esc,
-		statusText: approvedText,
+		label: runtimeView.label,
 		tone: runtimeView.tone,
 		mark: runtimeView.mark,
-		resumable, resumeLabel,
-		controlsHtml: runtimeControls,
+		controls: { pausable, resumable, resumeLabel, sandboxFix, cancellable, messageable, busy },
+		criteriaRows: criteriaRows(order),
 		compositionHtml, createdHtml,
-		checklistHtml: criteriaChecklistHtml(order, esc),
-		applicationHtml: applicationControls,
-		reportHtml: reportControl,
-		evidenceHtml: manualReviewHtml(order, esc) + evidenceSummary,
+		manualReviewHtml: manualReviewHtml(order, esc),
 	})
     // Шапка квеста: точка состояния, кикер и мета справа. Гриф «ЕДИНАЯ
     // КАРТОЧКА ЗАПУСКА» прописными ушёл — он называл документ, а не то, что с
@@ -267,12 +246,10 @@ export function masterWorkOrderCardsHtml(orders, esc, busyIds = new Set(), deps 
         </div>
         <span>${esc(labels[order.state] || order.state || 'Черновик')} · v${Number(order.version)||1}</span>
       </header>
-      ${criteriaChecklistHtml(order, esc)}
+      ${questChecklistHtml('Условия готовности', criteriaRows(order), esc, { empty: 'Условия готовности не заданы' })}
       ${compositionHtml}
       ${lifecycleNote}
-      ${runtimeControls}
-      ${applicationControls}
-	  ${manualReviewHtml(order, esc)}${evidenceSummary}
+	  ${manualReviewHtml(order, esc)}
 	  ${editor}
       <footer>
         ${/* Решение одно, остальное — в меню. Четыре кнопки в ряд не говорили,

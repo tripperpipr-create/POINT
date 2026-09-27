@@ -88,9 +88,15 @@ if (!completed.includes('data-action="generate-work-order-report"') || !complete
 }
 
 const delivered = masterWorkOrderCardsHtml([{ ...base, digest: 'sha256:brief', runtime: { questId: 'quest-1', status: 'completed', deliveryReceipt: { id: 'delivery-1', url: 'http://localhost:8080' }, evidence: { id: 'evidence-1', version: 3, verificationChecks: [{ id: 'tests', kind: 'automated_tests', command: 'npm test', exitCode: 0, satisfied: true }], changedFiles: ['src/app.js'], commitIds: ['abc123'], modelCalls: [{ inputTokens: 10, outputTokens: 5, costKnown: true, costCents: 2 }], workspaceRevision: 'sha256:tree' } } }], esc)
-for (const expected of ['data-action="control-master-application-v2"', 'data-control="start"', 'data-control="stop"', 'http://localhost:8080', 'EvidenceBundle', 'npm test', '15 токенов', 'abc123']) {
+for (const expected of ['data-action="control-master-application-v2"', 'data-control="start"', 'data-control="stop"', 'http://localhost:8080', 'Пакет доказательств', 'npm test', '15 токенов', 'abc123']) {
   if (!delivered.includes(expected)) throw new Error(`delivered WorkOrder lost application control: ${expected}`)
 }
+// Имя типа ядра и сырой вид проверки — не слова интерфейса: пакет доказательств
+// называется по-русски, проверка профиля — своим видом («Автотесты»).
+for (const raw of ['EvidenceBundle', '>automated_tests<', 'exit 0', '$0.00']) {
+  if (delivered.includes(raw)) throw new Error(`delivered WorkOrder shows a raw core word: ${raw}`)
+}
+if (!delivered.includes('Автотесты')) throw new Error('completion check lost its human name')
 
 // Исполнители создаются утверждением. Карточка обязана перестать обещать то,
 // что уже сделано: иначе человек ищет создание агента, которого ядро создало.
@@ -130,6 +136,26 @@ if (!main.includes('masterWorkOrderBusy.delete(failedWorkOrderId)')) {
 for (const expected of ['generateReport', '/api/reports', 'contentBase64']) {
   if (!host.includes(expected) && !transport.includes(expected)) throw new Error(`report agent transport lost: ${expected}`)
 }
+// Отчёт по квесту — одним нажатием: без диалогов, с долгим ожиданием модели,
+// в .point/reports и сразу в браузер; карточка видит каждую фазу.
+const quickReport = transport.slice(transport.indexOf('async function generateQuickReport'), transport.indexOf('async function generateQuickReport') + 1800)
+for (const expected of ["'masterReportState'", "'.point', 'reports'", 'openLocalFile(uri.fsPath)', 'timeoutMs: 10 * 60_000', "format: 'html'"]) {
+  if (!quickReport.includes(expected)) throw new Error(`quick report lost: ${expected}`)
+}
+if (/showInputBox|showQuickPick|showSaveDialog/.test(quickReport)) throw new Error('quick report asks the human again')
+// Отчёт с кириллицей в имени не открывался: env.openExternal отдаёт file:-адрес
+// в ShellExecute закодированным, Windows отвечает «файл не найден», а Code-OSS
+// показывает окно ошибки. Локальный файл открывается программой по умолчанию
+// по пути.
+if (/env\.openExternal\(uri\)/.test(quickReport) || !/function openLocalFile[\s\S]{0,1200}Start-Process[\s\S]{0,600}detached: !onWindows/.test(transport)) throw new Error('report file is opened through a file: URL that Windows cannot resolve')
+if (!transport.includes('if(message.quick){await generateQuickReport(this,message);break}')) throw new Error('work order report does not take the quick path')
+// Запуск приложения идёт минутами: хост ждёт ядро долго и тем временем
+// раз в 0,7 с передаёт карточке живой вывод; браузер — только для адреса на
+// этой машине.
+for (const expected of ["type:'masterApplicationState'", 'timeoutMs:20*60_000', "route+'?probe=1'", "action==='open'||action==='terminal'", 'function loopbackUrl', "mode === 'auto' && !state.ready"]) {
+  if (!transport.includes(expected)) throw new Error(`delivered application transport lost: ${expected}`)
+}
+if (!main.includes("'masterApplicationState'") || !main.includes("'masterReportState'")) throw new Error('webview does not accept live application or report state')
 
 // Запуск идёт минутами и переживает свой запрос. Без наблюдения карточка
 // замирала на «Проверяем окружение» независимо от того, что делал квест.

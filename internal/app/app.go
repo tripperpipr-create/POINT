@@ -97,6 +97,7 @@ type App struct {
 	sourceFetcher         SourceFetcher
 	gitRunner             GitRunner
 	deliveredAppRunner    DeliveredAppRunner
+	deliveredApps         deliveredAppLive // вывод идущего запуска/остановки (delivered_app_state_v2.go)
 	completionCheckRunner CompletionCheckRunner
 	networkGrants         *workbenchtools.NetworkGrantBook
 	masterWatchMu         sync.Mutex

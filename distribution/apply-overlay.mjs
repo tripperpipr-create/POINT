@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { applyFirstFramePatches } from './overlay-first-frame.mjs';
 
 const projectRoot = path.resolve(import.meta.dirname, '..');
 const sourceRoot = path.resolve(process.argv[2] || path.join(projectRoot, 'vendor', 'code-oss'));
@@ -366,94 +367,9 @@ replaceAny(
   'Point second instance raises the Agent Hub',
 );
 
-// Первое мгновение окна принадлежало Code-OSS, а не Point.
-//
-// До того как отрисуется верстак, окно красится двумя путями. Главный процесс
-// отдаёт Electron цвет фона из themeMainService: на первом запуске сохранённого
-// значения нет, и берётся умолчание VS Code #1F1F1F — светлее фона Point
-// (#0A0A0A), поэтому первый кадр вспыхивал и темнел.
-const themeMainServicePath = path.join(sourceRoot, 'src', 'vs', 'platform', 'theme', 'electron-main', 'themeMainServiceImpl.ts');
-replaceAny(
-  themeMainServicePath,
-  ["const DEFAULT_BG_DARK = '#1F1F1F';"],
-  "const DEFAULT_BG_DARK = '#0A0A0A';",
-  'Point window background before the workbench paints',
-);
-
-// Второй путь — «заставка частей»: до загрузки верстака Code-OSS рисует его
-// скелет по сохранённой раскладке — полосы заголовка, панели действий, боковой
-// панели и строки состояния. Для VS Code это уместно: скелет совпадает с тем,
-// что появится следом. У Point за этими полосами стоит Чертог — вебвью во всю
-// область редактора, — и скелет показывал пустой каркас чужого приложения:
-// ровно то «непрогруженное окно VS Code», которое видно на старте.
-//
-// Заплата оставляет только цвет фона. Плоский прямоугольник цвета Point честнее
-// каркаса, которого не будет: он ничего не обещает и ни с чем не спорит.
-const workbenchBootPath = path.join(sourceRoot, 'src', 'vs', 'code', 'electron-browser', 'workbench', 'workbench.ts');
-replaceAny(
-  workbenchBootPath,
-  [
-    [
-      '\t\t// developing an extension -> ignore stored layouts',
-      '\t\tif (data && configuration.extensionDevelopmentPath) {',
-      '\t\t\tdata.layoutInfo = undefined;',
-      '\t\t}',
-    ].join('\n'),
-  ],
-  [
-    '\t\t// Point: скелет верстака не рисуется никогда.',
-    '\t\t//',
-    '\t\t// Полосы заголовка, панели действий и боковой панели — каркас VS Code,',
-    '\t\t// а у Point на их месте Чертог. Каркас успевал мелькнуть чужим пустым',
-    '\t\t// окном. Остаётся только цвет фона, взятый из сохранённой темы.',
-    '\t\tif (data) {',
-    '\t\t\tdata.layoutInfo = undefined;',
-    '\t\t}',
-  ].join('\n'),
-  'Point start without the Code-OSS workbench skeleton',
-);
-
-// Сохранённой темы может ещё не быть — тогда Code-OSS оставляет цвета
-// неопределёнными и пишет в стиль `background-color: undefined`. Правило
-// отбрасывается, и первый кадр достаётся тому, что окажется под ним. Точка
-// опоры Point — её собственные цвета, а не случайность.
-//
-// Цвета из сохранённой заставки берутся через `??`: у них тип `string |
-// undefined`, и до заплаты они попадали в нетипизированные `let` — ошибку
-// прятал вывод типа `any`, а в разметку уходила строка «undefined».
-replaceAny(
-  workbenchBootPath,
-  [
-    [
-      '\t\tlet baseTheme;',
-      '\t\tlet shellBackground;',
-      '\t\tlet shellForeground;',
-      '\t\tif (data) {',
-      '\t\t\tbaseTheme = data.baseTheme;',
-      '\t\t\tshellBackground = data.colorInfo.editorBackground;',
-      '\t\t\tshellForeground = data.colorInfo.foreground;',
-    ].join('\n'),
-    [
-      "\t\tlet baseTheme = 'vs-dark';",
-      "\t\tlet shellBackground = '#0A0A0A';",
-      "\t\tlet shellForeground = '#e9e9e9';",
-      '\t\tif (data) {',
-      '\t\t\tbaseTheme = data.baseTheme;',
-      '\t\t\tshellBackground = data.colorInfo.editorBackground;',
-      '\t\t\tshellForeground = data.colorInfo.foreground;',
-    ].join('\n'),
-  ],
-  [
-    "\t\tlet baseTheme = 'vs-dark';",
-    "\t\tlet shellBackground = '#0A0A0A';",
-    "\t\tlet shellForeground = '#e9e9e9';",
-    '\t\tif (data) {',
-    '\t\t\tbaseTheme = data.baseTheme;',
-    '\t\t\tshellBackground = data.colorInfo.editorBackground ?? shellBackground;',
-    '\t\t\tshellForeground = data.colorInfo.foreground ?? shellForeground;',
-  ].join('\n'),
-  'Point colours for the first frame without stored theme',
-);
+// Первый кадр окон — фон до отрисовки верстака, отказ от его скелета, цвета
+// первого кадра и раскладка sessions-окна Чертога — в overlay-first-frame.mjs.
+applyFirstFramePatches(sourceRoot, { replaceOnce, replaceAny });
 
 const windowsMainServicePath = path.join(sourceRoot, 'src', 'vs', 'platform', 'windows', 'electron-main', 'windowsMainService.ts');
 replaceOnce(

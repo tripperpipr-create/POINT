@@ -1029,8 +1029,9 @@
   border-radius: 50%;
   background: var(--hub-muted);
 }
-.hall-dialogue .hall-quest-strip.is-active .hall-quest-strip-state > i { background: var(--ember); }
+.hall-dialogue .hall-quest-strip.is-active .hall-quest-strip-state > i { background: var(--mana); }
 .hall-dialogue .hall-quest-strip.is-attention .hall-quest-strip-state > i { background: var(--caution); }
+.hall-dialogue .hall-quest-strip.is-failed .hall-quest-strip-state > i { background: var(--wound); }
 .hall-dialogue .hall-quest-strip.is-live .hall-quest-strip-state > i { animation: hall-live-pulse 1.2s var(--ease) infinite; }
 .hall-dialogue .hall-quest-strip-goal {
   flex: 1 1 auto;

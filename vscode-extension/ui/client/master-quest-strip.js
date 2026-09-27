@@ -15,6 +15,7 @@
 import { runtimePresentation } from './master-work-order-v2.js'
 import { activeStage, workOrderStageNote } from './work-order-execution-views.js'
 import { fillAttribute, list } from './format-units.js'
+import { stageLabel, stageLabelText } from './stage-labels.js'
 import { icon } from './ui-icons.js'
 
 // Когда полоса нужна: работа идёт или стоит и ждёт человека. Закончившийся
@@ -48,7 +49,7 @@ export function masterQuestStripModel({ workOrders, agentName = () => '' } = {})
     || 'Исполнитель'
   const workers = (working.length ? working : current ? [current] : []).map(stage => ({
     name: nameOf(stage.agentId),
-    stage: String(stage.name || ''),
+    stage: stageLabel(stage).label,
     note: workOrderStageNote(stage),
   }))
   return {
@@ -60,7 +61,8 @@ export function masterQuestStripModel({ workOrders, agentName = () => '' } = {})
     goal: String(order.goal || ''),
     done,
     total: stages.length,
-    stage: current ? String(current.name || '') : '',
+    stage: current ? stageLabel(current).label : '',
+    stageFull: current ? stageLabelText(current) : '',
     workers,
   }
 }
@@ -77,7 +79,7 @@ export function masterQuestStripHtml(model, esc) {
     const what = [worker.stage, worker.note].filter(Boolean).join(' · ')
     return `<span class="hall-quest-strip-worker">${icon('person')}<b>${esc(worker.name)}</b>${what ? `<span>${esc(what)}</span>` : ''}</span>`
   }).join('')
-  const hint = [model.label, model.goal, model.stage].filter(Boolean).join(' · ')
+  const hint = [model.label, model.goal, model.stageFull || model.stage].filter(Boolean).join(' · ')
   return `<button type="button" class="hall-quest-strip ${esc(model.tone)}${model.live ? ' is-live' : ''}" data-action="master-inspector-open" data-tab="quest" data-order="${esc(model.id)}" title="${esc(hint)} — открыть квест">
     <span class="hall-quest-strip-state"><i aria-hidden="true"></i>${esc(model.label)}</span>
     <span class="hall-quest-strip-goal">${esc(model.goal)}</span>

@@ -233,6 +233,20 @@
       ]
     },
     {
+      "page": "master-work-order-blocked",
+      "surface": "master",
+      "args": [
+        "work-order-blocked"
+      ]
+    },
+    {
+      "page": "master-work-order-app-starting",
+      "surface": "master",
+      "args": [
+        "work-order-app-starting"
+      ]
+    },
+    {
       "page": "decisions",
       "surface": "decisions"
     },

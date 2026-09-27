@@ -1,7 +1,7 @@
-import { masterPlanHtml, masterPlanState, questPlanProgress } from './master-plan-views.js'
+import { masterPlanHtml, questPlanProgress } from './master-plan-views.js'
 import { inspectorTab, masterContextPanelHtml, masterInspectorTabsHtml, masterTeamGroups, masterTeamHtml } from './master-inspector.js'
 import { masterContextPayload } from './master-context-ui.js'
-import { workOrderStageNote } from './work-order-execution-views.js'
+import { workOrderStageRows } from './work-order-execution-views.js'
 import { list } from './format-units.js'
 import { icon } from './ui-icons.js'
 
@@ -161,9 +161,9 @@ export function createMasterBriefPanel({
       if (!order) {
         return `<div class="hall-insp-blank">${icon('quest')}<b>Квеста пока нет</b><span>Опишите задачу — Мастер соберёт задание, и оно появится здесь: цель, условия готовности, этапы и исполнители.</span></div>`
       }
-      const rows = list(order.runtime?.stages).map(stage => ({
-        text: stage.name || stage.id, state: masterPlanState(stage.status), note: workOrderStageNote(stage),
-      }))
+      // Ряды — те же, что в ленте прогона: русское имя этапа, имя модели и
+      // длительность. Свой перебор здесь назвал бы этапы по-английски.
+      const rows = workOrderStageRows(order, ui)
       return `<div class="hall-brief-panel-sub"><b>Квест</b><small>${esc(order.goal || '')}</small></div>
         ${masterPlanHtml('Этапы', rows, esc, { limit: 12 }) || '<p class="hall-brief-wait">Этапы появятся, когда Мастер соберёт прогон.</p>'}`
     }

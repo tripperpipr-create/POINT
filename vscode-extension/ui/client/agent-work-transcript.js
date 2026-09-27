@@ -1,5 +1,10 @@
 // Cursor-подобная лента работы агента: ответы, tools, diffs, approvals.
 // Общий рендер для хроники квеста и встроенного блока в чате Мастера.
+//
+// Карточка прогона квеста просит `{ journal: true }` и получает журнал этапа
+// (quest-journal-views.js) с теми же зависимостями: заводить ему второй канал
+// через main.js значило бы расти файлу, который стоит у своего потолка.
+import { createQuestJournal } from './quest-journal-views.js'
 
 const SKIP_TOOL_FAIL = new Set([
   'inspection_required',
@@ -56,8 +61,11 @@ export function createAgentWorkTranscript(dependencies) {
   // общем перечне подтверждений прогона.
   const patchIsPending = (approvals, patch) => approvals.get(patch.approvalId)?.status === 'pending'
 
+  const journal = createQuestJournal({ ...dependencies, approvalCard, patchCard })
+
   function agentWorkTranscriptHtml(details, options = {}) {
     if (!details?.run) return ''
+    if (options.journal) return journal.questJournalHtml(details, options)
     const limit = Number(options.limit) > 0 ? Number(options.limit) : 240
     const compact = Boolean(options.compact)
     // Ждущее решение можно поднять из хроники наверх карточки — тогда здесь его

@@ -1,6 +1,6 @@
 import { masterPlanHtml, masterPlanState } from './master-plan-views.js'
-import { countOf, fillAttribute, list } from './format-units.js'
-import { masterCardMoreAttrs } from './master-card-open.js'
+import { formatElapsed, list } from './format-units.js'
+import { stageFlowNode, stageLabel, stageLabelText } from './stage-labels.js'
 
 // Экран выполнения утверждённого наряда.
 //
@@ -10,13 +10,15 @@ import { masterCardMoreAttrs } from './master-card-open.js'
 // того, что под наряд создали агента.
 //
 // Экран собран из готовых частей: перечень этапов — та же ячейка плана, что и в
-// ленте разговора, хроника — тот же agentWorkTranscriptHtml, что у прогона
-// агента. Новое здесь одно: причина затыка, которой раньше не было нигде, и
-// источник данных — сам наряд. Наблюдатель опрашивает его раз в 2.5 с, поэтому
-// этапы приходят в runtime.stages, а не отдельным запросом /api/state/runtime.
+// ленте разговора, журнал — журнал этапа (quest-journal-views.js), который
+// отдаёт agentWorkTranscriptHtml по просьбе `journal`. Новое здесь одно:
+// причина затыка, которой раньше не было нигде, и источник данных — сам наряд.
+// Наблюдатель опрашивает его раз в 2.5 с, поэтому этапы приходят в
+// runtime.stages, а не отдельным запросом /api/state/runtime.
 //
-// Модуль отдельный, потому что main.js стоит у границы своего бюджета строк
-// (scripts/check-release-contracts.mjs), и расти там нельзя.
+// Строку прогона и порядок частей собирает quest-run-views.js: здесь только
+// сами части, чтобы их можно было ставить в разном порядке у идущего и у
+// законченного квеста.
 
 
 // Пометка этапа, которую перечень плана рисует справа. Совпадает по смыслу с
@@ -73,16 +75,44 @@ export function activeStage(stages) {
     || null
 }
 
+// Сколько шёл этап: от старта до конца, у идущего — до сейчас.
+export function stageSpan(stage, now = Date.now()) {
+  const start = Date.parse(stage?.startedAt || '')
+  if (Number.isNaN(start)) return null
+  const end = Date.parse(stage?.finishedAt || '')
+  if (!Number.isNaN(end)) return Math.max(0, end - start)
+  return masterPlanState(stage?.status) === 'now' ? Math.max(0, now - start) : null
+}
+
+// Ряды перечня этапов: русское имя, английское имя модели и длительность —
+// одной тихой пометкой справа.
+export function workOrderStageRows(order, ui, deps = {}) {
+  const runtime = order?.runtime || {}
+  return list(runtime.stages).map(stage => {
+    const { label, detail } = stageLabel(stage, { node: stageFlowNode(ui?.state?.boot, runtime, stage), kindLabels: deps.flowNodeKindLabels || {} })
+    const span = stageSpan(stage)
+    return {
+      text: label,
+      // Сорвавшийся этап — крестом, а не пустым квадратом ждущего: по
+      // перечню ищут именно его.
+      state: ['failed', 'cancelled'].includes(stage.status) || ['start_failed', 'stage_failed'].includes(stage.waitReason) ? 'fail' : masterPlanState(stage.status),
+      // Этап короче секунды (вход, выход) длительности не носит: «1 с» у
+      // мгновенного узла была бы округлённой неправдой.
+      note: [workOrderStageNote(stage), detail, span >= 1000 ? formatElapsed(span, { seconds: true }) : ''].filter(Boolean).join(' · '),
+    }
+  })
+}
+
 // Хроника того прогона, который сейчас идёт. Раньше путь v2 не звал ни
 // coordinateActiveFlows, ни loadRun, поэтому state.details оставался чужим или
 // пустым — и брать его без сверки значило показать хронику другого квеста.
 function transcriptFor(order, ui, deps) {
   const details = ui?.state?.details
-  if (!details?.run) return ''
+  if (!details?.run || typeof deps.agentWorkTranscriptHtml !== 'function') return ''
   const runtime = order.runtime || {}
   const stage = activeStage(list(runtime.stages))
   if (!stage?.runId || details.run.id !== stage.runId) return ''
-  return deps.agentWorkTranscriptHtml(details, { limit: 80, compact: true, sandboxOnly: true })
+  return deps.agentWorkTranscriptHtml(details, { limit: 80, compact: true, sandboxOnly: true, journal: true })
 }
 
 // Что написать вместо хроники, когда её нет.
@@ -97,44 +127,39 @@ function emptyTranscriptText(stall, stages) {
   return 'Загружаем журнал работы агента…'
 }
 
-// Один экран: что стоит, из чего работа состоит и что агент уже сделал.
-//
-// `deps` — те же зависимости, что у остальных вынесенных видов: esc, хроника,
-// названия видов узлов и разметка управления, общая с карточкой наряда.
 // Экранирование приходит снаружи и обязано прийти. Фолбэк-«тождество»
 // выглядел безобидной осторожностью, а был открытой дверью: в stall.error
 // попадает текст от модели и от ядра, и без esc он уехал бы в разметку как
 // есть. Отсутствие esc — ошибка вызывающего, и она должна быть слышна сразу,
 // а не превращаться в инъекцию у того, кто откроет карточку наряда.
-function requireEsc(deps) {
+export function requireEsc(deps) {
   if (typeof deps.esc !== 'function') {
     throw new Error('work-order-execution-views: не передан esc — экранировать текст ядра нечем')
   }
   return deps.esc
 }
 
-export function workOrderExecutionHtml(order, ui, deps = {}) {
+// Части экрана выполнения по отдельности: что стоит, из чего работа состоит и
+// что агент уже сделал.
+export function workOrderExecutionParts(order, ui, deps = {}) {
   const runtime = order?.runtime
-  if (!runtime) return ''
+  if (!runtime) return null
   const esc = requireEsc(deps)
   const stages = list(runtime.stages)
   const stall = runtime.stall
   const stallTitle = stall ? (STALL_REASON[stall.waitReason] || 'Выполнение остановлено') : ''
+  const stallStage = stall ? stages.find(stage => stage.id === stall.nodeId) || { id: stall.nodeId, name: stall.nodeName } : null
+  const stallName = stallStage ? stageLabelText(stallStage, { node: stageFlowNode(ui?.state?.boot, runtime, stallStage), kindLabels: deps.flowNodeKindLabels || {} }) : ''
   // Причина затыка — блок внимания, а не строка в подвале. Именно сюда попадает
   // `model … is not in connection … catalog`, которое девять минут жило только
   // в nodeStates.
   const stallHtml = stall ? `<div class="work-order-exec-stall">
       <b>${esc(stallTitle)}</b>
-      ${stall.nodeName || stall.nodeId ? `<small>Этап «${esc(stall.nodeName || stall.nodeId)}»</small>` : ''}
+      ${stall.nodeName || stall.nodeId ? `<small>Этап «${esc(stallName || stall.nodeName || stall.nodeId)}»</small>` : ''}
       ${stall.error ? `<p>${esc(stall.error)}</p>` : ''}
       ${stall.waitReason === 'stage_failed' ? `<div><button type="button" class="hall-btn" data-action="revise-master-work-order-v2" data-id="${esc(order.id)}">Обсудить новую версию</button></div>` : ''}
     </div>` : ''
-  const planRows = stages.map(stage => ({
-    text: stage.name || deps.flowNodeKindLabels?.[stage.kind] || stage.id,
-    state: masterPlanState(stage.status),
-    note: workOrderStageNote(stage),
-  }))
-  const plan = launchPlan(runtime, esc) || masterPlanHtml('Этапы', planRows, esc, { limit: 12 })
+  const plan = launchPlan(runtime, esc) || masterPlanHtml('Этапы', workOrderStageRows(order, ui, deps), esc, { limit: 12 })
   const transcript = transcriptFor(order, ui, deps)
   const provisioning = ['runtime_provisioning', 'runtime_building'].includes(runtime.launchPhase)
     && !['completed', 'blocked', 'failed', 'cancelled'].includes(runtime.status)
@@ -142,104 +167,23 @@ export function workOrderExecutionHtml(order, ui, deps = {}) {
   // Примечание планировщика: план мог собрать движок Point, а не модель. Без
   // этой строки человек читает шаблонный план как ответ модели.
   const plannerNote = runtime.plannerNote ? `<small class="work-order-exec-note">${esc(runtime.plannerNote)}</small>` : ''
-  // Внутри прогона своей шапки у экрана нет: цель и исход уже названы строкой
-  // выше, а «ВЫПОЛНЕНИЕ · Квест выполняется» под ними читалось как второе,
-  // другое состояние.
-  const head = deps.headless ? '' : `<header class="work-order-exec-head">
-        <small>Выполнение</small>
-        <span class="work-order-exec-status">${esc(deps.statusText || '')}</span>
-      </header>`
-  return `<section class="work-order-exec" data-work-order-execution="${esc(order.id)}" data-quest-id="${esc(runtime.questId || '')}">
-      ${head}
-      ${stallHtml}
-      ${/* В прогоне управление стоит под потоком: сперва читают, что делает
-           агент, и только потом решают, вмешиваться ли. Поле «сообщение
-           активному квесту» над этапами занимало верх экрана формой. */''}
-      ${deps.controlsHtml || ''}
-      ${provisioning}
-      ${plan}
-      ${transcript ? `<div class="work-order-exec-log">${transcript}</div>`
-        : `<div class="work-order-exec-empty"><span>${esc(emptyTranscriptText(stall, stages))}</span></div>`}
-      ${plannerNote}
-    </section>`
+  const log = transcript ? `<div class="work-order-exec-log">${transcript}</div>`
+    : `<div class="work-order-exec-empty"><span>${esc(emptyTranscriptText(stall, stages))}</span></div>`
+  return { stall: stallHtml, plan, log, hasLog: Boolean(transcript), provisioning, plannerNote }
 }
 
-// Запущенный квест вместо карточки запуска.
-//
-// Карточка — это предложение: её читают, правят и утверждают. После запуска
-// решать в ней нечего, а место в ленте нужно тому, что происходит сейчас.
-// Поэтому утверждённый наряд уходит из ленты целиком, а на его месте остаётся
-// прогон: строка исхода, этапы и поток работы агента — как в ленте
-// CLI-агентов, где запуск разворачивается в журнал, а не в форму.
-//
-// Договор при этом никуда не девается: состав задания лежит под свёрнутым
-// заголовком, а доказательства и управление приложением встают после потока —
-// там, где их ищут, когда работа кончилась.
-// Итог квеста — четыре факта, а не отчёт. Их читают, чтобы понять, взят
-// квест или нет; остальное лежит под доказательствами.
-function questOutcomeChips(order, esc) {
-  const runtime = order?.runtime || {}
-  const evidence = runtime.evidence
-  if (!evidence?.id) return ''
-  const checks = list(evidence.verificationChecks)
-  const passed = checks.filter(item => item.satisfied).length
-  const files = runtime.deliveryReceipt?.id ? list(evidence.changedFiles).length : 0
-  const tokens = list(evidence.modelCalls).reduce((sum, item) => sum + Number(item.inputTokens || 0) + Number(item.outputTokens || 0), 0)
-  const url = runtime.deliveryReceipt?.url
-  const chips = [
-    checks.length ? `${passed}/${countOf(checks.length, 'проверка', 'проверки', 'проверок')}` : '',
-    files ? countOf(files, 'файл', 'файла', 'файлов') : '',
-    tokens ? `${tokens.toLocaleString('ru-RU')} ток.` : '',
-    url ? `живо ${String(url).replace(/^https?:\/\//, '')}` : '',
-  ].filter(Boolean)
-  if (!chips.length) return ''
-  return `<div class="hall-quest-chips">${chips.map((text, index) => `<span class="hall-quest-chip${url && index === chips.length - 1 ? ' is-done' : ''}">${esc(text)}</span>`).join('')}</div>`
-}
-
-export function workOrderRunHtml(order, ui, deps = {}) {
+// Один экран: что стоит, из чего работа состоит и что агент уже сделал.
+// Собранный целиком — для мест, где порядок частей не спорный.
+export function workOrderExecutionHtml(order, ui, deps = {}) {
+  const parts = workOrderExecutionParts(order, ui, deps)
+  if (!parts) return ''
   const esc = requireEsc(deps)
-  const runtime = order?.runtime || {}
-  const status = String(runtime.status || '')
-  const tone = deps.tone || ''
-  const mark = deps.mark || '·'
-  const live = ['preflight', 'running', 'verifying', 'applying'].includes(status)
-  const stages = list(runtime.stages)
-  const done = stages.filter(stage => stage.status === 'completed').length
-  const share = stages.length ? Math.round((done / stages.length) * 100) : 0
-  // Работающий или остановленный квест остаётся частью ленты разговора:
-  // этапы, причины ожидания и хроника видны без отдельного окна или раскрытия.
-  // Завершённый квест можно раскрыть из истории.
-  const inFeed = ['preflight', 'running', 'verifying', 'applying', 'paused', 'awaiting_user', 'blocked'].includes(status)
-  const title = `
-          <span class="hall-quest-row">
-            <span class="hall-quest-dot" aria-hidden="true"></span>
-            <strong class="hall-quest-name">${esc(order.goal || 'Задание')}</strong>
-            <span class="master-v2-approved ${esc(tone)}">${live ? '' : esc(mark) + ' '}${esc(deps.statusText || status)}</span>
-            ${/* Счёт в строке — этапы работы, а не условия готовности: этапы
-                 двигаются всю дорогу, а условия закрывает только проверка в
-                 конце, и «0 / 4» весь прогон не сказало бы ничего. Числа
-                 стоят через одну строку друг от друга, поэтому счёт называет
-                 себя: голое «1/3» рядом с «0 / 3» читается как спор двух
-                 счётчиков, а голосом не читается вовсе. */''}
-            ${stages.length ? `<span class="hall-quest-bar is-sm" role="img" aria-label="Этапы: ${done} из ${stages.length}"><span ${fillAttribute(share)}></span></span><span class="hall-quest-count" title="Этапы работы" aria-hidden="true">${done}/${stages.length}</span>` : ''}
-          </span>
-          ${/* Итог закончившегося квеста стоит в самой строке, а не под
-               раскрытием: по нему видно, взят квест или нет, и ради этого
-               раскрывать нечего. У идущего квеста итога ещё не существует. */''}
-          ${live ? '' : questOutcomeChips(order, esc)}`
-  const body = `
-        ${/* Условия готовности — первое, что видно в раскрытом квесте: у
-             идущего они говорят, по чему его примут, у законченного — какие
-             именно закрылись. Ниже стоит работа, которой их закрывали. */''}
-        ${deps.checklistHtml || ''}
-        ${deps.createdHtml || ''}
-        ${workOrderExecutionHtml(order, ui, { ...deps, headless: true })}
-        ${deps.compositionHtml || ''}
-        ${deps.applicationHtml || ''}
-        ${deps.reportHtml || ''}
-        ${deps.evidenceHtml || ''}`
-  return `<section class="master-v2-run ${esc(tone)}${live ? ' is-live' : ''}" data-work-order-id="${esc(order.id)}" data-quest-id="${esc(runtime.questId || '')}">
-    ${inFeed ? `<div class="hall-quest-run is-in-feed"><div class="hall-quest-run-title">${title}</div>${body}</div>`
-      : `<details class="hall-quest-run"${masterCardMoreAttrs(`run-live:${order.id}`, { esc })}><summary>${title}</summary>${body}</details>`}
-  </section>`
+  return `<section class="work-order-exec" data-work-order-execution="${esc(order.id)}" data-quest-id="${esc(order.runtime.questId || '')}">
+      ${parts.stall}
+      ${deps.controlsHtml || ''}
+      ${parts.provisioning}
+      ${parts.plan}
+      ${parts.log}
+      ${parts.plannerNote}
+    </section>`
 }

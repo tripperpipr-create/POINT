@@ -1,0 +1,595 @@
+/* ── Прогон квеста в ленте Мастера ──────────────────────────────────────────
+   Разметка — ui/client/quest-run-views.js и quest-journal-views.js.
+
+   Слой склеивается после 08 и до 10–99, поэтому порядок здесь ничего не
+   решает: общий устав раскрывашек 07b весит (0,3,2), канон 99 ловит поля
+   правилом (0,4,2). Селекторы набраны от .hall-body .hall-dialogue
+   .master-v2-run намеренно — иначе спор решается счётом, а не замыслом.
+
+   Тон состояния — канон docs/RPG-DESIGN-SYSTEM.md: идёт — --mana (ссылка
+   темы), ждёт человека — --caution, готово — --vital, провал — --wound,
+   отмена и пауза — приглушённо. Акцент --ember остаётся главной кнопке. */
+
+/* Точка состояния и её пульс — у строки в ленте тоже, а не только у свёрнутой.
+   Пульс берёт цвет точки: одно движение на все состояния. */
+.hall-dialogue .master-v2-run .hall-quest-dot { color: var(--hub-muted); }
+.hall-dialogue .master-v2-run.is-active .hall-quest-dot { color: var(--mana); }
+.hall-dialogue .master-v2-run.is-attention .hall-quest-dot { color: var(--caution); }
+.hall-dialogue .master-v2-run.is-done .hall-quest-dot { color: var(--vital); }
+.hall-dialogue .master-v2-run.is-failed .hall-quest-dot { color: var(--wound); }
+.hall-dialogue .master-v2-run.is-live .hall-quest-dot {
+  box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 60%, transparent);
+  animation: hall-quest-pulse 2s var(--ease) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hall-dialogue .master-v2-run.is-live .hall-quest-dot { animation: none; }
+}
+
+/* Время работы — тихим моноширинным, чтобы цифры не дёргали строку. */
+.hall-dialogue .quest-run-time {
+  flex: none;
+  color: var(--hub-muted);
+  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-mono);
+}
+
+/* Пауза и отмена — значками справа в строке. */
+.hall-dialogue .quest-run-controls { display: inline-flex; flex: none; gap: var(--s-1); }
+.hall-body .hall-dialogue .master-v2-run .quest-icon-btn {
+  display: inline-grid;
+  place-items: center;
+  width: var(--control-sm);
+  min-width: var(--control-sm);
+  height: var(--control-sm);
+  min-height: var(--control-sm);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-1);
+  background: transparent;
+  color: var(--hub-muted);
+  cursor: pointer;
+  transition: background var(--motion-fast) var(--ease), color var(--motion-fast) var(--ease);
+}
+.hall-body .hall-dialogue .master-v2-run .quest-icon-btn:hover,
+.hall-body .hall-dialogue .master-v2-run .quest-icon-btn:focus-visible {
+  background: var(--hub-selected);
+  color: var(--hub-text);
+  outline: none;
+}
+.hall-body .hall-dialogue .master-v2-run .quest-icon-btn:disabled { opacity: var(--disabled-opacity); cursor: default; }
+.hall-dialogue .quest-icon-btn .hall-icon { width: 14px; height: 14px; }
+
+/* Сегментная полоса этапов: по сегменту на этап. Ширину делит сетка — стиль в
+   разметке CSP выбрасывает. */
+.hall-dialogue .quest-track {
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  gap: var(--s-1);
+}
+.hall-dialogue .quest-track > i {
+  display: block;
+  height: var(--s-2);
+  border-radius: var(--r-1);
+  background: color-mix(in srgb, var(--hub-text) 12%, transparent);
+  transition: background var(--motion-base) var(--ease);
+}
+.hall-dialogue .quest-track > i.is-done { background: var(--vital); }
+.hall-dialogue .quest-track > i.is-now { background: var(--mana); }
+.hall-dialogue .quest-track > i.is-fail { background: var(--wound); }
+
+/* «Этап 2 из 7 · Реализация · Разработчик · модель». */
+.hall-dialogue .quest-now-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-1) var(--s-3);
+  min-width: 0;
+  color: var(--hub-muted);
+  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui);
+}
+.hall-dialogue .quest-now-line > b { color: var(--hub-text-2); font-weight: var(--fw-medium); }
+.hall-dialogue .quest-now-detail {
+  max-width: 48ch;
+  overflow: hidden;
+  color: var(--hub-faint);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Полоса вердикта: кромка тоном исхода и лёгкий смыв того же тона. */
+.hall-dialogue .quest-verdict {
+  display: grid;
+  gap: var(--s-2);
+  padding: var(--s-3) var(--s-4);
+  border-left: var(--edge-accent) solid var(--hub-border-strong);
+  background: color-mix(in srgb, var(--hub-text) 4%, transparent);
+  color: var(--hub-text-2);
+  font: var(--fw-normal) var(--t-body) / 1.5 var(--font-ui);
+}
+.hall-dialogue .quest-verdict.is-done { border-left-color: var(--vital); background: var(--vital-wash); }
+.hall-dialogue .quest-verdict.is-attention { border-left-color: var(--caution); background: var(--caution-wash); }
+.hall-dialogue .quest-verdict.is-failed { border-left-color: var(--wound); background: var(--wound-wash); }
+.hall-dialogue .quest-verdict p { margin: 0; }
+.hall-dialogue .quest-verdict ul { display: grid; gap: var(--s-1); margin: 0; padding: 0 0 0 var(--s-5); color: var(--hub-text-3); font-size: var(--t-small); }
+.hall-dialogue .quest-verdict code,
+.hall-dialogue .quest-facts code {
+  padding: 0 var(--s-1);
+  border-radius: var(--r-1);
+  background: var(--hall-slot-fill);
+  color: var(--hub-text-2);
+  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+/* Ряд действий: одна залитая кнопка на прогон — главное дело, остальные
+   контуром. Адрес приложения — ссылка тоном ссылки. */
+.hall-dialogue .quest-actions { display: grid; gap: var(--s-3); }
+.hall-dialogue .quest-actions > div { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); }
+/* Общий устав кнопок разговора уводит главную вправо (margin-left: auto); в
+   ряду прогона она стоит первой, под вердиктом, к которому относится. */
+.hall-body .hall-dialogue .master-v2-run .quest-actions .hall-btn.is-primary {
+  margin-left: 0;
+  border-color: var(--ember);
+  background: var(--ember);
+  color: var(--hub-void);
+}
+.hall-body .hall-dialogue .master-v2-run .quest-actions .hall-btn.is-primary:hover { border-color: var(--ember-hover); background: var(--ember-hover); }
+
+/* Уточнение агенту — строка на подчёркивании со значком отправки, как поиск
+   по разговору, а не форма с подписью. */
+.hall-dialogue .quest-message {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s-2);
+  border-bottom: 1px solid color-mix(in srgb, var(--hub-text) 12%, transparent);
+}
+.hall-dialogue .quest-message:focus-within { border-bottom-color: color-mix(in srgb, var(--hub-text) 30%, transparent); }
+.hall-body .hall-dialogue .master-v2-run .quest-message input:not([type="checkbox"]):not([type="radio"]):not([type="range"]) {
+  min-width: 0;
+  min-height: var(--control-md);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--hub-text);
+  font: var(--fw-normal) var(--t-body) / 1.4 var(--font-ui);
+}
+.hall-body .hall-dialogue .master-v2-run .quest-message input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus { outline: none; }
+
+/* ── Журнал этапа ───────────────────────────────────────────────────────── */
+.hall-dialogue .quest-journal { display: grid; gap: var(--s-3); min-width: 0; }
+.hall-dialogue .quest-journal.is-empty,
+.hall-dialogue .quest-journal-cut,
+.hall-dialogue .quest-more { color: var(--hub-faint); font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui); }
+
+/* Раскрывашки журнала несут свои знаки: общий маркер «›» 07b им не нужен. */
+.hall-body .hall-dialogue .master-v2-run .quest-journal details > summary::before { content: none; }
+.hall-body .hall-dialogue .master-v2-run .quest-journal details[open] > summary { margin-bottom: 0; }
+
+/* Реплика агента — на языке модели, тихим набором: это ход мысли, а не
+   ответ человеку. */
+.hall-dialogue .quest-say {
+  color: var(--hub-text-3);
+  font: var(--fw-normal) var(--t-body) / 1.55 var(--font-ui);
+}
+.hall-dialogue .quest-say-body p { margin: 0 0 var(--s-2); }
+.hall-dialogue .quest-say-body p:last-child { margin-bottom: 0; }
+.hall-dialogue .quest-say.is-mine { display: grid; gap: var(--s-1); padding-left: var(--s-4); border-left: var(--edge-accent) solid var(--hub-border-strong); }
+.hall-dialogue .quest-say.is-mine > small { color: var(--hub-muted); font-size: var(--t-small); }
+.hall-body .hall-dialogue .master-v2-run .quest-journal .quest-say > summary {
+  display: block;
+  min-height: 0;
+  color: var(--hub-text-3);
+  font: var(--fw-normal) var(--t-body) / 1.55 var(--font-ui);
+}
+.hall-dialogue .quest-say-more,
+.hall-dialogue .quest-say-less { margin-left: var(--s-3); color: var(--hub-muted); font-size: var(--t-small); text-decoration: underline; text-underline-offset: 2px; }
+.hall-dialogue .quest-say-less,
+.hall-dialogue .quest-say[open] .quest-say-lead,
+.hall-dialogue .quest-say[open] .quest-say-more { display: none; }
+.hall-dialogue .quest-say[open] .quest-say-less { display: inline; }
+.hall-dialogue .quest-say[open] > .quest-say-body { margin-top: var(--s-1); }
+
+/* Сводка действий — та же строка, что у следа хода Мастера (07c). Внутри
+   прогона её перебивал общий устав раскрывашек 07b, поэтому она объявлена
+   здесь ещё раз, с весом прогона. */
+.hall-body .hall-dialogue .master-v2-run .quest-trail > .hall-trail-group > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: var(--control-sm);
+  margin-left: calc(var(--s-3) * -1);
+  padding: 0 var(--s-3);
+  border-radius: var(--r-1);
+  color: var(--hub-muted);
+  font: var(--fw-normal) var(--t-body) / 1 var(--font-ui);
+}
+.hall-body .hall-dialogue .master-v2-run .quest-trail > .hall-trail-group > summary:hover,
+.hall-body .hall-dialogue .master-v2-run .quest-trail > .hall-trail-group > summary:focus-visible {
+  background: var(--hub-selected);
+  color: var(--hub-text);
+}
+.hall-dialogue .quest-trail-warn { display: inline-flex; align-items: center; gap: var(--s-1); color: var(--caution); }
+.hall-dialogue .quest-trail-warn .hall-icon { width: 14px; height: 14px; }
+.hall-dialogue .quest-trail.is-running .hall-trail-label { color: var(--hub-text-2); }
+
+/* Строка события внутри журнала: значок, что, текст. */
+.hall-dialogue .hall-step.quest-note { grid-template-columns: 16px auto minmax(0, 1fr); }
+.hall-dialogue .quest-note-text {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--hub-text-3);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hall-dialogue .hall-step.quest-note.is-warn .hall-step-icon,
+.hall-dialogue .hall-step.quest-note.is-warn > b { color: var(--caution); }
+.hall-dialogue .hall-step.quest-note.is-fail .hall-step-icon,
+.hall-dialogue .hall-step.quest-note.is-fail > b { color: var(--wound); }
+.hall-dialogue .hall-step.quest-note.is-ok .hall-step-icon,
+.hall-dialogue .hall-step.quest-note.is-ok > b { color: var(--vital); }
+.hall-dialogue .hall-step.quest-note.is-quiet > b { color: var(--hub-muted); }
+/* Предупреждение пишет по-русски и целиком: переносится, а не обрезается. */
+.hall-dialogue .quest-alerts .quest-note-text { white-space: normal; }
+.hall-dialogue .quest-step.is-soft-fail > small { color: var(--caution); }
+.hall-dialogue .quest-step.is-running > small { color: var(--mana); }
+
+/* Строка файла: значок, путь, счёт правки, состояние, знак раскрытия. */
+.hall-dialogue .quest-file {
+  border: 1px solid var(--hub-border-soft);
+  border-radius: var(--r-1);
+  overflow: hidden;
+}
+.hall-dialogue div.quest-file,
+.hall-body .hall-dialogue .master-v2-run .quest-journal .quest-file > summary {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto auto 16px;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: var(--control-md);
+  padding: 0 var(--s-4);
+  color: var(--hub-muted);
+  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui);
+  cursor: pointer;
+}
+.hall-dialogue div.quest-file { grid-template-columns: 16px minmax(0, 1fr) auto auto; cursor: default; }
+.hall-body .hall-dialogue .master-v2-run .quest-journal .quest-file > summary:hover { background: var(--hub-raised); color: var(--hub-text); }
+.hall-dialogue .quest-file .hall-step-icon { display: inline-flex; color: var(--hub-muted); }
+.hall-dialogue .quest-file .hall-icon { width: 14px; height: 14px; }
+.hall-dialogue .quest-file-path {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--hub-text-2);
+  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hall-dialogue .quest-file-chevron { display: inline-flex; transition: transform var(--motion-fast) var(--ease); }
+.hall-dialogue .quest-file[open] .quest-file-chevron { transform: rotate(90deg); }
+
+.hall-dialogue .quest-diff-count { display: inline-flex; gap: var(--s-2); font: var(--fw-normal) var(--t-small) / 1.4 var(--font-mono); }
+.hall-dialogue .quest-diff-count .is-add { color: var(--vital); font-weight: var(--fw-normal); }
+.hall-dialogue .quest-diff-count .is-del { color: var(--wound); font-weight: var(--fw-normal); }
+
+/* Тело diff: строка — тоном своей правки, переносится, а не уводит ленту в
+   горизонтальную прокрутку. */
+.hall-dialogue .quest-diff {
+  display: grid;
+  max-height: 20rem;
+  overflow: auto;
+  padding: var(--s-2) 0;
+  border-top: 1px solid var(--hub-border-soft);
+  background: color-mix(in srgb, var(--hub-void) 60%, transparent);
+  font: var(--fw-normal) var(--t-small) / 1.5 var(--font-mono);
+}
+.hall-dialogue .quest-diff-line {
+  display: block;
+  padding: 0 var(--s-4);
+  color: var(--hub-text-3);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.hall-dialogue .quest-diff-line.is-add { background: var(--vital-wash); color: var(--vital); }
+.hall-dialogue .quest-diff-line.is-del { background: var(--wound-wash); color: var(--wound); }
+.hall-dialogue .quest-diff-line.is-hunk { color: var(--mana); }
+.hall-dialogue .quest-diff-line.is-meta { color: var(--hub-faint); }
+
+/* Что агент делает сейчас — последняя строка журнала. */
+.hall-dialogue .quest-now {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-width: 0;
+  color: var(--hub-muted);
+  font: var(--fw-normal) var(--t-body) / 1.4 var(--font-ui);
+}
+.hall-dialogue .quest-now > i {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-full);
+  background: currentColor;
+  color: var(--mana);
+  animation: hall-quest-pulse 2s var(--ease) infinite;
+}
+.hall-dialogue .quest-now.is-waiting > i { color: var(--caution); animation: none; }
+.hall-dialogue .quest-now > code {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--hub-text-2);
+  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hall-dialogue .quest-now > small { flex: none; font: var(--fw-normal) var(--t-small) / 1.4 var(--font-mono); }
+@media (prefers-reduced-motion: reduce) {
+  .hall-dialogue .quest-now > i { animation: none; }
+}
+
+/* ── Итог ───────────────────────────────────────────────────────────────── */
+/* Условие, которое прогон не доказал, — крестом тоном отказа, а под текстом
+   условия — чем оно доказано. */
+.hall-dialogue .hall-quest-check li > i { display: grid; place-items: center; }
+.hall-dialogue .hall-quest-check li > i > .hall-icon { width: 10px; height: 10px; }
+.hall-dialogue .hall-quest-check li.is-failed > i { border-color: color-mix(in srgb, var(--wound) 50%, transparent); color: var(--wound); }
+.hall-dialogue .hall-quest-proof {
+  display: block;
+  margin-top: var(--s-1);
+  overflow: hidden;
+  color: var(--hub-muted);
+  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hall-dialogue .hall-quest-chip.is-short { color: var(--caution); }
+
+.hall-dialogue .quest-checks,
+.hall-dialogue .quest-files { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.hall-dialogue .quest-checks > li,
+.hall-dialogue .quest-files > li {
+  display: grid;
+  grid-template-columns: 16px auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--s-3);
+  min-height: var(--control-sm);
+  color: var(--hub-muted);
+  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui);
+}
+.hall-dialogue .quest-files > li { grid-template-columns: 16px minmax(0, 1fr) auto; }
+.hall-dialogue .quest-checks .hall-step-icon,
+.hall-dialogue .quest-files .hall-step-icon { display: inline-flex; }
+.hall-dialogue .quest-checks .hall-icon,
+.hall-dialogue .quest-files .hall-icon { width: 14px; height: 14px; }
+.hall-dialogue .quest-checks > li.is-done .hall-step-icon { color: var(--vital); }
+.hall-dialogue .quest-checks > li.is-failed .hall-step-icon { color: var(--wound); }
+.hall-dialogue .quest-checks > li > b { color: var(--hub-text-2); font-weight: var(--fw-normal); white-space: nowrap; }
+.hall-dialogue .quest-checks > li > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hall-dialogue .quest-checks code { color: var(--hub-text-3); font: var(--fw-normal) var(--t-small) / 1.4 var(--font-mono); }
+
+.hall-dialogue .quest-section { display: grid; gap: var(--s-2); }
+.hall-dialogue .quest-section > h4 { margin: 0; color: var(--hub-muted); font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui); }
+/* Путь файла — цель указателя во всю строку, а не строка текста в 15 пикселей. */
+.hall-body .hall-dialogue .master-v2-run .quest-file-link {
+  display: block;
+  min-width: 0;
+  min-height: var(--control-sm);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  overflow: hidden;
+  color: var(--hub-text-2);
+  font: var(--fw-normal) var(--t-small) / var(--control-sm) var(--font-mono);
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.hall-body .hall-dialogue .master-v2-run .quest-file-link:hover,
+.hall-body .hall-dialogue .master-v2-run .quest-file-link:focus-visible { color: var(--mana); text-decoration: underline; outline: none; }
+.hall-dialogue .quest-files > li > span:not(.hall-step-icon):not(.quest-diff-count) {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--hub-text-2);
+  font-family: var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Счёт этапов уже стоит в заголовке свёртки — второй раз внутри он не нужен. */
+.hall-dialogue .hall-plan-row.is-fail > i { color: var(--wound); }
+.hall-dialogue .quest-stages .hall-plan-progress { display: none; }
+
+/* Свёрнутые разделы итога: общий маркер раскрывашки 07b, пары «имя — значение». */
+.hall-dialogue .quest-facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--s-2) var(--s-5);
+  margin: 0;
+  font: var(--fw-normal) var(--t-small) / 1.5 var(--font-ui);
+}
+.hall-dialogue .quest-facts dt { color: var(--hub-muted); }
+.hall-dialogue .quest-facts dd { min-width: 0; margin: 0; color: var(--hub-text-2); overflow-wrap: anywhere; }
+
+/* Отчёт ядра над карточкой: вердикт строкой, «Нужно действие» тоном ожидания
+   человека, полный текст — под раскрытием. */
+.hall-dialogue .quest-report { display: grid; gap: var(--s-2); }
+.hall-dialogue .quest-report p { margin: 0; }
+.hall-dialogue .quest-report-head { color: var(--hub-text); font-weight: var(--fw-medium); }
+.hall-dialogue .quest-report-action { color: var(--caution); }
+.hall-dialogue .quest-report-body { color: var(--hub-text-3); font-size: var(--t-body); }
+.hall-body .hall-dialogue .quest-report .quest-fold > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: var(--hit);
+  color: var(--hub-muted);
+  cursor: pointer;
+  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui);
+  list-style: none;
+}
+.hall-body .hall-dialogue .quest-report .quest-fold > summary::-webkit-details-marker { display: none; }
+.hall-body .hall-dialogue .quest-report .quest-fold > summary::before {
+  content: "›";
+  width: var(--s-5);
+  color: var(--ui-faint);
+  text-align: center;
+  font: var(--fw-normal) var(--t-base) / 1 var(--font-mono);
+  transition: transform var(--motion-fast) var(--ease);
+}
+.hall-body .hall-dialogue .quest-report .quest-fold[open] > summary::before { transform: rotate(90deg); }
+
+/* ── Приложение квеста ──────────────────────────────────────────────────────
+   Одна рамка на всё, что про приложение: вид, состояние, адрес, запуск и
+   остановка половинами одного переключателя и вывод того, что происходит при
+   запуске. Раньше «Запустить приложение», «Остановить» и «Собрать отчёт» стояли
+   одним рядом и читались тремя равными делами. */
+.hall-dialogue .quest-app {
+  display: grid;
+  gap: var(--s-4);
+  padding: var(--s-5);
+  border: 1px solid var(--hub-border-soft);
+  border-radius: var(--r-2);
+  background: color-mix(in srgb, var(--hub-text) 3%, transparent);
+}
+.hall-dialogue .quest-app > header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-3);
+  min-width: 0;
+}
+.hall-dialogue .quest-app > header > b { color: var(--hub-text); font: var(--fw-medium) var(--t-body) / 1.4 var(--font-ui); }
+.hall-dialogue .quest-app-state { color: var(--hub-muted); font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui); }
+.hall-dialogue .quest-app-dot {
+  flex: none;
+  width: var(--s-3);
+  height: var(--s-3);
+  border-radius: var(--r-full);
+  background: currentColor;
+  color: var(--hub-faint);
+}
+.hall-dialogue .quest-app.is-on .quest-app-dot { color: var(--vital); }
+.hall-dialogue .quest-app.is-on .quest-app-state { color: var(--hub-text-3); }
+.hall-dialogue .quest-app.is-busy .quest-app-dot { color: var(--mana); animation: hall-quest-pulse 2s var(--ease) infinite; }
+.hall-dialogue .quest-app.is-failed .quest-app-dot { color: var(--wound); }
+.hall-dialogue .quest-app.is-failed .quest-app-state { color: var(--wound); }
+
+/* Адрес — ссылка на приложение: открывает его в браузере, пока оно работает. */
+.hall-body .hall-dialogue .master-v2-run .quest-app-url {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  min-height: var(--control-sm);
+  margin-left: auto;
+  padding: 0 var(--s-2);
+  border: 0;
+  border-radius: var(--r-1);
+  background: transparent;
+  color: var(--mana);
+  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-mono);
+  cursor: pointer;
+}
+.hall-body .hall-dialogue .master-v2-run .quest-app-url:hover:not(:disabled),
+.hall-body .hall-dialogue .master-v2-run .quest-app-url:focus-visible { background: var(--hub-selected); outline: none; text-decoration: underline; }
+.hall-body .hall-dialogue .master-v2-run .quest-app-url:disabled { color: var(--hub-muted); cursor: default; }
+.hall-dialogue .quest-app-url .hall-icon { width: 12px; height: 12px; }
+
+/* Переключатель: две половины одного контура. Главная половина — та, что
+   сейчас имеет смысл, — залита акцентом; недоступная гаснет. */
+.hall-dialogue .quest-app-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-3); min-width: 0; }
+.hall-dialogue .quest-app-seg {
+  display: inline-flex;
+  overflow: hidden;
+  border: 1px solid var(--hub-border-strong);
+  border-radius: var(--r-2);
+}
+.hall-body .hall-dialogue .master-v2-run .quest-app-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: var(--control-md);
+  margin: 0;
+  padding: 0 var(--s-5);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--hub-text);
+  font: var(--fw-medium) var(--t-small) / 1.3 var(--font-ui);
+  cursor: pointer;
+  transition: background var(--motion-fast) var(--ease), color var(--motion-fast) var(--ease);
+}
+.hall-body .hall-dialogue .master-v2-run .quest-app-btn + .quest-app-btn { border-left: 1px solid var(--hub-border-strong); }
+.hall-body .hall-dialogue .master-v2-run .quest-app-btn:hover:not(:disabled),
+.hall-body .hall-dialogue .master-v2-run .quest-app-btn:focus-visible { background: var(--hub-selected); outline: none; }
+.hall-body .hall-dialogue .master-v2-run .quest-app-btn.is-primary { background: var(--ember); color: var(--hub-void); }
+.hall-body .hall-dialogue .master-v2-run .quest-app-btn.is-primary:hover:not(:disabled) { background: var(--ember-hover); }
+.hall-body .hall-dialogue .master-v2-run .quest-app-btn:disabled { color: var(--hub-muted); cursor: default; }
+.hall-dialogue .quest-app-btn .hall-icon { width: 14px; height: 14px; }
+.hall-dialogue .quest-app-cmd {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--hub-text-3);
+  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hall-dialogue .quest-app-error { margin: 0; color: var(--wound); font: var(--fw-normal) var(--t-small) / 1.45 var(--font-ui); }
+
+/* Вывод запуска: как в терминале, но тоном: команда, ответ, сбой. */
+.hall-dialogue .quest-app-lines {
+  display: grid;
+  max-height: 16rem;
+  overflow: auto;
+  margin-top: var(--s-2);
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-1);
+  background: color-mix(in srgb, var(--hub-void) 70%, transparent);
+  font: var(--fw-normal) var(--t-small) / 1.55 var(--font-mono);
+}
+.hall-dialogue .quest-app-lines > span { color: var(--hub-text-3); white-space: pre-wrap; overflow-wrap: anywhere; }
+.hall-dialogue .quest-app-lines > .is-cmd { color: var(--hub-muted); }
+.hall-dialogue .quest-app-lines > .is-note { color: var(--mana); }
+.hall-dialogue .quest-app-lines > .is-ok { color: var(--vital); }
+.hall-dialogue .quest-app-lines > .is-fail { color: var(--wound); }
+
+/* Крутилка идущего действия — кольцо тоном ссылки темы. */
+.hall-dialogue .quest-spin {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border: 2px solid color-mix(in srgb, var(--mana) 25%, transparent);
+  border-top-color: var(--mana);
+  border-radius: var(--r-full);
+  animation: quest-spin 0.9s linear infinite;
+}
+@keyframes quest-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .hall-dialogue .quest-spin,
+  .hall-dialogue .quest-app.is-busy .quest-app-dot { animation: none; }
+}
+
+/* Отчёт: кнопка, пока его нет; строка о том, где он и как открыть снова. */
+.hall-dialogue .quest-report-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-3);
+  min-width: 0;
+  color: var(--hub-muted);
+  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui);
+}
+.hall-dialogue .quest-report-line .hall-btn { gap: var(--s-3); }
+.hall-dialogue .quest-report-line .hall-icon { width: 14px; height: 14px; }
+.hall-dialogue .quest-report-line.is-done > .hall-icon { color: var(--vital); }
+.hall-dialogue .quest-report-line.is-done > span { color: var(--hub-text-3); }
+.hall-dialogue .quest-report-line.is-failed { color: var(--wound); }
+.hall-dialogue .quest-report-line > code {
+  max-width: 40ch;
+  overflow: hidden;
+  color: var(--hub-text-3);
+  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

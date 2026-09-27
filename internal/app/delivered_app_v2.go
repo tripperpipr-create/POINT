@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"local-agent-workbench/internal/domain"
 	"local-agent-workbench/internal/osproc"
@@ -51,73 +52,86 @@ func (a *App) ControlDeliveredApplicationV2(ctx context.Context, questID, action
 	if questID == "" || (action != "start" && action != "stop") || request.Version <= 0 || request.WorkOrderDigest == "" || request.DeliveryReceiptID == "" || request.IdempotencyKey == "" {
 		return domain.DeliveredApplicationControl{}, errors.New("quest, start/stop action, version, digest, deliveryReceiptId and idempotencyKey are required")
 	}
-	approval, err := a.store.WorkOrderApprovalByQuestV2(ctx, questID)
+	target, err := a.resolveDeliveredAppTargetV2(ctx, questID)
 	if err != nil {
 		return domain.DeliveredApplicationControl{}, err
 	}
+	approval, bundle, receipt := target.approval, target.bundle, target.receipt
 	if approval.WorkOrder.Version != request.Version || domain.WorkOrderDigest(approval.WorkOrder) != request.WorkOrderDigest {
 		return domain.DeliveredApplicationControl{}, errors.New("application action does not match the approved work order version and digest")
 	}
-	bundle, err := a.store.GetEvidenceBundle(ctx, questID)
-	if err != nil {
-		return domain.DeliveredApplicationControl{}, err
-	}
 	status, gateErr := domain.WorkOrderEvidenceStatus(approval.WorkOrder, bundle)
-	if gateErr != nil || status != domain.QuestCompleted || bundle.DeliveryReceipt == nil {
+	if gateErr != nil || status != domain.QuestCompleted {
 		return domain.DeliveredApplicationControl{}, errors.New("only a completed verified delivery can be started or stopped")
 	}
-	receipt := bundle.DeliveryReceipt
-	if receipt.ID != request.DeliveryReceiptID || receipt.WorkOrderDigest != request.WorkOrderDigest || filepath.Clean(receipt.Target) != filepath.Clean(approval.WorkOrder.Workspace.Path) {
+	if receipt.ID != request.DeliveryReceiptID || receipt.WorkOrderDigest != request.WorkOrderDigest {
 		return domain.DeliveredApplicationControl{}, errors.New("delivery receipt does not match the approved target")
 	}
-	composeFile := strings.TrimSpace(receipt.ComposeFile)
-	if composeFile == "" {
-		composeFile, err = discoverComposeFileV2(receipt.Target)
-		if err != nil {
-			return domain.DeliveredApplicationControl{}, err
-		}
-	}
-	if filepath.Base(composeFile) != composeFile {
-		return domain.DeliveredApplicationControl{}, errors.New("delivery receipt compose path is not a root file")
-	}
-	composePath := filepath.Join(receipt.Target, composeFile)
-	if info, statErr := os.Stat(composePath); statErr != nil || info.IsDir() {
-		return domain.DeliveredApplicationControl{}, errors.New("delivery receipt compose file is unavailable")
+	if target.composePath == "" {
+		return domain.DeliveredApplicationControl{}, errors.New("delivered workspace has no root Docker Compose file")
 	}
 	control := domain.DeliveredApplicationControl{
 		QuestID: questID, DeliveryReceiptID: receipt.ID, WorkOrderDigest: request.WorkOrderDigest,
-		Action: action, URL: receipt.URL,
+		Action: action, URL: deliveredAppURLV2(target),
+	}
+	// Второе действие поверх идущего запустило бы ту же сборку дважды; повтор
+	// того же ключа отвечает из журнала и в реестр не попадает.
+	if !a.deliveredApps.begin(questID, action) {
+		return domain.DeliveredApplicationControl{}, errors.New("an application action for this quest is already running")
 	}
 	control, replayed, err := a.store.BeginDeliveredAppControlV2(ctx, request.IdempotencyKey, control)
 	if err != nil || replayed {
+		a.deliveredApps.finish(questID, control)
 		return control, err
 	}
-	runner := a.deliveredAppRunner
-	if runner == nil {
-		runner = dockerDeliveredAppRunner{}
-	}
-	arguments := []string{"compose", "-f", composePath}
+	// Команда живёт своим сроком, а не сроком запроса: клиент, который
+	// перестал ждать ответа, не должен обрывать `compose up` на середине сборки.
+	runCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 20*time.Minute)
+	defer cancel()
+	runner := a.deliveredAppRunnerOrDefault()
+	inspector, inspectable := runner.(deliveredAppInspector)
+	say := func(line string) { a.deliveredApps.line(questID, line) }
+	arguments := []string{"compose", "-f", target.composePath}
 	if action == "start" {
 		arguments = append(arguments, "up", "-d")
 	} else {
 		arguments = append(arguments, "stop")
 	}
-	output, runErr := runner.Run(ctx, receipt.Target, arguments...)
+	say("$ docker compose -f " + target.composeFile + " " + strings.Join(arguments[3:], " "))
+	var output string
+	var runErr error
+	if inspectable {
+		output, runErr = inspector.RunStreaming(runCtx, receipt.Target, say, arguments...)
+	} else {
+		output, runErr = runner.Run(runCtx, receipt.Target, arguments...)
+		for _, line := range strings.Split(output, "\n") {
+			say(line)
+		}
+	}
 	control.Summary = security.Redact(strings.TrimSpace(output))
 	if len(control.Summary) > 2000 {
-		control.Summary = control.Summary[:2000]
+		control.Summary = control.Summary[len(control.Summary)-2000:]
 	}
 	if runErr != nil {
 		control.Status = "failed"
 		if control.Summary == "" {
 			control.Summary = security.Redact(runErr.Error())
 		}
+		say("Команда завершилась ошибкой: " + security.Redact(runErr.Error()))
 	} else if action == "start" {
 		control.Status = "running"
+		if inspectable && loopbackURL(control.URL) {
+			control.Ready, control.HTTPStatus, control.ContentType = waitDeliveredAppReady(runCtx, inspector, control.URL, say)
+		} else if inspectable {
+			if services, probeErr := inspector.RunningServices(runCtx, receipt.Target, target.composePath); probeErr == nil {
+				say(fmt.Sprintf("Работает контейнеров: %d", services))
+			}
+		}
 	} else {
 		control.Status = "stopped"
 	}
-	if err = a.store.FinishDeliveredAppControlV2(ctx, request.IdempotencyKey, control); err != nil {
+	a.deliveredApps.finish(questID, control)
+	if err = a.store.FinishDeliveredAppControlV2(runCtx, request.IdempotencyKey, control); err != nil {
 		return domain.DeliveredApplicationControl{}, fmt.Errorf("journal delivered application action: %w", err)
 	}
 	return control, nil

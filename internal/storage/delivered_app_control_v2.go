@@ -59,6 +59,24 @@ func (s *SQLite) BeginDeliveredAppControlV2(ctx context.Context, idempotencyKey 
 	return requested, false, nil
 }
 
+// LatestDeliveredAppControlV2 returns the most recent start/stop journal entry
+// for a quest, so a reopened Hub knows what was last done with the app.
+func (s *SQLite) LatestDeliveredAppControlV2(ctx context.Context, questID string) (domain.DeliveredApplicationControl, bool, error) {
+	var raw string
+	err := s.db.QueryRowContext(ctx, `SELECT response_json FROM delivered_app_controls_v2 WHERE quest_id=? ORDER BY updated_at DESC LIMIT 1`, strings.TrimSpace(questID)).Scan(&raw)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.DeliveredApplicationControl{}, false, nil
+	}
+	if err != nil {
+		return domain.DeliveredApplicationControl{}, false, err
+	}
+	var control domain.DeliveredApplicationControl
+	if err = json.Unmarshal([]byte(raw), &control); err != nil {
+		return domain.DeliveredApplicationControl{}, false, errors.New("stored application action is invalid")
+	}
+	return control, true, nil
+}
+
 func (s *SQLite) FinishDeliveredAppControlV2(ctx context.Context, idempotencyKey string, result domain.DeliveredApplicationControl) error {
 	result.UpdatedAt = time.Now().UTC()
 	raw, err := json.Marshal(result)

@@ -44,7 +44,6 @@
    вес, тон и отступ; разрядка на строчных буквах их только расплывает, а
    прописные в 10px читаются хуже строчных в 11px. */
 .master-v2-order b,
-.master-v2-runtime-controls > label > span,
 .master-v2-editor label > span {
   color: var(--hub-muted);
   font: var(--fw-semibold) var(--t-small) / var(--lh-base) var(--font-ui);
@@ -78,18 +77,8 @@
 .master-v2-grid section > strong { color: var(--hub-text); font-size: var(--t-body); }
 /* Код — это значение, а не полоса: без inline-block фон растягивался на всю
    колонку сетки и читался как заливка яруса. */
-.master-v2-grid code, .master-v2-evidence code { display: inline-block; width: max-content; max-width: 100%; padding: 0 var(--s-1); background: var(--hall-slot-fill); color: var(--hub-text-2); font-family: var(--font-mono); }
+.master-v2-grid code { display: inline-block; width: max-content; max-width: 100%; padding: 0 var(--s-1); background: var(--hall-slot-fill); color: var(--hub-text-2); font-family: var(--font-mono); }
 .master-v2-empty { color: var(--hub-faint); font-size: var(--t-small); }
-.master-v2-runtime-controls { display: grid; gap: var(--s-3); padding: var(--s-4); border-radius: var(--r-2); background: var(--hall-slot-fill); }
-.master-v2-runtime-controls > div { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); }
-.master-v2-runtime-controls > label { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--s-2); align-items: end; }
-.master-v2-runtime-controls > label > span { grid-column: 1 / -1; }
-.master-v2-runtime-controls input { min-width: 0; }
-/* Адрес приложения — цель указателя, а не строка текста: аудит считал 149×19. */
-.master-v2-application-controls a { display: inline-flex; align-items: center; min-height: var(--hit); color: var(--ember); }
-.master-v2-application-controls strong { color: var(--hub-text); font-size: var(--t-body); }
-.master-v2-evidence[open] > summary { color: var(--hub-text); }
-.master-v2-evidence .master-v2-grid section > span { display: block; }
 .master-v2-editor-simple, .master-v2-editor-advanced { display: grid; gap: var(--s-3); }
 .master-v2-editor label { display: grid; gap: var(--s-2); min-width: 0; }
 .master-v2-editor textarea, .master-v2-editor input {
@@ -126,10 +115,9 @@
   color: var(--hub-muted);
   opacity: var(--disabled-opacity);
 }
-/* Остальные «главные» кнопки карточки — контур: сохранение версии и
-   продолжение квеста не спорят с запуском. */
-.master-v2-editor-actions .hall-btn.is-primary,
-.master-v2-runtime-controls .hall-btn.is-primary {
+/* Остальные «главные» кнопки карточки — контур: сохранение версии не спорит
+   с запуском. Ряд действий прогона — в 08b-quest-run.css. */
+.master-v2-editor-actions .hall-btn.is-primary {
   border-color: var(--hub-border-strong);
   background: none;
   color: var(--hub-text);
@@ -141,10 +129,9 @@
 .master-v2-approved.is-done { color: var(--vital); }
 .master-v2-approved.is-attention { color: var(--caution); }
 .master-v2-approved.is-quiet { color: var(--hub-muted); }
-.master-v2-approved.is-active { color: var(--hub-text-3); }
+.master-v2-approved.is-active { color: var(--mana); }
+.master-v2-approved.is-failed { color: var(--wound); }
 @media (max-width: 720px) {
-  .master-v2-runtime-controls > label { grid-template-columns: 1fr; }
-  .master-v2-runtime-controls > label > span { grid-column: auto; }
   .master-v2-order > footer { align-items: stretch; flex-direction: column; }
 }
 
@@ -152,27 +139,12 @@
 /* Утверждённая карточка перестаёт быть предложением: состав уходит под один
    заголовок, а место занимает то, что происходит сейчас. Тон здесь спокойный —
    работа идёт, тревожен только блок причины затыка. */
-.master-v2-order.is-executing > .master-v2-composition > summary { color: var(--hub-muted); }
 .work-order-exec { display: grid; gap: var(--s-4); padding: var(--s-4) var(--s-5); }
-.work-order-exec-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-4); }
-/* Блок управления рисовался как самостоятельная панель — со своим фоном,
-   полем и нижней чертой. Внутри экрана выполнения, у которого поле уже есть,
-   он читался приподнятой серой коробкой поверх карточки. Здесь это ряд
-   действий, а не панель. */
-.work-order-exec .master-v2-runtime-controls {
-  padding: 0;
-  border-bottom: none;
-  background: none;
-}
 /* Пометка этапа держится своей строки, а не убегает к правому краю: перечень
    в карточке вдвое шире ленты разговора, и «нужен ключ» отрывалось от этапа,
    к которому относится, на половину экрана. */
 .work-order-exec .hall-plan-row { grid-template-columns: var(--s-6) auto minmax(0, 1fr); }
 .work-order-exec .hall-plan { margin: 0; }
-.work-order-exec-head small { color: var(--hub-faint); font: var(--fw-normal) var(--t-micro) / var(--lh-base) var(--font-mono); letter-spacing: var(--tracking-label); }
-.work-order-exec-head > small { flex: 0 0 auto; }
-.work-order-exec-head strong { display: block; color: var(--hub-text); font-size: var(--t-body); }
-.work-order-exec-status { color: var(--hub-muted); font-size: var(--t-small); white-space: nowrap; }
 /* Причина затыка — единственное тревожное место экрана. Текст отказа ядра
    набирается моноширинным: это машинная строка, и переносить её по словам
    значит потерять границы имён модели и подключения. */
@@ -180,7 +152,7 @@
   display: grid;
   gap: var(--s-2);
   padding: var(--s-3) var(--s-4);
-  border-left: var(--edge-accent) solid var(--danger, var(--caution));
+  border-left: var(--edge-accent) solid var(--caution);
   background: var(--caution-wash);
 }
 .work-order-exec-stall b { color: var(--caution); font-size: var(--t-small); }
@@ -190,15 +162,6 @@
   overflow-x: auto;
   color: var(--hub-text-2);
   font: var(--fw-normal) var(--t-micro) / var(--lh-base) var(--font-mono);
-}
-.work-order-exec-log > summary {
-  min-height: var(--hit);
-  display: flex;
-  align-items: center;
-  color: var(--hub-muted);
-  cursor: pointer;
-  font-size: var(--t-small);
-  list-style: none;
 }
 .work-order-exec-empty { color: var(--hub-faint); font-size: var(--t-small); }
 .work-order-exec-note { color: var(--hub-faint); font-size: var(--t-micro); }
@@ -228,60 +191,18 @@
   padding-left: var(--s-5);
   border-left: var(--edge-accent) solid var(--hub-border-strong);
 }
-.master-v2-run.is-active { border-left-color: var(--ember); }
+.master-v2-run.is-active { border-left-color: var(--mana); }
 .master-v2-run.is-attention { border-left-color: var(--caution); }
 .master-v2-run.is-done { border-left-color: var(--vital); }
+.master-v2-run.is-failed { border-left-color: var(--wound); }
 .master-v2-run.is-quiet { border-left-color: var(--hub-border-strong); }
-.master-v2-run-head { display: flex; align-items: baseline; gap: var(--s-3); }
-.master-v2-run-head > div { display: grid; gap: var(--s-1); min-width: 0; }
-.master-v2-run-head strong {
-  color: var(--hub-text);
-  font-size: var(--t-lead);
-  line-height: var(--lh-tight);
-}
-/* Знак исхода стоит слева от цели, как маркер строки, а не пилюлей справа:
-   исход читается вместе с названием работы, а не отдельным ярлыком. */
-.master-v2-run-mark {
-  flex: 0 0 auto;
-  width: var(--s-4);
-  color: var(--hub-muted);
-  font: var(--fw-normal) var(--t-small) / var(--lh-tight) var(--font-mono);
-  text-align: center;
-}
-.master-v2-run.is-attention .master-v2-run-mark { color: var(--caution); }
-.master-v2-run.is-done .master-v2-run-mark { color: var(--vital); }
-/* Работа в ходу — единственное состояние, у которого знак живой. Пульс тот же,
-   что у «Агент работает…» в хронике: одно движение на весь Чертог. */
-.master-v2-run.is-live .master-v2-run-mark::before {
-  content: '';
-  display: block;
-  width: var(--s-3);
-  height: var(--s-3);
-  margin: 0 auto;
-  border-radius: 50%;
-  background: var(--hub-accent, var(--mana));
-  animation: agent-work-pulse 1.1s ease-in-out infinite;
-}
-@media (prefers-reduced-motion: reduce) {
-  .master-v2-run.is-live .master-v2-run-mark::before { animation: none; }
-}
 /* Поле внутри прогона уже задано слева, поэтому экран выполнения своего не
    добавляет: два поля подряд возвращают ощущение коробки внутри коробки. */
 .master-v2-run .work-order-exec { padding: 0; gap: var(--s-4); }
-.master-v2-run .master-v2-composition > summary,
-.master-v2-run .master-v2-runtime-controls { padding-left: 0; padding-right: 0; }
+.master-v2-run .master-v2-composition > summary { padding-left: 0; padding-right: 0; }
 /* Поток работы — главное на экране запущенного квеста, поэтому он не сжат в
    колонку карточки и не спрятан под свёрткой: его читают, пока идёт работа. */
 .master-v2-run .work-order-exec-log { display: grid; gap: var(--s-3); }
-/* Внутри карточки хроника была врезкой с собственной прокруткой на 36vh. В
-   ленте это окно в окне: колесо мыши то листает разговор, то шаги агента, и
-   догадаться, где курсор, нельзя. Поток раскрывается во всю высоту — читают
-   его прокруткой самой ленты, как и остальные реплики. */
-.master-v2-run .agent-work-transcript.is-compact {
-  max-height: none;
-  overflow: visible;
-  gap: var(--s-3);
-}
 @media (max-width: 720px) {
   .master-v2-run { margin-left: var(--s-3); margin-right: var(--s-3); padding-left: var(--s-4); }
 }

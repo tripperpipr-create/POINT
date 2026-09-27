@@ -1,4 +1,4 @@
-import { fillAttribute, formatBytes } from './format-units.js'
+import { fillAttribute, formatBytes, formatDuration } from './format-units.js'
 import { icon } from './ui-icons.js'
 export function createQuestRuntimeViews(dependencies) {
   const {
@@ -863,14 +863,6 @@ export function createQuestRuntimeViews(dependencies) {
       ? `<div class="quest-trace"><small>TRACE</small><span>Execution · ${esc(execution.id)}</span>${quest ? `<span>Quest · ${esc(quest.title || quest.id)}</span>` : ''}${execution.flowRunId ? `<span>Flow · ${esc(flow?.name || execution.flowRunId)}</span>` : ''}${execution.flowNodeId ? `<span>Node · ${esc(flowNode?.name || execution.flowNodeId)}</span>` : ''}</div>`
       : ''
     return `<section class="active-quest"><header><span>Активный квест</span>${status(run.status)}</header><h3>${esc(run.task)}</h3><div class="quest-agent"><span>✦</span><div><small>Агент</small><strong>${esc(profile?.name || run.profileId)} · ${esc(agentClass(profile))}</strong></div></div>${trace}<div class="quest-progress"><label><span>Прогресс</span><b>${progress}%</b></label><progress value="${progress}" max="100"></progress><small>ход ${esc(run.step)} из лимита ${maxSteps}</small></div>${runControls}${changed.length?`<div class="quest-artifacts"><small>Затронутые файлы</small>${changed.slice(0,5).map(path=>`<span>◇ ${esc(path)}</span>`).join('')}</div>`:''}${terminal?`<footer><small>Результат</small><strong>${run.status==='completed'?'Результат зафиксирован':'Опыт сохранён'} · ${countOf(changed.length, 'файл', 'файла', 'файлов')}</strong></footer>`:''}</section>`
-  }
-  function formatDuration(value) {
-    const milliseconds = Math.max(0, Number(value || 0))
-    if (milliseconds < 1000) return `${Math.round(milliseconds)} мс`
-    if (milliseconds < 60_000) return `${(milliseconds / 1000).toFixed(milliseconds < 10_000 ? 1 : 0)} с`
-    const minutes = Math.floor(milliseconds / 60_000)
-    const seconds = Math.round((milliseconds % 60_000) / 1000)
-    return `${minutes} мин ${seconds} с`
   }
   function diagnosticSignalText(signal) {
     const value = Number(signal?.value || 0)

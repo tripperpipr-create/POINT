@@ -86,6 +86,7 @@ const checks = [
   'smoke-master-thread-incremental.js',
   'smoke-master-work-order-controls.mjs',
   'smoke-work-order-execution-ui.mjs',
+  'smoke-quest-run-card.mjs',
   'smoke-master-hiring-card.mjs',
   'smoke-master-agent-card.mjs',
   'smoke-master-card-open.mjs',

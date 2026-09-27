@@ -126,6 +126,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/v2/master/quests/{id}", s.getWorkOrderQuestV2)
 	s.mux.HandleFunc("GET /api/v2/master/quests/{id}/evidence", s.questEvidenceBundle)
 	s.mux.HandleFunc("POST /api/v2/master/quests/{id}/application/{action}", s.controlDeliveredApplicationV2)
+	s.mux.HandleFunc("GET /api/v2/master/quests/{id}/application", s.deliveredApplicationStateV2)
 	s.mux.HandleFunc("GET /api/master/turns/{id}", s.masterGetTurn)
 	s.mux.HandleFunc("GET /api/master/turns/{id}/events", s.masterEvents)
 	s.mux.HandleFunc("POST /api/master/turns/{id}/cancel", s.masterCancelTurn)

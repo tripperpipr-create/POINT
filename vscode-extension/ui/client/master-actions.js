@@ -11,6 +11,7 @@
 import { closeMasterMention, masterMentionState } from './master-mention-ui.js'
 import { masterAgentConsent } from './master-agent-card.js'
 import { handleManualReviewClick } from './master-manual-review.js'
+import { handleQuestAppAction } from './quest-app-actions.js'
 import { icon } from './ui-icons.js'
 import { masterQueuePause } from './master-compose-keys.js'
 
@@ -96,31 +97,8 @@ export function handleMasterClickAction({ action, target, ui, applyMasterFind, f
     return true
   }
   if (action === 'review-master-manual-criterion-v2') return handleManualReviewClick(target, ui, vscode, render)
-  if (action === 'control-master-application-v2') {
-    const id=String(target.dataset.id || '')
-    const questId=String(target.dataset.questId || '')
-    const control=String(target.dataset.control || '')
-    if (!id || !questId || !['start','stop'].includes(control) || ui.masterWorkOrderBusy.has(id)) return
-    ui.masterWorkOrderBusy.add(id)
-    const idempotencyKey=globalThis.crypto?.randomUUID?.() || `application-${Date.now()}-${Math.random().toString(36).slice(2)}`
-    vscode.postMessage({type:'controlMasterApplicationV2',workOrderId:id,questId,action:control,version:Number(target.dataset.version),digest:String(target.dataset.digest || ''),deliveryReceiptId:String(target.dataset.receiptId || ''),idempotencyKey})
-    render()
-    return true
-  }
-  if (action === 'generate-work-order-report') {
-    const id=String(target.dataset.id || '')
-    const order=(Array.isArray(ui.masterData?.workOrders)?ui.masterData.workOrders:[]).find(item=>item.id===id)
-    if (!order) return true
-    const evidence=order.runtime?.evidence || {}
-    const safeFacts={
-      goal:order.goal || '', status:order.runtime?.status || '', criteria:order.criteria || [],
-      verificationChecks:evidence.verificationChecks || [], changedFiles:evidence.changedFiles || [],
-      knownLimitations:evidence.knownLimitations || [], deliveryUrl:order.runtime?.deliveryReceipt?.url || '',
-    }
-    const prompt=`Собери итоговый отчёт по завершённому плану для владельца проекта. Начни с результата и решения, затем покажи выполненные критерии, проверки, изменения, ограничения и следующие шаги. Не выдумывай факты или ссылки.\n\nФакты, которые я проверю перед отправкой:\n${JSON.stringify(safeFacts,null,2)}`
-    vscode.postMessage({type:'generateReport',prompt})
-    return true
-  }
+  // Блок приложения и отчёт карточки прогона — quest-app-actions.js.
+  if (handleQuestAppAction({ action, target, ui, vscode, render })) return true
   if (action === 'revise-master-work-order-v2') {
     ui.masterDraft='Измени карточку запуска: '
     ui.masterCaretToEnd=true

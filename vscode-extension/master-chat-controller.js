@@ -2,8 +2,93 @@ const { pickMasterContext, previewMasterContext, searchMasterContext, attachMast
 const { followMasterTurn } = require('./master-turn-stream')
 const { watchMasterWorkOrder, watchMasterWorkOrders } = require('./master-work-order-watch')
 const vscode = require('vscode')
+const { spawn } = require('child_process')
 let lastEditor
 function rememberMasterEditor(editor) { if (editor?.document && !editor.document.isClosed) lastEditor = editor }
+
+// Доставленное приложение открывается тем, чем оно является: веб — в
+// браузере, консольное и настольное — командой в терминале, остальное — папкой.
+// Адрес пишет договор наряда, поэтому браузер открывается только для адреса на
+// этой машине: чужой сайт из договора сам не откроется.
+function loopbackUrl(value) {
+  try {
+    const url = new URL(String(value || ''))
+    const host = url.hostname.replace(/^\[|\]$/g, '').toLowerCase()
+    return ['http:', 'https:'].includes(url.protocol) && (host === 'localhost' || host.endsWith('.localhost') || host === '::1' || /^127\./.test(host))
+  } catch { return false }
+}
+async function openDeliveredApplication(state, mode) {
+  if (state?.launch === 'compose' && loopbackUrl(state.url)) {
+    if (mode === 'auto' && !state.ready) return ''
+    await vscode.env.openExternal(vscode.Uri.parse(String(state.url)))
+    return 'browser'
+  }
+  if (state?.launch === 'terminal' && state.command && state.target) {
+    const terminal = vscode.window.createTerminal({ name: 'Point · приложение', cwd: state.target })
+    terminal.show()
+    terminal.sendText(String(state.command), true)
+    return 'terminal'
+  }
+  if (mode !== 'auto' && state?.target) {
+    await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(state.target))
+    return 'folder'
+  }
+  return ''
+}
+
+// Итоговый отчёт по квесту — одним нажатием. Прежде кнопка открывала три
+// диалога подряд (текст запроса, формат, место сохранения) и ждала модель
+// двадцать секунд — дольше отчёт не собирался никогда. Здесь формат HTML, файл
+// ложится в .point/reports проекта и сразу открывается в браузере, а карточка
+// видит каждую фазу.
+// Файл отчёта открывается программой по умолчанию по пути, а не через
+// env.openExternal. Тот отдаёт file:-адрес в ShellExecute закодированным, и
+// Windows не находит файл с кириллицей в имени («итоговый-отчёт-…html»): Code-OSS
+// показывает окно «При открытии внешней программы произошла ошибка», а
+// openExternal всё равно сообщает об успехе.
+//
+// На Windows путь уходит в Start-Process — это тот же ShellExecute, но с путём,
+// а не с адресом. Проверено на живом Chrome 27.09.2026, и проверены обе ловушки:
+// explorer.exe с таким путём молча ничего не открывает, а запуск с `detached`
+// создаёт PowerShell без консоли, и он тоже ничего не открывает. Путь едет в
+// -EncodedCommand (UTF-16), чтобы кириллица и кавычки дошли как есть.
+function openLocalFile(fsPath) {
+  const onWindows = process.platform === 'win32'
+  const script = `Start-Process -FilePath '${String(fsPath).replace(/'/g, "''")}'`
+  const [command, args] = onWindows
+    ? ['powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')]]
+    : [process.platform === 'darwin' ? 'open' : 'xdg-open', [fsPath]]
+  const child = spawn(command, args, { detached: !onWindows, stdio: 'ignore', windowsHide: true })
+  child.on('error', () => {})
+  child.unref()
+}
+function reportFileName(suggested) {
+  const base = String(suggested || 'report').split(/[\\/]/).pop().replace(/\.[a-z0-9]+$/i, '').replace(/[^\p{L}\p{N}._-]+/gu, '-').slice(0, 80) || 'report'
+  const now = new Date()
+  const stamp = [now.getFullYear(), now.getMonth() + 1, now.getDate(), now.getHours(), now.getMinutes()].map((part, index) => String(part).padStart(index ? 2 : 4, '0')).join('')
+  return `${stamp}-${base}.html`
+}
+async function generateQuickReport(host, message) {
+  const workOrderId = String(message.workOrderId || '')
+  const post = (phase, extra = {}) => host.post({ type: 'masterReportState', workOrderId, phase, ...extra, viewId: message.viewId })
+  post('working')
+  try {
+    const apiKey = await host.credentialForOrchestrator()
+    const result = await host.service.request('/api/reports', { method: 'POST', timeoutMs: 10 * 60_000, body: JSON.stringify({ prompt: String(message.prompt || '').slice(0, 12000), format: 'html', apiKey }) })
+    const bytes = Buffer.from(String(result.contentBase64 || ''), 'base64')
+    if (!bytes.length || bytes.length > 16 * 1024 * 1024) throw new Error('Агент отчётов вернул файл недопустимого размера.')
+    const folder = host.workspaceFolder()
+    const dir = folder ? vscode.Uri.joinPath(folder.uri, '.point', 'reports') : vscode.Uri.joinPath(host.context.globalStorageUri, 'reports')
+    await vscode.workspace.fs.createDirectory(dir)
+    const uri = vscode.Uri.joinPath(dir, reportFileName(result.suggestedName))
+    await vscode.workspace.fs.writeFile(uri, bytes)
+    openLocalFile(uri.fsPath)
+    post('ready', { path: folder ? vscode.workspace.asRelativePath(uri, false) : uri.fsPath, uri: uri.toString() })
+  } catch (error) {
+    host.service?.hostLog?.('error', `[report] ${String(error?.message || error)}`)
+    post('failed', { error: String(error?.message || error) })
+  }
+}
 
 async function snapshotMasterContexts(host, contexts) {
   const sources=[]
@@ -57,6 +142,9 @@ async function handleMasterMessage(message) {
    if(uri)await vscode.workspace.fs.writeFile(uri,Buffer.from(result.markdown,'utf8'));break
  }
  case 'generateReport': {
+   // Повторное открытие готового отчёта: только файл из отчётов Point.
+   if(message.openUri){const uri=vscode.Uri.parse(String(message.openUri));if(uri.scheme==='file'&&/[\\/]reports[\\/][^\\/]+\.html$/i.test(uri.fsPath))openLocalFile(uri.fsPath);break}
+   if(message.quick){await generateQuickReport(this,message);break}
    const prompt=await vscode.window.showInputBox({title:'Архивариус · новый отчёт',prompt:'Проверьте цель, аудиторию и факты. В модель уйдёт только этот текст.',value:String(message.prompt || '').slice(0,12000),placeHolder:'Например: отчёт для команды о рисках релиза, с итогом и таблицей приоритетов',ignoreFocusOut:true,validateInput:value=>value.trim()?'':'Опишите, какой отчёт нужен'})
    if(!prompt?.trim())break
    const format=await vscode.window.showQuickPick([
@@ -79,7 +167,7 @@ async function handleMasterMessage(message) {
      const choice=await vscode.window.showInformationMessage(`Отчёт готов: ${vscode.workspace.asRelativePath(uri,false)}`,'Открыть','Показать в папке')
      if(choice==='Открыть'){
        if(format.value==='md')await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(uri))
-       else await vscode.env.openExternal(uri)
+       else openLocalFile(uri.fsPath)
      }else if(choice==='Показать в папке')await vscode.commands.executeCommand('revealFileInOS',uri)
    })
    break
@@ -287,9 +375,31 @@ async function handleMasterMessage(message) {
           const questId=String(message.questId || '')
           const workOrderId=String(message.workOrderId || '')
           const action=String(message.action || '')
-          const result=await this.service.request('/api/v2/master/quests/'+encodeURIComponent(questId)+'/application/'+encodeURIComponent(action),{
-            method:'POST',body:JSON.stringify({version:Number(message.version),workOrderDigest:String(message.digest || ''),deliveryReceiptId:String(message.deliveryReceiptId || ''),idempotencyKey:String(message.idempotencyKey || '')})
-          })
+          const route='/api/v2/master/quests/'+encodeURIComponent(questId)+'/application'
+          const postState=(state,extra={})=>this.post({type:'masterApplicationState',questId,workOrderId,state,...extra,viewId:message.viewId})
+          // Состояние, открытие и терминал ядро не меняют: это чтение и
+          // действие в самой IDE по тому, что ядро знает о приложении.
+          if(action==='status'){postState(await this.service.request(route+'?probe=1'),{final:true});break}
+          if(action==='open'||action==='terminal'){const state=await this.service.request(route);postState(state,{opened:await openDeliveredApplication(state,action),final:true});break}
+          // Запуск идёт минутами — сборка образов, старт контейнеров, ожидание
+          // ответа по адресу. Пока ядро держит запрос, карточка раз в 0,7 с
+          // получает его живой вывод; двадцать секунд умолчания здесь мало.
+          let polling=true
+          const poll=(async()=>{while(polling){await new Promise(resolve=>setTimeout(resolve,700));if(!polling)break;try{postState(await this.service.request(route,{timeoutMs:5000}))}catch{}}})()
+          let result
+          try{
+            result=await this.service.request(route+'/'+encodeURIComponent(action),{
+              method:'POST',timeoutMs:20*60_000,body:JSON.stringify({version:Number(message.version),workOrderDigest:String(message.digest || ''),deliveryReceiptId:String(message.deliveryReceiptId || ''),idempotencyKey:String(message.idempotencyKey || '')})
+            })
+          }catch(error){
+            polling=false;await poll
+            try{postState(await this.service.request(route),{error:String(error?.message || error),final:true})}catch{this.post({type:'masterApplicationState',questId,workOrderId,error:String(error?.message || error),final:true,viewId:message.viewId})}
+            throw error
+          }
+          polling=false;await poll
+          const state=await this.service.request(route+'?probe=1')
+          const opened=action==='start'&&result?.status==='running'?await openDeliveredApplication(state,'auto'):''
+          postState(state,{opened,final:true})
           const workOrder=await this.service.request('/api/v2/work-orders/'+encodeURIComponent(workOrderId))
           this.post({type:'masterApplicationControlled',result,workOrder,viewId:message.viewId})
           break

@@ -419,20 +419,12 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.hall-dialogue .hall-quest-run > summary .hall-quest-dot { color: var(--ember); }
-.hall-dialogue .master-v2-run.is-done .hall-quest-run > summary .hall-quest-dot { color: var(--vital); }
-.hall-dialogue .master-v2-run.is-attention .hall-quest-run > summary .hall-quest-dot { color: var(--caution); }
-/* Пульс у идущей работы: точка дышит, пока квест в пути. */
-.hall-dialogue .master-v2-run.is-live .hall-quest-run > summary .hall-quest-dot {
-  box-shadow: 0 0 0 0 color-mix(in srgb, var(--ember) 60%, transparent);
-  animation: hall-quest-pulse 2s var(--ease) infinite;
-}
+/* Тон точки прогона и её пульс живут в 08b-quest-run.css: там же, где строка
+   прогона в ленте, у которой нет <summary>. Пульс берёт цвет самой точки —
+   идущая работа дышит тоном ссылки темы, а не главной кнопки. */
 @keyframes hall-quest-pulse {
-  70% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--ember) 0%, transparent); }
-  100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--ember) 0%, transparent); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .hall-dialogue .master-v2-run.is-live .hall-quest-run > summary .hall-quest-dot { animation: none; }
+  70% { box-shadow: 0 0 0 6px color-mix(in srgb, currentColor 0%, transparent); }
+  100% { box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 0%, transparent); }
 }
 
 /* Ряд решения: одно действие и меню. */

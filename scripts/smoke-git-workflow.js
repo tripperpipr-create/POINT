@@ -94,7 +94,7 @@ const uiClientDir = path.resolve(__dirname, '..', 'vscode-extension', 'ui', 'cli
 const uiModules = fs.readdirSync(uiClientDir).filter(name => name.endsWith('.js')).sort()
 assert.ok(uiModules.includes('main.js') && uiModules.includes('git-views.js') && uiModules.length > 50, `webview module tree looks empty: ${uiModules.length}`)
 const uiSource = uiModules.map(name => fs.readFileSync(path.join(uiClientDir, name), 'utf8')).join('\n')
-const gitCss = fs.readFileSync(path.resolve(__dirname, '..', 'vscode-extension', 'ui', 'layers', '96-tool-windows.css'), 'utf8')
+const gitCss = fs.readFileSync(path.resolve(__dirname, '..', 'vscode-extension', 'ui', 'layers', '96-tool-windows1-git.css'), 'utf8')
 
 assert.match(extensionSource, /case 'gitAction'/, 'Git tool window must route its own actions')
 assert.match(extensionSource, /repo\.state\.untrackedChanges/, 'untracked files must be shown')

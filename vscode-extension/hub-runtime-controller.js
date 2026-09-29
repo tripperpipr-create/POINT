@@ -4,17 +4,36 @@ const { decisionResolvePath } = require('./extension-utils')
 
 const QUEST_DECISION_TIMEOUT_MS = 90_000
 
+function agentForProfile(host, profileID) {
+  const id = String(profileID || '')
+  return (host.boot?.projectAgents || []).find(item => item.id === id)
+    || (host.boot?.profiles || []).find(item => item.id === id)
+}
+
+async function credentialForRun(host, runID, fallback = '') {
+  const run = (host.boot?.runs || []).find(item => item.id === String(runID || ''))
+    || (host.details?.run?.id === String(runID || '') ? host.details.run : undefined)
+  const agent = agentForProfile(host, run?.profileId || run?.agentId)
+  return agent
+    ? host.credentialFor(agent, `агента «${agent.name || agent.id}»`, fallback)
+    : fallback
+}
+
 async function handleHubRuntimeMessage(message) {
   switch (message.type) {
     case 'startRun': {
       this.service.hostLog('info', `[agent] start profile=${message.profileId || '-'} task_bytes=${String(message.task || '').length} context=${Array.isArray(message.contextItems) ? message.contextItems.length : 0}`)
+      const agent = agentForProfile(this, message.profileId)
+      const apiKey = agent
+        ? await this.credentialFor(agent, `агента «${agent.name || agent.id}»`, message.apiKey || '')
+        : (message.apiKey || '')
       const run = await this.service.request('/api/runs', { method: 'POST', body: JSON.stringify({
         profileId: message.profileId,
         task: message.task,
         goal: message.goal || '',
         acceptanceCriteria: Array.isArray(message.acceptanceCriteria) ? message.acceptanceCriteria : [],
         constraints: Array.isArray(message.constraints) ? message.constraints : [],
-        apiKey: message.apiKey || '',
+        apiKey,
         contextItems: Array.isArray(message.contextItems) ? message.contextItems : [],
         preflightFingerprint: message.preflightFingerprint || '',
       }) })
@@ -40,6 +59,8 @@ async function handleHubRuntimeMessage(message) {
         apiKey,
         contextItems: Array.isArray(message.contextItems) ? message.contextItems : [],
         preflightFingerprint: message.preflightFingerprint || '',
+        // Итог квеста агента пишется в беседу, из которой его запустили.
+        conversationId: String(message.conversationId || ''),
       }) })
       this.activeRunId = run.id
       this.service.hostLog('info', `[agent] fast-agent run_id=${run.id} status=${run.status || '-'}`)
@@ -86,21 +107,25 @@ async function handleHubRuntimeMessage(message) {
       this.postState()
       break
     case 'resumeRun':
+      { const apiKey = await credentialForRun(this, message.runId, message.apiKey || '')
       this.upsertBootItem('runs', await this.service.request(`/api/runs/${encodeURIComponent(message.runId)}/resume`, {
         method: 'POST',
-        body: JSON.stringify({ apiKey: message.apiKey || '' }),
+        body: JSON.stringify({ apiKey }),
       }))
       if (this.activeRunId === message.runId) await this.loadRun(message.runId, false)
       this.postState()
       break
+      }
     case 'extendActiveTime':
+      { const apiKey = await credentialForRun(this, message.runId, message.apiKey || '')
       this.upsertBootItem('runs', await this.service.request(`/api/runs/${encodeURIComponent(message.runId)}/extend-active-time`, {
         method: 'POST',
-        body: JSON.stringify({ apiKey: message.apiKey || '' }),
+        body: JSON.stringify({ apiKey }),
       }))
       if (this.activeRunId === message.runId) await this.loadRun(message.runId, false)
       this.postState()
       break
+      }
     case 'messageRun':
       await this.service.request(`/api/runs/${encodeURIComponent(message.runId)}/message`, {
         method: 'POST',
@@ -471,6 +496,7 @@ async function handleHubRuntimeMessage(message) {
             guildTab,
             stayInCompanion: !hubFocused,
             stayInMaster: fromMaster,
+            continuationPrompt: fromMaster && result?.agent?.id ? result?.proposal?.continuationPrompt : undefined,
           })
         } else if (message.action === 'modify') {
           this.post({ type: 'companionActionModified', proposalId: String(message.proposalId || '') })

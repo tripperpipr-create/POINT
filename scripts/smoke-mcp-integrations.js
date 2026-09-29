@@ -19,9 +19,20 @@
 //   node scripts/smoke-mcp-integrations.js   (после npm run build)
 
 const { bootWebview } = require('./lib/webview-harness')
+const fs = require('fs')
+const path = require('path')
 
 const failures = []
 const check = (name, ok, detail = '') => { if (!ok) failures.push(`${name}${detail ? `: ${detail}` : ''}`) }
+const manifest = require('../vscode-extension/package.json')
+const gitlabContainer = manifest.contributes.viewsContainers.activitybar.find(item => item.id === 'pointGitLab')
+check('контейнер окна GitLab имеет SVG-значок', gitlabContainer?.icon?.endsWith('.svg') && fs.existsSync(path.join(__dirname, '..', 'vscode-extension', gitlabContainer.icon)))
+const gitlabController = fs.readFileSync(path.join(__dirname, '..', 'vscode-extension', 'gitlab-controller.js'), 'utf8')
+const nativeToolWindows = fs.readFileSync(path.join(__dirname, '..', 'distribution', 'resources', 'point-tool-windows.ts.txt'), 'utf8')
+const integrationsController = fs.readFileSync(path.join(__dirname, '..', 'vscode-extension', 'integrations-controller.js'), 'utf8')
+check('кнопка окна GitLab открывает panel', gitlabController.includes("createWebviewPanel('point.gitlabTools'"))
+check('команда окна GitLab зарегистрирована расширением', integrationsController.includes("registerCommand('localAgent.openGitLabWindow'"))
+check('меню окна GitLab вызывает команду расширения', nativeToolWindows.includes("'GitLab', 'git-merge', 'localAgent.openGitLabWindow'"))
 
 const view = bootWebview({ layout: 'wide' })
 view.state({ selectedTab: 'integrations' })
@@ -120,6 +131,10 @@ check('строка «Этот проект» называет связь', html
 check('из карточки — переход во вкладку проекта', html.includes('data-tab="project-gitlab"'))
 check('карточка не правит связь сама', !html.includes('data-action="gitlab-binding-save"'))
 check('проектный факт окна ушёл с общей страницы', !html.includes('Проект окна'))
+view.click({ action: 'gitlab-plugin-check' })
+check('«Проверить» запрашивает новый снимок MCP', view.take().some(m => m.type === 'mcpAction' && m.action === 'probe' && m.id === 'mcp-gitlab'))
+view.send({ type: 'mcpServers', probed: 'mcp-gitlab', servers: [] })
+check('после проверки запрашивается здоровье GitLab', view.take().some(m => m.type === 'gitlabAction' && m.action === 'status' && m.scope === 'plugin'))
 
 // Вкладка проекта «GitLab».
 view.state({ selectedTab: 'project-gitlab', workspacePath: 'C:/work/dotfiles' })

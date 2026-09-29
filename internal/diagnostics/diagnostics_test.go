@@ -128,6 +128,17 @@ func TestStopReasonClassifiesLimitsAndProviderErrors(t *testing.T) {
 	}
 }
 
+// Пауза прежде классифицировалась как «failed» по пустой ошибке.
+func TestStopReasonClassifiesPauses(t *testing.T) {
+	steps := domain.Run{Status: domain.RunPaused, Controller: domain.RunControllerState{PauseReason: domain.PauseReasonStepBudgetExhausted}}
+	if got := stopReason(steps); got != "step_limit" {
+		t.Fatalf("step pause stopReason=%q", got)
+	}
+	if got := stopReason(domain.Run{Status: domain.RunPaused}); got != "paused" {
+		t.Fatalf("user pause stopReason=%q", got)
+	}
+}
+
 func TestAnalyzeSurfacesAgentStallGuardrail(t *testing.T) {
 	started := time.Date(2026, time.August, 8, 14, 0, 0, 0, time.UTC)
 	finished := started.Add(time.Second)

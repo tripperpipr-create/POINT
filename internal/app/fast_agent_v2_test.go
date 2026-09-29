@@ -96,6 +96,22 @@ func TestPrepareFastAgentV2UsesManualReviewForUnknownStack(t *testing.T) {
 	}
 }
 
+// Итог квеста агента адресуется по беседе наряда. Без неё он уходил в первый
+// разговор проекта (`legacy`) и читался там как ответ на чужой вопрос.
+func TestPrepareFastAgentV2KeepsLaunchingConversation(t *testing.T) {
+	application, projectAgent, _ := fastAgentV2Fixture(t, false)
+	prepared, err := application.prepareFastAgentV2(context.Background(), FastAgentRequest{ProfileID: projectAgent.ID, Task: "Update notes", ConversationID: " chat-42 "})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if prepared.order.ConversationID != "chat-42" {
+		t.Fatalf("наряд агента потерял беседу запуска: %q", prepared.order.ConversationID)
+	}
+	if got := fastAgentConversationV2("line\nbreak"); got != "" {
+		t.Fatalf("многострочное значение принято за беседу: %q", got)
+	}
+}
+
 func TestFastAgentV2RejectsStalePreflightBeforePersistence(t *testing.T) {
 	application, projectAgent, _ := fastAgentV2Fixture(t, true)
 	world, err := application.requireWorkspace()

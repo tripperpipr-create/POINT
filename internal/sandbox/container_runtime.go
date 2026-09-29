@@ -17,8 +17,14 @@ import (
 
 var runtimeCommandPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._+-]{0,63}$`)
 var runtimePackagePattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._+:-]{0,127}(?:=[a-zA-Z0-9][a-zA-Z0-9._+~-]{0,127})?$`)
+var runtimeVersionPattern = regexp.MustCompile(`^(?:\d+(?:\.\d+){0,2}|stable)$`)
+var runtimeActualVersion = regexp.MustCompile(`\d+(?:\.\d+){0,2}`)
+var ErrRuntimeVersionUnavailable = errors.New("requested sandbox tool version unavailable")
 
 func (b *ContainerBackend) resolveRuntimeImage(ctx context.Context, requested string, runtime RuntimeRequirements) (string, string, error) {
+	if len(runtime.UnsupportedTools) > 0 {
+		return "", "", fmt.Errorf("%w: unsupported package managers or tools %s", ErrRuntimeVersionUnavailable, strings.Join(runtime.UnsupportedTools, ", "))
+	}
 	baseImage, baseDigest, err := b.resolveExecutionImage(ctx, requested)
 	if err != nil {
 		return "", "", err
@@ -27,22 +33,27 @@ func (b *ContainerBackend) resolveRuntimeImage(ctx context.Context, requested st
 	if err != nil {
 		return "", "", err
 	}
+	for tool, version := range runtime.ToolVersions {
+		if !runtimeCommandPattern.MatchString(tool) || !runtimeVersionPattern.MatchString(version) {
+			return "", "", fmt.Errorf("managed runtime version for %q is invalid", tool)
+		}
+	}
 	if len(commands) == 0 {
 		return baseImage, baseDigest, nil
 	}
-	if b.imageProvidesCommands(ctx, immutableImage(baseImage, baseDigest), commands) == nil {
+	if b.imageProvidesCommands(ctx, immutableImage(baseImage, baseDigest), commands) == nil && b.imageMatchesToolVersions(ctx, immutableImage(baseImage, baseDigest), runtime.ToolVersions) == nil {
 		slog.Info("sandbox runtime ready", "runtime_id", runtime.ID, "source", "base", "image", baseImage, "commands", commands)
 		return baseImage, baseDigest, nil
 	}
 	for _, candidate := range candidates {
 		image, digest, candidateErr := b.resolveExecutionImage(ctx, candidate)
-		if candidateErr == nil && b.imageProvidesCommands(ctx, immutableImage(image, digest), commands) == nil {
+		if candidateErr == nil && b.imageProvidesCommands(ctx, immutableImage(image, digest), commands) == nil && b.imageMatchesToolVersions(ctx, immutableImage(image, digest), runtime.ToolVersions) == nil {
 			slog.Info("sandbox runtime ready", "runtime_id", runtime.ID, "source", "compatible_pack", "image", image, "commands", commands)
 			return image, digest, nil
 		}
 	}
 	if len(packages) == 0 {
-		return "", "", fmt.Errorf("managed runtime %q is missing required commands %s and no approved packages can provide them", runtime.ID, strings.Join(commands, ", "))
+		return "", "", fmt.Errorf("%w: versions %v, commands %s; choose an available environment and retry", ErrRuntimeVersionUnavailable, runtime.ToolVersions, strings.Join(commands, ", "))
 	}
 	if !imageDigestPattern.MatchString(strings.ToLower(strings.TrimSpace(baseDigest))) {
 		baseDigest, err = b.inspectImageDigest(ctx, baseImage)
@@ -57,7 +68,44 @@ func (b *ContainerBackend) resolveRuntimeImage(ctx context.Context, requested st
 		runtime.Progress("runtime_building", "Устанавливаем системные инструменты в кэшированный sandbox: "+strings.Join(commands, ", "))
 	}
 	slog.Info("sandbox runtime provisioning", "runtime_id", runtime.ID, "version", runtime.Version, "commands", commands, "package_count", len(packages))
-	return b.buildRuntimeImage(ctx, baseDigest, runtime.ID, runtime.Version, commands, packages)
+	image, digest, err := b.buildRuntimeImage(ctx, baseDigest, runtime.ID, runtime.Version, commands, packages)
+	if err != nil {
+		return "", "", err
+	}
+	if err = b.imageMatchesToolVersions(ctx, immutableImage(image, digest), runtime.ToolVersions); err != nil {
+		return "", "", err
+	}
+	return image, digest, nil
+}
+
+func (b *ContainerBackend) imageMatchesToolVersions(ctx context.Context, image string, versions map[string]string) error {
+	for tool, expected := range versions {
+		command := map[string]string{"python": "python3", "rust": "rustc"}[tool]
+		if command == "" {
+			command = tool
+		}
+		if !runtimeCommandPattern.MatchString(command) || !runtimeVersionPattern.MatchString(expected) {
+			return fmt.Errorf("invalid sandbox version request for %q", tool)
+		}
+		probeCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+		output, err := b.output(probeCtx,
+			"run", "--rm", "--pull", "never", "--network", "none", "--read-only",
+			"--cap-drop", "ALL", "--security-opt", "no-new-privileges=true",
+			"--user", strings.TrimSpace(b.User), image, command, "--version",
+		)
+		cancel()
+		if err != nil {
+			return fmt.Errorf("probe %s version: %w", tool, err)
+		}
+		if expected == "stable" {
+			continue
+		}
+		actual := runtimeActualVersion.FindString(output)
+		if actual != expected && !strings.HasPrefix(actual, expected+".") {
+			return fmt.Errorf("%w: sandbox %s version %q does not match requested %q", ErrRuntimeVersionUnavailable, tool, actual, expected)
+		}
+	}
+	return nil
 }
 
 func normalizeRuntimeRequirements(runtime RuntimeRequirements) ([]string, []string, []string, error) {

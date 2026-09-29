@@ -571,7 +571,7 @@ func TestMasterKeepsOneWorkOrderPerConversationV2(t *testing.T) {
 	if secondID != firstID {
 		t.Fatalf("уточнение создало второй наряд: %q после %q", secondID, firstID)
 	}
-	orders, err := application.store.ListWorkOrdersForConversationV2(context.Background(), "conversation-one")
+	orders, err := application.store.ListWorkOrdersForConversationV2(context.Background(), world.ID, "conversation-one")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -593,7 +593,7 @@ func TestMasterKeepsOneWorkOrderPerConversationV2(t *testing.T) {
 	if _, err = application.WorkOrderV2(context.Background(), firstID); err != nil {
 		t.Fatalf("наряд первого разговора пропал: %v", err)
 	}
-	others, err := application.store.ListWorkOrdersForConversationV2(context.Background(), "conversation-two")
+	others, err := application.store.ListWorkOrdersForConversationV2(context.Background(), world.ID, "conversation-two")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -176,8 +176,25 @@ func (a *App) loadHubBootstrap(ctx context.Context, workspaceID string) (HubBoot
 	}
 	hub.Companion = &cfg
 	if orch, orchErr := a.store.GetOrchestratorConfig(ctx, workspaceID); orchErr == nil {
+		orch, orchErr = a.globalMasterConfig(ctx, workspaceID, orch)
+		if orchErr != nil {
+			return hub, orchErr
+		}
 		hub.Orchestrator = &orch
-	} else if !errors.Is(orchErr, sql.ErrNoRows) {
+	} else if errors.Is(orchErr, sql.ErrNoRows) {
+		orch = domain.OrchestratorConfig{WorkspaceID: workspaceID, Preset: "conductor"}
+		orch, orchErr = a.globalMasterConfig(ctx, workspaceID, orch)
+		if orchErr != nil {
+			return hub, orchErr
+		}
+		defaults, defaultsErr := a.GlobalModelDefaults(ctx)
+		if defaultsErr != nil {
+			return hub, defaultsErr
+		}
+		if !defaults.UpdatedAt.IsZero() {
+			hub.Orchestrator = &orch
+		}
+	} else {
 		return hub, orchErr
 	}
 	allUsage, err := a.store.ListUsageRecords(ctx, workspaceID, 5000)

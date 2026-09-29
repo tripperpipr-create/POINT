@@ -44,6 +44,8 @@ const launch = parseJsonc(`{
   ],
 }`)
 if (launch?.configurations?.[0]?.name !== 'Main') throw new Error('parseJsonc did not keep launch.json comments/commas')
+const quotedComma = parseJsonc('{ // comment\n "configurations": [{"name": "run,}", "type": "go",},], }')
+if (quotedComma?.configurations?.[0]?.name !== 'run,}') throw new Error('parseJsonc changed a comma inside a configuration name')
 
 const targets = makefileTargets('all: build\nbuild:\n\tgo build\n.PHONY: all\ntest:\n\tgo test\n')
 if (targets.join(',') !== 'all,build,test') throw new Error(`makefile targets: ${targets}`)
@@ -79,11 +81,8 @@ if (npmOnly?.script !== 'start') throw new Error(`npm default should be start, g
 // Чип конфигурации в заголовке читает контекстный ключ, а наполняет его
 // контроллер строки состояния. Если ключ перестанут публиковать, чип молча
 // исчезнет: заголовок просто не найдёт значения и спрячет себя.
-const fs = require('node:fs')
-const path = require('node:path')
 const extensionSource = extensionHostSource()
-const actionSource = fs.readFileSync(path.resolve(__dirname, '..', 'vscode-extension', 'ide-action-controller.js'), 'utf8')
-if (!extensionSource.includes("require('./ide-action-controller')") || !actionSource.includes("'setContext', 'point.runConfiguration'")) {
+if (!extensionSource.includes("require('./ide-action-controller')") || !extensionSource.includes("'setContext', 'point.runConfiguration'")) {
   throw new Error('run configuration must be published for the title bar chip')
 }
 const overlaySource = readOverlaySource()
@@ -97,3 +96,46 @@ process.stdout.write(JSON.stringify({
   default: picked.id,
   kinds: [...new Set(configs.map(item => item.kind))],
 }) + '\n')
+
+// Run File invokes the shared shell quoting helper when a filename has spaces.
+// This path used to throw because ide-action-controller did not import it.
+const { createIdeRunController } = require('../vscode-extension/ide-run-controller')
+class FileUri {
+  constructor(fsPath) { this.fsPath = fsPath; this.scheme = 'file' }
+}
+const sent = []
+const disposable = { dispose() {} }
+const runVscode = {
+  Uri: FileUri,
+  workspace: {
+    workspaceFolders: [],
+    getWorkspaceFolder: () => undefined,
+    createFileSystemWatcher: () => ({
+      ...disposable,
+      onDidCreate() {}, onDidChange() {}, onDidDelete() {},
+    }),
+    onDidChangeWorkspaceFolders: () => disposable,
+  },
+  window: {
+    terminals: [],
+    createStatusBarItem: () => ({ ...disposable, show() {}, hide() {} }),
+    createTerminal: () => ({ show() {}, sendText(command) { sent.push(command) } }),
+    showInformationMessage: async () => undefined,
+  },
+  commands: { executeCommand: async () => undefined },
+  StatusBarAlignment: { Left: 1 },
+  TerminalLocation: { Panel: 1 },
+  ThemeIcon: class {},
+  ThemeColor: class {},
+}
+const runActions = createIdeRunController({ vscode: runVscode, pickDefaultRunConfiguration: () => undefined })
+const runController = runActions.createRunConfigurationController({
+  workspaceState: { get: () => '', update: async () => undefined },
+  subscriptions: [],
+})
+runController.runFile(new FileUri('C:/work/my script.py')).then(() => {
+  const { shellQuote } = require('../vscode-extension/run-config-utils')
+  if (sent[0] !== `python ${shellQuote('my script.py')}`) throw new Error(`Run File command: ${sent[0]}`)
+  runController.dispose()
+  process.stdout.write('run file with spaces: ok\n')
+}).catch(error => { console.error(error); process.exitCode = 1 })

@@ -400,7 +400,8 @@ async function main() {
   const packageJson = fs.readFileSync(path.resolve(__dirname, '..', 'vscode-extension', 'package.json'), 'utf8')
   const overlaySource = readOverlaySource()
   const activityCss = fs.readFileSync(path.resolve(__dirname, '..', 'distribution', 'resources', 'point-activitybar.css'), 'utf8')
-  const workbenchCss = fs.readFileSync(path.resolve(__dirname, '..', 'distribution', 'resources', 'point-workbench.css'), 'utf8')
+  const { readPointWorkbenchCss } = await import('../distribution/point-workbench-css.mjs')
+  const workbenchCss = readPointWorkbenchCss()
   // Ход работы показывает «думающий» пузырь: отдельная полоса активности была
   // мёртвым кодом, и сторож на её имя проверял след, а не поведение.
   if (!mediaMain.includes('data-companion-thinking') || !mediaMain.includes('companionStepLabel')) {

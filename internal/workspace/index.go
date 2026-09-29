@@ -1,6 +1,7 @@
 package workspace
 
 import (
+	"context"
 	"errors"
 	"os"
 	"sync"
@@ -54,6 +55,42 @@ var indexes sync.Map // workspace root -> *indexSlot
 type indexSlot struct {
 	mu    sync.Mutex
 	index *projectIndex
+	// warming закрывается, когда фоновая сборка закончится; пока он не nil,
+	// вторая сборка на тот же корень не запускается.
+	warming chan struct{}
+}
+
+// WarmIndexInBackground запускает полную сборку индекса отдельно от вызвавшего
+// запроса: его отмена сборку не обрывает. Если сборка уже идёт, возвращает её
+// канал, если индекс готов — nil. done вызывается только у запустившего.
+func (f *FS) WarmIndexInBackground(timeout time.Duration, done func(IndexStatus, error)) <-chan struct{} {
+	slot := f.indexSlot()
+	slot.mu.Lock()
+	if slot.warming != nil {
+		finished := slot.warming
+		slot.mu.Unlock()
+		return finished
+	}
+	if slot.index != nil && slot.index.status.State == "ready" {
+		slot.mu.Unlock()
+		return nil
+	}
+	finished := make(chan struct{})
+	slot.warming = finished
+	slot.mu.Unlock()
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+		status, err := f.BuildIndex(ctx)
+		slot.mu.Lock()
+		slot.warming = nil
+		slot.mu.Unlock()
+		close(finished)
+		if done != nil {
+			done(status, err)
+		}
+	}()
+	return finished
 }
 
 // peekReadyIndex returns the current ready index without a filesystem drift walk.

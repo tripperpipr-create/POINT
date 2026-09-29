@@ -151,6 +151,12 @@ func (a *App) OpenWorkspace(path string) (WorkspaceView, error) {
 	a.currentWorkspace = &stored
 	a.currentFS = fs
 	a.mu.Unlock()
+	if err = a.restoreQuestEgressGrants(ctx, stored.ID); err != nil {
+		return WorkspaceView{}, fmt.Errorf("restore quest egress grants: %w", err)
+	}
+	// Мир, впервые открытый этим процессом, сначала разбирает брошенную
+	// работу прежнего: мир ядра уже разобран в Startup, повтора не будет.
+	a.recoverAbandonedWorld(ctx, stored.ID)
 	// Persisted flow state survives the core process; resume it after the
 	// workspace boundary and project agents are available.
 	_ = a.ResumeActiveFlowRuns(stored.ID)

@@ -91,6 +91,7 @@ type App struct {
 	currentFS             *workspace.FS
 	cache                 cache.Cache
 	workspaceBoundary     string
+	recoveredWorlds       map[string]bool // миры, чью брошенную работу этот процесс уже разобрал (world_recovery.go)
 	dbSecrets             *dbconn.MemorySecrets
 	mcpRuntime            mcpRuntime // MCP-серверы владельца: секреты и надзор (mcp_runtime.go)
 	sandboxBackend        sandbox.Backend
@@ -287,7 +288,8 @@ func New(dataDir string, options ...Option) (*App, error) {
 		backupCancel()
 		return nil, fmt.Errorf("create pre-migration recovery point: %w", err)
 	}
-	store, err := storage.Open(databasePath)
+	// Базу делят ядра проектов: восстановление идёт по своему миру (world_recovery.go).
+	store, err := storage.OpenShared(databasePath)
 	if err != nil {
 		backupCancel()
 		return nil, err
@@ -470,6 +472,7 @@ func (a *App) Shutdown(ctx context.Context) {
 	case <-ctx.Done():
 	}
 	_ = a.cache.Close()
+	_ = a.store.ExpireTemporaryMasterConversations(context.Background(), a.currentWorldID())
 	_ = a.store.Close()
 }
 

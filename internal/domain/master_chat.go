@@ -13,6 +13,11 @@ type MasterConversation struct {
 	Summary     string `json:"summary,omitempty"`
 	UpdatedAt   string `json:"updatedAt"`
 	ParentID    string `json:"parentId,omitempty"`
+	BranchOffer string `json:"branchOffer,omitempty"`
+	BranchName string `json:"branchName,omitempty"`
+	BranchBase string `json:"branchBase,omitempty"`
+	BranchCommit string `json:"branchCommit,omitempty"`
+	BranchPath string `json:"branchPath,omitempty"`
 }
 
 // Строка каталога чатов Чертога — разговор из любого мира.
@@ -33,6 +38,7 @@ type MasterConversationRef struct {
 	WorkspacePath string `json:"workspacePath,omitempty"`
 	ID            string `json:"id"`
 	Title         string `json:"title"`
+	BranchName string `json:"branchName,omitempty"`
 	UpdatedAt     string `json:"updatedAt"`
 	Pinned        bool   `json:"pinned,omitempty"`
 	Running       bool   `json:"running,omitempty"`

@@ -1,3 +1,4 @@
+import { isRootQuest } from './quest-status.js'
 import { fillAttribute, formatDateTime } from './format-units.js'
 import { masterDevelopmentHtml } from './master-development.js'
 import { normalizeBrainMode } from './companion-compose.js'
@@ -239,7 +240,8 @@ export function createHallOnboardingViews(dependencies) {
       // квеста с тремя запусками без квеста давали значок «2» над пятью строками.
       // Считаем ровно то, что печатают заголовки раздела: «N квестов» + «N
       // запусков без квеста».
-      const quests = (ui.state.boot?.quests || []).length
+      // Этапы Flow — не отдельные квесты: список их не показывает, не считает и значок.
+      const quests = (ui.state.boot?.quests || []).filter(isRootQuest).length
       return String(quests + orphanExecutions().length || '')
     }
     return ''
@@ -397,6 +399,7 @@ export function createHallOnboardingViews(dependencies) {
       provider: String(value.provider || ''),
       baseUrl: String(value.baseUrl || ''),
       model: String(value.model || ''),
+      projectModelOverride: Boolean(value.projectModelOverride),
       planningDepth: number('planningDepth', preset.values.planningDepth),
       parallelism: number('parallelism', preset.values.parallelism),
       approvalStrictness: number('approvalStrictness', preset.values.approvalStrictness),
@@ -414,6 +417,7 @@ export function createHallOnboardingViews(dependencies) {
       provider: ui.onboardingDraft.orchestratorProvider,
       baseUrl: ui.onboardingDraft.orchestratorBaseUrl,
       model: ui.onboardingDraft.orchestratorModel,
+      projectModelOverride: ui.onboardingDraft.orchestratorProjectModelOverride ?? ui.state.boot?.orchestrator?.projectModelOverride,
       planningDepth: ui.onboardingDraft.planningDepth,
       parallelism: ui.onboardingDraft.parallelism,
       approvalStrictness: ui.onboardingDraft.approvalStrictness,
@@ -433,6 +437,7 @@ export function createHallOnboardingViews(dependencies) {
       orchestratorProvider: next.provider,
       orchestratorBaseUrl: next.baseUrl,
       orchestratorModel: next.model,
+      orchestratorProjectModelOverride: next.projectModelOverride,
       planningDepth: next.planningDepth,
       parallelism: next.parallelism,
       approvalStrictness: next.approvalStrictness,
@@ -458,6 +463,7 @@ export function createHallOnboardingViews(dependencies) {
       provider: connection?.provider || draft.provider,
       baseUrl: connection?.baseUrl || draft.baseUrl,
       model: (root.querySelector('#model')?.value || draft.model).trim(),
+      projectModelOverride: Boolean(root.querySelector('#orchestrator-project-model-override')?.checked),
       planningDepth: number('planningDepth', draft.planningDepth),
       parallelism: number('parallelism', draft.parallelism),
       approvalStrictness: number('approvalStrictness', draft.approvalStrictness),
@@ -468,7 +474,7 @@ export function createHallOnboardingViews(dependencies) {
     const draft = sanitizeOrchestratorDraft(value)
     const current = ui.state.boot?.orchestrator || {}
     if (draft.mode !== 'model') {
-      return { ...current, connectionId: '', provider: '', providerPreset: '', baseUrl: '', model: '', preset: draft.preset, planningDepth: draft.planningDepth, parallelism: draft.parallelism, approvalStrictness: draft.approvalStrictness, teamPreference: draft.teamPreference }
+      return { ...current, connectionId: '', provider: '', providerPreset: '', baseUrl: '', model: '', projectModelOverride: draft.projectModelOverride, preset: draft.preset, planningDepth: draft.planningDepth, parallelism: draft.parallelism, approvalStrictness: draft.approvalStrictness, teamPreference: draft.teamPreference }
     }
     const connection = companionConnections().find(item => item.id === draft.connectionId)
     const providerPreset = connection?.presetId || draft.providerPreset
@@ -482,6 +488,7 @@ export function createHallOnboardingViews(dependencies) {
       providerPreset,
       baseUrl: connection?.baseUrl || draft.baseUrl || preset?.baseUrl || '',
       model: draft.model,
+      projectModelOverride: draft.projectModelOverride,
       planningDepth: draft.planningDepth,
       parallelism: draft.parallelism,
       approvalStrictness: draft.approvalStrictness,
@@ -562,7 +569,7 @@ export function createHallOnboardingViews(dependencies) {
     const probe = selected
       ? `<button type="button" class="secondary companion-probe-cta" data-action="probe-orchestrator-connection" data-id="${esc(selected.id)}" ${ui.companionProviderProbe?.loading ? 'disabled' : ''}>${esc(companionProbeCtaLabel('existing'))}</button>`
       : ''
-    return `${modelChoiceHtml({ connectionId: selected?.id || '', model: draft.model, showTuning: false })}${probe}${companionProbeHtml()}${connectionDrawerHtml(!list.length)}`
+    return `${modelChoiceHtml({ connectionId: selected?.id || '', model: draft.model, showTuning: false })}<label><input id="orchestrator-project-model-override" type="checkbox"${draft.projectModelOverride ? ' checked' : ''}> Только для этого проекта</label>${probe}${companionProbeHtml()}${connectionDrawerHtml(!list.length)}`
   }
   function systemAgentsStripHtml() {
     const companion = ui.state.boot?.companion || {}

@@ -93,6 +93,10 @@ type TaskBudget struct {
 	MaxReplans       int   `json:"maxReplans"`
 	MaxAttempts      int   `json:"maxAttempts"`
 	MaxProjectAgents int   `json:"maxProjectAgents,omitempty"`
+	// MaxSteps — утверждённый потолок ходов одного прогона: до него движок
+	// продлевает лимит профиля, пока агент продвигается. omitempty держит
+	// дайджест брифов, утверждённых до появления поля.
+	MaxSteps int `json:"maxSteps,omitempty"`
 }
 
 // WorkOrderExecutionContract is the immutable, secret-free subset of an
@@ -107,6 +111,7 @@ type WorkOrderExecutionContract struct {
 	Milestones   []MilestonePlan     `json:"milestones"`
 	Workspace    WorkspacePlan       `json:"workspace"`
 	Stack        StackPresetRef      `json:"stack"`
+	Sandbox      RuntimeSpec         `json:"sandbox,omitempty"`
 	Setup        SetupPlan           `json:"setupPlan,omitempty"`
 	Routing      ModelRoutingPolicy  `json:"routing"`
 	Network      []NetworkGrant      `json:"network,omitempty"`

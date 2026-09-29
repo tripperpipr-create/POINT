@@ -9,7 +9,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"local-agent-workbench/internal/app"
 	"local-agent-workbench/internal/domain"
@@ -87,42 +86,6 @@ func TestV2SourceWorkOrderApprovalContract(t *testing.T) {
 	if response.StatusCode != http.StatusBadRequest || !strings.Contains(string(body), "staffing") {
 		t.Fatalf("unsettled roster approval returned %d: %s", response.StatusCode, body)
 	}
-}
-
-// awaitWorkOrderRuntimeV2 ждёт, пока фоновый запуск наряда доведёт квест до
-// состояния, которое видно человеку. Без ожидания проверка читала бы
-// «Готовим план выполнения» и считала это исходом.
-func awaitWorkOrderRuntimeV2(t *testing.T, base, workOrderID string) domain.WorkOrderRuntime {
-	t.Helper()
-	deadline := time.Now().Add(30 * time.Second)
-	var last domain.WorkOrderRuntime
-	for time.Now().Before(deadline) {
-		response, err := http.Get(base + "/api/v2/work-orders/" + workOrderID)
-		if err != nil {
-			t.Fatal(err)
-		}
-		body, readErr := io.ReadAll(response.Body)
-		response.Body.Close()
-		if readErr != nil {
-			t.Fatal(readErr)
-		}
-		if response.StatusCode != http.StatusOK {
-			t.Fatalf("GET work order returned %d: %s", response.StatusCode, body)
-		}
-		var order domain.WorkOrder
-		if err = json.Unmarshal(body, &order); err != nil {
-			t.Fatalf("work order response=%s err=%v", body, err)
-		}
-		if order.Runtime != nil {
-			last = *order.Runtime
-			if last.Status != domain.QuestPreflight {
-				return last
-			}
-		}
-		time.Sleep(50 * time.Millisecond)
-	}
-	t.Fatalf("work order %s never left preflight: %#v", workOrderID, last)
-	return last
 }
 
 func doV2JSON(t *testing.T, target string, value any) []byte {

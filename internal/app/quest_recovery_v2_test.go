@@ -48,7 +48,7 @@ func TestInterruptedQuestBecomesPauseInsteadOfClaimingProgress(t *testing.T) {
 
 	// The process that was running this quest is gone; a new core must not
 	// present its abandoned state as work in progress.
-	application.pauseInterruptedWorkOrderQuestsV2(ctx)
+	application.pauseInterruptedWorkOrderQuestsV2(ctx, workspace.ID)
 
 	recovered, err := application.workOrderQuestV2(ctx, workspace.ID, approval.QuestID)
 	if err != nil {

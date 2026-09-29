@@ -11,6 +11,7 @@
 import { closeMasterMention, masterMentionState } from './master-mention-ui.js'
 import { masterAgentConsent } from './master-agent-card.js'
 import { handleManualReviewClick } from './master-manual-review.js'
+import { workOrderDraftFromCard } from './master-work-order-v2.js'
 import { handleQuestAppAction } from './quest-app-actions.js'
 import { icon } from './ui-icons.js'
 import { masterQueuePause } from './master-compose-keys.js'
@@ -59,17 +60,7 @@ export function handleMasterClickAction({ action, target, ui, applyMasterFind, f
     const card=target.closest?.('.master-v2-order')
     if (!id || !order || !card || ui.masterWorkOrderBusy.has(id)) return
     try {
-      const draft=JSON.parse(JSON.stringify(order))
-      delete draft.digest;delete draft.runtime;delete draft.approvedVersion;delete draft.approvedDigest
-      const lineValues=name=>String(card.querySelector(`[data-work-order-field="${name}"]`)?.value || '').split(/\r?\n/).map(value=>value.trim()).filter(Boolean)
-      draft.goal=String(card.querySelector('[data-work-order-field="goal"]')?.value || '').trim()
-      draft.scope=lineValues('scope')
-      draft.assumptions=lineValues('assumptions')
-      draft.outOfScope=lineValues('outOfScope')
-      for (const input of card.querySelectorAll('[data-work-order-json]')) {
-        const field=String(input.dataset.workOrderJson || '')
-        if (field) draft[field]=JSON.parse(String(input.value || 'null'))
-      }
+      const draft=workOrderDraftFromCard(order, card)
       ui.masterWorkOrderBusy.add(id)
       const idempotencyKey=globalThis.crypto?.randomUUID?.() || `revise-${Date.now()}-${Math.random().toString(36).slice(2)}`
       vscode.postMessage({type:'reviseMasterWorkOrderV2',workOrderId:id,expectedVersion:Number(order.version),expectedDigest:String(order.digest || ''),idempotencyKey,workOrder:draft})

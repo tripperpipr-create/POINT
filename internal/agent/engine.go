@@ -77,6 +77,7 @@ type activeRun struct {
 	correlation                runCorrelation
 	finalized                  chan struct{}
 	clock                      *activeClock
+	steps                      *stepBudget
 	checkpointSeq              int
 	sandboxPath                string
 	sandboxImage               string

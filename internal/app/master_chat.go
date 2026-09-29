@@ -5,8 +5,10 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"sort"
 	"strings"
+	"time"
 
 	"local-agent-workbench/internal/domain"
 	"local-agent-workbench/internal/orchestrator"
@@ -203,6 +205,13 @@ func (a *App) masterChatService(ctx context.Context, briefing orchestrator.Proje
 	}
 }
 
+// Сколько запрос Мастера ждёт фоновую сборку индекса и сколько ей дано всего.
+// Ожидание заметно короче 20-секундного таймаута запроса в расширении.
+const (
+	masterIndexWarmWait    = 3 * time.Second
+	masterIndexWarmTimeout = 2 * time.Minute
+)
+
 // masterProjectFacts — те же сведения о проекте, что человек видит в заголовке
 // Чертога и в карточке индекса. Без них Мастер отвечал «не понял вопроса» на
 // «расскажи про проект»: в снимке мира не было ни имени папки, ни языков.
@@ -219,11 +228,39 @@ func (a *App) computeMasterProjectFacts(ctx context.Context) orchestrator.Projec
 		return facts
 	}
 	status := currentFS.IndexStatus()
-	if projectMap, err := currentFS.ProjectMap(ctx, 16); err == nil {
+	// Индекс не строится в запросе: полная сборка большого проекта длиннее
+	// таймаута, и открытие истории обрывало её на середине, каждый раз заново.
+	// Сборка идёт в фоне, один раз на корень; запрос ждёт её недолго — малый
+	// проект успевает, большой получает «строится».
+	projectMap, ok := currentFS.ReadyProjectMap(16)
+	if !ok {
+		finished := currentFS.WarmIndexInBackground(masterIndexWarmTimeout, func(built workspace.IndexStatus, err error) {
+			a.dropIndexSearchCache()
+			if err != nil {
+				slog.Error("project index warm-up failed", "error", err)
+				return
+			}
+			slog.Info("project index warmed", "files", built.Files, "partial", built.Partial, "duration_ms", built.DurationMs)
+		})
+		if finished != nil {
+			wait := time.NewTimer(masterIndexWarmWait)
+			select {
+			case <-finished:
+			case <-wait.C:
+			case <-ctx.Done():
+			}
+			wait.Stop()
+		}
+		projectMap, ok = currentFS.ReadyProjectMap(16)
+	}
+	if ok {
 		status = projectMap.Status
 		facts.Modules = boundedStrings(projectMap.TopDirectories, 8)
 		facts.KeySymbols = boundedStrings(projectMap.Symbols, 12)
 		facts.Sources = append(facts.Sources, "project_index")
+	} else {
+		status = currentFS.IndexStatus()
+		status.State = "building"
 	}
 	facts.IndexState = status.State
 	facts.IndexUpdatedAt = status.BuiltAt
@@ -369,10 +406,22 @@ var ErrMasterNotConfigured = errors.New("мастер не настроен")
 func (a *App) masterConfig(ctx context.Context, workspaceID string) (domain.OrchestratorConfig, error) {
 	cfg, err := a.store.GetOrchestratorConfig(ctx, workspaceID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.OrchestratorConfig{}, ErrMasterNotConfigured
+		cfg = domain.OrchestratorConfig{WorkspaceID: workspaceID, Preset: "conductor"}
+	} else if err != nil {
+		return domain.OrchestratorConfig{}, err
 	}
+	cfg, err = a.globalMasterConfig(ctx, workspaceID, cfg)
 	if err != nil {
 		return domain.OrchestratorConfig{}, err
+	}
+	if cfg.ID == "" && cfg.ConnectionID == "" && cfg.Model == "" {
+		defaults, defaultsErr := a.GlobalModelDefaults(ctx)
+		if defaultsErr != nil {
+			return domain.OrchestratorConfig{}, defaultsErr
+		}
+		if defaults.UpdatedAt.IsZero() {
+			return domain.OrchestratorConfig{}, ErrMasterNotConfigured
+		}
 	}
 	cfg, err = a.resolveOrchestratorConnection(cfg)
 	if err != nil {
@@ -545,7 +594,7 @@ func (a *App) masterChatPrepared(ctx context.Context, req MasterChatRequest, wor
 			sessions.MemoryEntries = append(sessions.MemoryEntries, entry)
 		}
 	}
-	workOrders, err := a.store.ListWorkOrdersForConversationV2(ctx, sessions.Active)
+	workOrders, err := a.store.ListWorkOrdersForConversationV2(ctx, workspaceID, sessions.Active)
 	if err != nil {
 		return MasterChatView{}, err
 	}
@@ -613,7 +662,7 @@ func (a *App) MasterSessionHistory(ctx context.Context, id string, full bool) (M
 	if turnErr != nil {
 		return MasterChatView{}, turnErr
 	}
-	workOrders, workOrderErr := a.store.ListWorkOrdersForConversationV2(ctx, sessions.Active)
+	workOrders, workOrderErr := a.store.ListWorkOrdersForConversationV2(ctx, workspaceID, sessions.Active)
 	if workOrderErr != nil {
 		return MasterChatView{}, workOrderErr
 	}

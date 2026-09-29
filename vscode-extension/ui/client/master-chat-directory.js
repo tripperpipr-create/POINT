@@ -74,6 +74,7 @@ export function createMasterChatDirectory(dependencies) {
     return items.map(item => ({
       id: item.id,
       title: item.title,
+      branchName: item.branchName || '',
       updatedAt: item.updatedAt,
       pinned: Boolean(item.pinned),
       archived: Boolean(item.archived),
@@ -96,7 +97,7 @@ export function createMasterChatDirectory(dependencies) {
     const live = chat.running ? '<span class="hall-chat-live" aria-label="Идёт ответ"><i></i></span>' : ''
     const when = chatWhen(chat.updatedAt)
     return `<div class="${classes.join(' ')}">
-      <button type="button" data-action="chat-open" data-world="${esc(world.workspaceId)}" data-path="${esc(world.path || '')}" data-chat="${esc(chat.id)}"${chat.current && own ? ' aria-current="true"' : ''} title="${esc(chat.title)}">
+      <button type="button" data-action="chat-open" data-world="${esc(world.workspaceId)}" data-path="${esc(world.path || '')}" data-chat="${esc(chat.id)}"${chat.current && own ? ' aria-current="true"' : ''} title="${esc(chat.title)}${chat.branchName ? ' · '+esc(chat.branchName) : ''}">
         <span class="hall-chat-title">${esc(chat.title)}</span>${live}<time class="hall-chat-when">${esc(when)}</time>
       </button>
       ${own ? `<button type="button" class="hall-chat-drop" data-keynav-skip data-action="master-session-delete" data-id="${esc(chat.id)}" aria-label="Удалить разговор «${esc(chat.title)}»" title="Удалить разговор">${icon('x')}</button>` : ''}

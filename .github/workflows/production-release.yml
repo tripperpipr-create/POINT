@@ -121,6 +121,10 @@ jobs:
         run: |
           docker build --pull -f Dockerfile.sandbox -t point-agent-sandbox:release .
           if ($LASTEXITCODE -ne 0) { throw 'sandbox image build failed' }
+          foreach ($major in @(20, 22)) {
+            docker build --pull -f Dockerfile.sandbox-node --build-arg "NODE_MAJOR=$major" -t "point-agent-sandbox-node${major}:1.0.0" .
+            if ($LASTEXITCODE -ne 0) { throw "Node $major sandbox image build failed" }
+          }
           $env:POINT_SANDBOX_DOCKER_TEST = '1'
           $env:POINT_SANDBOX_IMAGE = 'point-agent-sandbox:release'
           go test ./internal/sandbox -run DockerSandboxIntegration -count=1 -v

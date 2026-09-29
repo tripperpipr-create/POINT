@@ -9,7 +9,16 @@ import (
 )
 
 func (s *SQLite) SaveBlueprint(ctx context.Context, b domain.AgentBlueprint) error {
-	_, err := s.db.ExecContext(ctx, `
+	return saveBlueprint(ctx, s.db, b)
+}
+
+type agentWriter interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}
+
+func saveBlueprint(ctx context.Context, writer agentWriter, b domain.AgentBlueprint) error {
+	_, err := writer.ExecContext(ctx, `
 INSERT INTO agent_blueprints(
   id, name, role_description, personality, mission, system_prompt, goals, rules, constraints_json, skill_ids,
   allowed_tools, tool_policies, connection_id, provider, provider_preset, base_url, primary_model, fallback_models,
@@ -93,15 +102,19 @@ func (s *SQLite) DeleteProjectAgent(ctx context.Context, id string) error {
 }
 
 func (s *SQLite) SaveProjectAgent(ctx context.Context, a domain.ProjectAgent) error {
+	return saveProjectAgent(ctx, s.db, a)
+}
+
+func saveProjectAgent(ctx context.Context, writer agentWriter, a domain.ProjectAgent) error {
 	var existingWorkspace string
-	err := s.db.QueryRowContext(ctx, `SELECT workspace_id FROM project_agents WHERE id=?`, a.ID).Scan(&existingWorkspace)
+	err := writer.QueryRowContext(ctx, `SELECT workspace_id FROM project_agents WHERE id=?`, a.ID).Scan(&existingWorkspace)
 	if err == nil && existingWorkspace != a.WorkspaceID {
 		return fmt.Errorf("project agent %q belongs to another workspace", a.ID)
 	}
 	if err != nil && err != sql.ErrNoRows {
 		return err
 	}
-	_, err = s.db.ExecContext(ctx, `
+	_, err = writer.ExecContext(ctx, `
 INSERT INTO project_agents(
   id, workspace_id, blueprint_id, status, role_family, parent_agent_id, owner_quest_id, temporary, name, role_description, personality, mission, system_prompt, goals, rules,
   constraints_json, project_rules, skill_ids, allowed_tools, tool_policies, connection_id, provider, provider_preset, base_url,

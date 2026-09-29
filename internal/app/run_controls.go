@@ -191,7 +191,18 @@ func (a *App) ResumeRun(runID string, request ...ResumeRunRequest) (domain.Run, 
 	if snapshot.SchemaVersion != 3 {
 		return domain.Run{}, errors.New("resumed runs require an immutable schema v3 configuration snapshot")
 	}
-	if req.Extend {
+	if req.Extend && checkpoint.PauseReason == domain.PauseReasonStepBudgetExhausted {
+		// Пауза по ходам: продление добавляет ходы, а не время.
+		if checkpoint.StepExtensions >= 1 {
+			return domain.Run{}, errors.New("step budget may be extended only once without a new task approval")
+		}
+		checkpoint.StepLimit += max(checkpoint.StepGrant, 5)
+		checkpoint.StepExtensions = 1
+		checkpoint.StepWrapUp = false
+		if saveErr := a.store.SaveRunCheckpoint(context.Background(), checkpoint); saveErr != nil {
+			return domain.Run{}, saveErr
+		}
+	} else if req.Extend {
 		if checkpoint.ActiveSecondsBudget <= 0 {
 			return domain.Run{}, errors.New("active time budget is not enabled for this run")
 		}

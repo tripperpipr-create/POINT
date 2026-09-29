@@ -284,7 +284,50 @@ func (b *ContainerBackend) PrepareProcess(ctx context.Context, request ProcessRe
 		}
 		return errors.Join(cleanupCtx.Err(), runErr)
 	}
-	return PreparedProcess{Command: command, Cleanup: cleanup}, nil
+	var readDecisions func(context.Context) ([]EgressDecision, error)
+	if policy.Mode == "ALLOWLIST" {
+		readDecisions = func(readCtx context.Context) ([]EgressDecision, error) {
+			output, err := b.runInfrastructureOutput(readCtx, "logs", "--tail", "1024", gatewayName)
+			if err != nil {
+				return nil, err
+			}
+			return parseEgressDecisions(output, policy.Digest, strings.TrimSpace(request.RunID))
+		}
+	}
+	return PreparedProcess{Command: command, Cleanup: cleanup, EgressDecisions: readDecisions}, nil
+}
+
+func parseEgressDecisions(output, digest, runID string) ([]EgressDecision, error) {
+	if len(output) > 512*1024 {
+		return nil, errors.New("egress decision log exceeds 512 KiB")
+	}
+	decisions := make([]EgressDecision, 0)
+	for _, line := range strings.Split(output, "\n") {
+		if !strings.Contains(line, `"msg":"sandbox egress"`) {
+			continue
+		}
+		var row struct {
+			Message      string `json:"msg"`
+			RunID        string `json:"run_id"`
+			PolicyDigest string `json:"policy_digest"`
+			FQDN         string `json:"fqdn"`
+			Port         uint16 `json:"port"`
+			Decision     string `json:"decision"`
+			Reason       string `json:"reason"`
+			Bytes        int64  `json:"bytes"`
+		}
+		if json.Unmarshal([]byte(line), &row) != nil || row.Message != "sandbox egress" || row.RunID != runID || row.PolicyDigest != digest {
+			return nil, errors.New("egress decision log does not match the process policy")
+		}
+		if _, err := egress.Compile("DENY", []string{fmt.Sprintf("%s:%d", row.FQDN, row.Port)}, egress.Quota{}); err != nil {
+			return nil, errors.New("egress decision log contains an invalid destination")
+		}
+		if row.Decision != "allowed" && row.Decision != "denied" && row.Decision != "failed" {
+			return nil, errors.New("egress decision log contains an unknown decision")
+		}
+		decisions = append(decisions, EgressDecision{PolicyDigest: digest, FQDN: row.FQDN, Port: row.Port, Decision: row.Decision, Reason: row.Reason, Bytes: row.Bytes})
+	}
+	return decisions, nil
 }
 
 func (b *ContainerBackend) validate() error {

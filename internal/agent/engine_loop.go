@@ -38,7 +38,7 @@ func (e *Engine) executeWithCheckpoint(ctx context.Context, active *activeRun, p
 		close(active.finalized)
 	}()
 	run := e.snapshot(active)
-	toolDefinitions := registry.Definitions(policy.ProfileGrants(profile).ToolNames())
+	toolDefinitions := withoutUnusableGitTools(ctx, registry.Definitions(policy.ProfileGrants(profile).ToolNames()), patches)
 	history := newConversationHistory(BuildStableMessages(profile, run.ContextItems, run.Task, customTools))
 	// Предел вывода считает не только ответ: размышление тратит тот же бюджет и
 	// тратит его первым, так что ход, которому не хватило места, заканчивается
@@ -55,10 +55,10 @@ func (e *Engine) executeWithCheckpoint(ctx context.Context, active *activeRun, p
 		}
 	}
 	inputBudgetTokens := ModelInputBudgetTokens(profile)
-	maxSteps := profile.MaxSteps
-	if maxSteps <= 0 {
-		maxSteps = 20
+	if active.steps == nil {
+		active.steps = newStepBudget(profile.MaxSteps, active.taskBrief)
 	}
+	steps := active.steps
 	toolOutputBytes := 0
 	lastToolPlan := ""
 	identicalToolPlanCount := 0
@@ -112,6 +112,7 @@ func (e *Engine) executeWithCheckpoint(ctx context.Context, active *activeRun, p
 		active.workspaceRevision = restored.WorkspaceRevision
 		active.checkpointSeq = restored.Seq
 		active.clock.restore(restored.ActiveElapsedMs, restored.ActiveTimeExtensions, restored.ActiveSecondsBudget)
+		steps.restore(restored.StepLimit, restored.StepExtensions, restored.StepWrapUp)
 		toolOutputBytes = restored.ToolOutputBytes
 		lastToolPlan = restored.LastToolPlan
 		identicalToolPlanCount = restored.IdenticalToolPlans
@@ -151,7 +152,7 @@ func (e *Engine) executeWithCheckpoint(ctx context.Context, active *activeRun, p
 		return
 	}
 	active.clock.start()
-	for step := startStep; step <= maxSteps; step++ {
+	for step := startStep; ; step++ {
 		if err := ctx.Err(); err != nil {
 			e.finishContext(active, err)
 			return
@@ -175,6 +176,16 @@ func (e *Engine) executeWithCheckpoint(ctx context.Context, active *activeRun, p
 				return
 			}
 		}
+		if step > steps.currentLimit() && !steps.inWrapUp() && !e.waitForStepBudget(ctx, active, step) {
+			return
+		}
+		// Последний ход после лимита идёт без инструментов: модель обязана
+		// ответить итогом, а не начать ещё одну проверку.
+		wrapUp := steps.inWrapUp()
+		requestTools := toolDefinitions
+		if wrapUp {
+			requestTools = nil
+		}
 		e.applyPendingAmendments(active, history, profile, customTools)
 		e.update(active, func(r *domain.Run) { r.Step = step; r.RequestCount++ })
 		run = e.snapshot(active)
@@ -182,7 +193,7 @@ func (e *Engine) executeWithCheckpoint(ctx context.Context, active *activeRun, p
 			e.fail(active, fmt.Errorf("persist run state: %w", err))
 			return
 		}
-		messages, compaction, prepareErr := history.Prepare(toolDefinitions, inputBudgetTokens)
+		messages, compaction, prepareErr := history.Prepare(requestTools, inputBudgetTokens)
 		if prepareErr != nil {
 			e.fail(active, prepareErr)
 			return
@@ -212,7 +223,7 @@ func (e *Engine) executeWithCheckpoint(ctx context.Context, active *activeRun, p
 			reasoning = nil
 			estimatedInputTokens := int64(compaction.AfterTokens)
 			if estimatedInputTokens <= 0 {
-				estimatedInputTokens = int64(EstimateModelInputTokens(messages, toolDefinitions))
+				estimatedInputTokens = int64(EstimateModelInputTokens(messages, requestTools))
 			}
 			reservationID := ""
 			if e.budgets != nil {
@@ -237,7 +248,7 @@ func (e *Engine) executeWithCheckpoint(ctx context.Context, active *activeRun, p
 				"step", step,
 				"model", currentModel,
 				"message_count", len(messages),
-				"tools", len(toolDefinitions),
+				"tools", len(requestTools),
 				"estimated_input_tokens", compaction.AfterTokens,
 				"input_budget_tokens", inputBudgetTokens,
 			)
@@ -247,7 +258,7 @@ func (e *Engine) executeWithCheckpoint(ctx context.Context, active *activeRun, p
 			if disableThinking {
 				effort = ""
 			}
-			err := model.Stream(ctx, providers.ModelRequest{Model: currentModel, Messages: messages, Tools: toolDefinitions, Temperature: profile.Temperature, MaxOutputTokens: profile.MaxOutputTokens, ContextWindowTokens: effectiveContextWindowTokens(profile), ReasoningEffort: effort, DisableThinking: disableThinking}, func(event providers.ModelEvent) error {
+			err := model.Stream(ctx, providers.ModelRequest{Model: currentModel, Messages: messages, Tools: requestTools, Temperature: profile.Temperature, MaxOutputTokens: profile.MaxOutputTokens, ContextWindowTokens: effectiveContextWindowTokens(profile), ReasoningEffort: effort, DisableThinking: disableThinking}, func(event providers.ModelEvent) error {
 				switch event.Kind {
 				case providers.EventTextDelta:
 					if content.Len()+len(event.Delta) > maxModelResponseBytes {
@@ -398,6 +409,14 @@ func (e *Engine) executeWithCheckpoint(ctx context.Context, active *activeRun, p
 			continue
 		}
 		assistantText := content.String()
+		if wrapUp {
+			// Инструментов в этом ходе нет; случайный вызов не исполняется, а
+			// пустой ответ не повод для нового круга — ход последний.
+			calls = nil
+			if strings.TrimSpace(assistantText) == "" {
+				assistantText = "Turn limit reached; the model returned no final summary."
+			}
+		}
 		if strings.TrimSpace(assistantText) == "" && len(calls) == 0 {
 			// Пустой ход — не отказ прогона, а несостоявшийся ход. Прежде он
 			// уносил всю работу немедленно и без единого повтора: модель,
@@ -426,8 +445,15 @@ func (e *Engine) executeWithCheckpoint(ctx context.Context, active *activeRun, p
 			currentRun := e.snapshot(active)
 			requirements := completion.Missing(workspaceRevision, currentRun.ChangedFiles)
 			if len(requirements) > 0 {
+				outOfSteps := wrapUp
+				if !outOfSteps && step >= steps.currentLimit() {
+					outOfSteps = !e.autoExtendSteps(ctx, active, step)
+				}
+				// Без брифа исчерпание остаётся провалом, как прежде; с брифом
+				// прогон встаёт на паузу, и человек может дать ещё ходов.
+				fatal := completionRevisions >= maxCompletionRevisions || (outOfSteps && active.taskBrief == nil)
 				status := "revision_required"
-				if completionRevisions >= maxCompletionRevisions || step == maxSteps {
+				if fatal {
 					status = "rejected"
 				}
 				e.publishOrLog(ctx, currentRun, domain.EventCompletionChecked, "agent", withCompletionCheckKind(active, map[string]any{
@@ -437,11 +463,21 @@ func (e *Engine) executeWithCheckpoint(ctx context.Context, active *activeRun, p
 					"correctionEpisode":              completionRevisions + 1,
 					"maxCorrectionEpisodes":          maxCompletionRevisions,
 				}))
-				if completionRevisions >= maxCompletionRevisions || step == maxSteps {
+				if fatal {
 					e.fail(active, completionRequirementError(requirements))
 					return
 				}
 				feedback := providers.Message{Role: "user", Content: completion.Feedback(requirements, workspaceRevision, currentRun.ChangedFiles)}
+				if outOfSteps {
+					feedback.Content = joinFeedback(&feedback.Content, stepBudgetPausedFeedback())
+					history.AppendRound(conversationRound{Step: step, Assistant: providers.Message{Role: "assistant", Content: assistantText, Reasoning: reasoning}, Followup: &feedback})
+					steps.setWrapUp(false)
+					if err := e.persistRoundCheckpoint(active, history, completion, observations, completedToolCalls, currentModel, remainingFallbacks, step+1, completionRevisions, identicalToolPlanCount, toolPlanRecoveries, toolOutputBytes, lastToolPlan, domain.PauseReasonStepBudgetExhausted, ""); err != nil {
+						e.fail(active, fmt.Errorf("persist run checkpoint: %w", err))
+						return
+					}
+					continue
+				}
 				history.AppendRound(conversationRound{Step: step, Assistant: providers.Message{Role: "assistant", Content: assistantText, Reasoning: reasoning}, Followup: &feedback})
 				completionRevisions++
 				continue
@@ -524,13 +560,26 @@ func (e *Engine) executeWithCheckpoint(ctx context.Context, active *activeRun, p
 				}
 				result = workbenchtools.FailWithHint("tool_failed", toolErr.Error(), "change the tool arguments or choose a different allowed tool; do not repeat the identical failing call")
 			}
-			if result.Error != nil && result.Error.Code == "inspection_stale" {
-				for _, key := range observations.ReleasePatchTarget(execCall.Arguments) {
-					delete(completedToolCalls, key)
+			if result.Error != nil {
+				switch result.Error.Code {
+				case "inspection_stale":
+					for _, key := range observations.ReleasePatchTarget(execCall.Arguments) {
+						delete(completedToolCalls, key)
+					}
+				case "edit_anchor_missing", "edit_anchor_ambiguous":
+					for _, key := range observations.PatchTargetKeys(execCall.Arguments) {
+						delete(completedToolCalls, key)
+					}
 				}
 			}
 			ownsCompletion := toolCallCompletedSuccessfully(result) && !alreadyCompleted
+			if ownsCompletion && progressfulToolResult(execCall.Name, result) {
+				steps.markProgress(step)
+			}
 			if ownsCompletion {
+				if isEffectfulTool(execCall.Name) {
+					releaseCommandResults(completedToolCalls, callKey)
+				}
 				completedToolCalls[callKey] = struct{}{}
 				executedNewSuccess = true
 			}
@@ -551,6 +600,13 @@ func (e *Engine) executeWithCheckpoint(ctx context.Context, active *activeRun, p
 			nudge := toolPlanNudgeFeedback(calls, identicalToolPlanCount, canRetryPlan)
 			round.Followup = &providers.Message{Role: "user", Content: nudge}
 		}
+		if notice := e.stepBudgetFollowup(ctx, active, step); notice != "" {
+			var existing *string
+			if round.Followup != nil {
+				existing = &round.Followup.Content
+			}
+			round.Followup = &providers.Message{Role: "user", Content: joinFeedback(existing, notice)}
+		}
 		history.AppendRound(round)
 		if err := e.persistRoundCheckpoint(active, history, completion, observations, completedToolCalls, currentModel, remainingFallbacks, step+1, completionRevisions, identicalToolPlanCount, toolPlanRecoveries, toolOutputBytes, lastToolPlan, "", ""); err != nil {
 			e.fail(active, fmt.Errorf("persist run checkpoint: %w", err))
@@ -558,7 +614,6 @@ func (e *Engine) executeWithCheckpoint(ctx context.Context, active *activeRun, p
 		}
 		active.clock.start()
 	}
-	e.fail(active, fmt.Errorf("maximum step count (%d) reached", maxSteps))
 }
 
 // WaitFinalized waits until application-level completion hooks have correlated

@@ -1,4 +1,7 @@
 import { fillAttribute } from './format-units.js'
+import { createQuestHistoryViews } from './quest-history-views.js'
+import { createCompanionProposalViews } from './companion-proposal-views.js'
+import { createCompanionSetupController } from './companion-setup-controller.js'
 import { createMasterChatState } from './master-chat-state.js'
 import { masterTraceMindPatch } from './master-live-trace.js'
 import { bindMasterContexts, installMasterDropzone, receiveMasterContext, clearMasterContext, masterContextPayload, handleMasterContextAction } from './master-context-ui.js'
@@ -55,6 +58,7 @@ import { MASTER_MESSAGE_LIMIT_BYTES, masterComposeCountClass, masterComposeCount
 import { createMasterFeedRuntime, threadNearBottom } from './master-feed.js'
 import { createMasterStreamView } from './master-stream-view.js'
 import { bindDragAndDrop } from './drag-drop.js'
+import { compactExecutionTask, compactQuestDescription, compactQuestTitle, compactTeamName } from './quest-titles.js'
 import { createUiSnapshot } from './ui-snapshot.js'
 import { closeMasterMenus, handleMasterFieldKey, handleMasterQueueAction, masterQueueHtml, masterQueueOf, masterQueuePush, masterSlashInput, masterSlashOpen, pickMasterSlash } from './master-compose-keys.js'
 import { COMPANION_EXAMPLES, COMPANION_MESSAGE_LIMIT_BYTES, COMPANION_SETUP_STEPS, COMPANION_SETUP_STEP_ALIAS, applyLocalSourceFields, companionBrainMode, companionConfigForBrain, normalizeBrainMode, companionSpendCaveats, companionSceneById, companionModeCardsHtml, companionLocalReadyHtml, companionComposeActionsHtml, companionComposeMetaHtml, companionMessageBytes, companionWaitSuffix, oversizedCompanionMessageNote } from './companion-compose.js'
@@ -234,6 +238,9 @@ const companionActionApplying = new Set()
 const companionActionModifying = new Set()
 const companionActionEditDrafts = new Map()
 let companionActionEditId = ''
+let globalModelDefaults
+let globalModelsLoading = false
+let globalModelsNote = ''
 let companionSetupOpen = false
 let companionSetupStep = typeof persisted.companionSetupStep === 'string' ? persisted.companionSetupStep : 'brain'
 // Черновик Studio восстанавливается ниже, после объявления
@@ -549,7 +556,16 @@ function resetProjectScopedState() {
   masterExpandedSteps.clear()
   masterOpenSteps.clear()
   masterClient.active = ''
-  masterClient.drafts = {}
+  // Черновики чистятся на месте: master-inbox держит их псевдонимом
+  // masterSessionDrafts, и новый объект оставил бы ему черновики прежнего мира —
+  // `legacy` одного проекта всплывал бы в `legacy` другого. Очередь реплик
+  // прежнего мира без этого ушла бы в новый сама.
+  for (const id of Object.keys(masterClient.drafts)) delete masterClient.drafts[id]
+  masterClient.queue = {}
+  masterClient.cardOpen = {}
+  masterClient.questionCursor = {}
+  masterClient.openLive = new Set()
+  chatDirectoryStatus = 'idle'
   masterClient.scroll = {}
   masterClient.attachments = {}
   masterClient.turns = {}
@@ -823,40 +839,6 @@ function agentById(id) {
 	if (project) return normalizeRunnableAgent(project)
 	return normalizeRunnableAgent((state.boot?.profiles || []).find(item => item.id === id))
 }
-// Названия из старых данных могут содержать всю разговорную команду. На
-// рабочем экране человеку нужна тема задачи, а не повтор его сообщения.
-function compactQuestTitle(value) {
-  let title = String(value || '').trim().split(/\r?\n/, 1)[0]
-  title = title.replace(/^(?:создай|создать|подготовь|подготовить|поставь|поставить)\s+квест(?:\s+на)?\s*[:—-]?\s*/i, '')
-  const sentenceEnd = title.search(/[.!?](?:\s|$)/)
-  if (sentenceEnd >= 0) title = title.slice(0, sentenceEnd)
-  title = title.trim().replace(/[.!?,;:\s]+$/g, '')
-  if (!title) return 'Задача без названия'
-  const limit = 72
-  if ([...title].length > limit) {
-    let short = [...title].slice(0, limit).join('')
-    const wordEnd = short.lastIndexOf(' ')
-    if (wordEnd >= Math.floor(limit / 2)) short = short.slice(0, wordEnd)
-    title = short.trim().replace(/[.,;:!—-]+$/g, '') + '…'
-  }
-  return title.charAt(0).toUpperCase() + title.slice(1)
-}
-function compactTeamName(team, quest) {
-  const raw = String(team?.name || '').trim().replace(/^(?:party|отряд)\s*[·:—-]\s*/i, '')
-  return compactQuestTitle(raw || quest?.title || 'Команда квеста')
-}
-function compactQuestDescription(value, title) {
-  let description = String(value || '').trim()
-  if (!description) return ''
-  description = description.replace(/^(?:создай|создать|подготовь|подготовить|поставь|поставить)\s+квест(?:\s+на)?\s*[:—-]?\s*/i, '')
-  const firstEnd = description.search(/[.!?](?:\s|$)/)
-  if (firstEnd >= 0 && compactQuestTitle(description.slice(0, firstEnd)) === compactQuestTitle(title)) {
-    description = description.slice(firstEnd + 1).trim()
-  }
-  if (description === String(title || '').trim()) return ''
-  const runes = [...description]
-  return runes.length > 240 ? runes.slice(0, 239).join('').trim() + '…' : description
-}
 function agentRuntimeLabel(agent) {
   const provider = String(agent?.provider || '').toLowerCase()
   if (provider === 'ollama') return 'Ollama'
@@ -874,10 +856,6 @@ function agentDisplayName(agent) {
   // profile edit. Keep duplicate names stable and unambiguous instead of
   // repeating the provider in both the title and metadata.
   return `${name} ${Math.max(1, peers.findIndex(item => item.id === agent.id) + 1)}`
-}
-function compactExecutionTask(item, quest) {
-  const raw = String(item?.task || quest?.title || 'Запуск').replace(/^(?:primary|reviewer|planner|implementer)\s*:\s*/i, '')
-  return compactQuestTitle(raw)
 }
 // Есть ли в ростере хоть кто-нибудь.
 //
@@ -991,146 +969,17 @@ const {
   getKeptRunId: () => keptRunId,
 })
 
-// ── Боковая панель квеста ──────────────────────────────────────────────────
-// Сводит три вещи, которые до сих пор жили на разных экранах: что агент видел,
-// чем кончились прошлые попытки и кто сейчас в отряде. Без этого отладка агента
-// была гаданием — по одному экрану нельзя понять, почему он сделал глупость.
-
-function questContextBarsHtml(details) {
-  const items = Array.isArray(details?.run?.contextItems) ? details.run.contextItems : []
-  if (items.length === 0) {
-    return `<p class="hall-note">Вложенного контекста нет — агент работает только с тем, что нашёл сам.</p>`
-  }
-  // Полоса показывает долю элемента в общем объёме вложений, а не абсолютный
-  // размер: важно, что именно съело контекст, а не сколько там килобайт.
-  const total = items.reduce((sum, item) => sum + Number(item.extractedSize || item.size || 0), 0) || 1
-  return items.map(item => {
-    const size = Number(item.extractedSize || item.size || 0)
-    const percent = Math.max(2, Math.round((size / total) * 100))
-    return `<div class="hall-context-item">
-      <div class="hall-spread">
-        <span class="hall-context-path">${esc(item.path || item.label || item.kind || 'вложение')}</span>
-        <span class="hall-context-share">${percent}%</span>
-      </div>
-      <div class="hall-track"><i ${fillAttribute(percent)}></i></div>
-    </div>`
-  }).join('')
-}
-
-function questRunHistoryHtml(details) {
-  const runs = (state.boot?.runs || []).filter(run => run.id !== details?.run?.id).slice(0, 4)
-  if (runs.length === 0) {
-    return `<p class="hall-note">Прошлых прогонов нет.</p>`
-  }
-  const diagnosticsByRun = new Map((state.boot?.runDiagnostics || []).map(item => [item.runId, item]))
-  return runs.map(run => {
-    const diagnostics = diagnosticsByRun.get(run.id)
-    const verification = diagnostics?.verification
-    // Метка честная: «с доказательством» только когда верификатор отработал.
-    const mark = !verification?.required ? '·' : verification.recorded ? '✓' : '!'
-    const proof = !verification?.required ? 'проверка не требовалась'
-      : verification.recorded ? 'проверка зафиксирована' : 'без доказательства'
-    return `<button type="button" class="hall-panel-row hall-item" data-action="load-run" data-id="${esc(run.id)}">
-      <span class="hall-chip ${mark === '!' ? 'is-hot' : 'is-dim'}">${mark}</span>
-      <div class="hall-item-text">
-        <b>${esc(run.task || run.id)}</b>
-        <small>${esc(proof)}</small>
-      </div>
-    </button>`
-  }).join('')
-}
-
-function questAsideHtml(details) {
-  if (!details?.run) return ''
-  const task = details.run.task || ''
-  return `<aside class="hall-quest-aside">
-    <section>
-      <header><b>Что агент видел</b></header>
-      <div class="hall-aside-stack">
-        ${questContextBarsHtml(details)}
-        <button class="hall-btn is-sm" data-action="load-context-inspector" data-run-id="${esc(details.run.id)}">Разбор контекста</button>
-        ${runIsActiveNow(details.run)
-          ? `<form class="exec-inline-form" data-exec-form="forbid" data-run-id="${esc(details.run.id)}"><input type="text" placeholder="Запретить путь…"><button type="submit" class="small-button" title="Запретить файл">⊘</button></form>`
-          : ''}
-      </div>
-    </section>
-    <section>
-      <header><b>История прогонов</b></header>
-      <div>${questRunHistoryHtml(details)}</div>
-      <div class="hall-aside-stack is-tight">
-        <button class="hall-btn is-sm" data-action="tab" data-tab="history">Сравнить 2 последних</button>
-        <button class="hall-btn is-sm is-dashed" data-action="repeat-quest" data-task="${esc(task)}">Повторить на другой модели</button>
-      </div>
-    </section>
-  </aside>`
-}
-
-// ── История по файлу ───────────────────────────────────────────────────────
-// Хроника отвечает «что делал прогон #47». Человек спрашивает «что случилось с
-// engine.go». Тот же неизменяемый факт, повёрнутый вокруг файла.
-
-function filesTouchedByAgents() {
-  const paths = new Set()
-  for (const patch of state.boot?.changes || []) if (patch.path) paths.add(patch.path)
-  for (const set of state.boot?.changeSets || []) {
-    for (const item of set.items || []) if (item.path) paths.add(item.path)
-  }
-  return [...paths].sort()
-}
-
-function fileHistoryEntryHtml(entry) {
-  const operations = { create: 'создан', modify: 'изменён', delete: 'удалён' }
-  const statuses = { applied: 'применено', reverted: 'откачено', pending: 'ждёт', approved: 'одобрено', rejected: 'отклонено', conflict: 'конфликт', superseded: 'поглощено' }
-  const origin = entry.source === 'patch'
-    ? `прогон ${entry.runId || '—'}${entry.tool ? ` · ${esc(entry.tool)}` : ''}`
-    : `набор ${entry.changeSetId}${entry.title ? ` · ${esc(entry.title)}` : ''}`
-  return `<div class="hall-panel-row hall-item">
-    <span class="hall-chip ${entry.status === 'reverted' ? 'is-dim' : ''}">${esc(operations[entry.operation] || entry.operation || '')}</span>
-    <div class="hall-item-text">
-      <b>${esc(statuses[entry.status] || entry.status || '')}</b>
-      <small>${origin}</small>
-    </div>
-    ${entry.revertible
-      ? `<button class="hall-btn is-sm" data-action="revert-file-entry" data-path="${esc(entry.revertPath)}" data-id="${esc(entry.id)}">Откатить</button>`
-      : `<span class="hall-item-flag">необратимо</span>`}
-  </div>`
-}
-
-function fileHistoryView() {
-  const files = filesTouchedByAgents()
-  if (fileHistoryStatus === 'idle' && !fileHistoryPath && files.length) {
-    fileHistoryPath = files[0]
-    fileHistoryStatus = 'loading'
-    setTimeout(() => vscode.postMessage({ type: 'loadFileHistory', path: fileHistoryPath }), 0)
-  }
-  const entries = fileHistoryData?.entries || []
-  return shell(`<div class="hall-split">
-    <div class="hall-queue">
-      <header>
-        <b>Файлы · ${files.length}</b>
-        <small>тронуты агентами</small>
-      </header>
-      <div class="hall-queue-list" data-keynav="column" aria-label="Файлы с историей правок">
-        ${files.map(path => `<button class="hall-queue-item is-path ${path === fileHistoryPath ? 'is-active' : ''}" data-action="pick-file-history" data-path="${esc(path)}"${path === fileHistoryPath ? ' aria-current="true"' : ''}><span class="title">${esc(path)}</span></button>`).join('')
-          || '<div class="hall-panel-row"><p class="hall-note">Агенты пока ничего не меняли.</p></div>'}
-      </div>
-    </div>
-    <div class="hall-page">
-      <div class="hall-title">
-        <span class="kicker">История файла</span>
-        <h1 class="is-mono">${esc(fileHistoryPath || '—')}</h1>
-      </div>
-      ${fileHistoryData ? `<div class="hall-tally">
-        <span>всего ${fileHistoryData.total}</span><span>применено ${fileHistoryData.applied}</span><span>откачено ${fileHistoryData.reverted}</span><span>ждёт ${fileHistoryData.pending}</span>
-      </div>` : ''}
-      <section class="hall-panel">
-        <header><b>Журнал правок</b><small>неизменяемая история</small></header>
-        ${entries.length ? entries.map(fileHistoryEntryHtml).join('')
-          : `<div class="hall-panel-row"><p class="hall-note">${fileHistoryStatus === 'loading' ? 'Спрашиваю ядро — правки этого файла ещё не пришли.' : fileHistoryStatus === 'error' ? 'Не удалось получить историю файла — правки неизвестны, а не отсутствуют.' : 'По этому файлу правок нет.'}</p></div>`}
-      </section>
-    </div>
-  </div>`)
-}
+const { questAsideHtml, fileHistoryView } = createQuestHistoryViews({
+  getState: () => state,
+  live: {
+    get fileHistoryData() { return fileHistoryData },
+    get fileHistoryPath() { return fileHistoryPath },
+    set fileHistoryPath(value) { fileHistoryPath = value },
+    get fileHistoryStatus() { return fileHistoryStatus },
+    set fileHistoryStatus(value) { fileHistoryStatus = value },
+  },
+  esc, shell: (...args) => shell(...args), runIsActiveNow, vscode,
+})
 
 function statisticsPanelHtml() {
   const boot = state.boot || {}
@@ -1182,101 +1031,15 @@ function questProposalEditorHtml(item) {
 function proposalDecisionPayload(id) {
   return readProposalDecisionEditor(root, id, taskProposalById(id))
 }
-function companionActionDecisionPayload(id) {
-  const name = root.querySelector(`[data-companion-action-field="name"][data-id="${CSS.escape(id)}"]`)?.value?.trim()
-  const description = root.querySelector(`[data-companion-action-field="description"][data-id="${CSS.escape(id)}"]`)?.value?.trim()
-  const roleDescription = root.querySelector(`[data-companion-action-field="roleDescription"][data-id="${CSS.escape(id)}"]`)?.value?.trim()
-  const mission = root.querySelector(`[data-companion-action-field="mission"][data-id="${CSS.escape(id)}"]`)?.value?.trim()
-  const agentIds = [...root.querySelectorAll(`[data-companion-action-field="agentId"][data-id="${CSS.escape(id)}"]:checked`)].map(input => input.value)
-  const instructions = root.querySelector(`[data-companion-action-field="instructions"][data-id="${CSS.escape(id)}"]`)?.value?.trim()
-  const toolChecks = [...root.querySelectorAll(`[data-companion-action-field="requiredTool"][data-id="${CSS.escape(id)}"]`)]
-  const requiredToolsInput = root.querySelector(`[data-companion-action-field="requiredTools"][data-id="${CSS.escape(id)}"]`)
-  let requiredTools
-  if (toolChecks.length) requiredTools = toolChecks.filter(item => item.checked).map(item => item.value)
-  else if (requiredToolsInput) requiredTools = requiredToolsInput.value.split(/[\r\n,]+/).map(value => value.trim()).filter(Boolean)
-  return { name, description, roleDescription, mission, agentIds, instructions, requiredTools }
-}
-function companionActionFooter(item, applyLabel) {
-  const editing = companionActionEditId === item.id
-  const applying = companionActionApplying.has(item.id)
-  const modifying = companionActionModifying.has(item.id)
-  const busy = applying || modifying
-  return `<footer><button type="button" class="primary" data-action="companion-action-apply" data-id="${esc(item.id)}" ${busy ? 'disabled' : ''}>${applying ? 'Создаём…' : esc(applyLabel)}</button><button type="button" class="secondary" data-action="companion-action-modify" data-id="${esc(item.id)}" ${busy ? 'disabled' : ''}>${modifying ? 'Сохраняем…' : editing ? 'Сохранить черновик' : 'Изменить'}</button><button type="button" class="secondary" data-action="companion-action-ignore" data-id="${esc(item.id)}" ${busy ? 'disabled' : ''}>Игнорировать</button></footer>`
-}
-// Карточки предложений компаньона: панель Хаба, его же классы и его регистр.
-//
-// В ленте Мастера создание агента рисуется не отсюда, а своей карточкой
-// (ui/client/master-agent-card.js): там другой регистр, и здешняя разметка
-// стояла в разговоре без меры колонки и без геометрии Чертога. Ветка
-// create_agent осталась ради панели компаньона, где предложение приходит тем
-// же маршрутом, но живёт среди своих.
-function companionActionProposalHtml(item) {
-  if (item.kind === 'create_agent') {
-    const agent = item.agent || {}
-    const editing = companionActionEditId === item.id
-    const pending = companionActionEditDrafts.get(item.id)
-    const shownAgent = pending ? {
-      ...agent,
-      name: pending.name !== undefined ? pending.name : agent.name,
-      roleDescription: pending.roleDescription !== undefined ? pending.roleDescription : agent.roleDescription,
-      mission: pending.mission !== undefined ? pending.mission : agent.mission,
-    } : agent
-    const editor = editing ? `<div class="companion-action-editor"><label>Имя агента<input data-companion-action-field="name" data-id="${esc(item.id)}" maxlength="120" value="${esc(shownAgent.name || '')}"></label><label>Роль<textarea data-companion-action-field="roleDescription" data-id="${esc(item.id)}" rows="2" maxlength="1000">${esc(shownAgent.roleDescription || '')}</textarea></label><label>Миссия<textarea data-companion-action-field="mission" data-id="${esc(item.id)}" rows="3" maxlength="4096">${esc(shownAgent.mission || '')}</textarea></label></div>` : ''
-    return `<article class="quest-proposal-card companion-action-card"><header><strong>${esc(item.title)}</strong><em>Черновик агента</em></header><p>${esc(item.rationale || '')}</p><div class="companion-flow-preview"><span><small>Шаблон</small><b>${esc(agent.blueprintId || '—')}</b></span><span><small>Модель</small><b>${esc(agent.primaryModel || 'auto')}</b></span><span><small>Инструменты</small><b>${(agent.allowedTools || []).length}</b></span></div><div class="companion-agent-summary"><strong>${esc(agent.roleDescription || 'Роль не указана')}</strong><small>${esc(agent.mission || '')}</small><p>${(agent.allowedTools || []).map(tool => `<code>${esc(tool)}</code>`).join(' ') || 'Без инструментов'}</p></div>${editor}${companionActionFooter(item, 'Создать агента')}</article>`
-  }
-  if (item.kind === 'create_team') {
-    const team = item.team || {}
-    const editing = companionActionEditId === item.id
-    const pending = companionActionEditDrafts.get(item.id)
-    const shownTeam = pending ? {
-      ...team,
-      name: pending.name !== undefined ? pending.name : team.name,
-      description: pending.description !== undefined ? pending.description : team.description,
-      agentIds: Array.isArray(pending.agentIds) ? pending.agentIds : team.agentIds,
-    } : team
-    const selected = new Set(shownTeam.agentIds || [])
-    const members = (shownTeam.agentIds || []).map(id => agentById(id)).filter(Boolean)
-    const editor = editing ? `<div class="companion-action-editor"><label>Название отряда<input data-companion-action-field="name" data-id="${esc(item.id)}" maxlength="120" value="${esc(shownTeam.name || '')}"></label><label>Описание<textarea data-companion-action-field="description" data-id="${esc(item.id)}" rows="3" maxlength="4096">${esc(shownTeam.description || '')}</textarea></label><fieldset><legend>Состав</legend><small>Выберите от 1 до 8 исполнителей.</small><div class="check-grid">${hubAgents().map(agent => `<label><input type="checkbox" data-companion-action-field="agentId" data-id="${esc(item.id)}" value="${esc(agent.id)}" ${selected.has(agent.id) ? 'checked' : ''}> ${esc(agent.name)}</label>`).join('')}</div></fieldset></div>` : ''
-    return `<article class="quest-proposal-card companion-action-card"><header><strong>${esc(item.title)}</strong><em>Черновик отряда</em></header><p>${esc(item.rationale || '')}</p><div class="companion-team-members">${members.map(agent => `<span><b>${esc(agent.name)}</b><small>${esc(agent.roleDescription || agentClass(agent))}</small></span>`).join('') || '<small>Состав не выбран</small>'}</div>${editor}${companionActionFooter(item, 'Создать отряд')}</article>`
-  }
-  if (item.kind === 'create_skill') {
-    const skill = item.skill || {}
-    const editing = companionActionEditId === item.id
-    const pending = companionActionEditDrafts.get(item.id)
-    const shownSkill = pending ? {
-      ...skill,
-      name: pending.name !== undefined ? pending.name : skill.name,
-      description: pending.description !== undefined ? pending.description : skill.description,
-      instructions: pending.instructions !== undefined ? pending.instructions : skill.instructions,
-      requiredTools: Array.isArray(pending.requiredTools) ? pending.requiredTools : skill.requiredTools,
-    } : skill
-    const requiredTools = Array.isArray(shownSkill.requiredTools) ? shownSkill.requiredTools : []
-    const selectedTools = new Set(requiredTools)
-    const permissions = Object.entries(skill.permissionDelta || {})
-    const catalog = (state.boot?.toolCatalog || []).slice(0, 24)
-    const toolEditor = catalog.length
-      ? `<fieldset><legend>Требуемые инструменты</legend><div class="check-grid skill-tool-grid">${catalog.map(tool => `<label><input type="checkbox" data-companion-action-field="requiredTool" data-id="${esc(item.id)}" value="${esc(tool.name)}" ${selectedTools.has(tool.name) ? 'checked' : ''}> ${esc(tool.displayName || tool.name)}</label>`).join('')}</div><small>Skill не расширяет permissions агента — tools должны уже быть в allowlist.</small></fieldset>`
-      : `<label>Требуемые инструменты — по одному на строку<textarea data-companion-action-field="requiredTools" data-id="${esc(item.id)}" rows="4">${esc(requiredTools.join('\n'))}</textarea></label>`
-    const editor = editing ? `<div class="companion-action-editor"><label>Название Skill<input data-companion-action-field="name" data-id="${esc(item.id)}" maxlength="120" value="${esc(shownSkill.name || '')}"></label><label>Описание<textarea data-companion-action-field="description" data-id="${esc(item.id)}" rows="2" maxlength="4096">${esc(shownSkill.description || '')}</textarea></label><label>Инструкции<textarea data-companion-action-field="instructions" data-id="${esc(item.id)}" rows="7" maxlength="32768">${esc(shownSkill.instructions || '')}</textarea></label>${toolEditor}</div>` : ''
-    return `<article class="quest-proposal-card companion-action-card"><header><strong>${esc(item.title)}</strong><em>SKILL DRAFT</em></header><p>${esc(item.rationale || '')}</p><div class="companion-flow-preview"><span><small>TOOLS</small><b>${requiredTools.length}</b></span><span><small>SCRIPTS</small><b>${(skill.scripts || []).length}</b></span><span><small>PERMISSIONS</small><b>${permissions.length ? permissions.length : 'Не расширяет'}</b></span></div><div class="companion-agent-summary"><strong>${esc(skill.description || 'Описание не указано')}</strong><small class="companion-skill-instructions">${esc(skill.instructions || '')}</small><p>${requiredTools.map(tool => `<code>${esc(tool)}</code>`).join(' ') || 'Без обязательных tools'}</p>${permissions.length ? `<ul>${permissions.map(([key, value]) => `<li>${esc(key)} = ${esc(value)}</li>`).join('')}</ul>` : '<p>Скрытых требований доступа нет. Tool grants агента не изменяются.</p>'}<p class="muted">После Apply definition попадёт в каталог и будет подключён к проекту. Чтобы агент использовал Skill — отметьте его в конструкторе.</p></div>${editor}${companionActionFooter(item, 'Создать и подключить Skill')}</article>`
-  }
-  const flow = item.flow || {}
-  const editing = companionActionEditId === item.id
-  const pending = companionActionEditDrafts.get(item.id)
-  const shownFlow = pending ? {
-    ...flow,
-    name: pending.name !== undefined ? pending.name : flow.name,
-    description: pending.description !== undefined ? pending.description : flow.description,
-  } : flow
-  const nodes = Array.isArray(flow.nodes) ? flow.nodes : []
-  const edges = Array.isArray(flow.edges) ? flow.edges : []
-  const nodePreview = nodes.map(node => {
-    const agent = node.agentId ? agentById(node.agentId) : undefined
-    return `<li><b>${esc(node.name || node.kind)}</b><small>${esc(node.kind)}${agent ? ` · ${esc(agent.name)}` : ''}</small></li>`
-  }).join('')
-  const editor = editing ? `<div class="companion-action-editor"><label>Название Flow<input data-companion-action-field="name" data-id="${esc(item.id)}" maxlength="200" value="${esc(shownFlow.name || '')}"></label><label>Описание<textarea data-companion-action-field="description" data-id="${esc(item.id)}" rows="3" maxlength="4096">${esc(shownFlow.description || '')}</textarea></label></div>` : ''
-  return `<article class="quest-proposal-card companion-action-card"><header><strong>${esc(item.title)}</strong><em>FLOW DRAFT</em></header><p>${esc(item.rationale || '')}</p><div class="companion-flow-preview"><span><small>Узлы</small><b>${nodes.length}</b></span><span><small>Связи</small><b>${edges.length}</b></span><span><small>Состояние</small><b>${esc(item.status || 'pending')}</b></span></div><ol>${nodePreview}</ol>${editor}${companionActionFooter(item, 'Создать Flow')}</article>`
-}
+const { companionActionDecisionPayload, companionActionProposalHtml } = createCompanionProposalViews({
+  root, esc, getState: () => state, agentById, hubAgents, agentClass,
+  live: {
+    get companionActionEditId() { return companionActionEditId },
+    get companionActionApplying() { return companionActionApplying },
+    get companionActionModifying() { return companionActionModifying },
+    get companionActionEditDrafts() { return companionActionEditDrafts },
+  },
+})
 function companionQuestionsHtml(item) {
   const questions = Array.isArray(item.questions)
     ? item.questions
@@ -1554,182 +1317,33 @@ function applyCompanionIdeContext(context = {}) {
     replaceHtmlNodes('.companion-quick-prompts', companionQuickPromptsHtml(compact))
   }
 }
-function companionProviderPresets() {
-  const blocked = new Set(['cursor-cli', 'codex-cli', 'claude-code-cli'])
-  return (state.boot?.providerCatalog || []).filter(item => !blocked.has(item.kind))
-}
-function providerWantsToken(preset) {
-  if (!preset) return true
-  if (preset.requiresApiKey || preset.id === 'llmux' || preset.id === 'custom') return true
-  return !preset.local
-}
-function defaultCompanionProviderPreset() {
-  return companionProviderPresets().find(item => item.id === 'llmux') || companionProviderPresets()[0]
-}
-function normalizeCompatibleBaseUrl(raw, kind) {
-  const value = String(raw || '').trim()
-  if (!value) return ''
-  try {
-    const url = new URL(value)
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') return value
-    if (kind === 'openai-compatible' && (!url.pathname || url.pathname === '/')) url.pathname = '/v1'
-    url.search = ''
-    url.hash = ''
-    return url.toString().replace(/\/$/, '')
-  } catch {
-    return value
-  }
-}
-// Компаньон и Мастер ходят тем же providers.New, что и агенты, — он знает и
-// Anthropic, и Azure. Отбор по двум видам провайдера был ограничением экрана,
-// а не движка, и прятал уже заведённые подключения.
-function companionConnections() {
-  return state.boot?.connections || []
-}
-function companionSetupDraftFromConfig() {
-  const companion = state.boot?.companion || {}
-  const connections = companionConnections()
-  const providerPresets = companionProviderPresets()
-  // Привязка хранится идентификатором. Подбор по пресету и виду провайдера
-  // остаётся только для конфигов, сохранённых до появления connectionId.
-  const bound = connections.find(item => companion.connectionId && item.id === companion.connectionId)
-  const exact = connections.find(item => companion.providerPreset && item.presetId === companion.providerPreset)
-  const connection = bound || exact || connections.find(item => companion.provider && item.provider === companion.provider)
-  const providerPreset = companion.providerPreset || connection?.presetId || providerPresets.find(item => item.kind === companion.provider)?.id || providerPresets[0]?.id || ''
-  const provider = companion.provider || connection?.provider || providerPresets.find(item => item.id === providerPreset)?.kind || ''
-  const presetMeta = providerPresets.find(item => item.id === providerPreset)
-  return sanitizeCompanionSetupDraft({
-    ...companion,
-    mode: companionBrainMode(companion),
-    connectionMode: connection ? 'existing' : 'new',
-    connectionId: connection?.id || '',
-    connectionName: connection?.displayName || '',
-    providerPreset,
-    provider,
-    baseUrl: companion.baseUrl || connection?.baseUrl || presetMeta?.baseUrl || '',
-    model: companion.model || presetMeta?.defaultModel || '',
-  })
-}
-function normalizeCompanionSetupStep(step) {
-  const aliased = COMPANION_SETUP_STEP_ALIAS[step] || step
-  return COMPANION_SETUP_STEPS.some(item => item.id === aliased) ? aliased : 'brain'
-}
-function ensureCompanionSetupDraft() {
-  if (!companionSetupDraft) companionSetupDraft = companionSetupDraftFromConfig()
-  companionSetupStep = normalizeCompanionSetupStep(companionSetupStep)
-  return companionSetupDraft
-}
-// Адрес, ключ и вид провайдера принадлежат подключению, а не черновику: с
-// экрана снимаются только выбор связи и model ID, остальное читается у неё.
-function companionDraftWithConnection(draft, connectionId, model) {
-  const connection = companionConnections().find(item => item.id === connectionId)
-  return sanitizeCompanionSetupDraft({
-    ...draft,
-    connectionId,
-    connectionName: connection?.displayName || draft.connectionName,
-    providerPreset: connection?.presetId || draft.providerPreset,
-    provider: connection?.provider || draft.provider,
-    baseUrl: connection?.baseUrl || draft.baseUrl,
-    model,
-  })
-}
-function mergeCompanionConnectionForm(base) {
-  const draft = sanitizeCompanionSetupDraft(base)
-  const value = (selector, fallback = '') => root.querySelector(selector)?.value ?? fallback
-  return companionDraftWithConnection(
-    draft,
-    value('#connection-id', draft.connectionId),
-    value('#model', draft.model).trim(),
-  )
-}
-function currentCompanionSetupDraft() {
-  const draft = sanitizeCompanionSetupDraft(companionSetupDraft || companionSetupDraftFromConfig())
-  const value = (selector, fallback = '') => root.querySelector(selector)?.value ?? fallback
-  const number = (selector, fallback) => {
-    const parsed = Number(value(selector, fallback))
-    return Number.isFinite(parsed) ? parsed : fallback
-  }
-  return sanitizeCompanionSetupDraft({
-    ...companionDraftWithConnection(
-      draft,
-      value('#connection-id', draft.connectionId),
-      value('#model', draft.model).trim(),
-    ),
-    temperature: number('#companion-setup-temperature', draft.temperature),
-    maxOutputTokens: number('#companion-setup-max-output', draft.maxOutputTokens),
-    criticality: number('#companion-criticality', draft.criticality),
-    creativity: number('#companion-creativity', draft.creativity),
-    verbosity: number('#companion-verbosity', draft.verbosity),
-    initiative: number('#companion-initiative', draft.initiative),
-    questionStrictness: number('#companion-question-strictness', draft.questionStrictness),
-    riskTolerance: number('#companion-risk-tolerance', draft.riskTolerance),
-    autoAct: root.querySelector('#companion-auto-act')?.checked ?? draft.autoAct,
-    autoOpenChatOnCritical: root.querySelector('#companion-auto-open-critical')?.checked ?? draft.autoOpenChatOnCritical,
-    autoSendModelPrompt: root.querySelector('#companion-auto-send-model')?.checked ?? draft.autoSendModelPrompt,
-    skillIds: companionSkillSelection(draft),
-  })
-}
-function companionConfigFromDraft(value) {
-  const draft = sanitizeCompanionSetupDraft(value)
-  const connection = companionConnections().find(item => item.id === draft.connectionId)
-  const preset = companionProviderPresets().find(item => item.id === (connection?.presetId || draft.providerPreset))
-  return companionConfigForBrain(draft, { current: state.boot?.companion || {}, connection, preset })
-}
-
-function companionSetupValidation(step, value) {
-  const draft = sanitizeCompanionSetupDraft(value)
-  if (step === 'skills') {
-    // Такой навык ядро отвергает вместе со всей настройкой, поэтому отказ
-    // называется здесь — на шаге, где отметку видно и есть чем её снять.
-    const blocked = companionBlockedSkills(draft)
-    if (blocked.length) return `Навык «${blocked[0].name || blocked[0].id}» требует инструмент вне доступа помощника. Снимите отметку — с ней настройка не сохранится.`
-  }
-  if (step === 'brain' || step === 'connection') {
-    if (!draft.connectionId) return 'Сначала создайте и проверьте подключение или выберите уже сохранённое.'
-    if (!draft.model.trim()) return 'Выберите найденную модель или введите её точный ID.'
-  }
-  if (step === 'boundaries') {
-    if (draft.temperature < 0 || draft.temperature > 2) return 'Температура должна быть от 0 до 2.'
-    if (draft.maxOutputTokens < 128 || draft.maxOutputTokens > 8192) return 'Размер ответа должен быть от 128 до 8192 токенов.'
-  }
-  return ''
-}
-// Выбор «подключение → модель» — тот же контрол, что в конструкторе агента и в
-// карточке персонажа. Своя сетка провайдеров, свои поля адреса и ключа и свой
-// список моделей были здесь четвёртой копией одного экрана. Подключение
-// заводится одной формой — той же, что на экране «Связи»; на онбординге уходить
-// туда некуда, поэтому форма доступна здесь же, свёрнутой.
-function saveConnectionFromFields() {
-  const providerEl = root.querySelector('#connection-provider')
-  const provider = providerEl?.value || ''
-  const presetId = providerEl?.selectedOptions?.[0]?.dataset?.preset || ''
-  const preset = providerCatalog().find(item => item.id === presetId)
-  const displayName = root.querySelector('#connection-name')?.value.trim() || preset?.name || presetId || provider
-  const baseUrl = normalizeCompatibleBaseUrl(root.querySelector('#connection-base-url')?.value.trim() || '', provider)
-  const apiKey = root.querySelector('#connection-api-key')?.value || ''
-  // Версия API принадлежит подключению, а не адресу: у Azure она уходит в
-  // query, и нормализация URL её срезала бы.
-  const apiVersion = root.querySelector('#connection-api-version')?.value.trim() || ''
-  if (!baseUrl) { transientError = 'Укажите адрес сервиса, например https://llmux.company.internal/v1'; render(); return }
-  if (providerWantsToken(preset) && !apiKey) { transientError = 'Для этого источника нужен токен.'; render(); return }
-  if (provider === 'azure-openai' && !apiVersion) { transientError = 'Для Azure укажите версию API — без неё запрос будет отвергнут.'; render(); return }
-  const id = root.querySelector('#connection-id-edit')?.value || ''
-  const defaultModel = root.querySelector('#connection-default-model')?.value.trim() || ''
-  connectionEditingId = ''
-  vscode.postMessage({ type: 'saveConnection', id, provider, presetId, displayName, baseUrl, apiKey, apiVersion, defaultModel })
-}
-function connectionDrawerHtml(open) {
-  return `<details class="hire-drawer creation-drawer"${open ? ' open' : ''}><summary><span class="hire-kicker">Связи</span> Новое подключение</summary>${connectionFormHtml('', { nested: true })}</details>`
-}
-function companionConnectionFieldsHtml(value) {
-  const draft = sanitizeCompanionSetupDraft(value)
-  const list = companionConnections()
-  const selected = list.find(item => item.id === draft.connectionId) || list.find(item => item.isDefault) || list[0]
-  const probe = selected
-    ? `<button type="button" class="secondary companion-probe-cta" data-action="probe-companion-connection" data-id="${esc(selected.id)}" ${companionProviderProbe?.loading ? 'disabled' : ''}>${esc(companionProbeCtaLabel('existing'))}</button>`
-    : ''
-  return `${modelChoiceHtml({ connectionId: selected?.id || '', model: draft.model, showTuning: false })}${probe}${companionProbeHtml()}${connectionDrawerHtml(!list.length)}`
-}
+const {
+  companionProviderPresets, providerWantsToken, defaultCompanionProviderPreset,
+  normalizeCompatibleBaseUrl, companionConnections, companionSetupDraftFromConfig,
+  normalizeCompanionSetupStep, ensureCompanionSetupDraft, companionDraftWithConnection,
+  mergeCompanionConnectionForm, currentCompanionSetupDraft, companionConfigFromDraft,
+  companionSetupValidation, saveConnectionFromFields, connectionDrawerHtml,
+  companionConnectionFieldsHtml,
+} = createCompanionSetupController({
+  root, vscode, esc, getState: () => state, render, sanitizeCompanionSetupDraft,
+  providerCatalog,
+  companionSkillSelection: (...args) => companionSkillSelection(...args),
+  companionBlockedSkills: (...args) => companionBlockedSkills(...args),
+  connectionFormHtml: (...args) => connectionFormHtml(...args),
+  modelChoiceHtml: (...args) => modelChoiceHtml(...args),
+  companionProbeCtaLabel: (...args) => companionProbeCtaLabel(...args),
+  companionProbeHtml: (...args) => companionProbeHtml(...args),
+  live: {
+    get companionSetupDraft() { return companionSetupDraft },
+    set companionSetupDraft(value) { companionSetupDraft = value },
+    get companionSetupStep() { return companionSetupStep },
+    set companionSetupStep(value) { companionSetupStep = value },
+    get companionProviderProbe() { return companionProviderProbe },
+    get transientError() { return transientError },
+    set transientError(value) { transientError = value },
+    set connectionEditingId(value) { connectionEditingId = value },
+  },
+})
 // Навык помощника доступен ровно тогда, когда все его умения входят в группы
 // помощника. Правило то же, что у ядра в Grants.Allows: имени нет в каталоге —
 // значит это пользовательский инструмент или опечатка, и группой такое не
@@ -1980,6 +1594,7 @@ function sendMasterMessage(forcedText = '', options = {}) {
       profileId: profile.id,
       task: text,
       apiKey,
+      conversationId: masterClient.active,
       contextItems: attachments.filter(item => item.kind !== 'image').map(item => ({
         kind: item.kind || 'file',
         path: item.path || '',
@@ -2716,7 +2331,13 @@ function paint() {
     if (statisticsStatus === 'idle') { statisticsStatus = 'loading'; setTimeout(() => vscode.postMessage({ type: 'loadStatistics' }), 0) }
     root.innerHTML = generalSettingsView({ shell, profiles: hubAgents().length ? hubAgents() : (state.boot?.profiles || []), quickChatSettingsHtml, stats: statisticsData, status: statisticsStatus })
   }
-  else if (state.selectedTab === 'model-connections') root.innerHTML = modelConnectionsSettingsView({ shell, connectionManagerHtml, editingId: connectionEditingId, count: (state.boot?.connections || []).length })
+  else if (state.selectedTab === 'model-connections') {
+    if (!globalModelDefaults && !globalModelsLoading) {
+      globalModelsLoading = true
+      vscode.postMessage({ type: 'loadGlobalModels' })
+    }
+    root.innerHTML = modelConnectionsSettingsView({ shell, connectionManagerHtml, editingId: connectionEditingId, count: (state.boot?.connections || []).length, defaults: globalModelDefaults, connections: state.boot?.connections || [], esc, note: globalModelsNote })
+  }
   else if (state.selectedTab === 'teams') root.innerHTML = teamsView()
   else if (state.selectedTab === 'quests' || state.selectedTab === 'quest') root.innerHTML = chat()
   else if (state.selectedTab === 'flows' || state.selectedTab === 'workflows') root.innerHTML = projectFlowsView()
@@ -2801,6 +2422,19 @@ root.addEventListener('click', event => {
   const target = event.target.closest('[data-action]')
   if (!target) return
   const action = target.dataset.action
+  if (action === 'save-global-models') {
+    const defaults = {}
+    for (const role of ['master', 'archivist', 'agent']) {
+      defaults[role] = {
+        connectionId: String(root.querySelector(`[data-global-model-connection="${role}"]`)?.value || ''),
+        model: String(root.querySelector(`[data-global-model-id="${role}"]`)?.value || '').trim(),
+      }
+    }
+    globalModelsNote = 'Сохраняем…'
+    vscode.postMessage({ type: 'saveGlobalModels', defaults })
+    render()
+    return
+  }
   if (handleChatDirectoryAction(action, target)) { render(); return }
   if (handleProjectGalleryAction(action, target)) { render(); return }
   if (handleMasterContextAction({action,target,vscode,sending:masterSending})) {persistDraft();return}
@@ -2873,9 +2507,11 @@ root.addEventListener('click', event => {
     vscode,
     render,
     connections: () => state.boot?.connections || [],
+    projectAgents: state.boot?.projectAgents || [],
     blueprintById: id => (state.boot?.blueprints || []).find(item => item.id === id),
     openWorkshop: (card, value) => openAgentWorkshopFromCard(card, value),
     createAgent: (card, value) => createAgentFromCard(card, value),
+    useExisting: (card, agentId) => hireAgentFromCard(card, { agentId }),
   })) return
   // Ревизия ростера существующим маршрутом: карточка найма меняет только состав,
   // версия и digest проверяются ядром, как при любой правке карточки запуска.
@@ -2929,8 +2565,18 @@ root.addEventListener('click', event => {
   // разговора, который человек ведёт сейчас, и выбрасывать его из разговора
   // ради списка агентов незачем.
   function createAgentFromCard(card, value) {
+    if (card.workOrderId) {
+      hireAgentFromCard(card, { agent: constructorToProjectAgent(agentDraftFromCard(value)) })
+      return
+    }
     hireAfterSave = card.workOrderId ? 'work-order:' + card.workOrderId + '|' + (card.draftId || '') : 'card'
     vscode.postMessage({ type: 'saveProjectAgent', agent: constructorToProjectAgent(agentDraftFromCard(value)), stayOnTab: true })
+  }
+
+  function hireAgentFromCard(card, selection) {
+    const idempotencyKey = globalThis.crypto?.randomUUID?.() || `hire-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    vscode.postMessage({ type: 'hireMasterWorkOrderAgentV2', workOrderId: card.workOrderId, draftId: card.draftId,
+      expectedVersion: card.expectedVersion, expectedDigest: card.expectedDigest, idempotencyKey, ...selection })
   }
 
   function reviseWorkOrderRosterV2(workOrderId, mutate) {
@@ -3592,6 +3238,12 @@ window.addEventListener('message', event => {
     render()
     return
   }
+  if (message.type === 'masterBranchNotice') {
+    if (message.tone === 'error') transientError = String(message.message || '')
+    else masterComposeNote = String(message.message || '')
+    render()
+    return
+  }
   if (message.type === 'projects') {
     receiveProjects(message)
     render()
@@ -3743,6 +3395,13 @@ window.addEventListener('message', event => {
     persistDraft()
     render()
   }
+  if (message.type === 'globalModelsLoaded') {
+    globalModelDefaults = message.defaults || {}
+    globalModelsLoading = false
+    globalModelsNote = message.saved ? 'Модели по умолчанию сохранены.' : ''
+    render()
+    return
+  }
   if (message.type === 'companionActionApplied') {
     companionActionEditId = ''
     if (message.proposalId) {
@@ -3764,6 +3423,12 @@ window.addEventListener('message', event => {
     }
     persistDraft()
     render()
+    // The original task is durable on the action proposal. Continue its
+    // intake as soon as the missing agent exists so the quest card appears in
+    // this conversation without asking the user to repeat the request.
+    if (message.stayInMaster && message.agentId && message.continuationPrompt) {
+      sendMasterMessage(message.continuationPrompt)
+    }
   }
   if (message.type === 'companionActionModified') {
     companionActionModifying.delete(message.proposalId || '')

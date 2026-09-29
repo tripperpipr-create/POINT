@@ -2,7 +2,9 @@ package gitlab
 
 import (
 	"encoding/json"
+	"reflect"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -161,13 +163,34 @@ type JobLog struct {
 
 // Сырые формы ответа сервера — поля REST API GitLab.
 type rawUser struct {
-	ID       int    `json:"id"`
+	ID       userID `json:"id"`
 	Username string `json:"username"`
 	Name     string `json:"name"`
 }
 
+// GitLab-инстансы отдают id как JSON-число или десятичную строку.
+type userID int
+
+func (id *userID) UnmarshalJSON(data []byte) error {
+	var number int
+	if err := json.Unmarshal(data, &number); err == nil {
+		*id = userID(number)
+		return nil
+	}
+	var decimal string
+	if err := json.Unmarshal(data, &decimal); err != nil {
+		return err
+	}
+	parsed, err := strconv.Atoi(decimal)
+	if err != nil {
+		return err
+	}
+	*id = userID(parsed)
+	return nil
+}
+
 func (u rawUser) view() User {
-	return User{ID: u.ID, Username: clip(u.Username, 100), Name: clip(u.Name, 200)}
+	return User{ID: int(u.ID), Username: clip(u.Username, 100), Name: clip(u.Name, 200)}
 }
 
 func users(list []rawUser) []User {
@@ -381,8 +404,17 @@ func clipFlag(text string, limit int) (string, bool) {
 	return text[:limit], true
 }
 
-// decodeText разбирает JSON из текста результата. Сервер отдаёт один объект
-// или массив в первой текстовой части.
+// decodeText разбирает один JSON-кандидат без изменения target при ошибке:
+// invoke может попробовать следующие текстовые части результата.
 func decodeText(text string, target any) error {
-	return json.Unmarshal([]byte(strings.TrimSpace(text)), target)
+	value := reflect.ValueOf(target)
+	if value.Kind() != reflect.Pointer || value.IsNil() {
+		return json.Unmarshal([]byte(strings.TrimSpace(text)), target)
+	}
+	candidate := reflect.New(value.Elem().Type())
+	if err := json.Unmarshal([]byte(strings.TrimSpace(text)), candidate.Interface()); err != nil {
+		return err
+	}
+	value.Elem().Set(candidate.Elem())
+	return nil
 }

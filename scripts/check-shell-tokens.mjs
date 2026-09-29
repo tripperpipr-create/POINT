@@ -14,10 +14,10 @@
 
 import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
+import { readPointWorkbenchCss } from '../distribution/point-workbench-css.mjs';
 
 const root = path.join(path.dirname(new URL(import.meta.url).pathname.slice(1)), '..');
 const shellDir = path.join(root, 'distribution', 'resources');
-const shellFile = path.join(shellDir, 'point-workbench.css');
 const tokensFile = path.join(root, 'vscode-extension', 'ui', 'tokens.css');
 
 // Токен оболочки → откуда берётся его значение в ui/tokens.css.
@@ -56,7 +56,7 @@ const normalise = value => {
   return colour.toLowerCase();
 };
 
-const shellSource = readFileSync(shellFile, 'utf8');
+const shellSource = readPointWorkbenchCss();
 const shellTokens = readDeclarations(shellSource);
 const uiTokens = readDeclarations(readFileSync(tokensFile, 'utf8'));
 
@@ -96,7 +96,7 @@ for (const name of readdirSync(shellDir)) {
 // вкладку задавали три блока из разных лет, побеждал нижний, и узнать это
 // можно было только замером в живом окне. Повтор селектора — первый признак,
 // что слой начал расти снова.
-const workbenchCss = readFileSync(path.join(shellDir, 'point-workbench.css'), 'utf8');
+const workbenchCss = shellSource;
 // Медиазапросы пропускаем: там правило и обязано повторять селектор.
 const outsideMedia = workbenchCss.replace(/@media[^{]*\{(?:[^{}]|\{[^{}]*\})*\}/g, '');
 const painted = new Map();

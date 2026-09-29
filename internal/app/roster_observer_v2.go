@@ -356,37 +356,6 @@ func carryRosterDraftIdentity(draft domain.AgentDraft, previous domain.AgentRost
 	return draft
 }
 
-// validateRosterPlanV2 — зеркало доменных правил ростера. Наблюдатель проверяет
-// себя сам: ошибка валидации поднимается из сохранения наряда наружу и стоит
-// человеку всего хода, а не одной карточки.
-func validateRosterPlanV2(plan domain.AgentRosterPlan, budget domain.BudgetEnvelope) error {
-	permanentIDs := make(map[string]bool, len(plan.Permanent))
-	for _, draft := range plan.Permanent {
-		permanentIDs[draft.ID] = true
-		if draft.Existing {
-			if strings.TrimSpace(draft.ID) == "" {
-				return errors.New("существующий агент без идентификатора")
-			}
-			continue
-		}
-		if draft.Name == "" || draft.Role == "" || draft.Mission == "" {
-			return errors.New("черновик агента без имени, роли или миссии")
-		}
-		if draft.BlueprintID == "" && !draft.RequiresConsent {
-			return errors.New("новый агент без согласия человека")
-		}
-	}
-	if budget.MaxProjectAgents > 0 && len(plan.Permanent) > budget.MaxProjectAgents {
-		return errors.New("ростер выходит за бюджет проектных агентов")
-	}
-	for _, temporary := range plan.Temporary {
-		if !permanentIDs[temporary.ParentAgentID] || strings.TrimSpace(temporary.Role) == "" || strings.TrimSpace(temporary.Mission) == "" {
-			return errors.New("субагент без родителя, роли или миссии")
-		}
-	}
-	return nil
-}
-
 // filterKnownTools отсекает имена, которых нет ни в каталоге, ни среди
 // пользовательских инструментов. Выдуманное имя создаёт агента, который родится
 // заблокированным: наряд заводит исполнителя в обход проверки профиля.

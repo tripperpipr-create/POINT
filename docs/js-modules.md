@@ -1,6 +1,6 @@
 # Карта JS-контура
 
-Актуально для Point `1.2.2` на 19 сентября 2026 года. Здесь — кто за что
+Актуально для Point `1.2.3` на 27 сентября 2026 года. Здесь — кто за что
 отвечает в расширении и вебвью. Границы модулей охраняет
 `scripts/check-release-contracts.mjs`, но до сих пор нигде не объяснялись: по
 списку файлов в `npm run check` видно, что модуль есть, и не видно, зачем он.
@@ -33,6 +33,7 @@ webview. У них нет ни `require`, ни `vscode` — только объ�
 **Группа сообщений** — `handleXxxMessage.call(this, message)`. Однородное
 семейство `case`-веток уезжает в модуль, провайдер приходит как `this`. Так
 устроены `vscode-extension/master-chat-controller.js`,
+`vscode-extension/master-chat-branch.js` (предложение ветки, Git worktree и переключение чата),
 `vscode-extension/infra-controller.js`,
 `vscode-extension/hub-runtime-controller.js`,
 `vscode-extension/roster-controller.js`,
@@ -55,11 +56,17 @@ webview. У них нет ни `require`, ни `vscode` — только объ�
 **Фабрика с замыканиями** — для поверхностей со своим состоянием:
 `vscode-extension/companion-controller.js`,
 `vscode-extension/ide-action-controller.js`,
+`vscode-extension/ide-run-controller.js`,
 `vscode-extension/ide-navigation-controller.js`,
 `vscode-extension/project-index-controller.js`,
 `vscode-extension/console-ssh-controller.js`,
 `vscode-extension/point-panels.js`,
 `vscode-extension/ide-observation-controller.js`.
+
+`ide-action-controller.js` оставляет за собой команды IDE и публичные методы
+расширения. `ide-run-controller.js` ведёт поиск, выбор и запуск конфигураций,
+включая Run Anything и запуск текущего файла; терминал, кэш манифестов и
+текущая цель принадлежат его экземпляру.
 
 Интеграции собраны так же, фабрикой:
 `vscode-extension/integrations-controller.js` отдаёт два типа сообщений вебвью
@@ -81,7 +88,15 @@ webview. У них нет ни `require`, ни `vscode` — только объ�
 это то, из-за чего второе окно не поднимает второе ядро и не убивает чужое.
 Правило «кого можно гасить» проверяет `scripts/smoke-core-lease.js`:
 ошибка в счёте аренд дорога в обе стороны — либо бесхозные ядра никогда
-не гаснут, либо у соседнего окна убьют ядро посреди работы.
+не гаснут, либо у соседнего окна убьют ядро посреди работы. Там же отметка
+окна `host-<pid>.json`: каждое окно Point обновляет её, пока открыто, а ядро,
+запущенное расширением (`POINT_OWNER_DIR`), выходит само, когда свежих
+отметок и аренд нет дольше 30 секунд (`cmd/server/owner_watch.go`). Так ядра
+не переживают закрытое приложение, даже если оно вышло жёстко.
+
+Поддержку языков по требованию — выбор и установку language server —
+держит `vscode-extension/language-support.js`; таблицы языков приходят туда
+из `ide-action-controller.js`.
 
 ## Вебвью: четыре роли
 
@@ -98,6 +113,14 @@ webview. У них нет ни `require`, ни `vscode` — только объ�
 ячеек есть только геттер (это `const`-коллекции, их меняют через `.add`/`.clear`,
 а присваивание бросит TypeError), и `esbuild` молча подставит `undefined`, если
 имя не передали вовсе.
+
+Боковую панель квеста и историю изменений файла собирает
+`vscode-extension/ui/client/quest-history-views.js`. Карточки предложений
+Компаньона — `vscode-extension/ui/client/companion-proposal-views.js`;
+подготовку, проверку и сохранение его настроек —
+`vscode-extension/ui/client/companion-setup-controller.js`. Эти модули получают
+текущее состояние и нужные действия через параметры фабрик; черновики, статусы
+запросов и сохранённое состояние панели по-прежнему принадлежат `main.js`.
 
 Формы всех поверхностей — двадцать штук — разбирает один
 `vscode-extension/ui/client/form-submit.js`; какой запрос держит какую форму
@@ -162,8 +185,20 @@ workflow — `vscode-extension/ui/client/drag-drop.js`. Экранировани
 /api/v2/master/quests/{id}/application` (`internal/app/delivered_app_state_v2.go`).
 
 Полосу идущего квеста над полем ввода считает
-`vscode-extension/ui/client/master-quest-strip.js` из наряда v2; подписи
-состояний она берёт у карточки наряда (`runtimePresentation`). Правая панель
+`vscode-extension/ui/client/master-quest-strip.js` из наряда v2. Подписи,
+знаки и тона состояний (`runtimePresentation`), деление квестов на идущие,
+ждущие человека и историю (`questPhase`) и отличие квеста человека от этапа
+Flow (`isRootQuest`) живут в `vscode-extension/ui/client/quest-status.js`:
+его читают полоса, карточка наряда, список квестов проекта, «текущий квест» и
+счётчики. Короткие заголовки квестов и запусков —
+`vscode-extension/ui/client/quest-titles.js`.
+
+Поток хода Мастера (`vscode-extension/master-turn-stream.js`) и наблюдатель
+наряда (`vscode-extension/master-work-order-watch.js`) принадлежат миру, в
+котором начались: `projectScope` глушит их ответы после смены проекта, а
+`forgetProjectFollowers` в `afterProjectSwitch` двигает эпоху. Подпись
+состояния, по которой `postState` решает, рассылать ли снимок вкладкам, —
+`vscode-extension/hub-state-signature.js`. Правая панель
 разговора — вкладки «Квест», «Команда», «Контекст»: квест собирает
 `vscode-extension/ui/client/master-brief-panel.js`, команду и контекст —
 `vscode-extension/ui/client/master-inspector.js`, оформление —
@@ -197,6 +232,25 @@ workflow — `vscode-extension/ui/client/drag-drop.js`. Экранировани
 `scripts/lib/webview-harness.js`.
 
 ## Куда класть новое
+
+### CSS вебвью
+
+`vscode-extension/ui/build.mjs` собирает `ui/tokens.css`, затем все
+`ui/layers/*.css` в алфавитном порядке. Порядок имён является порядком каскада.
+`media/style.css` получается сборкой, его не правят вручную.
+
+Чертог разделён на `05-hall.css` (каркас и разговор),
+`05a-hall-controls.css` (кнопки и панели) и `05b-hall-decisions.css`
+(разбор решения и адаптивная раскладка). Композер Мастера —
+`07a-master-compose.css` и `07a-master-compose1-controls.css`.
+Окна инструментов — `96-tool-windows.css` (общий каркас),
+`96-tool-windows1-git.css` (Git) и `96-tool-windows2-layout.css`
+(узкая рейка и широкая форма). Число в имени двух последних частей сохраняет
+их место до `96a-integrations.css`.
+
+Проверка пространства имён считает три части Чертога одним логическим слоем:
+совпадения классов между ними существовали до разделения. Коллизии с остальными
+слоями по-прежнему останавливают сборку.
 
 - Новая ветка нажатия — в `*-actions.js` своего семейства, не в общий
   обработчик `main.js`.

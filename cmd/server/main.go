@@ -39,7 +39,9 @@ func main() {
 	}
 	// The headless core is the process that actually runs in the product, so it
 	// owns startup recovery too: quests abandoned by a stopped core are paused
-	// instead of claiming progress, and sandbox retention runs.
+	// instead of claiming progress, and sandbox retention runs. Only this
+	// core's own world is recovered: cores of other projects share the database
+	// and are still running their work (internal/app/world_recovery.go).
 	application.Startup(context.Background())
 	// Listen before OpenWorkspace so the IDE health check does not time out on large trees.
 	address := env("HTTP_ADDR", "127.0.0.1:8080")
@@ -61,6 +63,14 @@ func main() {
 	}
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
+	// Без POINT_OWNER_DIR канал остаётся nil и в select не срабатывает никогда:
+	// ядро, запущенное не из расширения, хозяев не ждёт (owner_watch.go).
+	ownerCtx, stopOwnerWatch := context.WithCancel(context.Background())
+	defer stopOwnerWatch()
+	var orphaned <-chan struct{}
+	if ownerDir := os.Getenv("POINT_OWNER_DIR"); ownerDir != "" {
+		orphaned = watchOwners(ownerCtx, ownerDir, ownerGrace, ownerPoll, time.Now, logger)
+	}
 	select {
 	case err = <-serverErrors:
 		if err != nil && err != http.ErrServerClosed {
@@ -68,6 +78,8 @@ func main() {
 		}
 	case sig := <-signals:
 		logger.Info("shutdown requested", "signal", sig.String())
+	case <-orphaned:
+		logger.Info("shutdown requested", "reason", "no Point window alive")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

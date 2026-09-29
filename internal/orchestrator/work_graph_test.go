@@ -140,3 +140,34 @@ func TestEnsureProjectPipelineInsertsIntegrateAndReview(t *testing.T) {
 		t.Fatalf("integrate=%v review=%v acceptAgent=%v", integrate, review, acceptAgent)
 	}
 }
+
+// Живой квест 29.09: узлы проектного потока из модельного плана имели
+// failurePolicy {} — режим stop, — и первый сбой этапа закрыл квест, хотя
+// наряд разрешал три попытки.
+func TestEnsureProjectPipelineGivesAgentStagesRetryPolicy(t *testing.T) {
+	flow := CompileModelFlow(CompileRequest{Title: "T", AgentIDs: []string{"a", "b"}}, ModelPlan{
+		AgentIDs: []string{"a", "b"},
+		Stages:   []PlanStage{{Name: "Реализовать", AgentID: "a", Instruction: "do", Phase: 1}},
+	}, "model")
+	// Второй набор — поток CompileFlow, где вставляются Integrate, review и
+	// Accept: политика должна лечь и на вставленные узлы.
+	inserted := CompileFlow(CompileRequest{Title: "T", AgentIDs: []string{"a", "b"}, Importance: domain.QuestImportant, PlanningDepth: 50, Parallelism: 10})
+	for index := range inserted.Nodes {
+		inserted.Nodes[index].FailurePolicy = domain.FlowFailurePolicy{}
+	}
+	for _, pipeline := range []domain.FlowGraph{EnsureProjectPipeline(flow, []string{"a", "b"}), EnsureProjectPipeline(inserted, []string{"a", "b"})} {
+		agents := 0
+		for _, node := range pipeline.Nodes {
+			if node.Kind != domain.FlowNodeAgent {
+				continue
+			}
+			agents++
+			if node.FailurePolicy.Mode != "retry" || node.FailurePolicy.MaxRetries != 2 {
+				t.Fatalf("agent stage %q has no retry policy: %#v", node.Name, node.FailurePolicy)
+			}
+		}
+		if agents == 0 {
+			t.Fatal("no agent stages checked")
+		}
+	}
+}

@@ -125,7 +125,7 @@ export function createIntegrationsUi({ root, vscode, render, shell, toolPageHead
           for (const key of Object.keys(state.drafts)) if (key.startsWith('form.') || key.startsWith('plugin.')) delete state.drafts[key]
         }
         // Доверие, проверка и токен меняют и состояние плагина GitLab.
-        if (layout !== 'gitlab-mr' && layout !== 'tool-gitlab') { forget('status', 'pluginStatus'); if (state.status) gitlab('status'); if (state.pluginStatus) gitlab('status', { scope: 'plugin' }) }
+        if (layout !== 'gitlab-mr' && layout !== 'tool-gitlab') { forget('status', 'pluginStatus'); if (state.status) gitlab('status'); if (state.pluginStatus || msg.probed === 'mcp-gitlab') gitlab('status', { scope: 'plugin' }) }
         break
       case 'mcpLog':
         state.logs[String(msg.id || '')] = String(msg.log || '')

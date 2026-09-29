@@ -4,6 +4,7 @@ import { applyFirstFramePatches } from './overlay-first-frame.mjs';
 import { applyRailPatches } from './overlay-rail.mjs';
 import { applyTitlebarPatches } from './overlay-titlebar.mjs';
 import { applyDiffEditorPatches } from './overlay-diff-editor.mjs';
+import { readPointWorkbenchCss } from './point-workbench-css.mjs';
 
 const projectRoot = path.resolve(import.meta.dirname, '..');
 const sourceRoot = path.resolve(process.argv[2] || path.join(projectRoot, 'vendor', 'code-oss'));
@@ -511,7 +512,7 @@ const extensionTarget = path.join(sourceRoot, 'extensions', 'local-agent-workben
 assertInside(sourceRoot, extensionTarget);
 fs.rmSync(extensionTarget, { recursive: true, force: true });
 fs.mkdirSync(extensionTarget, { recursive: true });
-for (const name of ['extension.js', 'extension-utils.js', 'hub-message-router.js', 'backup-controller.js', 'run-config-utils.js', 'ide-navigation-utils.js', 'companion-controller.js', 'companion-chat-controller.js', 'hub-runtime-controller.js', 'infra-controller.js', 'ide-action-controller.js', 'ide-navigation-controller.js', 'connection-controller.js', 'integrations-controller.js', 'mcp-controller.js', 'gitlab-controller.js', 'point-panels.js', 'roster-controller.js', 'learning-controller.js', 'tooling-controller.js', 'cursor-controller.js', 'ide-observation-controller.js', 'project-index-controller.js', 'console-ssh-controller.js', 'master-chat-controller.js', 'master-turn-stream.js', 'master-work-order-watch.js', 'master-context-controller.js', 'project-registry.js', 'core-warm-pool.js', 'ssh-utils.js', 'cursor-runtime.js', 'core-stream.js', 'core-log.js', 'core-lease.js', 'git-tool-controller.js', 'hub-surfaces-controller.js', 'hub-polling-controller.js', 'companion-thread-controller.js', 'chat-documents.js', 'package.json', 'package-lock.json', 'README.md', 'CHANGELOG.md', 'LICENSE', '.vscodeignore', 'dist', 'media', 'themes', 'walkthrough', 'bin']) {
+for (const name of ['extension.js', 'extension-utils.js', 'hub-message-router.js', 'hub-state-signature.js', 'language-support.js', 'backup-controller.js', 'run-config-utils.js', 'ide-navigation-utils.js', 'companion-controller.js', 'companion-chat-controller.js', 'hub-runtime-controller.js', 'infra-controller.js', 'ide-action-controller.js', 'ide-run-controller.js', 'ide-navigation-controller.js', 'connection-controller.js', 'integrations-controller.js', 'mcp-controller.js', 'gitlab-controller.js', 'point-panels.js', 'roster-controller.js', 'learning-controller.js', 'tooling-controller.js', 'cursor-controller.js', 'ide-observation-controller.js', 'project-index-controller.js', 'console-ssh-controller.js', 'master-chat-controller.js', 'master-chat-branch.js', 'master-turn-stream.js', 'master-work-order-watch.js', 'master-context-controller.js', 'project-registry.js', 'core-warm-pool.js', 'ssh-utils.js', 'cursor-runtime.js', 'core-stream.js', 'core-log.js', 'core-lease.js', 'git-tool-controller.js', 'hub-surfaces-controller.js', 'hub-polling-controller.js', 'companion-thread-controller.js', 'chat-documents.js', 'package.json', 'package-lock.json', 'README.md', 'CHANGELOG.md', 'LICENSE', '.vscodeignore', 'dist', 'media', 'themes', 'walkthrough', 'bin']) {
   const source = path.join(extensionSource, name);
   if (!fs.existsSync(source)) {
     if (name === 'package-lock.json') continue;
@@ -3050,9 +3051,7 @@ const resourceSource = path.join(import.meta.dirname, 'resources');
 const pointActivitybarCssSource = path.join(resourceSource, 'point-activitybar.css');
 if (!fs.existsSync(pointActivitybarCssSource)) fail(`Point activity bar stylesheet is missing: ${pointActivitybarCssSource}`);
 fs.copyFileSync(pointActivitybarCssSource, path.join(sourceRoot, 'src', 'vs', 'workbench', 'browser', 'parts', 'activitybar', 'media', 'point-activitybar.css'));
-const pointWorkbenchCssSource = path.join(resourceSource, 'point-workbench.css');
-if (!fs.existsSync(pointWorkbenchCssSource)) fail(`Point workbench stylesheet is missing: ${pointWorkbenchCssSource}`);
-fs.copyFileSync(pointWorkbenchCssSource, path.join(sourceRoot, 'src', 'vs', 'workbench', 'browser', 'parts', 'activitybar', 'media', 'point-workbench.css'));
+fs.writeFileSync(path.join(sourceRoot, 'src', 'vs', 'workbench', 'browser', 'parts', 'activitybar', 'media', 'point-workbench.css'), readPointWorkbenchCss());
 // Шрифт оболочки — Inter из макета. Начертания вшиваются в стиль как data:
 // вместо ссылок на файлы: сборщик Code-OSS переносит в `out/` только те
 // вложения, которые знает сам, и молчит о пропущенных — шрифт бы просто не

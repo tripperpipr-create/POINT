@@ -1,4 +1,5 @@
 import { fillAttribute, formatBytes } from './format-units.js'
+import { isRootQuest, questPhase } from './quest-status.js'
 // Hub runtime UI helpers: live run status, exec controls, pending reviews,
 // quest progress strips, and context inspector chrome shared by overview/hall/master.
 
@@ -80,9 +81,12 @@ export function createHubRuntimeUi({
     return `<aside class="readiness-banner compact" data-planner-fallback="1"><span>!</span><div><strong>План собрал движок Point, не модель</strong><small>${esc(notice.message)}</small></div><button type="button" class="secondary" data-action="dismiss-planner-fallback">Скрыть</button></aside>`
   }
 
+  // Текущий квест — идущий, иначе ждущий решения человека. Квест из истории
+  // текущим не бывает: запасной `quests[0]` показывал на обзоре завершённый или
+  // упавший квест как «Текущий квест», потому что v2-квесты не бывают `active`.
   function currentHubQuest() {
-    const quests = getState().boot?.quests || []
-    const active = quests.find(item => item.status === 'active') || quests.find(item => item.status === 'proposed') || quests[0]
+    const quests = (getState().boot?.quests || []).filter(isRootQuest)
+    const active = quests.find(item => questPhase(item.status) === 'live') || quests.find(item => questPhase(item.status) === 'attention')
     if (active) return active
     const legacyRun = (getState().boot?.runs || []).find(runIsLive)
     if (legacyRun) return { id: legacyRun.id, title: legacyRun.task, status: 'active', legacyRun: true }
@@ -134,12 +138,17 @@ export function createHubRuntimeUi({
     const isPaused = item.status === 'paused' || linkedRun?.status === 'paused'
     const isStoppable = runIsLive(item) || runIsLive(linkedRun)
     const canPause = ['running', 'waiting_approval'].includes(item.status)
-    const exhausted = controller.pauseReason === 'active_time_exhausted'
+    // Одна кнопка продлевает то, что кончилось: активное время или ходы.
+    const stepsExhausted = controller.pauseReason === 'step_budget_exhausted'
+    const exhausted = controller.pauseReason === 'active_time_exhausted' || stepsExhausted
     const remaining = Number(controller.activeSecondsRemaining || 0)
     const budget = Number(controller.activeSecondsBudget || 0)
-    const controllerNote = budget > 0
-      ? `<em class="muted">${isPaused && controller.pauseReason === 'active_time_exhausted' ? 'Лимит активного времени' : isPaused && controller.pauseReason ? `Пауза · ${esc(controller.pauseReason)}` : `Активное время · осталось ${remaining} с`}${controller.resumable && isPaused ? ' · можно продолжить' : ''}</em>`
-      : (isPaused && controller.pauseReason ? `<em class="muted">Пауза · ${esc(controller.pauseReason)}</em>` : '')
+    const resumableNote = controller.resumable && isPaused ? ' · можно продолжить' : ''
+    const controllerNote = isPaused && stepsExhausted
+      ? `<em class="muted">Лимит шагов · ${Number(controller.stepLimit || 0)}${resumableNote}</em>`
+      : budget > 0
+        ? `<em class="muted">${isPaused && controller.pauseReason === 'active_time_exhausted' ? 'Лимит активного времени' : isPaused && controller.pauseReason ? `Пауза · ${esc(controller.pauseReason)}` : `Активное время · осталось ${remaining} с`}${resumableNote}</em>`
+        : (isPaused && controller.pauseReason ? `<em class="muted">Пауза · ${esc(controller.pauseReason)}</em>` : '')
     const pauseBtn = isPaused
       ? (exhausted
         ? `<button type="button" class="primary" data-action="extend-active-time" data-run-id="${esc(runId)}">Продлить и продолжить</button>`

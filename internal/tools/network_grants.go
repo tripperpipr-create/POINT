@@ -1,16 +1,19 @@
 package tools
 
 import (
+	"fmt"
 	"net/url"
 	"strings"
 	"sync"
+
+	"local-agent-workbench/internal/egress"
 )
 
 // NetworkGrantBook holds mid-run egress grants approved by the user via Master escalation.
 // Base allowlists stay on the tool; grants are consulted on every command check.
 type NetworkGrantBook struct {
 	mu      sync.RWMutex
-	hosts   map[string]map[string]bool // runID → host
+	hosts   map[string]map[string]bool // runID → unspent one-command host
 	remotes map[string]map[string]bool // runID → normalized remote
 	quest   map[string]map[string]bool // questID → host (quest-scoped hosts)
 	qRemote map[string]map[string]bool // questID → remote
@@ -57,12 +60,41 @@ func (b *NetworkGrantBook) GrantHostQuest(questID, runID, host string) {
 		}
 		b.quest[questID][host] = true
 	}
-	if runID != "" {
-		if b.hosts[runID] == nil {
-			b.hosts[runID] = map[string]bool{}
-		}
-		b.hosts[runID][host] = true
+}
+
+// TakeHostOnce atomically reserves a one-command grant. It is deliberately
+// absent from the persistent quest allowlist and cannot authorize two parallel
+// commands. A command that reaches process preparation consumes the grant.
+func (b *NetworkGrantBook) TakeHostOnce(runID, host string) bool {
+	if b == nil || runID == "" {
+		return false
 	}
+	host = normalizeHost(host)
+	if host == "" {
+		return false
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if !b.hosts[runID][host] {
+		return false
+	}
+	delete(b.hosts[runID], host)
+	return true
+}
+
+// QuestHostsFor excludes unspent one-command grants: callers must explicitly
+// reserve those for the exact destination of one command.
+func (b *NetworkGrantBook) QuestHostsFor(questID string) []string {
+	if b == nil || questID == "" {
+		return nil
+	}
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	out := make([]string, 0, len(b.quest[questID]))
+	for host := range b.quest[questID] {
+		out = append(out, host)
+	}
+	return out
 }
 
 func (b *NetworkGrantBook) GrantRemoteOnce(runID, remote string) {
@@ -148,11 +180,22 @@ func (b *NetworkGrantBook) RemotesFor(runID, questID string) []string {
 }
 
 func normalizeHost(host string) string {
-	host = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(host), "."))
-	if parsed, err := url.Parse("https://" + host); err == nil && parsed.Hostname() != "" {
-		return strings.ToLower(parsed.Hostname())
+	normalized, _ := CanonicalHostGrant(host)
+	return normalized
+}
+
+// CanonicalHostGrant accepts only one exact TLS FQDN and port, using the same
+// validator as the Docker gateway. Bare hosts mean port 443.
+func CanonicalHostGrant(host string) (string, error) {
+	policy, err := egress.Compile("DENY", []string{strings.TrimSpace(host)}, egress.Quota{})
+	if err != nil || len(policy.Rules) != 1 {
+		return "", fmt.Errorf("invalid TLS destination %q: %v", host, err)
 	}
-	return host
+	rule := policy.Rules[0]
+	if rule.Port == 443 {
+		return rule.FQDN, nil
+	}
+	return fmt.Sprintf("%s:%d", rule.FQDN, rule.Port), nil
 }
 
 // NormalizeGitRemote produces a comparable form for confirmed remotes.

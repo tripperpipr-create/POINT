@@ -4,47 +4,10 @@ import { countOf, list } from './format-units.js'
 import { masterCardMoreAttrs } from './master-card-open.js'
 import { manualReviewHtml } from './master-manual-review.js'
 import { DEFAULT_CRITERION_KIND, questChecklistHtml, questMenuHtml } from './master-quest-views.js'
+import { runtimePresentation } from './quest-status.js'
 
 const labels = {
   discussion: 'Нужно уточнение', staffing: 'Собираем состав', ready: 'Готов к запуску', approved: 'Утверждён',
-}
-
-// Провал — такое же состояние квеста, как остальные, и без него карточка
-// рисовала «✓ failed · <текст ошибки>» зелёной галочкой успеха: ключа не было
-// ни в подписях, ни в знаках, ни в тонах, и все три словаря отдавали запасное
-// значение «готово».
-const runtimeLabels = {
-  preflight:'Проверяем окружение', running:'Квест выполняется', awaiting_user:'Нужны данные пользователя',
-  verifying:'Проверяем результат', applying:'Переносим в проект', completed:'Готово', needs_review:'Нужна ручная приёмка',
-  blocked:'Заблокирован', failed:'Провален', paused:'На паузе', cancelled:'Отменён',
-}
-
-// Знак и тон состояния. Строка утверждённого наряда всегда начиналась зелёной
-// галочкой — и «✓ Заблокирован» получалось зелёным успехом, хотя квест стоит, а
-// причина написана тут же. Галочка принадлежит только исходу «готово»:
-// остановка помечается знаком внимания, отмена — крестом, пауза — паузой, а
-// работа в ходу — точкой.
-const runtimeMarks = {
-  completed:'✓', needs_review:'!', blocked:'!', failed:'✕', awaiting_user:'?', cancelled:'✕', paused:'‖',
-  preflight:'·', running:'·', verifying:'·', applying:'·',
-}
-// Провал — тоном отказа (--wound), а не тем же «вниманием», что у квеста,
-// ждущего человека: из провала выход один — новая версия наряда.
-const runtimeTones = {
-  completed:'is-done', needs_review:'is-attention', blocked:'is-attention', failed:'is-failed', awaiting_user:'is-attention',
-  cancelled:'is-quiet', paused:'is-quiet',
-  preflight:'is-active', running:'is-active', verifying:'is-active', applying:'is-active',
-}
-
-export function runtimePresentation(runtime) {
-  if (runtime?.status === 'completed' && runtime?.assurance === 'partial') {
-    return { label: 'Готово с ограничениями', mark: '!', tone: 'is-attention' }
-  }
-  return {
-    label: runtimeLabels[runtime?.status] || runtime?.status,
-    mark: runtimeMarks[runtime?.status] || '✓',
-    tone: runtimeTones[runtime?.status] || 'is-done',
-  }
 }
 
 // Какие условия закрыты — поимённо.
@@ -124,7 +87,11 @@ export function masterWorkOrderCardsHtml(orders, esc, busyIds = new Set(), deps 
 	// обещание «будет создан», человек искал создание агента, которого ядро уже
 	// создало.
 	const createdAgents=new Set(list(runtime?.agentIds))
-	const editor=order.state!=='approved' ? `<details class="master-v2-editor"${masterCardMoreAttrs(`order-edit:${order.id}`,{esc})}>
+	const sandbox=order.sandbox || {}
+	const sandboxTools=sandbox.toolchains || {}
+	const versionFields=['node','npm','php','composer','python','pip','go','rust','java','mvn','gradle','dotnet']
+	const versionsHtml=`<section class="master-v2-editor-simple"><b>Версии песочницы</b><p>Point предложил версии из CI и проекта. Изменения сохраняются новой версией наряда.</p>${versionFields.map(tool=>`<label><span>${esc(tool)}${sandbox.versionSources?.[tool]?` · ${esc(sandbox.versionSources[tool])}`:''}</span><input data-work-order-toolchain="${tool}" value="${esc(sandboxTools[tool]||'')}" placeholder="Авто"></label>`).join('')}${list(sandbox.versionConflicts).map(conflict=>`<small>${esc(conflict)}</small>`).join('')}<small>Образ: ${esc(sandbox.image||'будет выбран Point')}</small></section>`
+	const editor=(order.state!=='approved' || runtime?.status==='paused') ? `<details class="master-v2-editor"${masterCardMoreAttrs(`order-edit:${order.id}`,{esc})}>
         <summary>Редактировать карточку без запроса к модели</summary>
         <div class="master-v2-editor-simple">
           <label><span>Цель</span><input data-work-order-field="goal" maxlength="4096" value="${esc(order.goal || '')}"></label>
@@ -132,9 +99,10 @@ export function masterWorkOrderCardsHtml(orders, esc, busyIds = new Set(), deps 
           <label><span>Предположения · один пункт на строку</span><textarea data-work-order-field="assumptions" rows="3">${esc(list(order.assumptions).join('\n'))}</textarea></label>
           <label><span>Вне задачи · один пункт на строку</span><textarea data-work-order-field="outOfScope" rows="3">${esc(list(order.outOfScope).join('\n'))}</textarea></label>
         </div>
+		${versionsHtml}
         <details class="master-v2-editor-advanced"${masterCardMoreAttrs(`order-edit-json:${order.id}`,{esc})}><summary>Профессиональные настройки</summary>
           <p>JSON редактирует точный контракт. Сервер проверит версии, права, секреты, сеть и критерии до создания новой immutable-версии.</p>
-          ${['criteria','milestones','completion','workspace','stack','roster','routing','network','secrets','budget','delivery'].map(field=>`<label><span>${field}</span><textarea data-work-order-json="${field}" rows="${field==='criteria'||field==='milestones'?8:5}">${jsonValue(order[field],esc)}</textarea></label>`).join('')}
+		  ${['criteria','milestones','completion','workspace','stack','roster','routing','network','secrets','budget','delivery'].map(field=>`<label><span>${field}</span><textarea data-work-order-json="${field}" rows="${field==='criteria'||field==='milestones'?8:5}">${jsonValue(order[field],esc)}</textarea></label>`).join('')}
         </details>
         <div class="master-v2-editor-actions"><button type="button" class="hall-btn is-primary" data-action="save-master-work-order-v2" data-id="${esc(order.id)}" ${busy?'disabled':''}>${busy?'Сохраняем…':'Сохранить новую версию'}</button></div>
       </details>` : ''
@@ -264,4 +232,30 @@ export function masterWorkOrderCardsHtml(orders, esc, busyIds = new Set(), deps 
       </footer>
     </section>`
   }).join('')
+}
+
+// Новая версия наряда из формы карточки: текстовые поля, профессиональный JSON
+// и версии инструментов. Ошибка разбора JSON уходит вызывающему — он пишет её
+// под полем ввода, а не молча теряет правку.
+export function workOrderDraftFromCard(order, card) {
+  const draft=JSON.parse(JSON.stringify(order))
+  delete draft.digest;delete draft.runtime;delete draft.approvedVersion;delete draft.approvedDigest
+  const lineValues=name=>String(card.querySelector(`[data-work-order-field="${name}"]`)?.value || '').split(/\r?\n/).map(value=>value.trim()).filter(Boolean)
+  draft.goal=String(card.querySelector('[data-work-order-field="goal"]')?.value || '').trim()
+  draft.scope=lineValues('scope')
+  draft.assumptions=lineValues('assumptions')
+  draft.outOfScope=lineValues('outOfScope')
+  for (const input of card.querySelectorAll('[data-work-order-json]')) {
+    const field=String(input.dataset.workOrderJson || '')
+    if (field) draft[field]=JSON.parse(String(input.value || 'null'))
+  }
+  draft.sandbox = draft.sandbox || {}
+  draft.sandbox.toolchains = { ...(draft.sandbox.toolchains || {}) }
+  for (const input of card.querySelectorAll('[data-work-order-toolchain]')) {
+    const tool = String(input.dataset.workOrderToolchain || '')
+    const version = String(input.value || '').trim()
+    if (tool && version) draft.sandbox.toolchains[tool] = version
+    else if (tool) delete draft.sandbox.toolchains[tool]
+  }
+  return draft
 }

@@ -13,7 +13,7 @@ import (
 // reconcileBrokenWorkOrderFinalizationsV2 repairs the one historic state the
 // old Flow cleanup could create. It intentionally bypasses delivery and
 // completion runners: the workspace already contains the applied Change Sets.
-func (a *App) reconcileBrokenWorkOrderFinalizationsV2(ctx context.Context) {
+func (a *App) reconcileBrokenWorkOrderFinalizationsV2(ctx context.Context, workspaceID string) {
 	// A deterministic node may have completed before the launch path persisted
 	// its milestone link.  Older cores then wrote the root back to running even
 	// though the Flow was failed.  Replay only the evidence finalizer; a failed
@@ -24,6 +24,10 @@ func (a *App) reconcileBrokenWorkOrderFinalizationsV2(ctx context.Context) {
 		slog.Error("terminal flow work order recovery scan failed", "error", security.Redact(interruptedErr.Error()))
 	} else {
 		for _, approval := range interrupted {
+			// Итог соседнего мира в эту минуту может писать его живое ядро.
+			if approval.WorkOrder.WorkspaceID != workspaceID {
+				continue
+			}
 			a.finalizeQuestAfterFlow(approval.QuestID, false)
 			slog.Info("reconciled terminal flow work order", "work_order_id", approval.WorkOrder.ID, "quest_id", approval.QuestID, "flow_succeeded", false)
 		}
@@ -35,6 +39,9 @@ func (a *App) reconcileBrokenWorkOrderFinalizationsV2(ctx context.Context) {
 		return
 	}
 	for _, approval := range candidates {
+		if approval.WorkOrder.WorkspaceID != workspaceID {
+			continue
+		}
 		prepared, prepareErr := a.store.PrepareBrokenWorkOrderFinalizationV2(ctx, approval)
 		if prepareErr != nil {
 			slog.Error("work order finalization recovery prepare failed", "quest_id", approval.QuestID, "error", security.Redact(prepareErr.Error()))

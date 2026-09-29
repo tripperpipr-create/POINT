@@ -154,7 +154,13 @@ func (a *App) resumeQuestsWaitingForSandboxV2(ctx context.Context) {
 	if reason := a.sandboxUnavailableV2(ctx); reason != "" {
 		return
 	}
+	world := a.currentWorldID()
 	for _, item := range waiting {
+		// Квест соседнего мира продолжает его собственное ядро: отсюда он
+		// исполнялся бы в чужом окне и с чужим ключом.
+		if item.WorkspaceID != world {
+			continue
+		}
 		quest, questErr := a.workOrderQuestV2(ctx, item.WorkspaceID, item.QuestID)
 		if questErr != nil || quest.Status != domain.QuestPaused {
 			continue

@@ -41,13 +41,13 @@ func terminalFailedWorkOrderFlowV2(run domain.FlowRun) (string, bool) {
 }
 
 // Recover a historic no-op Resume before generic restart recovery pauses it.
-func (a *App) reconcileNoopWorkOrderResumesV2(ctx context.Context) {
+func (a *App) reconcileNoopWorkOrderResumesV2(ctx context.Context, workspaceID string) {
 	quests, err := a.store.ListInterruptedWorkOrderQuestsV2(ctx)
 	if err != nil {
 		return
 	}
 	for _, candidate := range quests {
-		if candidate.Status != domain.QuestPreflight {
+		if candidate.WorkspaceID != workspaceID || candidate.Status != domain.QuestPreflight {
 			continue
 		}
 		quest, questErr := a.workOrderQuestV2(ctx, candidate.WorkspaceID, candidate.QuestID)
@@ -83,13 +83,18 @@ const questRecoveryMessageV2 = "Ядро перезапустилось; кве�
 // into an honest pause. A tool call whose outcome nobody observed is never
 // retried here: continuation is an explicit decision made from the card, so a
 // half-finished dangerous action cannot be repeated by a restart.
-func (a *App) pauseInterruptedWorkOrderQuestsV2(ctx context.Context) {
+func (a *App) pauseInterruptedWorkOrderQuestsV2(ctx context.Context, workspaceID string) {
 	interrupted, err := a.store.ListInterruptedWorkOrderQuestsV2(ctx)
 	if err != nil {
 		observability.From(ctx).Error("interrupted quest scan failed", "error", err)
 		return
 	}
 	for _, item := range interrupted {
+		// Живой квест соседнего мира ведёт его ядро: пауза здесь остановила бы
+		// работу посреди шага (world_recovery.go).
+		if item.WorkspaceID != workspaceID {
+			continue
+		}
 		quest, questErr := a.workOrderQuestV2(ctx, item.WorkspaceID, item.QuestID)
 		if questErr != nil {
 			observability.From(ctx).Error("interrupted quest load failed", "quest_id", item.QuestID, "error", questErr)

@@ -23,6 +23,7 @@
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { readPointWorkbenchCss } from '../distribution/point-workbench-css.mjs'
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
 const shellDir = path.join(root, 'distribution', 'resources')
@@ -59,7 +60,9 @@ const note = (kind, file, value, selector) =>
   problems.push({ kind, file, value, selector: String(selector).slice(0, 90) })
 
 const files = readdirSync(shellDir).filter(name => name.endsWith('.css')).sort()
-const sources = new Map(files.map(name => [name, readFileSync(path.join(shellDir, name), 'utf8')]))
+const sources = new Map(files.map(name => [name, name === 'point-workbench.css'
+  ? readPointWorkbenchCss()
+  : readFileSync(path.join(shellDir, name), 'utf8')]))
 
 // Объявления токенов оболочки: значения фолбэков в соседних листах обязаны
 // совпадать с ними. Расхождение молчит до первого случая, когда токен не

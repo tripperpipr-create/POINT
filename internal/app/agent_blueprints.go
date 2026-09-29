@@ -6,6 +6,7 @@ package app
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net/url"
@@ -142,6 +143,20 @@ func (a *App) SaveBlueprint(blueprint domain.AgentBlueprint) (domain.AgentBluepr
 }
 
 func (a *App) SaveProjectAgent(agent domain.ProjectAgent) (domain.ProjectAgent, error) {
+	agent, err := a.prepareProjectAgent(agent)
+	if err != nil {
+		return domain.ProjectAgent{}, err
+	}
+	if err = a.store.SaveProjectAgent(context.Background(), agent); err != nil {
+		return domain.ProjectAgent{}, err
+	}
+	if !agent.Temporary {
+		_ = a.reconcileUserAgentPrepChains(context.Background(), agent)
+	}
+	return agent, nil
+}
+
+func (a *App) prepareProjectAgent(agent domain.ProjectAgent) (domain.ProjectAgent, error) {
 	now := time.Now().UTC()
 	existingSkillIDs := []string{}
 	ws, err := a.requireWorkspace()
@@ -153,6 +168,40 @@ func (a *App) SaveProjectAgent(agent domain.ProjectAgent) (domain.ProjectAgent, 
 		return domain.ProjectAgent{}, err
 	}
 	agent.Name = name
+	isNew := strings.TrimSpace(agent.ID) == ""
+	if !isNew {
+		_, lookupErr := a.store.GetProjectAgent(context.Background(), agent.ID)
+		isNew = errors.Is(lookupErr, sql.ErrNoRows)
+	}
+	if isNew && (strings.TrimSpace(agent.PrimaryModel) == "" || agent.PrimaryModel == "auto") {
+		defaults, defaultsErr := a.GlobalModelDefaults(context.Background())
+		if defaultsErr != nil {
+			return domain.ProjectAgent{}, defaultsErr
+		}
+		if defaults.Agent.ConnectionID != "" {
+			agent.ConnectionID, agent.PrimaryModel = defaults.Agent.ConnectionID, defaults.Agent.Model
+		}
+	}
+	if strings.TrimSpace(agent.ConnectionID) == "" && strings.TrimSpace(agent.PrimaryModel) == "" {
+		connections, listErr := a.ListConnections()
+		if listErr != nil {
+			return domain.ProjectAgent{}, listErr
+		}
+		var chosen *domain.Connection
+		for i := range connections {
+			if connections[i].IsDefault {
+				chosen = &connections[i]
+				break
+			}
+		}
+		if chosen == nil && len(connections) == 1 {
+			chosen = &connections[0]
+		}
+		if chosen != nil {
+			agent.ConnectionID = chosen.ID
+			agent.PrimaryModel = chosen.DefaultModel
+		}
+	}
 	agentProfile := domain.ProfileFromProjectAgent(agent)
 	normalizeRuntimeProfileDefaults(&agentProfile)
 	agent.ProviderPreset = agentProfile.ProviderPreset
@@ -226,12 +275,6 @@ func (a *App) SaveProjectAgent(agent domain.ProjectAgent) (domain.ProjectAgent, 
 	agent.UpdatedAt = now
 	if agent.Level == 0 {
 		agent.Level = 1
-	}
-	if err := a.store.SaveProjectAgent(context.Background(), agent); err != nil {
-		return domain.ProjectAgent{}, err
-	}
-	if !agent.Temporary {
-		_ = a.reconcileUserAgentPrepChains(context.Background(), agent)
 	}
 	return agent, nil
 }

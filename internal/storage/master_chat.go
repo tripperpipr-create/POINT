@@ -11,7 +11,7 @@ import (
 )
 
 func (s *SQLite) MasterConversations(ctx context.Context, w string) ([]domain.MasterConversation, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id,title,archived,pinned,temporary,mode,work_mode,summary,parent_id,updated_at,model FROM master_conversations WHERE workspace_id=? ORDER BY pinned DESC,updated_at DESC,id`, w)
+	rows, err := s.db.QueryContext(ctx, `SELECT id,title,archived,pinned,temporary,mode,work_mode,summary,parent_id,updated_at,model,branch_offer,branch_name,branch_base,branch_commit,branch_path FROM master_conversations WHERE workspace_id=? ORDER BY pinned DESC,updated_at DESC,id`, w)
 	if err != nil {
 		return nil, err
 	}
@@ -19,7 +19,7 @@ func (s *SQLite) MasterConversations(ctx context.Context, w string) ([]domain.Ma
 	out := []domain.MasterConversation{}
 	for rows.Next() {
 		v := domain.MasterConversation{WorkspaceID: w}
-		if err = rows.Scan(&v.ID, &v.Title, &v.Archived, &v.Pinned, &v.Temporary, &v.Mode, &v.WorkMode, &v.Summary, &v.ParentID, &v.UpdatedAt, &v.Model); err != nil {
+		if err = rows.Scan(&v.ID, &v.Title, &v.Archived, &v.Pinned, &v.Temporary, &v.Mode, &v.WorkMode, &v.Summary, &v.ParentID, &v.UpdatedAt, &v.Model, &v.BranchOffer, &v.BranchName, &v.BranchBase, &v.BranchCommit, &v.BranchPath); err != nil {
 			return nil, err
 		}
 		out = append(out, v)
@@ -36,7 +36,7 @@ func (s *SQLite) SaveMasterConversation(ctx context.Context, v domain.MasterConv
 	if v.WorkMode == "" {
 		v.WorkMode = "plan"
 	}
-	_, err := s.db.ExecContext(ctx, `INSERT INTO master_conversations(workspace_id,id,title,archived,pinned,temporary,mode,work_mode,summary,parent_id,updated_at,model) VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(workspace_id,id) DO UPDATE SET title=excluded.title,archived=excluded.archived,pinned=excluded.pinned,mode=excluded.mode,work_mode=excluded.work_mode,summary=excluded.summary,updated_at=excluded.updated_at,model=excluded.model`, v.WorkspaceID, v.ID, v.Title, v.Archived, v.Pinned, v.Temporary, v.Mode, v.WorkMode, v.Summary, v.ParentID, v.UpdatedAt, v.Model)
+	_, err := s.db.ExecContext(ctx, `INSERT INTO master_conversations(workspace_id,id,title,archived,pinned,temporary,mode,work_mode,summary,parent_id,updated_at,model,branch_offer,branch_name,branch_base,branch_commit,branch_path) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(workspace_id,id) DO UPDATE SET title=excluded.title,archived=excluded.archived,pinned=excluded.pinned,mode=excluded.mode,work_mode=excluded.work_mode,summary=excluded.summary,updated_at=excluded.updated_at,model=excluded.model`, v.WorkspaceID, v.ID, v.Title, v.Archived, v.Pinned, v.Temporary, v.Mode, v.WorkMode, v.Summary, v.ParentID, v.UpdatedAt, v.Model, v.BranchOffer, v.BranchName, v.BranchBase, v.BranchCommit, v.BranchPath)
 	return err
 }
 // TouchMasterConversation — след хода в записи разговора: время, заголовок
@@ -142,6 +142,7 @@ func deleteWorkOrderRowsTx(ctx context.Context, tx *sql.Tx, workOrderID string) 
 	for _, statement := range []string{
 		`DELETE FROM work_order_current_v2 WHERE id=?`,
 		`DELETE FROM work_order_revision_idempotency_v2 WHERE work_order_id=?`,
+		`DELETE FROM work_order_hires_v2 WHERE work_order_id=?`,
 	} {
 		if _, err := tx.ExecContext(ctx, statement, workOrderID); err != nil {
 			return err
@@ -271,6 +272,13 @@ func (s *SQLite) MasterEvents(ctx context.Context, w, id string, after int64) ([
 	return out, rows.Err()
 }
 func (s *SQLite) InterruptMasterTurns(ctx context.Context) error {
+	return s.interruptMasterTurns(ctx, "")
+}
+
+// interruptMasterTurns закрывает ходы, брошенные остановленным ядром. Пустой
+// мир — все миры; ядро проекта передаёт свой, потому что живой ход соседнего
+// проекта ведёт его собственное ядро (startup_recovery.go).
+func (s *SQLite) interruptMasterTurns(ctx context.Context, workspaceID string) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -279,16 +287,16 @@ func (s *SQLite) InterruptMasterTurns(ctx context.Context) error {
 	// A crash can happen after a fragment was committed but before the final message.
 	_, err = tx.ExecContext(ctx, `INSERT INTO companion_messages(id,workspace_id,speaker,role,content,mode,fallback_reason,created_at,conversation_id,turn_id,search_text)
  SELECT 'recovered-'||t.workspace_id||'-'||t.id,t.workspace_id,'master','assistant',t.reply,'interrupted','Ядро было перезапущено. Частичный ответ сохранён.',t.updated_at,t.conversation_id,t.id,lower(t.reply)
- FROM master_turns t WHERE t.status IN ('preparing','waiting','streaming','tools') AND NOT EXISTS
- (SELECT 1 FROM companion_messages m WHERE m.workspace_id=t.workspace_id AND m.turn_id=t.id AND m.role='assistant')`)
+ FROM master_turns t WHERE t.status IN ('preparing','waiting','streaming','tools') AND (?='' OR t.workspace_id=?) AND NOT EXISTS
+ (SELECT 1 FROM companion_messages m WHERE m.workspace_id=t.workspace_id AND m.turn_id=t.id AND m.role='assistant')`, workspaceID, workspaceID)
 	if err != nil {
 		return err
 	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO master_turn_events(workspace_id,turn_id,conversation_id,type,text) SELECT workspace_id,id,conversation_id,'done','interrupted' FROM master_turns WHERE status IN ('preparing','waiting','streaming','tools')`)
+	_, err = tx.ExecContext(ctx, `INSERT INTO master_turn_events(workspace_id,turn_id,conversation_id,type,text) SELECT workspace_id,id,conversation_id,'done','interrupted' FROM master_turns WHERE status IN ('preparing','waiting','streaming','tools') AND (?='' OR workspace_id=?)`, workspaceID, workspaceID)
 	if err != nil {
 		return err
 	}
-	_, err = tx.ExecContext(ctx, `UPDATE master_turns SET status='interrupted',error='Ядро было перезапущено. Частичный ответ сохранён.' WHERE status IN ('preparing','waiting','streaming','tools')`)
+	_, err = tx.ExecContext(ctx, `UPDATE master_turns SET status='interrupted',error='Ядро было перезапущено. Частичный ответ сохранён.' WHERE status IN ('preparing','waiting','streaming','tools') AND (?='' OR workspace_id=?)`, workspaceID, workspaceID)
 	if err != nil {
 		return err
 	}

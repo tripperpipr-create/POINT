@@ -28,6 +28,10 @@ type FastAgentRequest struct {
 	APIKey               string                   `json:"apiKey"`
 	ContextItems         []domain.RunContextInput `json:"contextItems,omitempty"`
 	PreflightFingerprint string                   `json:"preflightFingerprint,omitempty"`
+	// ConversationID — беседа Мастера, из которой запущен агент. Итог квеста
+	// пишется в неё; без неё он падал в первый разговор проекта (`legacy`),
+	// где его читали как ответ на чужой вопрос.
+	ConversationID string `json:"conversationId,omitempty"`
 }
 
 func (a *App) StartFastAgent(request FastAgentRequest) (domain.Run, error) {
@@ -177,8 +181,9 @@ func (a *App) prepareFastAgentV2(ctx context.Context, request FastAgentRequest) 
 		State: "ready", Goal: task, Scope: []string{"Изменения по запросу пользователя"},
 		Criteria: []domain.AcceptanceCriterion{criterion}, Sources: refs,
 		WorkspaceID: ws.ID, Workspace: domain.WorkspacePlan{Mode: "existing", Path: ws.Path},
-		Stack:  fastAgentStackV2(plan),
-		Roster: domain.AgentRosterPlan{Permanent: []domain.AgentDraft{{ID: prepared.projectAgentID, Existing: true}}},
+		ConversationID: fastAgentConversationV2(request.ConversationID),
+		Stack:          fastAgentStackV2(plan),
+		Roster:         domain.AgentRosterPlan{Permanent: []domain.AgentDraft{{ID: prepared.projectAgentID, Existing: true}}},
 		Routing: domain.ModelRoutingPolicy{
 			Mode: "fixed", FixedConnectionID: prepared.profile.ConnectionID, FixedModel: prepared.profile.Model,
 			FallbackMode: "wait", CostKnown: false, Certification: "experimental",
@@ -436,4 +441,15 @@ func (a *App) startLegacyFastAgent(request FastAgentRequest) (domain.Run, error)
 		PreflightFingerprint: request.PreflightFingerprint,
 		QuestID:              quest.ID, ExecutionID: exec.ID,
 	})
+}
+
+// Идентификатор беседы приходит из вебвью как есть; ядро хранит его рядом с
+// нарядом и адресует по нему итог. Длинное или многострочное значение — не
+// беседа, а мусор, и итог тогда уходит в разговор проекта по умолчанию.
+func fastAgentConversationV2(value string) string {
+	value = strings.TrimSpace(value)
+	if len(value) > 128 || strings.ContainsAny(value, "\r\n") {
+		return ""
+	}
+	return value
 }

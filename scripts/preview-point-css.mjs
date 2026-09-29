@@ -1,4 +1,6 @@
 import fs from 'node:fs';
+import path from 'node:path';
+import { readPointWorkbenchCss } from '../distribution/point-workbench-css.mjs';
 
 const endpoint = process.argv[2];
 const files = process.argv.slice(3);
@@ -31,7 +33,10 @@ function command(method, params = {}) {
 }
 
 try {
-  const css = files.map(file => fs.readFileSync(file, 'utf8')).join('\n\n');
+  const workbenchManifest = path.resolve(import.meta.dirname, '..', 'distribution', 'resources', 'point-workbench.css');
+  const css = files.map(file => path.resolve(file) === workbenchManifest
+    ? readPointWorkbenchCss()
+    : fs.readFileSync(file, 'utf8')).join('\n\n');
   const result = await command('Runtime.evaluate', {
     expression: `(() => {
       document.getElementById('point-css-preview')?.remove();

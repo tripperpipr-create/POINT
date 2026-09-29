@@ -1,6 +1,7 @@
 const { pickMasterContext, previewMasterContext, searchMasterContext, attachMasterContextPath } = require('./master-context-controller')
 const { followMasterTurn } = require('./master-turn-stream')
-const { watchMasterWorkOrder, watchMasterWorkOrders } = require('./master-work-order-watch')
+const { watchMasterWorkOrder, watchMasterWorkOrders, projectScope } = require('./master-work-order-watch')
+const { offerMasterChatBranch } = require('./master-chat-branch')
 const vscode = require('vscode')
 const { spawn } = require('child_process')
 let lastEditor
@@ -110,6 +111,11 @@ async function snapshotMasterContexts(host, contexts) {
 
 // Master chat transport: credentials and cancellation stay in the extension.
 async function handleMasterMessage(message) {
+ // Ответ, пришедший после смены проекта, принадлежит прежнему миру: его лента
+ // и карточки в окне нового проекта были бы чужими — первые чаты обоих миров
+ // называются `legacy`. Эпоху двигает forgetProjectFollowers.
+ let scope = projectScope(this)
+ const post = reply => scope.post(reply)
  switch(message.type) {
 	case 'loadMasterDevelopment':
 	case 'setMasterLearning':
@@ -119,22 +125,22 @@ async function handleMasterMessage(message) {
 	    if (message.type === 'setMasterLearning') development = await this.service.request('/api/master/learning',{method:'POST',body:JSON.stringify({enabled:message.enabled === true})})
 	    else if (message.type === 'rollbackMasterSkill') development = await this.service.request('/api/master/skills/'+encodeURIComponent(String(message.id || ''))+'/rollback',{method:'POST',body:'{}'})
 	    else development = await this.service.request('/api/master/skills')
-	    this.post({type:'masterDevelopment',development,projectKey:message.projectKey})
+	    post({type:'masterDevelopment',development,projectKey:message.projectKey})
 	  } catch (error) {
-	    this.post({type:'masterDevelopmentError',error:String(error?.message || error),projectKey:message.projectKey})
+	    post({type:'masterDevelopmentError',error:String(error?.message || error),projectKey:message.projectKey})
 	  }
 	  break
 	}
  case 'forkMasterConversation': {
    const master=await this.service.request('/api/master/conversations/'+encodeURIComponent(message.conversationId)+'/fork',{method:'POST',body:JSON.stringify({messageId:message.messageId})})
-   this.post({type:'master',master,viewId:message.viewId,sessionChanged:true,draft:message.draft,regenerate:message.regenerate})
+   post({type:'master',master,viewId:message.viewId,sessionChanged:true,draft:message.draft,regenerate:message.regenerate})
    break
  }
  case 'deleteMasterConversation': {
    const answer=await vscode.window.showWarningMessage('Удалить разговор и его историю? Задачи и изменения проекта сохранятся.',{modal:true},'Удалить')
    if(answer!=='Удалить')break
    const master=await this.service.request('/api/master/sessions',{method:'POST',body:JSON.stringify({action:'delete',id:message.conversationId})})
-   this.post({type:'master',master,viewId:message.viewId,sessionChanged:true});break
+   post({type:'master',master,viewId:message.viewId,sessionChanged:true});break
  }
  case 'exportMasterConversation': {
    const result=await this.service.request('/api/master/conversations/'+encodeURIComponent(message.conversationId)+'/export')
@@ -182,7 +188,7 @@ async function handleMasterMessage(message) {
    if(!model?.trim())break
    await this.service.request('/api/master/sessions',{method:'POST',body:JSON.stringify({action:'model',id:message.conversationId,value:model.trim()})})
    const master=await this.service.request('/api/master/history?conversationId='+encodeURIComponent(message.conversationId))
-   this.post({type:'master',master,viewId:message.viewId,sessionChanged:true});break
+   post({type:'master',master,viewId:message.viewId,sessionChanged:true});break
  }
 
  case 'pickMasterContext': await pickMasterContext(this,message,vscode.window.activeTextEditor || (lastEditor?.document.isClosed ? undefined : lastEditor));break
@@ -196,20 +202,20 @@ async function handleMasterMessage(message) {
    const selected = !editor.selection.isEmpty
    const content = selected ? editor.document.getText(editor.selection) : editor.document.getText()
    if (Buffer.byteLength(content, 'utf8') > 16000) throw new Error('Контекст больше 16 КБ. Выделите нужный фрагмент кода.')
-   this.post({type:'masterContext',viewId:message.viewId,conversationId:message.conversationId,context:{name:vscode.workspace.asRelativePath(editor.document.uri)+(selected ? ':'+(editor.selection.start.line+1) : ''),content}})
+   post({type:'masterContext',viewId:message.viewId,conversationId:message.conversationId,context:{name:vscode.workspace.asRelativePath(editor.document.uri)+(selected ? ':'+(editor.selection.start.line+1) : ''),content}})
    break
  }
 
         case 'masterSession': {
           const master = await this.service.request('/api/master/sessions', {method:'POST', body:JSON.stringify({action:message.action,id:message.id || (message.action.startsWith('memory') ? '' : message.conversationId),value:message.value,sourceId:message.sourceId})})
           const selected=['new','temporary'].includes(message.action) ? master : await this.service.request('/api/master/history?conversationId='+encodeURIComponent(message.action==='select'?message.id:message.conversationId || master.sessions.active))
-          this.post({type:'master',master:selected,sessionChanged:true,viewId:message.viewId,requestId:message.requestId})
+          post({type:'master',master:selected,sessionChanged:true,viewId:message.viewId,requestId:message.requestId})
           watchMasterWorkOrders(this,selected)
           break
         }
         case 'loadChatDirectory': {
           const directory=await this.service.request('/api/master/directory')
-          this.post({type:'chatDirectory',directory,viewId:message.viewId,requestId:message.requestId})
+          post({type:'chatDirectory',directory,viewId:message.viewId,requestId:message.requestId})
           break
         }
         // Чат чужого мира открывается в два приёма: сначала переключаем проект,
@@ -225,6 +231,7 @@ async function handleMasterMessage(message) {
           break
         }
         case 'loadMaster': {
+          const requestedProject = this.workspaceFolder()?.uri?.fsPath || ''
           // full=1 просит у ядра весь хвост, какой оно хранит: 200 реплик вместо 60.
           // Вебвью его просило, а строка адреса теряла — «Показать раньше»
           // перезапрашивало те же шестьдесят и оставалось на месте.
@@ -242,7 +249,8 @@ async function handleMasterMessage(message) {
                 : await this.service.request('/api/master/sessions',{method:'POST',body:JSON.stringify({action:'select',id:pending.id})})
               const wanted=pending.create ? String(master?.sessions?.active || '') : pending.id
               const selected=await this.service.request('/api/master/history?conversationId='+encodeURIComponent(wanted))
-              this.post({type:'master',master:selected,viewId:message.viewId,requestId:message.requestId,loaded:true,sessionChanged:true})
+              if ((this.workspaceFolder()?.uri?.fsPath || '') !== requestedProject) break
+              post({type:'master',master:selected,viewId:message.viewId,requestId:message.requestId,loaded:true,sessionChanged:true})
               for(const turn of selected.activeTurns || []) void followMasterTurn(this,turn)
               watchMasterWorkOrders(this,selected)
               void this.postChatDirectory?.()
@@ -254,7 +262,8 @@ async function handleMasterMessage(message) {
             }
           }
           const master=await this.service.request('/api/master/history?conversationId='+encodeURIComponent(message.conversationId || '')+(message.full ? '&full=1' : ''))
-          this.post({type:'master',master,viewId:message.viewId,requestId:message.requestId,loaded:true})
+          if ((this.workspaceFolder()?.uri?.fsPath || '') !== requestedProject) break
+          post({type:'master',master,viewId:message.viewId,requestId:message.requestId,loaded:true})
           for(const turn of master.activeTurns || []) void followMasterTurn(this,turn)
           watchMasterWorkOrders(this,master)
           void this.postChatDirectory?.()
@@ -262,15 +271,31 @@ async function handleMasterMessage(message) {
         }
         case 'masterPage': {
           const page=await this.service.request('/api/master/conversations/'+encodeURIComponent(message.conversationId)+'/messages?before='+(message.before || '')+'&q='+encodeURIComponent(message.query || ''))
-          this.post({type:'masterPage',page,conversationId:message.conversationId,viewId:message.viewId,query:message.query || ''})
+          post({type:'masterPage',page,conversationId:message.conversationId,viewId:message.viewId,query:message.query || ''})
           break
         }
         case 'masterChat': {
+          const before=await this.service.request('/api/master/history?conversationId='+encodeURIComponent(String(message.conversationId || '')))
+          const chat=before?.sessions?.items?.find(item=>item.id===message.conversationId)
+          // Принятая ветка переносит беседу в свою рабочую копию и открывает её:
+          // эта смена мира — часть отправки, и сообщение уходит в новый мир.
+          if(chat?.branchOffer==='pending' && chat?.workMode==='plan' && await offerMasterChatBranch(this,{...chat,title:message.message || chat.title})) scope = projectScope(this)
+          const workspaceId = String(this.boot?.currentWorkspace?.id || '')
           const apiKey = await this.credentialForOrchestrator()
           const contexts=message.attachments || (message.context ? [message.context] : [])
           const sources=await snapshotMasterContexts(this,contexts)
-          const turn = await this.service.request('/api/v2/master/turns',{method:'POST',body:JSON.stringify({message:message.message,conversationId:message.conversationId,turnId:message.turnId,sources,model:message.model,taskIntake:true,proposalId:message.proposalId,previousAnswerRejected:!!message.retry,apiKey})})
+          // Пока спрашивали ключ и снимали вложения, человек мог открыть другой
+          // проект. Реплика принадлежит прежнему: в новом она ушла бы в его
+          // `legacy`. Ядро отвергает и чужой workspaceId.
+          if (!scope.current()) break
+          const turn = await this.service.request('/api/v2/master/turns',{method:'POST',body:JSON.stringify({message:message.message,conversationId:message.conversationId,turnId:message.turnId,sources,model:message.model,taskIntake:true,proposalId:message.proposalId,previousAnswerRejected:!!message.retry,apiKey,workspaceId})})
           void followMasterTurn(this,turn)
+          break
+        }
+        case 'offerMasterChatBranch': {
+          const before=await this.service.request('/api/master/history?conversationId='+encodeURIComponent(String(message.conversationId || '')))
+          const chat=before?.sessions?.items?.find(item=>item.id===message.conversationId)
+          if(chat && chat.branchOffer!=='bound') await offerMasterChatBranch(this,chat,{manual:true})
           break
         }
         case 'copyMasterText': {
@@ -299,7 +324,7 @@ async function handleMasterMessage(message) {
           await this.service.request(`/api/master/messages/${encodeURIComponent(id)}/feedback`, {
             method: 'POST', body: JSON.stringify({ value }),
           })
-          this.post({ type: 'master', master: await this.service.request('/api/master/history?conversationId='+encodeURIComponent(message.conversationId)),viewId:message.viewId,loaded:true })
+          post({ type: 'master', master: await this.service.request('/api/master/history?conversationId='+encodeURIComponent(message.conversationId)),viewId:message.viewId,loaded:true })
           break
         }
         case 'stopMasterChat': {
@@ -319,7 +344,7 @@ async function handleMasterMessage(message) {
           const approval=await this.service.request('/api/v2/work-orders/'+encodeURIComponent(id)+'/approve',{
 			method:'POST',body:JSON.stringify({version:Number(message.version),digest:String(message.digest || ''),idempotencyKey:String(message.idempotencyKey || ''),apiKey,rosterConsent:Array.isArray(message.rosterConsent)?message.rosterConsent.map(String):[]})
           })
-          this.post({type:'masterWorkOrderApproved',approval,turnId:message.turnId,viewId:message.viewId})
+          post({type:'masterWorkOrderApproved',approval,turnId:message.turnId,viewId:message.viewId})
           // Утверждение только начинает запуск: план и первый шаг идут минутами.
           // Дальше карточку ведёт наблюдение, иначе она замрёт на «Проверяем окружение».
           void watchMasterWorkOrder(this,id,message.conversationId)
@@ -338,16 +363,26 @@ async function handleMasterMessage(message) {
 		  const workOrder=await this.service.request('/api/v2/work-orders/'+encodeURIComponent(id)+'/revise',{
 			method:'POST',body:JSON.stringify({expectedVersion:Number(message.expectedVersion),expectedDigest:String(message.expectedDigest || ''),idempotencyKey:String(message.idempotencyKey || ''),workOrder:message.workOrder})
 		  })
-		  this.post({type:'masterWorkOrderRevised',workOrder,viewId:message.viewId})
+		  post({type:'masterWorkOrderRevised',workOrder,viewId:message.viewId})
 		  break
 		}
+        case 'hireMasterWorkOrderAgentV2': {
+          const id=String(message.workOrderId || '')
+          const result=await this.service.request('/api/v2/work-orders/'+encodeURIComponent(id)+'/hire-agent',{
+            method:'POST',body:JSON.stringify({draftId:message.draftId,expectedVersion:message.expectedVersion,expectedDigest:message.expectedDigest,idempotencyKey:message.idempotencyKey,agentId:message.agentId,agent:message.agent})
+          })
+          this.upsertBootItem('projectAgents',result.agent)
+          post({type:'masterAgentHired',result,workOrderId:id,draftId:message.draftId,viewId:message.viewId})
+          this.postState()
+          break
+        }
         case 'reviewMasterManualCriterionV2': {
           const workOrderId=String(message.workOrderId || '')
           await this.service.request('/api/v2/master/quests/'+encodeURIComponent(String(message.questId || ''))+'/criteria/'+encodeURIComponent(String(message.criterionId || ''))+'/review',{
             method:'POST',body:JSON.stringify({decision:String(message.decision || ''),note:String(message.note || '')})
           })
           const workOrder=await this.service.request('/api/v2/work-orders/'+encodeURIComponent(workOrderId))
-          this.post({type:'masterWorkOrderControlled',workOrder,viewId:message.viewId})
+          post({type:'masterWorkOrderControlled',workOrder,viewId:message.viewId})
           break
         }
         case 'controlMasterWorkOrderQuestV2': {
@@ -365,7 +400,7 @@ async function handleMasterMessage(message) {
             method:'POST',body:JSON.stringify({message:String(message.message || ''),apiKey})
           })
           const workOrder=await this.service.request('/api/v2/work-orders/'+encodeURIComponent(workOrderId))
-          this.post({type:'masterWorkOrderControlled',result,workOrder,viewId:message.viewId})
+          post({type:'masterWorkOrderControlled',result,workOrder,viewId:message.viewId})
           void watchMasterWorkOrder(this,workOrderId,message.conversationId)
           const runtime=await this.service.request('/api/state/runtime')
           this.patchBoot(runtime);this.postState()
@@ -376,7 +411,7 @@ async function handleMasterMessage(message) {
           const workOrderId=String(message.workOrderId || '')
           const action=String(message.action || '')
           const route='/api/v2/master/quests/'+encodeURIComponent(questId)+'/application'
-          const postState=(state,extra={})=>this.post({type:'masterApplicationState',questId,workOrderId,state,...extra,viewId:message.viewId})
+          const postState=(state,extra={})=>post({type:'masterApplicationState',questId,workOrderId,state,...extra,viewId:message.viewId})
           // Состояние, открытие и терминал ядро не меняют: это чтение и
           // действие в самой IDE по тому, что ядро знает о приложении.
           if(action==='status'){postState(await this.service.request(route+'?probe=1'),{final:true});break}
@@ -393,7 +428,7 @@ async function handleMasterMessage(message) {
             })
           }catch(error){
             polling=false;await poll
-            try{postState(await this.service.request(route),{error:String(error?.message || error),final:true})}catch{this.post({type:'masterApplicationState',questId,workOrderId,error:String(error?.message || error),final:true,viewId:message.viewId})}
+            try{postState(await this.service.request(route),{error:String(error?.message || error),final:true})}catch{post({type:'masterApplicationState',questId,workOrderId,error:String(error?.message || error),final:true,viewId:message.viewId})}
             throw error
           }
           polling=false;await poll
@@ -401,7 +436,7 @@ async function handleMasterMessage(message) {
           const opened=action==='start'&&result?.status==='running'?await openDeliveredApplication(state,'auto'):''
           postState(state,{opened,final:true})
           const workOrder=await this.service.request('/api/v2/work-orders/'+encodeURIComponent(workOrderId))
-          this.post({type:'masterApplicationControlled',result,workOrder,viewId:message.viewId})
+          post({type:'masterApplicationControlled',result,workOrder,viewId:message.viewId})
           break
         }
  }

@@ -1,9 +1,15 @@
 package main
 
 import (
+	"context"
+	"fmt"
+	"io"
+	"log/slog"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestEnvFallsBackOnlyWhenUnset(t *testing.T) {
@@ -68,5 +74,91 @@ func TestAPITokenResolvedBeforeApplication(t *testing.T) {
 	}
 	if token > application {
 		t.Error("токен разрешается до создания приложения: отказ должен случиться до инициализации, а не после")
+	}
+}
+
+// Ядро живёт, пока открыт хоть один Point: свежая отметка окна или аренда
+// держат его, старая, будущая и чужой файл — нет.
+func TestOwnersAliveReadsOnlyFreshWindowMarks(t *testing.T) {
+	dir := t.TempDir()
+	now := time.UnixMilli(1_800_000_000_000)
+	write := func(name string, updatedAt int64) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(fmt.Sprintf(`{"pid":1,"updatedAt":%d}`, updatedAt)), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if ownersAlive(dir, now) {
+		t.Fatal("пустой каталог подтвердил хозяина")
+	}
+	if ownersAlive(filepath.Join(dir, "нет"), now) {
+		t.Fatal("несуществующий каталог подтвердил хозяина")
+	}
+	write("host-1.json", now.Add(-time.Minute).UnixMilli())
+	write("core-abc.json", now.UnixMilli())
+	write("host-2.json", now.Add(time.Hour).UnixMilli())
+	if ownersAlive(dir, now) {
+		t.Fatal("старая, будущая или чужая отметка подтвердила хозяина")
+	}
+	write("lease-abc-1.json", now.Add(-5*time.Second).UnixMilli())
+	if !ownersAlive(dir, now) {
+		t.Fatal("свежая аренда не подтвердила хозяина")
+	}
+	if err := os.Remove(filepath.Join(dir, "lease-abc-1.json")); err != nil {
+		t.Fatal(err)
+	}
+	write("host-3.json", now.Add(-3*time.Second).UnixMilli())
+	if !ownersAlive(dir, now) {
+		t.Fatal("свежая отметка окна не подтвердила хозяина")
+	}
+}
+
+// Без хозяев ядро выходит ровно после grace — не раньше: смена проекта в
+// Чертоге на мгновение оставляет каталог без свежих отметок. Шаг проверяется
+// без таймера: тест на настоящих тиках пропускал поломку на Windows, где
+// таймер успевал сработать уже после проверки.
+func TestOwnerCheckWaitsFullGraceWithoutOwners(t *testing.T) {
+	dir := t.TempDir()
+	start := time.UnixMilli(1_800_000_000_000)
+	grace := 30 * time.Second
+	if err := os.WriteFile(filepath.Join(dir, "host-7.json"), []byte(fmt.Sprintf(`{"pid":7,"updatedAt":%d}`, start.UnixMilli())), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	lastSeen, gone := ownerCheck(dir, start.Add(10*time.Second), start, grace)
+	if gone || !lastSeen.Equal(start.Add(10*time.Second)) {
+		t.Fatalf("живое окно: gone=%v lastSeen=%v", gone, lastSeen)
+	}
+	// Окно закрылось: отметка устарела, но grace от последней встречи не истёк.
+	if seen, gone := ownerCheck(dir, start.Add(35*time.Second), lastSeen, grace); gone || !seen.Equal(lastSeen) {
+		t.Fatalf("выход раньше grace: gone=%v lastSeen=%v", gone, seen)
+	}
+	if _, gone := ownerCheck(dir, start.Add(39*time.Second), lastSeen, grace); gone {
+		t.Fatal("выход за секунду до grace")
+	}
+	if _, gone := ownerCheck(dir, start.Add(40*time.Second), lastSeen, grace); !gone {
+		t.Fatal("нет выхода ровно по истечении grace")
+	}
+}
+
+// Сама горутина: без хозяев канал закрывается, при свежей отметке — нет.
+// Запас по времени широкий в обе стороны, чтобы не зависеть от таймера ОС.
+func TestWatchOwnersClosesWithoutOwnersOnly(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	empty := t.TempDir()
+	select {
+	case <-watchOwners(ctx, empty, 20*time.Millisecond, 5*time.Millisecond, time.Now, logger):
+	case <-time.After(5 * time.Second):
+		t.Fatal("ядро без хозяев не вышло")
+	}
+	owned := t.TempDir()
+	if err := os.WriteFile(filepath.Join(owned, "host-9.json"), []byte(fmt.Sprintf(`{"pid":9,"updatedAt":%d}`, time.Now().UnixMilli())), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-watchOwners(ctx, owned, 20*time.Millisecond, 5*time.Millisecond, time.Now, logger):
+		t.Fatal("ядро вышло при живом окне")
+	case <-time.After(300 * time.Millisecond):
 	}
 }

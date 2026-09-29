@@ -107,9 +107,9 @@ export function fillAttribute(value) {
 export function formatDuration(value) {
   const milliseconds = Math.max(0, Number(value || 0))
   if (milliseconds < 1000) return `${Math.round(milliseconds)} мс`
-  if (milliseconds < 60_000) return `${(milliseconds / 1000).toFixed(milliseconds < 10_000 ? 1 : 0).replace('.', ',')} с`
-  const minutes = Math.floor(milliseconds / 60_000)
-  const seconds = Math.round((milliseconds % 60_000) / 1000)
+  const totalSeconds = Math.round(milliseconds / 1000)
+  if (totalSeconds < 60) return `${(milliseconds / 1000).toFixed(milliseconds < 10_000 ? 1 : 0).replace('.', ',')} с`
+  const minutes = Math.floor(totalSeconds / 60), seconds = totalSeconds % 60
   return `${minutes} мин ${seconds} с`
 }
 

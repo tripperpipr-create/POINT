@@ -31,6 +31,10 @@ func TestMasterMigrationPreservesLegacySessions(t *testing.T) {
 		tx.Rollback()
 		t.Fatal(err)
 	}
+	if err = migrationMasterChatBranchV1(ctx, tx); err != nil {
+		tx.Rollback()
+		t.Fatal(err)
+	}
 	if err = tx.Commit(); err != nil {
 		t.Fatal(err)
 	}

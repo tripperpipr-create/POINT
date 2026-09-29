@@ -179,7 +179,7 @@ func TestNoopResumeAfterVerdictIsRepairedAtStartup(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	application.reconcileNoopWorkOrderResumesV2(ctx)
+	application.reconcileNoopWorkOrderResumesV2(ctx, quest.WorkspaceID)
 
 	repaired, err := application.workOrderQuestV2(ctx, quest.WorkspaceID, quest.ID)
 	if err != nil || repaired.Status != domain.QuestBlocked {

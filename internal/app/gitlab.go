@@ -98,7 +98,11 @@ func explainGitLab(server domain.MCPServer, err error) *gitlabFailure {
 		case gitlab.ReasonNotFound:
 			return &gitlabFailure{GitLabNotFound, "GitLab не нашёл: " + adapter.Detail, "проверьте путь проекта и что у токена есть к нему доступ"}
 		case gitlab.ReasonFormat:
-			return &gitlabFailure{GitLabFormat, "ответ сервера GitLab не разобрался", pinned}
+			fix := "проверьте журнал MCP-сервера GitLab; ответ инструмента не похож на ожидаемый JSON"
+			if server.ServerVersion != "" && server.ServerVersion != gitlab.ServerVersion {
+				fix = pinned
+			}
+			return &gitlabFailure{GitLabFormat, "ответ инструмента " + adapter.Tool + " сервера GitLab не разобрался: " + adapter.Detail, fix}
 		default:
 			return &gitlabFailure{GitLabRefused, "GitLab отказал: " + adapter.Detail, "подробности — в журнале сервера GitLab (Общие настройки → Интеграции и MCP)"}
 		}

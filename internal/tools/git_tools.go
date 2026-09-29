@@ -214,6 +214,22 @@ func runGitDiff(ctx context.Context, root string, args []string) ([]byte, error)
 	return cmd.CombinedOutput()
 }
 
+// GitWorkTreeAvailable — есть ли у корня рабочее дерево Git. Песочница
+// отфильтрованной копии .git не несёт, и git-инструменты там только тратят
+// ход на отказ git_unavailable.
+func GitWorkTreeAvailable(ctx context.Context, root string) bool {
+	return gitWorkTreeAvailable(ctx, root)
+}
+
+// IsGitReadTool — читающие git-инструменты, которым нужно рабочее дерево.
+func IsGitReadTool(name string) bool {
+	switch name {
+	case "git_diff", "git_branches", "git_log", "git_tags":
+		return true
+	}
+	return false
+}
+
 func gitWorkTreeAvailable(ctx context.Context, root string) bool {
 	cmd := osproc.CommandContext(ctx, "git", "rev-parse", "--is-inside-work-tree")
 	cmd.Dir = root

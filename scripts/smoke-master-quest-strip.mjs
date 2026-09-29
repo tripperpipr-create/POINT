@@ -7,7 +7,7 @@
 
 import assert from 'node:assert/strict'
 import { masterQuestStripHtml, masterQuestStripModel } from '../vscode-extension/ui/client/master-quest-strip.js'
-import { runtimePresentation } from '../vscode-extension/ui/client/master-work-order-v2.js'
+import { runtimePresentation } from '../vscode-extension/ui/client/quest-status.js'
 import { esc } from '../vscode-extension/ui/client/html-escape.js'
 
 const order = (status, extra = {}) => ({

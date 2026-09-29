@@ -22,7 +22,33 @@ func toolExecutionKey(call providers.ToolCall, workspaceRevision int) string {
 	if call.Name == "propose_patch" {
 		return "global:" + fingerprint
 	}
+	if call.Name == "run_command" {
+		return fmt.Sprintf("%s%d:%s", commandKeyPrefix, workspaceRevision, fingerprint)
+	}
 	return fmt.Sprintf("revision:%d:%s", workspaceRevision, fingerprint)
+}
+
+// commandKeyPrefix отделяет результаты команд от чтений: их устаревание
+// решает не только ревизия рабочей области.
+const commandKeyPrefix = "command:revision:"
+
+// isEffectfulTool — вызов, после которого прежний результат команды может
+// перестать быть правдой, даже если ревизия не сдвинулась.
+func isEffectfulTool(name string) bool {
+	return name == "run_command" || name == "propose_patch"
+}
+
+// releaseCommandResults забывает результаты прочих команд после успешного
+// действия. `npm install` меняет node_modules, которых ревизия не видит, и
+// живой квест 29.09 получил отказ «уже выполнено» на повторную проверку
+// скрипта после установки зависимостей. Тот же вызов подряд без действия
+// между ними по-прежнему отбивается: свой ключ не снимается.
+func releaseCommandResults(completed map[string]struct{}, keep string) {
+	for key := range completed {
+		if key != keep && strings.HasPrefix(key, commandKeyPrefix) {
+			delete(completed, key)
+		}
+	}
 }
 
 func toolPlanFingerprint(calls []providers.ToolCall) string {
@@ -121,7 +147,7 @@ func (e *Engine) rejectDuplicateTool(ctx context.Context, active *activeRun, cal
 	run := e.snapshot(active)
 	result := workbenchtools.FailWithHint(
 		"duplicate_tool_call",
-		"the identical successful tool plan already ran in the previous step; use its existing result or choose a different action",
+		"this exact call already succeeded with the same arguments at the current workspace revision and nothing has changed since; use its existing result or choose a different action",
 		"reuse the earlier tool output, inspect a different path/query, or continue with propose_patch / verification using the evidence you already have",
 	)
 	e.publishOrLog(ctx, run, domain.EventToolRequested, "model", map[string]any{"tool": call.Name, "arguments": call.Arguments})

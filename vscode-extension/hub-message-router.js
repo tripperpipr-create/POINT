@@ -27,6 +27,7 @@ function orchestratorConfigPayload(config = {}) {
     providerPreset: String(config.providerPreset || ''),
     baseUrl: String(config.baseUrl || ''),
     model: String(config.model || ''),
+    projectModelOverride: Boolean(config.projectModelOverride),
     temperature: Number(config.temperature ?? 0),
     maxOutputTokens: Number(config.maxOutputTokens || 0),
     planningDepth: Number(config.planningDepth ?? 50),
@@ -323,12 +324,14 @@ function createHubMessageRouter({ openWorkspaceFile }) {
 		case 'setMasterLearning':
 		case 'rollbackMasterSkill':
       case 'masterChat':
+      case 'offerMasterChatBranch':
       case 'copyMasterText':
       case 'openMasterMessageDetails':
       case 'masterFeedback':
       case 'stopMasterChat':
       case 'approveMasterWorkOrderV2':
 		case 'reviseMasterWorkOrderV2':
+      case 'hireMasterWorkOrderAgentV2':
       case 'controlMasterWorkOrderQuestV2':
       case 'reviewMasterManualCriterionV2':
       case 'controlMasterApplicationV2':
@@ -492,10 +495,28 @@ function createHubMessageRouter({ openWorkspaceFile }) {
         break
       }
       case 'saveOrchestratorConfig': {
-        const saved = await this.service.request('/api/orchestrator/config', { method: 'POST', body: JSON.stringify(orchestratorConfigPayload(message.config)) })
+        const config = orchestratorConfigPayload(message.config)
+        const saved = await this.service.request('/api/orchestrator/config', { method: 'POST', body: JSON.stringify(config) })
+        if (!config.projectModelOverride) {
+          const defaults = await this.service.request('/api/global-models')
+          defaults.master = { connectionId: config.connectionId, model: config.model }
+          await this.service.request('/api/global-models', { method: 'POST', body: JSON.stringify(defaults) })
+        }
         this.patchBoot({ orchestrator: saved })
+        if (!config.projectModelOverride) await this.refresh()
         this.post({ type: 'orchestratorConfigSaved', configId: saved.id })
         this.postState()
+        break
+      }
+      case 'loadGlobalModels': {
+        const defaults = await this.service.request('/api/global-models')
+        this.post({ type: 'globalModelsLoaded', defaults })
+        break
+      }
+      case 'saveGlobalModels': {
+        const defaults = await this.service.request('/api/global-models', { method: 'POST', body: JSON.stringify(message.defaults || {}) })
+        this.post({ type: 'globalModelsLoaded', defaults, saved: true })
+        await this.refresh()
         break
       }
       case 'saveBlueprint':

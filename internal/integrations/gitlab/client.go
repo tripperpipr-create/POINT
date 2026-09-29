@@ -122,9 +122,26 @@ func (c *Client) invoke(ctx context.Context, tool string, arguments any, target 
 		}
 	}
 	if target != nil {
-		if err := decodeText(text, target); err != nil {
-			return "", &Error{Reason: ReasonFormat, Tool: tool, Detail: "answer did not parse: " + err.Error()}
+		var decodeErr error
+		if len(result.Structured) > 0 {
+			decodeErr = decodeText(string(result.Structured), target)
+			if decodeErr == nil {
+				return text, nil
+			}
 		}
+		for _, item := range result.Content {
+			if item.Type != "text" {
+				continue
+			}
+			decodeErr = decodeText(item.Text, target)
+			if decodeErr == nil {
+				return text, nil
+			}
+		}
+		if decodeErr == nil {
+			decodeErr = errors.New("no JSON object in MCP result")
+		}
+		return "", &Error{Reason: ReasonFormat, Tool: tool, Detail: "answer did not parse: " + decodeErr.Error()}
 	}
 	return text, nil
 }
@@ -256,7 +273,7 @@ func (c *Client) Approvals(ctx context.Context, project string, iid int) (Approv
 		return Approvals{}, err
 	}
 	approvals := Approvals{Rules: []ApprovalRule{}}
-	seen := map[int]bool{}
+	seen := map[userID]bool{}
 	for _, rule := range raw.Rules {
 		approvals.Rules = append(approvals.Rules, ApprovalRule{Name: clip(rule.Name, 200), Required: rule.ApprovalsRequired,
 			Approved: rule.Approved, ApprovedBy: users(rule.ApprovedBy)})

@@ -12,6 +12,8 @@ import (
 // probe time by the Docker host controller; tags are stable pack identifiers.
 const (
 	DefaultManagedImage = "point-agent-sandbox:1.2.2"
+	Node20ManagedImage  = "point-agent-sandbox-node20:1.0.0"
+	Node22ManagedImage  = "point-agent-sandbox-node22:1.0.0"
 	PHPManagedImage     = "point-agent-sandbox-php:1.3.1"
 	NodeManagedImage    = "point-agent-sandbox:1.2.2"
 	PythonManagedImage  = "point-agent-sandbox:1.2.2"
@@ -95,17 +97,17 @@ func RuntimeRequirementsForWorkOrder(order *domain.WorkOrder) sandbox.RuntimeReq
 	if order == nil {
 		return sandbox.RuntimeRequirements{}
 	}
-	return runtimeRequirements(order.Stack, order.Setup, order.Completion)
+	return runtimeRequirements(order.Stack, order.Setup, order.Completion, order.Sandbox.Toolchains)
 }
 
 func RuntimeRequirementsForExecutionContract(contract *domain.WorkOrderExecutionContract) sandbox.RuntimeRequirements {
 	if contract == nil {
 		return sandbox.RuntimeRequirements{}
 	}
-	return runtimeRequirements(contract.Stack, contract.Setup, contract.Completion)
+	return runtimeRequirements(contract.Stack, contract.Setup, contract.Completion, contract.Sandbox.Toolchains)
 }
 
-func runtimeRequirements(stack domain.StackPresetRef, setup domain.SetupPlan, completion domain.CompletionProfile) sandbox.RuntimeRequirements {
+func runtimeRequirements(stack domain.StackPresetRef, setup domain.SetupPlan, completion domain.CompletionProfile, versions map[string]string) sandbox.RuntimeRequirements {
 	selected := map[string]bool{}
 	for _, tool := range stackRuntimeTools[strings.ToLower(strings.TrimSpace(stack.ID))] {
 		selected[tool] = true
@@ -116,7 +118,18 @@ func runtimeRequirements(stack domain.StackPresetRef, setup domain.SetupPlan, co
 	for _, check := range completion.Checks {
 		collectApprovedRuntimeTools(check.Command, selected)
 	}
-	if len(selected) == 0 {
+	trustedVersions := map[string]string{}
+	unsupported := []string{}
+	for tool, version := range versions {
+		if _, ok := runtimeToolCatalog[tool]; ok && strings.TrimSpace(version) != "" {
+			selected[tool] = true
+			trustedVersions[tool] = strings.TrimSpace(version)
+		} else if strings.TrimSpace(version) != "" {
+			unsupported = append(unsupported, tool)
+		}
+	}
+	sort.Strings(unsupported)
+	if len(selected) == 0 && len(unsupported) == 0 {
 		return sandbox.RuntimeRequirements{}
 	}
 	tools := make([]string, 0, len(selected))
@@ -131,9 +144,14 @@ func runtimeRequirements(stack domain.StackPresetRef, setup domain.SetupPlan, co
 		packages = append(packages, definition.Packages...)
 		candidates = append(candidates, definition.CandidateImages...)
 	}
+	if strings.HasPrefix(trustedVersions["node"], "20") {
+		candidates = append(candidates, Node20ManagedImage)
+	} else if strings.HasPrefix(trustedVersions["node"], "22") {
+		candidates = append(candidates, Node22ManagedImage)
+	}
 	return sandbox.RuntimeRequirements{
 		ID: strings.TrimSpace(stack.ID), Version: strings.TrimSpace(stack.Version),
-		RequiredCommands: commands, Packages: packages, CandidateImages: candidates,
+		RequiredCommands: commands, ToolVersions: trustedVersions, UnsupportedTools: unsupported, Packages: packages, CandidateImages: candidates,
 	}
 }
 
@@ -201,6 +219,12 @@ func selectManagedImage(toolchains map[string]string) string {
 		if name == "php" {
 			return toolchainImages["php"]
 		}
+	}
+	if strings.HasPrefix(toolchains["node"], "20") {
+		return Node20ManagedImage
+	}
+	if strings.HasPrefix(toolchains["node"], "22") {
+		return Node22ManagedImage
 	}
 	if image, ok := toolchainImages[names[0]]; ok {
 		return image

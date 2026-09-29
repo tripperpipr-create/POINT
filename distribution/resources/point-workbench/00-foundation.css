@@ -1,0 +1,238 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   Оболочка Point.
+
+   Файл собран заново от токенов. Правило здесь одно: **одна поверхность — один
+   блок**. До этого стиль рос слоями, и одну и ту же вкладку красили три правила
+   из разных лет; побеждало то, что ниже, а узнать это можно было только
+   замером в живом окне.
+
+   Материал взят из системы макета (Nocturne): плотность 0.7, радиусы 4 и 8,
+   линейки гаснут к концам, наведение и нажатие — из акцентной шкалы, акцент
+   работает линией и подсветкой, а не заливкой. Цвета свои: земля макета,
+   янтарь Point.
+
+   `!important` стоит там, где Code-OSS задаёт то же свойство инлайном из
+   раскладки или правилом с более длинной цепочкой. Каждый такой случай
+   объяснён рядом: важность без объяснения — шум, который потом никто не
+   решается снять.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.monaco-workbench:has(.point-activitybar) {
+	/* Шрифт вшит наложением в point-fonts.css. Важность нужна: Code-OSS задаёт
+	   шрифт правилом `.monaco-workbench.windows` того же веса, и оно стоит
+	   позже — без неё оболочка молча остаётся на системном Segoe. */
+	--point-font: "Inter", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+	--point-mono: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
+
+	/* Лестница грунтов: редактор глубже всего, рейки и строка состояния —
+	   ступень выше, шапки панелей ещё выше, всплывающее — поверхность. */
+	--point-void: #0A0A0A;
+	--point-panel: #0E0E0E;
+	--point-strip: #151515;
+	--point-rail: #242424;
+	--point-raised: #151515;
+	--point-selected: #1C1C1C;
+	--point-border: #222222;
+	--point-border-soft: #333333;
+
+	/* Текст: основной для выбранного и заголовков, обычный для содержимого
+	   списков, приглушённый для служебного. */
+	--point-primary: #e9e9e9;
+	--point-body: #d4d4d4;
+	--point-muted: #989898;
+	--point-faint: #7a7a7a;
+
+	/* Смысловые. Янтарь — единственная опознавательная краска продукта. */
+	--point-ember: #FF8A4C;
+	--point-ember-hover: #FF9A63;
+	--point-ember-pressed: #FF7626;
+	--point-mana: #46D8E8;
+	--point-vital: #5BCB8A;
+	--point-wound: #EE6873;
+	--point-caution: #E0A24A;
+
+	/* Состояния. Подсветка нейтральная: янтарь в оболочке сообщает смысл, а
+	   наведение смысла не несёт — под курсором может оказаться что угодно.
+	   Прежде обе ступени были янтарными, и продукт красил акцентом каждую
+	   строку дерева, каждую вкладку и каждый пункт меню под указателем.
+	   Взяты подмесом текста, а не сплошной ступенью грунта: рейка (#0e0e0e),
+	   панель (#0E0E0E) и редактор (#0A0A0A) — три разных фона, и одна сплошная
+	   заливка на одном из них видна, а на другом пропадает.
+	   Три ступени, «выбрано» светлее «под курсором»: иначе выбранная строка
+	   теряется, когда указатель проходит мимо. */
+	--point-tint: color-mix(in srgb, var(--point-primary) 7%, transparent);
+	--point-tint-strong: color-mix(in srgb, var(--point-primary) 11%, transparent);
+	--point-tint-selected: color-mix(in srgb, var(--point-primary) 15%, transparent);
+	--point-edge: color-mix(in srgb, var(--point-ember) 45%, transparent);
+	/* Янтарная подложка осталась там, где она и есть смысл: подсветка
+	   найденного. Её нельзя гасить вместе с наведением — совпадение обязано
+	   быть видно первым. */
+	--point-match: color-mix(in srgb, var(--point-ember) 26%, transparent);
+
+	/* Геометрия. Нижняя граница цели указателя — 24: до неё оболочка ставила
+	   размеры числами и уезжала под порог незаметно (значки шапок были 20×20,
+	   плашка поиска рисовалась на 24, а кликабельный элемент внутри — 16). */
+	--point-rail-w: 46px;
+	--point-rail-item: 38px;
+	--point-sub-h: 40px;
+	--point-pane-h: 24px;
+	--point-status-h: 26px;
+	--point-tab-h: 32px;
+	--point-hit: 24px;
+	/* Лесенка значков. Глиф — не текст: типографическая шкала на него не
+	   распространяется, но и литералом он расползался (14 · 15 · 16 · 18
+	   вперемешку). Три ступени: рядовой, крупный, кнопочный. */
+	--point-icon-sm: 14px;
+	--point-icon-md: 16px;
+	--point-icon-lg: 18px;
+	/* Controls use a restrained 4px corner; floating windows use 8px. */
+	--point-r: 4px;
+
+	/* Движение оболочки — две ступени, как в Хабе. Литеральная длительность
+	   выглядит так же, но обнуления при prefers-reduced-motion не видит:
+	   просьбу убрать движение она молча игнорирует. */
+	--point-motion-fast: 90ms;
+	--point-motion-base: 140ms;
+	--point-r-lg: 8px;
+
+	font-family: var(--point-font) !important;
+}
+
+/* ════ Основа ════════════════════════════════════════════════════════════════ */
+
+/* Границы частей — сплошной волосок в тон границы. В системе макета гаснут к
+   концам свободно стоящие линейки, а не края частей: у самого макета низ
+   заголовка, полосы вкладок и верх строки состояния прочерчены насквозь.
+   Сами границы объявлены в блоках своих частей — здесь их держать негде. */
+
+.monaco-workbench:has(.point-activitybar) ::selection { background: color-mix(in srgb, var(--point-ember) 30%, transparent); }
+
+/* Кольцо фокуса везде акцентное: у Code-OSS оно синее и остаётся таким в
+   десятке виджетов, если не сказать иначе. */
+.monaco-workbench:has(.point-activitybar) :focus { outline-color: var(--point-ember) !important; }
+.monaco-workbench:has(.point-activitybar) :focus-visible {
+	outline: 1px solid var(--point-ember) !important;
+	outline-offset: -1px;
+}
+.monaco-workbench:has(.point-activitybar) .monaco-list:focus::before,
+.monaco-workbench:has(.point-activitybar) .monaco-list.element-focused:focus::before,
+.monaco-workbench:has(.point-activitybar) .monaco-tl-row:focus,
+.monaco-workbench:has(.point-activitybar) .monaco-custom-toggle:focus,
+.monaco-workbench:has(.point-activitybar) a.monaco-link:focus { outline-color: var(--point-ember) !important; }
+.monaco-workbench:has(.point-activitybar) input:focus,
+.monaco-workbench:has(.point-activitybar) textarea:focus,
+.monaco-workbench:has(.point-activitybar) select:focus {
+	border-color: var(--point-ember) !important;
+	box-shadow: none !important;
+	outline: 1px solid var(--point-ember) !important;
+	outline-offset: 0;
+}
+/* Выбранная строка списка уже помечена подложкой и полосой — кольцо поверх
+   неё только дребезжит. */
+.monaco-workbench:has(.point-activitybar) .monaco-list-row.focused:focus-visible,
+.monaco-workbench:has(.point-activitybar) .monaco-list-row.selected:focus-visible { outline: none !important; }
+
+/* Счётчик-жетон («Результаты: 826» в палитре, счёт совпадений в дереве). Цвет
+   ему давала тема Code-OSS: белый текст 11px на своей подложке — 3.73 при
+   пороге 4.5, найдено замером живого окна в сценарии палитры. Жетон здесь не
+   акцент, а число: тихая ступень грунта и обычный текст. */
+.monaco-workbench:has(.point-activitybar) .monaco-count-badge {
+	background: var(--point-selected) !important;
+	border-radius: var(--point-r) !important;
+	color: var(--point-primary) !important;
+	font: 500 11px/1 var(--point-font) !important;
+	padding: 4px 6px !important;
+}
+
+/* Ползунок 5 в жёлобе 9, скруглён целиком: при ширине 6 и радиусе 2 полоса
+   читалась как обрубок. */
+.monaco-workbench:has(.point-activitybar) .monaco-scrollable-element > .scrollbar.vertical { width: 9px !important; }
+.monaco-workbench:has(.point-activitybar) .monaco-scrollable-element > .scrollbar.horizontal { height: 9px !important; }
+.monaco-workbench:has(.point-activitybar) .monaco-scrollable-element > .scrollbar > .slider {
+	background: var(--point-border-soft) !important;
+	border-radius: var(--point-r-lg) !important;
+	width: 5px !important;
+}
+.monaco-workbench:has(.point-activitybar) .monaco-scrollable-element > .scrollbar.horizontal > .slider {
+	height: 5px !important;
+	width: auto !important;
+}
+.monaco-workbench:has(.point-activitybar) .monaco-scrollable-element > .scrollbar > .slider:hover { background: var(--point-faint) !important; }
+
+/* Сашь: тонкая акцентная линия вместо синей полосы. */
+.monaco-workbench:has(.point-activitybar) .monaco-sash:hover,
+.monaco-workbench:has(.point-activitybar) .monaco-sash.active { background: transparent !important; }
+.monaco-workbench:has(.point-activitybar) .monaco-sash.vertical::before,
+.monaco-workbench:has(.point-activitybar) .monaco-sash.horizontal::before {
+	background: transparent;
+	transition: background-color var(--point-motion-fast) ease;
+}
+.monaco-workbench:has(.point-activitybar) .monaco-sash:hover::before,
+.monaco-workbench:has(.point-activitybar) .monaco-sash.active::before { background: var(--point-ember) !important; }
+.monaco-workbench:has(.point-activitybar) .monaco-sash.vertical.active::before { width: 2px !important; }
+.monaco-workbench:has(.point-activitybar) .monaco-sash.horizontal.active::before { height: 2px !important; }
+
+.monaco-workbench:has(.point-activitybar) .monaco-keybinding > .monaco-keybinding-key {
+	background: var(--point-raised) !important;
+	border: 1px solid var(--point-border) !important;
+	border-radius: var(--point-r) !important;
+	box-shadow: none !important;
+	color: var(--point-muted) !important;
+	font: 400 10px/1 var(--point-mono) !important;
+	padding: 2px 4px;
+}
+
+.monaco-workbench:has(.point-activitybar) .monaco-progress-container .progress-bit,
+.monaco-workbench:has(.point-activitybar) .part.editor .editor-progress-container .progress-bit,
+.monaco-workbench:has(.point-activitybar) .part.panel .monaco-progress-container .progress-bit { background: var(--point-ember) !important; }
+
+.monaco-workbench:has(.point-activitybar) .badge .badge-content {
+	border-radius: var(--point-r) !important;
+	font: 500 10px/1 var(--point-font) !important;
+	min-width: 14px;
+	padding: 2px 4px !important;
+}
+
+/* Мелкий хром — кнопки-иконки панелей действий: глиф 16, цель 24, разница
+   уходит в отбивку. box-sizing обязателен: элементы считаются по content-box,
+   и без него высота ушла бы в 30 и разорвала шапку. */
+.monaco-workbench:has(.point-activitybar) .monaco-action-bar .action-label {
+	border-radius: var(--point-r);
+	color: var(--point-muted);
+}
+.monaco-workbench:has(.point-activitybar) .monaco-action-bar .action-item:hover .action-label {
+	background: var(--point-tint);
+	color: var(--point-primary);
+}
+.monaco-workbench:has(.point-activitybar) .part.sidebar .title .title-actions .action-label,
+.monaco-workbench:has(.point-activitybar) .part.auxiliarybar .title .title-actions .action-label,
+.monaco-workbench:has(.point-activitybar) .part.panel .title .title-actions .action-label,
+.monaco-workbench:has(.point-activitybar) .part.panel .global-actions .action-label,
+.monaco-workbench:has(.point-activitybar) .part.sidebar .pane-header .actions .action-label,
+.monaco-workbench:has(.point-activitybar) .part.auxiliarybar .pane-header .actions .action-label,
+.monaco-workbench:has(.point-activitybar) .quick-input-widget .quick-input-list-entry-action-bar .action-label {
+	box-sizing: border-box;
+	height: var(--point-hit);
+	width: var(--point-hit);
+}
+
+.monaco-workbench:has(.point-activitybar) .monaco-inputbox {
+	background: var(--point-void) !important;
+	border: 1px solid var(--point-border) !important;
+	border-radius: var(--point-r) !important;
+	color: var(--point-primary);
+}
+.monaco-workbench:has(.point-activitybar) .monaco-inputbox.synthetic-focus,
+.monaco-workbench:has(.point-activitybar) .monaco-inputbox:focus-within { border-color: var(--point-ember) !important; }
+.monaco-workbench:has(.point-activitybar) .monaco-button,
+.monaco-workbench:has(.point-activitybar) .monaco-text-button {
+	border-radius: var(--point-r) !important;
+	font: 500 12px/1 var(--point-font);
+}
+
+.monaco-workbench:has(.point-activitybar) .part.banner {
+	background: var(--point-raised) !important;
+	border-bottom: 1px solid var(--point-border) !important;
+	color: var(--point-primary);
+	font: 400 12px/1.4 var(--point-font);
+}

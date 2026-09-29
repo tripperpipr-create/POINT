@@ -1,0 +1,430 @@
+
+/* ════ Правая рейка ══════════════════════════════════════════════════════════
+   У левой панели рейка и содержимое — разные части; у правой рейка живёт
+   ВНУТРИ части. Поэтому её вынимают из потока и кладут по правому краю, а
+   содержимому оставляют остальную ширину. */
+.monaco-workbench:has(.point-activitybar) .part.auxiliarybar {
+	background: var(--point-panel) !important;
+	border-left: 1px solid var(--point-border) !important;
+	box-shadow: none;
+	height: 100% !important;
+}
+.monaco-workbench:has(.point-activitybar) .part.auxiliarybar > .title {
+	background: var(--point-rail);
+	border-bottom: 0;
+	border-left: 1px solid var(--point-border);
+	bottom: 0;
+	display: flex;
+	flex-direction: column;
+	height: auto !important;
+	left: auto;
+	padding: 6px 0 !important;
+	position: absolute;
+	right: 0;
+	top: 0;
+	width: var(--point-rail-w);
+	z-index: 3;
+}
+.monaco-workbench:has(.point-activitybar) .part.auxiliarybar > .content {
+	height: 100% !important;
+	width: calc(100% - var(--point-rail-w)) !important;
+}
+.monaco-workbench:has(.point-activitybar) .part.auxiliarybar > .title > .title-label { display: none !important; }
+.monaco-workbench:has(.point-activitybar) .part.auxiliarybar > .title > .composite-bar-container {
+	flex: 1 1 auto;
+	height: auto !important;
+	min-height: 0;
+	width: var(--point-rail-w) !important;
+}
+.monaco-workbench:has(.point-activitybar) .part.auxiliarybar > .title .composite-bar,
+.monaco-workbench:has(.point-activitybar) .part.auxiliarybar > .title .monaco-action-bar,
+.monaco-workbench:has(.point-activitybar) .part.auxiliarybar > .title .actions-container {
+	align-items: center;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	height: auto;
+	width: var(--point-rail-w);
+}
+.monaco-workbench:has(.point-activitybar) .part.auxiliarybar > .title .composite-bar .action-item {
+	border: 0;
+	border-radius: 0;
+	box-sizing: border-box;
+	flex: 0 0 var(--point-rail-item);
+	height: var(--point-rail-item);
+	margin: 0 !important;
+	position: relative;
+	width: var(--point-rail-w);
+}
+.monaco-workbench:has(.point-activitybar) .part.auxiliarybar > .title .composite-bar .action-label {
+	align-items: center;
+	box-sizing: border-box;
+	color: var(--point-muted) !important;
+	display: flex;
+	font-size: 0 !important;
+	height: var(--point-rail-item) !important;
+	justify-content: center;
+	padding: 0 !important;
+	width: var(--point-rail-w) !important;
+}
+/* Апстрим ставит глиф абсолютно и слева — в вертикальной рейке он уезжает. */
+.monaco-workbench:has(.point-activitybar) .part.auxiliarybar > .title .composite-bar .action-label::before {
+	font-size: 18px !important;
+	left: auto !important;
+	line-height: 18px !important;
+	position: static !important;
+}
+.monaco-workbench:has(.point-activitybar) .part.auxiliarybar > .title .composite-bar .action-item:hover { background: var(--point-tint); }
+.monaco-workbench:has(.point-activitybar) .part.auxiliarybar > .title .composite-bar .action-item.checked {
+	background: var(--point-tint-selected);
+	box-shadow: inset -2px 0 0 var(--point-ember);
+}
+.monaco-workbench:has(.point-activitybar) .part.auxiliarybar > .title .composite-bar .action-item.checked .action-label { color: var(--point-primary) !important; }
+.monaco-workbench:has(.point-activitybar) .part.auxiliarybar > .title .title-actions {
+	flex: 0 0 auto !important;
+	margin-top: auto;
+	width: var(--point-rail-w);
+}
+.monaco-workbench:has(.point-activitybar) .part.auxiliarybar > .title .title-actions .action-item { margin: 0 !important; }
+.monaco-workbench:has(.point-activitybar) .part.auxiliarybar > .title .title-actions .action-label {
+	height: 32px !important;
+	width: var(--point-rail-w) !important;
+}
+.monaco-workbench:has(.point-activitybar) .part.auxiliarybar .pane-header {
+	background: var(--point-raised) !important;
+	border-top: 1px solid var(--point-border) !important;
+	height: var(--point-pane-h) !important;
+}
+
+/* ════ Боковая панель ════════════════════════════════════════════════════════
+   Шапка раздела: 40 пикселей, значок папки акцентом, имя обычным кеглем — в
+   макете это строка продукта, а не служебная надпись капслоком. */
+.monaco-workbench:has(.point-activitybar) .part.sidebar {
+	background: var(--point-panel) !important;
+	border-right: 1px solid var(--point-border) !important;
+	box-shadow: none;
+}
+.monaco-workbench:has(.point-activitybar) .part.sidebar > .composite.title {
+	background: var(--point-raised);
+	border-bottom: 1px solid var(--point-border) !important;
+	height: var(--point-sub-h) !important;
+	padding: 0 8px 0 12px !important;
+}
+.monaco-workbench:has(.point-activitybar) .part.sidebar > .composite.title h2 {
+	color: var(--point-primary);
+	font: 500 12px/1 var(--point-font);
+	letter-spacing: 0.02em;
+	text-transform: none;
+}
+.monaco-workbench:has(.point-activitybar) .part.sidebar > .composite.title h2::before {
+	color: var(--point-muted);
+	content: '\ea83';
+	font: normal normal normal 15px/1 codicon;
+	margin-right: 8px;
+	vertical-align: -2px;
+}
+.monaco-workbench:has(.point-activitybar) .part.sidebar > .title .composite-bar .action-item {
+	border-radius: var(--point-r);
+	margin: 2px 1px;
+}
+.monaco-workbench:has(.point-activitybar) .part.sidebar > .title .composite-bar .action-item.checked {
+	background: var(--point-tint-selected);
+	box-shadow: inset 0 -2px 0 var(--point-ember);
+}
+.monaco-workbench:has(.point-activitybar) .part.sidebar .pane-header {
+	background: transparent !important;
+	border-top: 1px solid var(--point-border) !important;
+	height: var(--point-pane-h) !important;
+	padding: 0 6px 0 8px !important;
+}
+.monaco-workbench:has(.point-activitybar) .part.sidebar .pane-header .title,
+.monaco-workbench:has(.point-activitybar) .part.panel .pane-header .title {
+	color: var(--point-muted) !important;
+	font: 500 12px/1 var(--point-font) !important;
+	letter-spacing: normal;
+	text-transform: none;
+}
+.monaco-workbench:has(.point-activitybar) .part.sidebar .pane-header .actions { opacity: .88; }
+.monaco-workbench:has(.point-activitybar) .part.sidebar .pane-header:hover .actions,
+.monaco-workbench:has(.point-activitybar) .part.sidebar .pane-header.focused .actions { opacity: 1; }
+.monaco-workbench:has(.point-activitybar) .part.sidebar .pane-body { padding-top: 2px; }
+
+/* ════ Списки и деревья ══════════════════════════════════════════════════════
+   Имя обычным весом и на ступень тише основного текста: в макете белым и
+   плотным набрано только выбранное. */
+.monaco-workbench:has(.point-activitybar) .monaco-list-row:hover { background-color: var(--point-tint) !important; }
+.monaco-workbench:has(.point-activitybar) .monaco-list-row.focused,
+.monaco-workbench:has(.point-activitybar) .monaco-list-row.selected {
+	background-color: var(--point-tint-selected) !important;
+	box-shadow: inset 2px 0 0 var(--point-ember);
+	outline: none !important;
+}
+.monaco-workbench:has(.point-activitybar) .part.sidebar .monaco-list .monaco-list-row {
+	color: var(--point-body);
+	min-height: 22px !important;
+}
+.monaco-workbench:has(.point-activitybar) .part.sidebar .monaco-list .monaco-list-row .monaco-icon-label,
+.monaco-workbench:has(.point-activitybar) .part.sidebar .monaco-list .monaco-list-row .monaco-icon-label .label-name,
+.monaco-workbench:has(.point-activitybar) .part.sidebar .monaco-list .monaco-list-row .monaco-highlighted-label {
+	color: var(--point-body);
+	font-size: 12px;
+	font-weight: 400;
+	letter-spacing: .01em;
+	line-height: 20px;
+}
+.monaco-workbench:has(.point-activitybar) .part.sidebar .monaco-list .monaco-list-row .folder-icon .label-name,
+.monaco-workbench:has(.point-activitybar) .part.sidebar .monaco-list .monaco-list-row .rootfolder-icon .label-name { color: var(--point-primary); }
+/* Выбранная строка помечена подложкой и кромкой; цвет имени при этом не
+   меняется. Раньше менялся, и дерево на каждом шаге курсора перекрашивалось
+   в акцент — три признака одного состояния вместо одного. */
+.monaco-workbench:has(.point-activitybar) .part.sidebar .monaco-list .monaco-list-row.focused .monaco-icon-label .label-name,
+.monaco-workbench:has(.point-activitybar) .part.sidebar .monaco-list .monaco-list-row.selected .monaco-icon-label .label-name { color: var(--point-primary); }
+.monaco-workbench:has(.point-activitybar) .part.sidebar .monaco-list .monaco-list-row.focused .monaco-tl-twistie,
+.monaco-workbench:has(.point-activitybar) .part.sidebar .monaco-list .monaco-list-row.selected .monaco-tl-twistie { color: var(--point-primary) !important; }
+.monaco-workbench:has(.point-activitybar) .part.sidebar .monaco-list .monaco-list-row .monaco-icon-label .label-description,
+.monaco-workbench:has(.point-activitybar) .part.sidebar .monaco-list .monaco-list-row .monaco-icon-label::after {
+	color: var(--point-faint) !important;
+	font-size: 11px;
+	opacity: 1;
+}
+.monaco-workbench:has(.point-activitybar) .part.sidebar .monaco-list .monaco-tl-twistie {
+	color: var(--point-muted) !important;
+	opacity: 1 !important;
+	padding-right: 2px !important;
+}
+.monaco-workbench:has(.point-activitybar) .part.sidebar .monaco-list .monaco-tl-twistie::before { font-size: var(--point-icon-sm) !important; }
+.monaco-workbench:has(.point-activitybar) .part.sidebar .monaco-list .monaco-tl-indent { width: 12px !important; }
+.monaco-workbench:has(.point-activitybar) .part.sidebar .monaco-list .monaco-tl-indent > .indent-guide {
+	border-left: 1px solid var(--point-border) !important;
+	opacity: 1;
+}
+.monaco-workbench:has(.point-activitybar) .part.sidebar .monaco-list .monaco-tl-indent > .indent-guide.active { border-left-color: var(--point-faint) !important; }
+/* Инвентарь читается лучше, чем сжимается: строка выше базовой, отступ уровня
+   шире. Предсказуемая прокрутка дешевле, чем расшифровка мелких имён. */
+.monaco-workbench:has(.point-activitybar) .part.sidebar .explorer-folders-view .monaco-list-row {
+	height: 27px !important;
+	min-height: 27px !important;
+}
+.monaco-workbench:has(.point-activitybar) .part.sidebar .explorer-folders-view .monaco-list-row .monaco-icon-label,
+.monaco-workbench:has(.point-activitybar) .part.sidebar .explorer-folders-view .monaco-list-row .monaco-icon-label .label-name { line-height: 27px; }
+.monaco-workbench:has(.point-activitybar) .part.sidebar .explorer-folders-view .monaco-tl-indent { width: 14px !important; }
+.monaco-workbench:has(.point-activitybar) .part.sidebar .show-file-icons .monaco-icon-label::before {
+	background-size: 16px !important;
+	padding-right: 4px !important;
+}
+.monaco-workbench:has(.point-activitybar) .outline-pane .monaco-list-row,
+.monaco-workbench:has(.point-activitybar) .markers-panel .monaco-list-row { min-height: 22px !important; }
+.monaco-workbench:has(.point-activitybar) .outline-pane .monaco-icon-label,
+.monaco-workbench:has(.point-activitybar) .outline-pane .monaco-icon-label .label-name { font: 400 12px/22px var(--point-font); }
+.monaco-workbench:has(.point-activitybar) .debug-pane .monaco-list-row,
+.monaco-workbench:has(.point-activitybar) .debug-viewlet .monaco-list-row,
+.monaco-workbench:has(.point-activitybar) .extensions-viewlet .monaco-list-row { min-height: var(--point-hit) !important; }
+.monaco-workbench:has(.point-activitybar) .debug-toolbar,
+.monaco-workbench:has(.point-activitybar) .debug-viewlet,
+.monaco-workbench:has(.point-activitybar) .debug-pane {
+	background: var(--point-panel) !important;
+	border-color: var(--point-border) !important;
+}
+
+/* Летопись и Поиск: встроенные вьюшки. Point показывает свои панели, но эти
+   остаются доступными и обязаны читаться так же. */
+.monaco-workbench:has(.point-activitybar) .part.sidebar .scm-view .scm-provider > .header {
+	border-bottom: 1px solid var(--point-border);
+	padding: 4px 8px;
+}
+.monaco-workbench:has(.point-activitybar) .part.sidebar .scm-view .scm-provider > .header > .monaco-icon-label {
+	color: var(--point-primary);
+	font: 500 12px/1.2 var(--point-font);
+}
+.monaco-workbench:has(.point-activitybar) .part.sidebar .scm-view .monaco-list-row .resource-group > .name {
+	color: var(--point-muted);
+	font: 500 11px/22px var(--point-font);
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+}
+.monaco-workbench:has(.point-activitybar) .part.sidebar .scm-view .monaco-list-row .resource-group > .count { color: var(--point-faint); }
+.monaco-workbench:has(.point-activitybar) .part.sidebar .scm-view .monaco-list-row .resource > .decoration-icon {
+	font-size: var(--point-icon-sm) !important;
+	opacity: 1;
+}
+.monaco-workbench:has(.point-activitybar) .part.panel .search-view,
+.monaco-workbench:has(.point-activitybar) .part.sidebar .search-view { background: var(--point-panel) !important; }
+.monaco-workbench:has(.point-activitybar) .part.panel .search-view .search-widgets-container,
+.monaco-workbench:has(.point-activitybar) .part.sidebar .search-view .search-widgets-container {
+	border-bottom: 1px solid var(--point-border);
+	gap: 4px;
+	padding: 8px 10px 6px !important;
+}
+.monaco-workbench:has(.point-activitybar) .part.panel .search-view .messages,
+.monaco-workbench:has(.point-activitybar) .part.sidebar .search-view .messages {
+	color: var(--point-muted) !important;
+	font: 400 11px/1.4 var(--point-font) !important;
+	padding: 4px 10px !important;
+}
+.monaco-workbench:has(.point-activitybar) .part.panel .search-view .monaco-list .monaco-list-row .match,
+.monaco-workbench:has(.point-activitybar) .part.sidebar .search-view .monaco-list .monaco-list-row .match {
+	background: var(--point-match);
+	outline: 1px solid var(--point-edge);
+}
+.monaco-workbench:has(.point-activitybar) .part.panel .search-view .monaco-custom-toggle.checked,
+.monaco-workbench:has(.point-activitybar) .part.sidebar .search-view .monaco-custom-toggle.checked,
+.monaco-workbench:has(.point-activitybar) .editor-widget.find-widget .monaco-custom-toggle.checked {
+	background: var(--point-tint-strong) !important;
+	border-color: var(--point-ember) !important;
+	color: var(--point-ember) !important;
+}
+
+/* ════ Редактор ══════════════════════════════════════════════════════════════
+   Вкладка плоская: без подложки и скруглений, разделена волоском, активная
+   берёт фон редактора и акцентную линию снизу.
+
+   Высоту держит переменная `--editor-group-tab-height`, и её же ставит
+   раскладка инлайном на контейнере вкладок — переопределять надо оба места,
+   иначе полоса остаётся прежней, а вкладки из неё торчат. */
+.monaco-workbench:has(.point-activitybar) .part.editor > .content .editor-group-container > .title,
+.monaco-workbench:has(.point-activitybar) .part.editor > .content .tabs-and-actions-container {
+	--editor-group-tab-height: var(--point-tab-h) !important;
+	background: var(--point-strip) !important;
+	border-bottom-color: var(--point-border) !important;
+	min-height: var(--editor-group-tab-height);
+}
+.monaco-workbench:has(.point-activitybar) .part.editor > .content .editor-group-container { border-color: var(--point-border); }
+.monaco-workbench:has(.point-activitybar) .part.editor .tabs-container {
+	box-sizing: border-box;
+	gap: 0;
+	height: var(--editor-group-tab-height);
+	padding: 0;
+}
+.monaco-workbench:has(.point-activitybar) .part.editor .tab {
+	background: transparent !important;
+	border: 0 !important;
+	border-radius: 0 !important;
+	border-right: 1px solid var(--point-border) !important;
+	border-bottom: 2px solid transparent !important;
+	box-sizing: border-box;
+	height: var(--editor-group-tab-height) !important;
+	overflow: hidden;
+	padding: 0 12px !important;
+}
+.monaco-workbench:has(.point-activitybar) .part.editor .tab:hover { background: var(--point-tint) !important; }
+.monaco-workbench:has(.point-activitybar) .part.editor .tab.active {
+	background: var(--point-void) !important;
+	border-bottom-color: var(--point-ember) !important;
+	box-shadow: none !important;
+}
+/* The theme also paints a top border element; keep one active indicator. */
+.monaco-workbench:has(.point-activitybar) .part.editor .tab > .tab-border-top-container { display: none; }
+.monaco-workbench:has(.point-activitybar) .part.editor .tab.sticky { box-shadow: inset 2px 0 0 var(--point-ember) !important; }
+.monaco-workbench:has(.point-activitybar) .part.editor .tab .tab-label {
+	max-height: var(--editor-group-tab-height);
+	max-width: 160px;
+	min-width: 0;
+	overflow: hidden;
+}
+.monaco-workbench:has(.point-activitybar) .part.editor .tab .tab-label a {
+	color: var(--point-muted);
+	font: 400 12px/var(--editor-group-tab-height) var(--point-font);
+	font-style: normal !important;
+}
+.monaco-workbench:has(.point-activitybar) .part.editor .tab.active .tab-label a { color: var(--point-primary); font-weight: 500; }
+/* Изменённый файл — точка у имени, а не залитая вкладка. */
+.monaco-workbench:has(.point-activitybar) .part.editor .tab.dirty .tab-label::after {
+	background: var(--point-ember);
+	border-radius: 50%;
+	content: '';
+	display: inline-block;
+	height: 4px;
+	margin-left: 6px;
+	vertical-align: middle;
+	width: 4px;
+}
+.monaco-workbench:has(.point-activitybar) .part.editor .tab.dirty .dirty-icon,
+.monaco-workbench:has(.point-activitybar) .part.editor .tab.dirty .codicon-circle-filled { color: var(--point-ember) !important; }
+.monaco-workbench:has(.point-activitybar) .part.editor .tab .tab-close {
+	opacity: 0;
+	transition: opacity var(--point-motion-fast) linear;
+}
+.monaco-workbench:has(.point-activitybar) .part.editor .tab:hover .tab-close,
+.monaco-workbench:has(.point-activitybar) .part.editor .tab.active .tab-close,
+.monaco-workbench:has(.point-activitybar) .part.editor .tab:focus-within .tab-close { opacity: 1; }
+/* Крестик вкладки: апстрим даёт глиф 16 с отбивкой 2 — цель 20×20 при пороге
+   24. Спорить за `width`/`height` бесполезно: его цепочка от `.part.editor >
+   .content .editor-group-container` весит больше, и две попытки подряд давали
+   16×16, то есть хуже исходного. Поэтому растёт не коробка, а область
+   попадания: невидимый слой на 2 пикселя наружу превращает 20×20 в 24×24. */
+.monaco-workbench:has(.point-activitybar) .part.editor .tab > .tab-actions .action-label { position: relative; }
+.monaco-workbench:has(.point-activitybar) .part.editor .tab > .tab-actions .action-label::after {
+	content: '';
+	inset: -2px;
+	position: absolute;
+}
+/* Кнопкам полосы вкладок размер здесь **не задаётся** по той же причине:
+   прежние `height/width: 22px` не применялись никогда — мёртвый код, который
+   выглядел как настройка. */
+.monaco-workbench:has(.point-activitybar) .part.editor .tabs-and-actions-container .tab-actions-right,
+.monaco-workbench:has(.point-activitybar) .part.editor .tabs-and-actions-container .tab-actions-left {
+	align-items: center;
+	display: flex;
+}
+.monaco-workbench:has(.point-activitybar) .part.editor .tabs-and-actions-container .editor-actions {
+	align-self: center;
+	background: transparent;
+	border: 0;
+	box-sizing: border-box;
+	display: flex;
+	height: var(--point-hit);
+	margin: 2px 4px 2px 2px;
+	padding: 0 2px;
+}
+.monaco-workbench:has(.point-activitybar) .part.editor .editor-group-container > .title .tabs-and-actions-container .monaco-scrollable-element { min-width: 0; }
+
+/* Крошки — полоса навигации 24 пикселя. Звенья заполняют её целиком: раньше
+   высоту им задавала интерлиньяжем строка `11px/22px`, и цель попадания была
+   на два пикселя ниже видимой полосы. */
+.monaco-workbench:has(.point-activitybar) .part.editor .breadcrumbs-below-tabs {
+	background: var(--point-void);
+	border-bottom: 1px solid var(--point-border);
+	box-sizing: border-box;
+	min-height: var(--point-hit);
+}
+.monaco-workbench:has(.point-activitybar) .part.editor .monaco-breadcrumbs { min-height: var(--point-hit); }
+.monaco-workbench:has(.point-activitybar) .part.editor .breadcrumbs-control {
+	max-width: 100%;
+	min-width: 0;
+	overflow: hidden;
+	padding: 0 6px;
+}
+.monaco-workbench:has(.point-activitybar) .part.editor .breadcrumbs-control .monaco-breadcrumb-item {
+	border: 1px solid transparent;
+	border-radius: var(--point-r);
+	max-width: 180px;
+	min-width: 0;
+	overflow: hidden;
+	padding: 0 1px;
+}
+.monaco-workbench:has(.point-activitybar) .part.editor .breadcrumbs-control .monaco-breadcrumb-item .monaco-icon-label {
+	color: var(--point-faint);
+	font: 400 11px/var(--point-hit) var(--point-mono);
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.monaco-workbench:has(.point-activitybar) .part.editor .breadcrumbs-control .monaco-breadcrumb-item:last-child .monaco-icon-label { color: var(--point-muted); }
+.monaco-workbench:has(.point-activitybar) .part.editor .breadcrumbs-control .monaco-breadcrumb-item:hover { background: var(--point-tint); }
+.monaco-workbench:has(.point-activitybar) .part.editor .breadcrumbs-control .codicon-breadcrumb-separator {
+	color: var(--point-border-soft) !important;
+	font-size: 10px !important;
+}
+
+.monaco-workbench:has(.point-activitybar) .monaco-editor .sticky-widget {
+	background: var(--point-raised) !important;
+	border-bottom: 1px solid var(--point-border) !important;
+	box-shadow: none !important;
+}
+.monaco-workbench:has(.point-activitybar) .monaco-editor .sticky-widget .sticky-line-content { font: 400 12px/1.4 var(--point-mono); }
+.monaco-workbench:has(.point-activitybar) .monaco-editor .ghost-text-decoration,
+.monaco-workbench:has(.point-activitybar) .monaco-editor .ghost-text-decoration-preview {
+	color: color-mix(in srgb, var(--point-mana) 55%, var(--point-muted)) !important;
+	font-style: italic;
+}

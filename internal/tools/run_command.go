@@ -74,20 +74,69 @@ func (t RunCommand) Execute(ctx context.Context, raw json.RawMessage) domain.Too
 	if denied := deniedCommandReason(input.Command); denied != "" {
 		return finish(FailWithHint("command_denied", denied, "use a non-interactive local test, build, lint, or inspection command that does not require elevated or destructive privileges"))
 	}
-	grantedRemotes := t.Grants.RemotesFor(t.RunID, t.QuestID)
-	if denied := deniedUnconfirmedGitRemoteReason(input.Command, t.ConfirmedGitRemotes, grantedRemotes); denied != "" {
-		return finish(FailWithHint("git_remote_unconfirmed", denied, "do not invent remotes; wait for Master/user confirmation of the exact repository URL"))
-	}
-	effectiveHosts := append([]string{}, t.AllowedNetworkHosts...)
-	effectiveHosts = append(effectiveHosts, t.Grants.HostsFor(t.RunID, t.QuestID)...)
-	if len(effectiveHosts) == 0 || !sandbox.HasControlledEgress(t.Executor) {
-		if denied := deniedNetworkCommandReason(input.Command, t.NetworkPolicy, effectiveHosts); denied != "" {
-			return finish(FailWithHint("network_denied", denied, "do not retry alternate mirrors; escalate the exact host to the Master so the user can allow or deny it"))
+	if t.Executor != nil {
+		if unsupported := unsupportedSandboxShellSyntax(input.Command); unsupported != "" {
+			return finish(FailWithHint("unsupported_shell_syntax", unsupported, "pipefail is already on: `cmd 2>&1 | tail -20` returns the exit code of cmd; or run `cmd > /tmp/out.log 2>&1; echo \"exit=$?\"; tail -20 /tmp/out.log` in the same command; use [ ] instead of [[ ]]"))
 		}
 	}
 	cwd, err := t.FS.Resolve(input.CWD, false)
 	if err != nil {
 		return finish(FailWithHint("invalid_cwd", err.Error(), "use a workspace-relative directory such as src, or omit cwd to run at the workspace root"))
+	}
+	grantedRemotes := t.Grants.RemotesFor(t.RunID, t.QuestID)
+	if denied := deniedUnconfirmedGitRemoteReason(input.Command, t.ConfirmedGitRemotes, grantedRemotes); denied != "" {
+		return finish(FailWithHint("git_remote_unconfirmed", denied, "do not invent remotes; wait for Master/user confirmation of the exact repository URL"))
+	}
+	effectiveHosts := append([]string{}, t.AllowedNetworkHosts...)
+	effectiveHosts = append(effectiveHosts, t.Grants.QuestHostsFor(t.QuestID)...)
+	policy, policyErr := egress.Compile(t.NetworkPolicy, effectiveHosts, egress.Quota{})
+	if policyErr != nil {
+		return finish(Fail("network_policy_invalid", policyErr.Error()))
+	}
+	targets, targetErr := explicitNetworkTargets(input.Command)
+	if targetErr != nil {
+		return finish(FailWithHint("network_target_invalid", targetErr.Error(), "use one explicit HTTPS FQDN and port; unknown destinations cannot be approved"))
+	}
+	grantScope := "none"
+	if len(targets) > 0 {
+		grantScope = "approved"
+		for _, target := range targets {
+			for _, host := range t.Grants.QuestHostsFor(t.QuestID) {
+				if host == target {
+					grantScope = "quest"
+				}
+			}
+		}
+	}
+	var missing []string
+	for _, target := range targets {
+		if !hostGrantAllowed(policy, target) {
+			missing = append(missing, target)
+		}
+	}
+	if len(missing) == 1 && t.Grants.TakeHostOnce(t.RunID, missing[0]) {
+		effectiveHosts = append(effectiveHosts, missing[0])
+		grantScope = "once"
+		policy, policyErr = egress.Compile(t.NetworkPolicy, effectiveHosts, egress.Quota{})
+		if policyErr != nil {
+			return finish(Fail("network_policy_invalid", policyErr.Error()))
+		}
+		missing = nil
+	}
+	if len(missing) > 0 {
+		result := FailWithHint("network_denied", fmt.Sprintf("outbound network access to %q is denied by the agent network policy", missing[0]), "ask the user to allow this exact TLS destination; do not retry alternate mirrors")
+		if len(missing) == 1 {
+			result.Error.Target = missing[0]
+		}
+		result.Error.PolicyDigest = policy.Digest
+		return finish(result)
+	}
+	if !sandbox.HasControlledEgress(t.Executor) {
+		if denied := deniedNetworkCommandReason(input.Command, t.NetworkPolicy, effectiveHosts); denied != "" {
+			result := FailWithHint("network_denied", denied, "use an explicit allowed TLS destination inside the configured process sandbox")
+			result.Error.PolicyDigest = policy.Digest
+			return finish(result)
+		}
 	}
 	timeout := t.DefaultTimeout
 	if timeout <= 0 {
@@ -99,9 +148,10 @@ func (t RunCommand) Execute(ctx context.Context, raw json.RawMessage) domain.Too
 	commandCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	var cmd *exec.Cmd
+	var readEgressDecisions func(context.Context) ([]sandbox.EgressDecision, error)
 	if t.Executor != nil {
 		prepared, prepareErr := t.Executor.PrepareProcess(commandCtx, sandbox.ProcessRequest{
-			WorkspaceRoot: t.FS.Root(), WorkingDirectory: cwd, ShellCommand: input.Command, Image: t.SandboxImage,
+			WorkspaceRoot: t.FS.Root(), WorkingDirectory: cwd, ShellCommand: sandboxShellCommand(input.Command), Image: t.SandboxImage,
 			Environment: sanitizedProcessEnv(), NetworkPolicy: t.NetworkPolicy,
 			AllowedNetworkHosts: append([]string(nil), effectiveHosts...),
 			RunID:               t.RunID,
@@ -113,6 +163,7 @@ func (t RunCommand) Execute(ctx context.Context, raw json.RawMessage) domain.Too
 			return finish(Fail("sandbox_unavailable", "sandbox backend returned no process"))
 		}
 		cmd = prepared.Command
+		readEgressDecisions = prepared.EgressDecisions
 		if prepared.Cleanup != nil {
 			defer func() {
 				cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -141,6 +192,19 @@ func (t RunCommand) Execute(ctx context.Context, raw json.RawMessage) domain.Too
 	cmd.Stdout, cmd.Stderr = stdout, stderr
 	runErr := runProcess(commandCtx, cmd)
 	duration := time.Since(started)
+	gatewayStatus := "not_applicable"
+	var gatewayDecisions []sandbox.EgressDecision
+	if readEgressDecisions != nil {
+		readCtx, readCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		var readErr error
+		gatewayDecisions, readErr = readEgressDecisions(readCtx)
+		readCancel()
+		if readErr != nil {
+			gatewayStatus = "unavailable"
+		} else {
+			gatewayStatus = "recorded"
+		}
+	}
 	truncated := stdout.truncated || stderr.truncated
 	exitCode := 0
 	if runErr != nil {
@@ -150,7 +214,7 @@ func (t RunCommand) Execute(ctx context.Context, raw json.RawMessage) domain.Too
 			exitCode = -1
 		}
 	}
-	result := OK(map[string]any{"stdout": security.Redact(stdout.String()), "stderr": security.Redact(stderr.String()), "exitCode": exitCode, "durationMs": duration.Milliseconds(), "timedOut": commandCtx.Err() == context.DeadlineExceeded})
+	result := OK(map[string]any{"stdout": security.Redact(stdout.String()), "stderr": security.Redact(stderr.String()), "exitCode": exitCode, "durationMs": duration.Milliseconds(), "timedOut": commandCtx.Err() == context.DeadlineExceeded, "networkPolicyDigest": policy.Digest, "networkTargets": targets, "networkGrantScope": grantScope, "networkGatewayStatus": gatewayStatus, "networkGatewayDecisions": gatewayDecisions})
 	result.Truncated = truncated
 	return logExecute(ctx, "run_command", started, result,
 		"command", observability.Snippet(security.Redact(input.Command), 180),
@@ -188,8 +252,51 @@ func (w *limitedWriter) String() string { return w.buffer.String() }
 var backgroundCommand = regexp.MustCompile(`(?i)(^|[;&|]\s*)(nohup|disown|start)(\s|$)`)
 
 var networkCommandPattern = regexp.MustCompile(`(?i)\b(curl|wget|invoke-webrequest|iwr|git\s+(clone|fetch|pull|push)|go\s+get|npm\s+(install|i)|pnpm\s+(install|add)|yarn\s+(add|install)|pip(?:3)?\s+install)\b`)
+var explicitURLRequiredPattern = regexp.MustCompile(`(?i)\b(curl|wget|invoke-webrequest|iwr)\b`)
 
 var networkURLPattern = regexp.MustCompile(`(?i)https?://[^\s"'` + "`" + `<>]+`)
+
+// explicitNetworkTargets identifies only unambiguous, gateway-valid TLS
+// destinations. The gateway still enforces every actual connection, including
+// implicit registry traffic and redirects.
+func explicitNetworkTargets(command string) ([]string, error) {
+	if !networkCommandPattern.MatchString(command) && !networkURLPattern.MatchString(command) {
+		return nil, nil
+	}
+	seen := map[string]bool{}
+	var targets []string
+	for _, raw := range networkURLPattern.FindAllString(command, -1) {
+		parsed, err := url.Parse(strings.TrimRight(raw, ",);]"))
+		if err != nil || parsed == nil || parsed.User != nil || parsed.Hostname() == "" || !strings.EqualFold(parsed.Scheme, "https") {
+			return nil, fmt.Errorf("network command has an invalid HTTPS destination")
+		}
+		port := parsed.Port()
+		if port == "" {
+			port = "443"
+		}
+		target, err := CanonicalHostGrant(parsed.Hostname() + ":" + port)
+		if err != nil {
+			return nil, fmt.Errorf("network command has an invalid TLS destination: %w", err)
+		}
+		if !seen[target] {
+			seen[target] = true
+			targets = append(targets, target)
+		}
+	}
+	if explicitURLRequiredPattern.MatchString(command) && len(targets) == 0 {
+		return nil, fmt.Errorf("network command has no explicit HTTPS destination")
+	}
+	return targets, nil
+}
+
+func hostGrantAllowed(policy egress.Policy, target string) bool {
+	parsed, err := egress.Compile("DENY", []string{target}, egress.Quota{})
+	if err != nil || len(parsed.Rules) != 1 {
+		return false
+	}
+	rule := parsed.Rules[0]
+	return policy.Allows(rule.FQDN, rule.Port, rule.Protocol)
+}
 
 func isBackgroundShellCommand(command string) bool {
 	if backgroundCommand.MatchString(command) {
@@ -227,7 +334,10 @@ var deniedCommandPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)\b(curl|wget)\b.+\|\s*python(?:3)?\b`),
 	regexp.MustCompile(`(?i)\binvoke-webrequest\b.+\|\s*iex\b`),
 	regexp.MustCompile(`(?i)\biex\s*\(`),
-	regexp.MustCompile(`(?i)\brm\s+(-[a-zA-Z]*f[a-zA-Z]*\s+)*(/|~|/home\b|/users\b)`),
+	// Корень, домашний каталог и системные каталоги — но не /tmp внутри
+	// одноразового контейнера: `rm -rf /tmp/x` отбивался как «удаление /»
+	// (квест 28.09 потерял на этом два хода).
+	regexp.MustCompile(`(?i)\brm\s+(-[a-zA-Z]*f[a-zA-Z]*\s+)*(/(\*|\s|$|[;&|])|~|/home\b|/users\b|/(etc|usr|bin|sbin|var|root|opt|boot|lib|lib64|dev|proc|sys)\b)`),
 	regexp.MustCompile(`(?i)\b(format|mkfs(\.\w+)?|diskpart)\b`),
 	regexp.MustCompile(`(?i)\bdd\s+.*\bif=`),
 	regexp.MustCompile(`(?i)\b(shutdown|reboot|poweroff)\b`),
@@ -256,7 +366,9 @@ func deniedCommandReason(command string) string {
 			if gitDestructivePattern.MatchString(normalized) {
 				return "destructive Git history/remote mutation is blocked; use the IDE SCM / Chronicle UI for commits and never force-push from an agent shell"
 			}
-			return "command matches the soft deny-list for destructive or credential-exfiltration patterns; prefer a narrow approved verifier (test/build/lint) instead of broad shell mutations"
+			// Совпавший фрагмент называется, чтобы модель поправила именно его,
+			// а не переписывала всю команду наугад.
+			return fmt.Sprintf("command matches the soft deny-list for destructive or credential-exfiltration patterns (matched %q); prefer a narrow approved verifier (test/build/lint) instead of broad shell mutations", observability.Snippet(pattern.FindString(normalized), 80))
 		}
 	}
 	return ""

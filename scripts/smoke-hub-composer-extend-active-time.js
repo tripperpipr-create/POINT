@@ -3,6 +3,9 @@
 // Раньше на экране квеста не было extend-active-time: продление жило только в
 // overview. При паузе по лимиту активного времени человек на вкладке quest
 // не мог продолжить работу.
+//
+// С 29.09.2026 та же кнопка продлевает и ходы: пауза step_budget_exhausted
+// ставится, когда агент дошёл до потолка ходов, не закончив задание.
 
 const fs = require('fs')
 const path = require('path')
@@ -11,7 +14,7 @@ const vm = require('vm')
 const repo = path.join(__dirname, '..')
 const main = fs.readFileSync(path.join(repo, 'vscode-extension/media/main.js'), 'utf8')
 
-function screen() {
+function screen(controller) {
   const listeners = {}
   const chatMain = { innerHTML: '', scrollHeight: 0, scrollTop: 0, clientHeight: 0 }
   const root = {
@@ -35,12 +38,7 @@ function screen() {
     task: 'долгая работа',
     agentId: 'a1',
     profileId: 'a1',
-    controller: {
-      pauseReason: 'active_time_exhausted',
-      activeSecondsRemaining: 0,
-      activeSecondsBudget: 60,
-      resumable: true,
-    },
+    controller,
   }
   const boot = {
     onboarded: true,
@@ -67,7 +65,12 @@ function screen() {
   return root.innerHTML + chatMain.innerHTML
 }
 
-const html = screen()
+const html = screen({
+  pauseReason: 'active_time_exhausted',
+  activeSecondsRemaining: 0,
+  activeSecondsBudget: 60,
+  resumable: true,
+})
 if (!html.includes('data-action="extend-active-time"')) {
   console.error('quest composer missing extend-active-time when budget exhausted')
   console.error(html.slice(0, 2500))
@@ -75,6 +78,12 @@ if (!html.includes('data-action="extend-active-time"')) {
 }
 if (!html.includes('data-exec-form="message"') || !html.includes('data-exec-form="forbid"')) {
   console.error('quest composer missing message/forbid forms from execControlsHtml')
+  process.exit(1)
+}
+const steps = screen({ pauseReason: 'step_budget_exhausted', stepLimit: 64, stepCeiling: 64, resumable: true })
+if (!steps.includes('data-action="extend-active-time"') || !steps.includes('Лимит шагов · 64')) {
+  console.error('quest composer missing extend control for step_budget_exhausted pause')
+  console.error(steps.slice(0, 2500))
   process.exit(1)
 }
 console.log('smoke-hub-composer-extend-active-time: ok')

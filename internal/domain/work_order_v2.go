@@ -39,6 +39,7 @@ type WorkOrder struct {
 	Milestones      []MilestonePlan       `json:"milestones"`
 	Workspace       WorkspacePlan         `json:"workspace"`
 	Stack           StackPresetRef        `json:"stack"`
+	Sandbox         RuntimeSpec           `json:"sandbox,omitempty"`
 	Setup           SetupPlan             `json:"setupPlan,omitempty"`
 	Roster          AgentRosterPlan       `json:"roster"`
 	Routing         ModelRoutingPolicy    `json:"routing"`

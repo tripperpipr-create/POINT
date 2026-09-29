@@ -1,0 +1,146 @@
+
+/* ════ Настройки ═════════════════════════════════════════════════════════════
+   У Point свои экраны, но встроенный редактор настроек остаётся доступным и не
+   должен выпадать из ритма. */
+.monaco-workbench:has(.point-activitybar) .settings-editor { background: var(--point-panel) !important; }
+.monaco-workbench:has(.point-activitybar) .settings-editor > .settings-header {
+	background: var(--point-raised);
+	border-bottom: 1px solid var(--point-border);
+	padding: 8px 12px 4px !important;
+}
+.monaco-workbench:has(.point-activitybar) .settings-editor > .settings-header .settings-tabs-widget .action-label {
+	color: var(--point-muted) !important;
+	font: 500 11px/1 var(--point-font) !important;
+	letter-spacing: 0.04em;
+	min-height: var(--point-hit);
+	padding: 0 10px !important;
+	text-transform: uppercase;
+}
+.monaco-workbench:has(.point-activitybar) .settings-editor > .settings-header .settings-tabs-widget .action-label.checked {
+	box-shadow: inset 0 -2px 0 var(--point-ember);
+	color: var(--point-primary) !important;
+}
+.monaco-workbench:has(.point-activitybar) .settings-editor .settings-toc-container {
+	background: var(--point-void);
+	border-right: 1px solid var(--point-border);
+	padding: 4px 0;
+}
+.monaco-workbench:has(.point-activitybar) .settings-editor .settings-toc-container .monaco-list-row {
+	margin: 0 4px;
+	min-height: var(--point-hit) !important;
+}
+.monaco-workbench:has(.point-activitybar) .settings-editor .settings-toc-container .monaco-list-row .settings-toc-entry {
+	color: var(--point-muted);
+	font: 400 12px/var(--point-hit) var(--point-font);
+}
+.monaco-workbench:has(.point-activitybar) .settings-editor .settings-toc-container .monaco-list-row.focused .settings-toc-entry,
+.monaco-workbench:has(.point-activitybar) .settings-editor .settings-toc-container .monaco-list-row.selected .settings-toc-entry { color: var(--point-primary); }
+.monaco-workbench:has(.point-activitybar) .settings-editor .settings-tree-container { background: var(--point-panel); }
+.monaco-workbench:has(.point-activitybar) .settings-editor .settings-tree-container .settings-group-title-label {
+	color: var(--point-primary) !important;
+	font: 500 12px/1.2 var(--point-font) !important;
+	letter-spacing: 0.06em;
+	padding: 10px 12px 4px !important;
+	text-transform: uppercase;
+}
+.monaco-workbench:has(.point-activitybar) .settings-editor .settings-tree-container .setting-item { padding: 6px 12px 8px !important; }
+.monaco-workbench:has(.point-activitybar) .settings-editor .settings-tree-container .setting-item-contents { padding: 6px 8px !important; }
+.monaco-workbench:has(.point-activitybar) .settings-editor .settings-tree-container .setting-item-label {
+	color: var(--point-primary);
+	font: 500 12px/1.3 var(--point-font);
+}
+.monaco-workbench:has(.point-activitybar) .settings-editor .settings-tree-container .setting-item-category {
+	color: var(--point-faint);
+	font: 400 11px/1.3 var(--point-font);
+}
+.monaco-workbench:has(.point-activitybar) .settings-editor .settings-tree-container .setting-item-description {
+	color: var(--point-muted) !important;
+	font-size: 11px !important;
+	line-height: 1.4 !important;
+	opacity: 1 !important;
+	padding-top: 2px !important;
+}
+.monaco-workbench:has(.point-activitybar) .settings-editor .settings-tree-container .setting-item-modified-indicator {
+	background: var(--point-ember) !important;
+	width: 2px !important;
+}
+
+/* ════ Приветствие и пустые состояния ════════════════════════════════════════
+   Point показывает свой Дом; эти экраны остаются запасными. */
+.monaco-workbench:has(.point-activitybar) .part.editor > .content .gettingStartedContainer:not(.point-native-home) { background: var(--point-void) !important; }
+.monaco-workbench:has(.point-activitybar) .part.editor > .content .gettingStartedContainer:not(.point-native-home) h2 { font: 500 18px/1.3 var(--point-font); }
+.monaco-workbench:has(.point-activitybar) .welcome-view-content {
+	background: transparent !important;
+	color: var(--point-body);
+	font: 400 12px/1.5 var(--point-font);
+	max-width: 360px;
+	padding: 16px !important;
+}
+.monaco-workbench:has(.point-activitybar) .welcome-view-content p { color: var(--point-muted); }
+.monaco-workbench:has(.point-activitybar) .welcome-view-content .monaco-button,
+.monaco-workbench:has(.point-activitybar) .welcome-view-content .monaco-text-button {
+	background: transparent !important;
+	border: 1px solid var(--point-edge) !important;
+	color: var(--point-ember) !important;
+	font: 500 12px/1 var(--point-font) !important;
+	height: 32px !important;
+	margin-top: 8px;
+}
+.monaco-workbench:has(.point-activitybar) .welcome-view-content .monaco-button:hover,
+.monaco-workbench:has(.point-activitybar) .welcome-view-content .monaco-text-button:hover { background: var(--point-tint-strong) !important; }
+.monaco-workbench:has(.point-activitybar) .extensions-viewlet .extension-list-item .extension-name { font: 500 12px/1.3 var(--point-font); }
+
+/* Tool windows and keymap keep the search and footer visible while scrolling. */
+.monaco-workbench:has(.point-activitybar) .point-windows-popup {
+	box-sizing: border-box;
+	width: min(420px, calc(100vw - 24px));
+	min-width: min(340px, calc(100vw - 24px));
+	max-height: calc(100vh - 72px);
+}
+.monaco-workbench:has(.point-activitybar) .point-windows-popup .point-popup-list {
+	min-height: 0;
+	max-height: min(420px, calc(100vh - 230px));
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	scrollbar-gutter: stable;
+}
+.monaco-workbench:has(.point-activitybar) .point-windows-popup > :not(.point-popup-list) { flex-shrink: 0; }
+.monaco-workbench:has(.point-activitybar) .point-windows-popup .point-popup-meta {
+	color: var(--point-muted);
+	font-family: var(--point-mono);
+	white-space: nowrap;
+}
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-title-action-windows {
+	margin-left: 8px;
+	border-left: 1px solid var(--point-border-soft);
+}
+.monaco-workbench:has(.point-activitybar) .part.sidebar:focus-within > .composite.title {
+	box-shadow: inset 0 -1px var(--point-edge);
+}
+@media (max-width: 1100px) {
+	.monaco-workbench:has(.point-activitybar) .part.titlebar .point-branch-chip { max-width: 130px; }
+	.monaco-workbench:has(.point-activitybar) .part.titlebar .point-title-action-keymap { display: none; }
+	.point-search-hint { display: none; }
+}
+@media (max-width: 600px) {
+	.point-search-tab-key { display: none; }
+	.monaco-workbench:has(.point-activitybar) .part.titlebar .command-center-quick-pick::after { display: none; }
+}
+
+/* ════ Узкое окно и покой ════════════════════════════════════════════════════
+   Заголовок теряет кнопки запуска раньше, чем чипы: запуск доступен и с
+   клавиатуры, а имя проекта и ветка — единственный способ понять, где ты. */
+@media (max-width: 880px) {
+	.monaco-workbench:has(.point-activitybar) .part.titlebar .point-title-action:has(.codicon-debug-alt),
+	.monaco-workbench:has(.point-activitybar) .part.titlebar .point-title-action:has(.codicon-play) { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	/* Обе ступени в ноль: этого хватает всему, что оформляет Point. Ниже —
+	   переходы самого Code-OSS, до которых наши токены не достают. */
+	.monaco-workbench:has(.point-activitybar) { --point-motion-fast: 0ms; --point-motion-base: 0ms; }
+	.monaco-workbench:has(.point-activitybar) .part.statusbar.point-busy::before { animation: none; }
+	.monaco-workbench:has(.point-activitybar) .part.editor .tab .tab-close { transition: none; }
+	.monaco-workbench:has(.point-activitybar) .monaco-sash.vertical::before,
+	.monaco-workbench:has(.point-activitybar) .monaco-sash.horizontal::before { transition: none; }
+}

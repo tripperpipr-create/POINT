@@ -48,13 +48,15 @@ type SourceBundle struct {
 }
 
 type RuntimeSpec struct {
-	ID             string            `json:"id"`
-	Kind           string            `json:"kind"` // project | managed | generated
-	Image          string            `json:"image,omitempty"`
-	ImageDigest    string            `json:"imageDigest,omitempty"`
-	Toolchains     map[string]string `json:"toolchains,omitempty"`
-	ManifestPaths  []string          `json:"manifestPaths,omitempty"`
-	DependencyLock string            `json:"dependencyLock,omitempty"`
+	ID               string            `json:"id"`
+	Kind             string            `json:"kind"` // project | managed | generated
+	Image            string            `json:"image,omitempty"`
+	ImageDigest      string            `json:"imageDigest,omitempty"`
+	Toolchains       map[string]string `json:"toolchains,omitempty"`
+	VersionSources   map[string]string `json:"versionSources,omitempty"`
+	VersionConflicts []string          `json:"versionConflicts,omitempty"`
+	ManifestPaths    []string          `json:"manifestPaths,omitempty"`
+	DependencyLock   string            `json:"dependencyLock,omitempty"`
 }
 
 type EnvironmentCommand struct {

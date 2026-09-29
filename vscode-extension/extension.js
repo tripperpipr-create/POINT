@@ -16,6 +16,7 @@ const { restoreSystemBackup } = require('./backup-controller')
 const { createNdjsonReader } = require('./core-stream')
 const { createCoreLog } = require('./core-log')
 const { createCoreLease } = require('./core-lease')
+const { createLanguageSupport } = require('./language-support')
 const { createGitTools } = require('./git-tool-controller')
 const { createHubSurfaces } = require('./hub-surfaces-controller')
 const { createHubPolling } = require('./hub-polling-controller')
@@ -69,6 +70,8 @@ const { createPointPanels } = require('./point-panels')
 // Внешний разбор сообщений вебвью — в hub-message-router.js. openWorkspaceFile
 // появляется ниже, в фабрике расширения, поэтому передаётся отложенно.
 const { createHubMessageRouter } = require('./hub-message-router')
+const { cheapStateSignature } = require('./hub-state-signature')
+const { forgetProjectFollowers } = require('./master-turn-stream')
 const routeHubMessage = createHubMessageRouter({ openWorkspaceFile: (...args) => openWorkspaceFile(...args) })
 const { createIDEObservations } = require('./ide-observation-controller')
 const { createProjectIndex } = require('./project-index-controller')
@@ -326,6 +329,8 @@ class BackendService {
       POINT_LOG_FILE: this.logPath,
       POINT_SANDBOX_BACKEND: sandboxBackend === 'docker' || sandboxBackend === 'container' ? 'docker' : 'filtered-copy',
       POINT_LIVE_WORKSPACE: liveWorkspace ? '1' : '0',
+      // Ядро гаснет само, когда не остаётся ни одного окна Point (owner_watch.go).
+      POINT_OWNER_DIR: path.join(this.dataDirPath, 'runtime'),
     }
     if (sandboxImage) env.POINT_SANDBOX_IMAGE = sandboxImage
     if (env.POINT_SANDBOX_BACKEND === 'docker') {
@@ -875,7 +880,7 @@ class AgentViewProvider {
       // канала об отказе заводить не нужно. Не хватало ему только имени
       // запроса: без него интерфейс не знает, какой раздел замер в «загрузке».
       this.notify(error, String(message?.type || ''), {
-        workOrderId: String(message?.workOrderId || ''),
+        workOrderId: String(message?.workOrderId || ''), draftId: String(message?.draftId || ''),
       })
     }
   }
@@ -977,7 +982,7 @@ class AgentViewProvider {
 
   async credentialForOrchestrator() {
     const orchestrator = this.boot?.orchestrator
-    if (!orchestrator?.provider || !orchestrator?.model) return ''
+    if (!(orchestrator?.provider || orchestrator?.connectionId) || !orchestrator?.model) return '' // общие настройки: connectionId без provider
     return await this.credentialFor(orchestrator, 'Мастера')
   }
 
@@ -1586,9 +1591,24 @@ class AgentViewProvider {
   }
 
   async showCoreFailure(message) {
+    if (/docker|контейнер|провайдер|provider|llmux|\b502\b/i.test(message)) {
+      await vscode.window.showErrorMessage(`Point: ${message}`)
+      return
+    }
     const coreRelated = /ядро|хроник|порт|127\.0\.0\.1|companion|не найден|не отвеча|антивирус|брандмауэр|fetch failed/i.test(message)
     if (!coreRelated) {
       await vscode.window.showErrorMessage(`Point: ${message}`)
+      return
+    }
+    // A timed-out API call is not evidence that the per-project core exited.
+    // Keep its lease and quest alive when the health endpoint still responds.
+    if (this.service.baseUrl && await this.service.isHealthy(this.service.baseUrl)) {
+      await vscode.window.showErrorMessage(`Point: ${message}`, 'Журнал ядра').then(async choice => {
+        if (choice === 'Журнал ядра') {
+          this.output.show(true)
+          await showCoreChronicle(this.service, this.output)
+        }
+      })
       return
     }
     const choice = await vscode.window.showErrorMessage(`Point: ${message}`, 'Журнал ядра', 'Перезапустить ядро')
@@ -1673,7 +1693,7 @@ class AgentViewProvider {
       if (!view || (!force && view.visible === false)) continue
       if (!force && this.toolWindowStateSignatures.get(kind) === signature) continue
       this.toolWindowStateSignatures.set(kind, signature)
-      void view.webview.postMessage({ ...message, selectedTab: `tool-${kind}` })
+      void view.webview.postMessage({ ...message, selectedTab: kind === 'gitlab-panel' ? 'tool-gitlab' : `tool-${kind}` })
     }
     this.onCompanionState(this.boot)
   }
@@ -2147,57 +2167,6 @@ const {
   vscode, fs, path, workspaceFileCache, workspaceRelativePathIfInside, describeCoreFailure,
 })
 
-function cheapStateSignature(message) {
-  const boot = message.boot
-  const details = message.details
-  const workflow = message.workflowDetails
-  return JSON.stringify({
-    s: message.service,
-    t: message.workspaceTrusted,
-    w: message.workspace,
-    tab: message.selectedTab,
-    on: message.onboarding,
-    imp: message.agentImprovementFocus,
-    idx: boot?.indexStatus,
-    ws: boot?.currentWorkspace?.id,
-    pr: boot?.profiles?.map(p => [p.id, p.name, p.model]),
-    runs: boot?.runs?.map(r => [r.id, r.status, r.updatedAt || r.finishedAt || r.startedAt]),
-    wf: boot?.workflows?.map(item => item.id),
-    wfr: boot?.workflowRuns?.map(r => [r.id, r.status]),
-    tools: boot?.customTools?.map(item => item.id),
-    connections: boot?.connections?.map(item => [item.id, item.status, item.lastError, item.updatedAt]),
-    servers: boot?.serverProfiles?.map(item => [item.id, item.status, item.lastError, item.lastProbeAt, item.updatedAt]),
-    databases: boot?.dbConnections?.map(item => [item.id, item.status, item.lastError, item.lastProbeAt, item.updatedAt]),
-    ch: boot?.changes?.length,
-    hubAgents: boot?.projectAgents?.map(item => [item.id, item.updatedAt]),
-    hubTeams: boot?.teams?.map(item => [item.id, item.updatedAt, item.agentIds?.length]),
-    hubExec: boot?.executions?.map(item => [item.id, item.status, item.durationMs]),
-    hubSets: boot?.changeSets?.map(item => [item.id, item.status, item.items?.length]),
-    companionHistory: boot?.companionMessages?.at?.(-1)?.id,
-    companionInterventions: boot?.companionInterventions?.map(item => [item.id, item.level]),
-    companionActions: boot?.companionActionProposals?.map(item => [item.id, item.status]),
-    // Задание меняется внутри одного предложения: id и статус остаются прежними,
-    // а обсуждение превращается в готовое к запуску. По двум полям подпись этого
-    // не видела, состояние в вебвью не уезжало — и человек читал «задание готово
-    // к запуску» над карточкой, которой в ленте нет, потому что там всё ещё
-    // лежит прежняя, обсуждаемая версия. Версия задания растёт при каждом
-    // изменении содержания, поэтому её и состояния достаточно.
-    questProposals: boot?.questProposals?.map(item => [item.id, item.status, item.brief?.version, item.brief?.state]),
-    d: details && {
-      id: details.run?.id,
-      st: details.run?.status,
-      ev: details.events?.length,
-      ap: details.approvals?.length,
-      pa: details.patches?.length,
-    },
-    wd: workflow && {
-      id: workflow.id,
-      st: workflow.status,
-      ev: workflow.events?.length,
-    },
-  })
-}
-
 // Ошибки ядра, которые человек встречает при обычной работе.
 //
 // Ядро отвечает по-английски — это его язык логов и API. Через describeCoreFailure
@@ -2244,110 +2213,8 @@ function describeCoreFailure(error) {
   return text
 }
 
-async function ensureMarketplaceInstallAllowed() {
-  const config = vscode.workspace.getConfiguration('extensions')
-  if (config.get('verifySignature') === false) return
-  try {
-    await config.update('verifySignature', false, vscode.ConfigurationTarget.Application)
-  } catch {
-    // Application settings can be locked; Marketplace install may still prompt.
-  }
-}
-
-async function ensureGoVulncheckCompatible() {
-  // golang.Go defaults go.diagnostic.vulncheck to "Prompt", but gopls <0.21 rejects it.
-  const config = vscode.workspace.getConfiguration('go')
-  const inspect = config.inspect('diagnostic.vulncheck')
-  const values = [
-    inspect?.globalValue,
-    inspect?.workspaceValue,
-    inspect?.workspaceFolderValue,
-    inspect?.defaultValue,
-  ]
-  if (!values.includes('Prompt')) return
-  const current = config.get('diagnostic.vulncheck')
-  if (current && current !== 'Prompt') return
-  try {
-    await config.update('diagnostic.vulncheck', 'Off', vscode.ConfigurationTarget.Global)
-  } catch {
-    // Best-effort override; configurationDefaults in package.json covers new installs.
-  }
-}
-
-async function installLanguageExtension(extensionId, label) {
-  await ensureMarketplaceInstallAllowed()
-  if (vscode.extensions.getExtension(extensionId)) {
-    await vscode.window.showInformationMessage(`${label} уже установлено (${extensionId}).`)
-    return
-  }
-  await vscode.window.withProgress(
-    { location: vscode.ProgressLocation.Notification, title: `Установка ${label}…`, cancellable: false },
-    async () => {
-      await vscode.commands.executeCommand('workbench.extensions.installExtension', extensionId)
-    },
-  )
-  const installed = vscode.extensions.getExtension(extensionId)
-  if (installed) {
-    if (/^golang\.go$/i.test(extensionId)) await ensureGoVulncheckCompatible()
-    const reload = await vscode.window.showInformationMessage(
-      `${label} установлено. Перезагрузите окно, чтобы language server начал Ctrl+Click и usages.`,
-      'Перезагрузить',
-    )
-    if (reload === 'Перезагрузить') await vscode.commands.executeCommand('workbench.action.reloadWindow')
-    return
-  }
-  await vscode.commands.executeCommand('workbench.extensions.search', `@id:${extensionId}`)
-  await vscode.window.showWarningMessage(
-    `Не удалось установить ${label} автоматически. Откройте карточку расширения и нажмите «Установить» (при запросе подписи — «Все равно установить»).`,
-  )
-}
-
-async function openLanguageSupport() {
-  const languageId = vscode.window.activeTextEditor?.document.languageId || ''
-  const current = LANGUAGE_SUPPORT.find(item => item.ids.includes(languageId))
-  const builtin = BUILTIN_LANGUAGE_SUPPORT.has(languageId)
-  const items = []
-  if (languageId) {
-    const languageLabel = current?.label || LANGUAGE_LABELS[languageId] || languageId
-    items.push({
-      label: `$(symbol-keyword) Текущий язык: ${languageLabel}`,
-      description: builtin ? 'Расширенная поддержка уже встроена' : current ? 'Установить / открыть расширение' : 'Найти language server',
-      detail: current?.extension || '',
-      profile: current,
-      builtin,
-      languageId,
-    })
-    items.push({ label: 'Популярные языки', kind: vscode.QuickPickItemKind.Separator })
-  }
-  items.push(...LANGUAGE_SUPPORT.map(profile => ({
-    label: `$(extensions) ${profile.label}`,
-    description: vscode.extensions.getExtension(profile.extension) ? 'Установлено' : 'Установить по требованию',
-    detail: profile.extension,
-    profile,
-  })))
-  items.push({ label: 'Другой язык', kind: vscode.QuickPickItemKind.Separator })
-  items.push({
-    label: '$(search) Найти поддержку другого языка',
-    description: 'Каталог расширений',
-    languageId,
-  })
-  const selected = await vscode.window.showQuickPick(items, {
-    title: 'Point — поддержка языков',
-    placeHolder: 'Language server запускается только для открытого языка',
-    matchOnDescription: true,
-    matchOnDetail: true,
-  })
-  if (!selected) return
-  if (selected.builtin) {
-    await vscode.window.showInformationMessage(`${selected.label.replace(/^\$\([^)]*\)\s*/, '')}: навигация и поиск использований уже встроены в Point.`)
-    return
-  }
-  if (selected.profile) {
-    await installLanguageExtension(selected.profile.extension, selected.profile.label)
-    return
-  }
-  await vscode.commands.executeCommand('workbench.extensions.search', `@category:"Programming Languages" ${selected.languageId || ''}`.trim())
-}
+// Поддержка языков по требованию — в language-support.js.
+const { openLanguageSupport } = createLanguageSupport({ vscode, LANGUAGE_SUPPORT, BUILTIN_LANGUAGE_SUPPORT, LANGUAGE_LABELS })
 
 const {
   consoleChannelChrome, createConsoleChannel, openConsoleChannel, openSSHTerminalForProfile,
@@ -2548,6 +2415,9 @@ function activate(context) {
   })
   provider.projects = projects
   provider.warmPool = warmPool
+  // Отметка «приложение открыто»: по ней ядра, и тёплые тоже, живут, пока жив
+  // хоть один Point, и выходят сами после закрытия последнего окна.
+  context.subscriptions.push(coreLease.startHostHeartbeat(warmPool.runtimeDirPath))
   activeWarmPool = isPointHubWindow() ? warmPool : undefined
   const postProjects = async () => {
     if (!provider.hubPanelReady && !provider.panel) return
@@ -2563,6 +2433,9 @@ function activate(context) {
   }
   provider.postProjects = postProjects
   const afterProjectSwitch = async () => {
+    // Потоки и наблюдатели прежнего мира замолкают: их ответы пришли бы в чат
+    // нового проекта под тем же `legacy` (master-turn-stream.js).
+    forgetProjectFollowers(provider)
     workspaceFileCache.invalidate()
     updateProjectStatus()
     home.refresh()

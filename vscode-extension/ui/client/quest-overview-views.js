@@ -1,3 +1,4 @@
+import { isRootQuest, questPhase } from './quest-status.js'
 import { intakePanelHtml } from './intake-views.js'
 
 export function createQuestOverviewViews(dependencies) {
@@ -290,10 +291,10 @@ export function createQuestOverviewViews(dependencies) {
   // вообще работает» экран ответить не мог. Считаем по тем же квестам, что
   // показывает Чертог, — своя арифметика поссорила бы экраны.
   function teamQuests(team) {
-    return (ui.state.boot?.quests || []).filter(quest => quest.teamId === team.id)
+    return (ui.state.boot?.quests || []).filter(quest => quest.teamId === team.id && isRootQuest(quest))
   }
   function teamWorkBadge(team) {
-    const active = teamQuests(team).filter(quest => quest.status === 'active' || quest.status === 'running').length
+    const active = teamQuests(team).filter(quest => questPhase(quest.status) === 'live').length
     return active ? `<em class="hub-team-active">в работе · ${active}</em>` : ''
   }
   function teamFactsLine(team) {

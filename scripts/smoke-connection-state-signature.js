@@ -1,19 +1,6 @@
-const fs = require('fs')
 const path = require('path')
-const vm = require('vm')
 
-// Переводы строк нормализуются: срез опирался на пустую строку между
-// функцией и следующим комментарием и молча ломался от того, что файл
-// выровняли к CRLF, — проверка зависела от невидимого артефакта, а не от кода.
-const source = fs.readFileSync(path.join(__dirname, '..', 'vscode-extension', 'extension.js'), 'utf8')
-  .replace(/\r\n/g, '\n')
-const start = source.indexOf('function cheapStateSignature(message)')
-const end = source.indexOf('\n\n// Ошибки ядра', start)
-if (start < 0 || end < 0) throw new Error('cheapStateSignature source was not found')
-
-const context = { JSON }
-vm.runInNewContext(`${source.slice(start, end)}\nthis.signature = cheapStateSignature`, context)
-const signature = context.signature
+const { cheapStateSignature: signature } = require(path.join(__dirname, '..', 'vscode-extension', 'hub-state-signature.js'))
 const base = {
   service: { state: 'running' }, workspaceTrusted: true, workspace: 'fixture', selectedTab: 'connections',
   onboarding: { complete: true },

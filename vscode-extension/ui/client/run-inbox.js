@@ -14,6 +14,7 @@
 // Состояние приходит общим мешком `ui`, как в `companion-transport.js`.
 
 import { FAILED_REQUEST_SECTIONS, failedRequestOwnsForm } from './request-failure-routing.js'
+import { masterAgentBusy, masterAgentErrors } from './master-agent-card-state.js'
 
 const RUN_MESSAGES = new Set([
   'contextAdded', 'contextPreview', 'contextPreviewError',
@@ -141,6 +142,13 @@ export function createRunInbox({
         // Карточки исполнителя создают агента одним из двух маршрутов. Отказ
         // соседнего запроса не снимает их guard — исходное создание может всё
         // ещё выполняться и повтор породит дубль.
+        if (failedRequest === 'hireMasterWorkOrderAgentV2' && message.workOrderId && message.draftId) {
+          const cardId = `order:${message.workOrderId}:${message.draftId}`
+          masterAgentBusy.delete(cardId)
+          masterAgentErrors.set(cardId, String(message.message || 'Не удалось создать исполнителя'))
+          masterAgentBusy.delete(`hiring:${message.workOrderId}`)
+          masterAgentErrors.set(`hiring:${message.workOrderId}`, String(message.message || 'Не удалось создать исполнителя'))
+        }
         if (!failedRequest || failedRequest === 'saveProjectAgent' || failedRequest === '/api/companion/actions/decide') {
           releaseMasterAgentCards()
         }

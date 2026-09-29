@@ -12,7 +12,7 @@
 // бы одно состояние по-разному. Прежний маршрут квестов (legacy) полосы не
 // получает: он остаётся только при явном выборе старой базы.
 
-import { runtimePresentation } from './master-work-order-v2.js'
+import { runtimePresentation } from './quest-status.js'
 import { activeStage, workOrderStageNote } from './work-order-execution-views.js'
 import { fillAttribute, list } from './format-units.js'
 import { stageLabel, stageLabelText } from './stage-labels.js'

@@ -14,9 +14,23 @@ import (
 	"local-agent-workbench/internal/domain"
 )
 
-type SQLite struct{ db *sql.DB }
+type SQLite struct {
+	db *sql.DB
+	// shared: базу делят ядра нескольких проектов. Восстановление после
+	// остановки тогда делает каждое ядро для своего мира (RecoverAbandonedWork):
+	// общий проход при открытии ставил на паузу работу, живую в соседнем ядре.
+	shared bool
+}
 
-func Open(path string) (*SQLite, error) {
+// Open открывает базу одного процесса и сразу восстанавливает всё, что
+// осталось от прежнего: так работают инструменты и проверки с собственной базой.
+func Open(path string) (*SQLite, error) { return open(path, false) }
+
+// OpenShared открывает базу, которую делят ядра проектов. Общего
+// восстановления нет: ядро восстанавливает свой мир через RecoverAbandonedWork.
+func OpenShared(path string) (*SQLite, error) { return open(path, true) }
+
+func open(path string, shared bool) (*SQLite, error) {
 	dsn := path
 	if !strings.Contains(path, "?") {
 		// Fail locked opens instead of hanging forever when another Point/core holds the DB.
@@ -27,7 +41,7 @@ func Open(path string) (*SQLite, error) {
 		return nil, err
 	}
 	db.SetMaxOpenConns(1)
-	store := &SQLite{db: db}
+	store := &SQLite{db: db, shared: shared}
 	if _, err = db.Exec(`PRAGMA busy_timeout=5000`); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("sqlite busy_timeout: %w", err)
@@ -35,6 +49,9 @@ func Open(path string) (*SQLite, error) {
 	if err = store.migrate(context.Background()); err != nil {
 		_ = db.Close()
 		return nil, err
+	}
+	if shared {
+		return store, nil
 	}
 	if err = store.MarkInterrupted(context.Background()); err != nil {
 		_ = db.Close()
@@ -56,7 +73,10 @@ func Open(path string) (*SQLite, error) {
 }
 
 func (s *SQLite) Close() error {
-	err := s.PurgeTemporaryMasterConversations(context.Background())
+	var err error
+	if !s.shared {
+		err = s.PurgeTemporaryMasterConversations(context.Background())
+	}
 	closeErr := s.db.Close()
 	if err != nil {
 		return err
@@ -208,107 +228,6 @@ func (s *SQLite) ensureColumn(ctx context.Context, tableName, columnName, statem
 	}
 	_, err = s.db.ExecContext(ctx, statement)
 	return err
-}
-
-func (s *SQLite) MarkInterrupted(ctx context.Context) error {
-	now := time.Now().UTC().Format(time.RFC3339Nano)
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	// Leave paused runs with a resumable checkpoint alone so Resume can
-	// continue after restart. Running/waiting with a safe checkpoint become
-	// paused (not irreversible interrupted). In-flight mutations stay
-	// unknown_outcome via journal + non-resumable checkpoint.
-	if _, err = tx.ExecContext(ctx, `UPDATE runs SET status=?, error='', finished_at=NULL
-WHERE status IN (?, ?) AND id IN (
-  SELECT c.run_id FROM run_checkpoints c
-  INNER JOIN (
-    SELECT run_id, MAX(seq) AS seq FROM run_checkpoints GROUP BY run_id
-  ) latest ON latest.run_id=c.run_id AND latest.seq=c.seq
-  WHERE c.in_flight_call_id=''
-)`, domain.RunPaused, domain.RunRunning, domain.RunWaiting); err != nil {
-		_ = tx.Rollback()
-		return err
-	}
-	if _, err = tx.ExecContext(ctx, `UPDATE runs SET status=?, error=CASE WHEN error='' THEN 'Application stopped before the run finished' ELSE error END, finished_at=?, duration_ms=CAST((julianday(?) - julianday(started_at))*86400000 AS INTEGER) WHERE status IN (?, ?)`, domain.RunInterrupted, now, now, domain.RunRunning, domain.RunWaiting); err != nil {
-		_ = tx.Rollback()
-		return err
-	}
-	if _, err = tx.ExecContext(ctx, `UPDATE runs SET status=?, error=CASE WHEN error='' THEN 'Application stopped before the run finished' ELSE error END, finished_at=?, duration_ms=CAST((julianday(?) - julianday(started_at))*86400000 AS INTEGER)
-WHERE status=? AND id NOT IN (
-  SELECT c.run_id FROM run_checkpoints c
-  INNER JOIN (
-    SELECT run_id, MAX(seq) AS seq FROM run_checkpoints GROUP BY run_id
-  ) latest ON latest.run_id=c.run_id AND latest.seq=c.seq
-  WHERE c.in_flight_call_id=''
-)`, domain.RunInterrupted, now, now, domain.RunPaused); err != nil {
-		_ = tx.Rollback()
-		return err
-	}
-	if _, err = tx.ExecContext(ctx, `UPDATE workflow_runs SET status=?, error=CASE WHEN error='' THEN 'Application stopped before the workflow finished' ELSE error END, finished_at=?, duration_ms=CAST((julianday(?) - julianday(started_at))*86400000 AS INTEGER) WHERE status IN (?, ?, ?)`, domain.RunInterrupted, now, now, domain.RunRunning, domain.RunWaiting, domain.RunPaused); err != nil {
-		_ = tx.Rollback()
-		return err
-	}
-	// A Flow is resumable when at least one of its executions points at the
-	// latest safe checkpoint. Preserve the parent state together with that
-	// execution; otherwise the child can be resumed but the scheduler has
-	// already irreversibly abandoned its graph.
-	if _, err = tx.ExecContext(ctx, `UPDATE flow_runs SET status=?, error='', finished_at=NULL
-WHERE status IN (?, ?, ?) AND id IN (
-  SELECT DISTINCT execution.flow_run_id FROM executions execution
-  INNER JOIN run_checkpoints checkpoint ON checkpoint.run_id=execution.run_id
-  INNER JOIN (
-    SELECT run_id, MAX(seq) AS seq FROM run_checkpoints GROUP BY run_id
-  ) latest ON latest.run_id=checkpoint.run_id AND latest.seq=checkpoint.seq
-  WHERE execution.flow_run_id<>'' AND checkpoint.in_flight_call_id=''
-)`, domain.RunPaused, domain.RunRunning, domain.RunWaiting, domain.RunPaused); err != nil {
-		_ = tx.Rollback()
-		return err
-	}
-	if _, err = tx.ExecContext(ctx, `UPDATE flow_runs SET status=?, error=CASE WHEN error='' THEN 'Application stopped before the flow finished' ELSE error END, finished_at=?, duration_ms=CAST((julianday(?) - julianday(started_at))*86400000 AS INTEGER)
-WHERE status IN (?, ?, ?) AND id NOT IN (
-  SELECT DISTINCT execution.flow_run_id FROM executions execution
-  INNER JOIN run_checkpoints checkpoint ON checkpoint.run_id=execution.run_id
-  INNER JOIN (
-    SELECT run_id, MAX(seq) AS seq FROM run_checkpoints GROUP BY run_id
-  ) latest ON latest.run_id=checkpoint.run_id AND latest.seq=checkpoint.seq
-  WHERE execution.flow_run_id<>'' AND checkpoint.in_flight_call_id=''
-)`, domain.RunInterrupted, now, now, domain.RunRunning, domain.RunWaiting, domain.RunPaused); err != nil {
-		_ = tx.Rollback()
-		return err
-	}
-	if _, err = tx.ExecContext(ctx, `UPDATE executions SET status=?, error='', finished_at=NULL
-WHERE status IN (?, ?, ?) AND run_id IN (
-  SELECT c.run_id FROM run_checkpoints c
-  INNER JOIN (
-    SELECT run_id, MAX(seq) AS seq FROM run_checkpoints GROUP BY run_id
-  ) latest ON latest.run_id=c.run_id AND latest.seq=c.seq
-  WHERE c.in_flight_call_id=''
-)`, domain.RunPaused, domain.RunRunning, domain.RunWaiting, domain.RunPaused); err != nil {
-		_ = tx.Rollback()
-		return err
-	}
-	if _, err = tx.ExecContext(ctx, `UPDATE executions SET status=?, error=CASE WHEN error='' THEN 'Application stopped before the execution finished' ELSE error END, finished_at=?, duration_ms=CAST((julianday(?) - julianday(started_at))*86400000 AS INTEGER)
-WHERE status IN (?, ?, ?) AND (run_id='' OR run_id NOT IN (
-  SELECT c.run_id FROM run_checkpoints c
-  INNER JOIN (
-    SELECT run_id, MAX(seq) AS seq FROM run_checkpoints GROUP BY run_id
-  ) latest ON latest.run_id=c.run_id AND latest.seq=c.seq
-  WHERE c.in_flight_call_id=''
-))`, domain.RunInterrupted, now, now, domain.RunRunning, domain.RunWaiting, domain.RunPaused); err != nil {
-		_ = tx.Rollback()
-		return err
-	}
-	if _, err = tx.ExecContext(ctx, `UPDATE approvals SET status=?, resolved_at=? WHERE status=?`, domain.ApprovalDenied, now, domain.ApprovalPending); err != nil {
-		_ = tx.Rollback()
-		return err
-	}
-	if _, err = tx.ExecContext(ctx, `UPDATE patches SET status='rejected' WHERE status='pending'`); err != nil {
-		_ = tx.Rollback()
-		return err
-	}
-	return tx.Commit()
 }
 
 func (s *SQLite) SaveSetting(ctx context.Context, key, value string) error {

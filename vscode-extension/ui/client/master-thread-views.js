@@ -311,6 +311,7 @@ export function createMasterThreadViews(dependencies) {
   function masterAgentCardDeps() {
     return {
       connections: ui.state.boot?.connections || [],
+      projectAgents: ui.state.boot?.projectAgents || [],
       toolCatalog: ui.state.boot?.toolCatalog || [],
       connectionLabel,
     }

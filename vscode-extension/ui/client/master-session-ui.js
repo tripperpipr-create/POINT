@@ -114,6 +114,7 @@ export function handleMasterSessionAction({action, target, root, vscode, sending
   if (sending && !['master-session-select','master-session-new','master-session-toggle','master-session-sidebar','master-session-workMode','master-session-mode'].includes(action)) return true
   const kind = action.slice('master-session-'.length)
   if(kind==='memory-replace'){vscode.postMessage({type:'masterSession',action:kind,id:target.dataset.id,value:target.closest('.hall-memory-entry').querySelector('select').value});return true}
+  if(kind==='branch'){vscode.postMessage({type:'offerMasterChatBranch',conversationId:target.dataset.id});return true}
   if(kind==='sidebar'){const screen=root.querySelector('.is-chat');if(!screen)return true;screen.classList.toggle('is-chats-hidden');screen.classList.toggle('is-chats-open');vscode.postMessage({type:'masterViewPreferences',hidden:screen.classList.contains('is-chats-hidden'),open:screen.classList.contains('is-chats-open')});return true}
   if(kind==='export'||kind==='delete'||kind==='model'){vscode.postMessage({type:kind==='export'?'exportMasterConversation':kind==='delete'?'deleteMasterConversation':'pickMasterModel',conversationId:target.dataset.id});return true}
   if(kind==='memory-save'){const area=target.closest('.hall-memory-entry')?.querySelector('textarea') || root.querySelector('[data-master-memory]');vscode.postMessage({type:'masterSession',action:'memory-save',id:target.dataset.id || '',value:area.value});return true}

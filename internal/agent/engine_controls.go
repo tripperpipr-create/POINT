@@ -43,7 +43,16 @@ func (e *Engine) ExtendActiveTime(runID string) error {
 	if !ok {
 		return errors.New("run is not active")
 	}
-	if err := active.clock.extend(); err != nil {
+	active.controlMu.Lock()
+	reason := active.pauseReason
+	active.controlMu.Unlock()
+	// Кнопка «Продлить и продолжить» одна на обе паузы: по времени и по
+	// ходам. Какой бюджет растёт, решает причина паузы.
+	if reason == domain.PauseReasonStepBudgetExhausted && active.steps != nil {
+		if err := active.steps.extendByHuman(); err != nil {
+			return err
+		}
+	} else if err := active.clock.extend(); err != nil {
 		return err
 	}
 	e.syncControllerState(active, active.pauseReason, true)

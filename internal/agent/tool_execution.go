@@ -3,6 +3,8 @@ package agent
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -183,7 +185,8 @@ func (e *Engine) executeTool(ctx context.Context, active *activeRun, profile dom
 		if err := e.publish(context.Background(), e.snapshot(active), domain.EventPatchApplied, actor, safePatchPayload(*applied)); err != nil {
 			return domain.ToolResult{}, fmt.Errorf("%w: unknown_outcome: patch applied but its event was not persisted: %v", errToolJournalIntegrity, err)
 		}
-		return workbenchtools.OK(map[string]any{"status": "applied", "path": applied.Path}), nil
+		appliedDigest := sha256.Sum256([]byte(applied.Proposed))
+		return workbenchtools.OK(map[string]any{"status": "applied", "path": applied.Path, "sha256": hex.EncodeToString(appliedDigest[:])}), nil
 	}
 	approvalID := ""
 	if decision.RequiresApproval {

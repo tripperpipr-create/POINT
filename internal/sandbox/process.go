@@ -26,6 +26,18 @@ type ProcessRequest struct {
 type PreparedProcess struct {
 	Command *exec.Cmd
 	Cleanup func(context.Context) error
+	// EgressDecisions reads bounded, sanitized gateway decisions before Cleanup
+	// removes the gateway container. Nil means no gateway was started.
+	EgressDecisions func(context.Context) ([]EgressDecision, error)
+}
+
+type EgressDecision struct {
+	PolicyDigest string `json:"policyDigest"`
+	FQDN         string `json:"fqdn"`
+	Port         uint16 `json:"port"`
+	Decision     string `json:"decision"`
+	Reason       string `json:"reason,omitempty"`
+	Bytes        int64  `json:"bytes"`
 }
 
 // ProcessExecutor prepares commands inside the same isolation boundary that

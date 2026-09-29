@@ -119,6 +119,51 @@ func TestAnalyzeGoProject(t *testing.T) {
 	}
 }
 
+func TestAnalyzePrefersCIVersionAndRecordsConflict(t *testing.T) {
+	root := t.TempDir()
+	for name, body := range map[string]string{
+		"package.json":   `{"engines":{"node":">=22"},"packageManager":"npm@10.9.0"}`,
+		".nvmrc":         "22\n",
+		".gitlab-ci.yml": "default:\n  image: node:20\n",
+	} {
+		if err := os.WriteFile(filepath.Join(root, name), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	plan := Analyze(root, "ws-node")
+	if got := plan.Runtime.Toolchains["node"]; got != "20" {
+		t.Fatalf("node=%q, want CI version 20", got)
+	}
+	if got := plan.Runtime.Toolchains["npm"]; got != "10.9.0" {
+		t.Fatalf("npm=%q", got)
+	}
+	if got := plan.Runtime.VersionSources["node"]; got != ".gitlab-ci.yml" {
+		t.Fatalf("source=%q", got)
+	}
+	if len(plan.Runtime.VersionConflicts) == 0 {
+		t.Fatal("expected visible project/CI version conflict")
+	}
+}
+
+func TestAnalyzeOtherToolchainVersions(t *testing.T) {
+	root := t.TempDir()
+	for name, body := range map[string]string{
+		"go.mod":         "module example.org/x\n\ngo 1.24\n",
+		"global.json":    `{"sdk":{"version":"9.0.100"}}`,
+		"pyproject.toml": "[project]\nrequires-python = \">=3.12\"\n",
+	} {
+		if err := os.WriteFile(filepath.Join(root, name), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	plan := Analyze(root, "ws-other")
+	for tool, want := range map[string]string{"go": "1.24", "dotnet": "9.0.100", "python": "3.12"} {
+		if got := plan.Runtime.Toolchains[tool]; got != want {
+			t.Errorf("%s=%q, want %q", tool, got, want)
+		}
+	}
+}
+
 func TestAnalyzePHPWithoutPHPUnitUsesRequestsHTTPSmoke(t *testing.T) {
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, "composer.json"), []byte(`{"name":"demo/app","require":{"php":">=8.3"}}`), 0o600); err != nil {

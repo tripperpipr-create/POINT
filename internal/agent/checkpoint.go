@@ -40,8 +40,13 @@ func (e *Engine) syncControllerState(active *activeRun, pauseReason string, resu
 			remaining = int((left + 999) / 1000)
 		}
 	}
+	stepLimit, stepCeiling, stepExtensions := 0, 0, 0
+	if active.steps != nil {
+		stepLimit, stepCeiling, stepExtensions, _ = active.steps.snapshot()
+	}
 	e.update(active, func(r *domain.Run) {
 		r.Controller = domain.RunControllerState{
+			StepLimit: stepLimit, StepCeiling: stepCeiling, StepExtensions: stepExtensions,
 			PauseReason:            pauseReason,
 			ActiveSecondsBudget:    budget,
 			ActiveElapsedMs:        elapsed,
@@ -96,6 +101,10 @@ func (e *Engine) persistRoundCheckpoint(active *activeRun, history *conversation
 		ChangedFiles: append([]string(nil), run.ChangedFiles...), ToolsUsed: append([]string(nil), run.ToolsUsed...),
 		Step: run.Step, RequestCount: run.RequestCount,
 		ActiveToolName: lastToolPlan, HeartbeatAt: time.Now().UTC(),
+	}
+	if active.steps != nil {
+		checkpoint.StepLimit, _, checkpoint.StepExtensions, checkpoint.StepWrapUp = active.steps.snapshot()
+		checkpoint.StepGrant = active.steps.chunk()
 	}
 	if active.taskBrief != nil {
 		checkpoint.BriefVersion = active.taskBrief.Version

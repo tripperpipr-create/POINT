@@ -115,6 +115,25 @@ const newService = (leaseId, dataDir = root) => {
   lease.releaseLease(first)
   assert.ok(!fs.existsSync(first.runtimeLeasePath), 'своя аренда снимается при закрытии')
 
+  // Отметка «приложение открыто»: по ней ядро решает, жив ли хоть один Point
+  // (cmd/server/owner_watch.go). Отметки упавших окон убирает следующее окно,
+  // а своя снимается при закрытии — иначе ядро прожило бы лишние двадцать секунд.
+  const runtimeDir = path.dirname(alpha.descriptorPath)
+  const crashed = path.join(runtimeDir, 'host-999003.json')
+  const survivor = path.join(runtimeDir, `host-${process.pid + 1}.json`)
+  fs.writeFileSync(crashed, JSON.stringify({ pid: 999_003, updatedAt: Date.now() - 120_000 }))
+  alive.add(process.pid + 1)
+  fs.writeFileSync(survivor, JSON.stringify({ pid: process.pid + 1, updatedAt: Date.now() - 120_000 }))
+  const heartbeat = lease.startHostHeartbeat(runtimeDir)
+  const own = path.join(runtimeDir, `host-${process.pid}.json`)
+  const mark = JSON.parse(fs.readFileSync(own, 'utf8'))
+  assert.equal(mark.pid, process.pid, 'отметка называет своё окно')
+  assert.ok(Date.now() - mark.updatedAt < 5_000, 'отметка свежая сразу после старта окна')
+  assert.ok(!fs.existsSync(crashed), 'отметка упавшего окна убирается')
+  assert.ok(fs.existsSync(survivor), 'отметку живого окна чужое окно не трогает, даже старую')
+  heartbeat.dispose()
+  assert.ok(!fs.existsSync(own), 'своя отметка снимается при закрытии окна')
+
   fs.rmSync(root, { recursive: true, force: true })
   console.log('smoke-core-lease: ok')
 })().catch(error => { console.error(error); process.exitCode = 1 })

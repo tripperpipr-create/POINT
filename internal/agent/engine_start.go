@@ -113,7 +113,8 @@ func (e *Engine) Start(input StartInput) (domain.Run, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), maxDuration)
 	active := &activeRun{
 		run: run, cancel: cancel, onFinished: input.OnFinished, finalized: make(chan struct{}), taskBrief: input.TaskBrief,
-		clock: newActiveClock(activeBudget), sandboxPath: input.SandboxPath, sandboxImage: input.SandboxImage, apiKey: input.APIKey,
+		clock: newActiveClock(activeBudget), steps: newStepBudget(profile.MaxSteps, input.TaskBrief),
+		sandboxPath: input.SandboxPath, sandboxImage: input.SandboxImage, apiKey: input.APIKey,
 		initialBudgetReservationID: strings.TrimSpace(input.InitialBudgetReservationID),
 		serverProfiles:             input.ServerProfiles, dbSource: input.DBSource, teamBus: input.TeamBus,
 		correlation: runCorrelation{
@@ -264,7 +265,8 @@ func (e *Engine) ContinueFromCheckpoint(input StartInput, existing domain.Run, c
 	existing.Controller.ActiveTimeExtensions = checkpoint.ActiveTimeExtensions
 	active := &activeRun{
 		run: existing, cancel: cancel, onFinished: input.OnFinished, finalized: make(chan struct{}), taskBrief: input.TaskBrief,
-		clock: newActiveClock(activeBudget), sandboxPath: fsRoot, sandboxImage: input.SandboxImage, apiKey: input.APIKey,
+		clock: newActiveClock(activeBudget), steps: newStepBudget(profile.MaxSteps, input.TaskBrief),
+		sandboxPath: fsRoot, sandboxImage: input.SandboxImage, apiKey: input.APIKey,
 		serverProfiles: input.ServerProfiles, dbSource: input.DBSource, teamBus: input.TeamBus, checkpointSeq: checkpoint.Seq,
 		workspaceRevision: checkpoint.WorkspaceRevision,
 		correlation: runCorrelation{

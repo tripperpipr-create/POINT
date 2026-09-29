@@ -144,13 +144,39 @@ function createCoreLease({ fs, path, crypto, normalizedWorkspaceRoot, removeFile
     return count
   }
 
+  // Отметка окна Point для ядра. Аренда говорит «это окно держит это ядро», а
+  // отметка — «приложение открыто»: её пишет каждое окно, даже без проекта,
+  // поэтому тёплые ядра живут, пока жив хоть один Point. Закрылось последнее
+  // окно — отметки стареют, и ядро выходит само (cmd/server/owner_watch.go):
+  // жёсткий выход приложения deactivate не успевает, а сирота остаётся в
+  // диспетчере навсегда. Отметки упавших окон убираются при старте следующего.
+  function startHostHeartbeat(runtimeDir) {
+    const file = path.join(runtimeDir, `host-${process.pid}.json`)
+    const write = () => {
+      try {
+        fs.mkdirSync(runtimeDir, { recursive: true })
+        fs.writeFileSync(file, JSON.stringify({ pid: process.pid, updatedAt: Date.now() }), { encoding: 'utf8', mode: 0o600 })
+      } catch { /* каталог могут убирать соседние окна */ }
+    }
+    try {
+      for (const name of fs.readdirSync(runtimeDir).filter(item => /^host-\d+\.json$/.test(item))) {
+        const mark = readJsonFile(path.join(runtimeDir, name))
+        if (Date.now() - Number(mark?.updatedAt || 0) > 60_000 && !processIsAlive(mark?.pid)) removeFileIfExists(path.join(runtimeDir, name))
+      }
+    } catch { /* каталога ещё нет */ }
+    write()
+    const timer = setInterval(write, 5000)
+    timer.unref?.()
+    return { dispose() { clearInterval(timer); removeFileIfExists(file) } }
+  }
+
   function removeRuntimeDescriptorForPid(service, pid) {
     if (!service.runtimeDescriptorPath) return
     const descriptor = readJsonFile(service.runtimeDescriptorPath)
     if (!descriptor || Number(descriptor.pid) === Number(pid)) removeFileIfExists(service.runtimeDescriptorPath)
   }
 
-  return { runtimePaths, isHealthy, tryAttachSharedCore, acquireRuntimeLock, releaseRuntimeLock, writeRuntimeDescriptor, startLease, releaseLease, otherLiveLeaseCount, removeRuntimeDescriptorForPid }
+  return { runtimePaths, isHealthy, tryAttachSharedCore, acquireRuntimeLock, releaseRuntimeLock, writeRuntimeDescriptor, startLease, releaseLease, otherLiveLeaseCount, removeRuntimeDescriptorForPid, startHostHeartbeat }
 }
 
 module.exports = { createCoreLease }

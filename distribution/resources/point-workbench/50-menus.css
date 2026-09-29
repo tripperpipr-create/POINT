@@ -1,0 +1,485 @@
+/* ── Выпадашки жетонов верхней панели ───────────────────────────────────────
+   Своих правил у них нет: вид приходит от `.monaco-menu`, тот же, что у строки
+   меню. Длину строки держит не стиль, а сам список — обрезка средствами CSS
+   требует `overflow: hidden` на подписи, а её коробка ровно в строку, и вместе
+   с длинным путём срезаются хвосты букв у всех пунктов разом. Класс
+   `point-title-menu` остаётся зацепкой для замера.
+
+   Кольцо фокуса внутри списка снято — по тому же доводу, что и у списка строки
+   меню: фокус там виден подсветкой пункта, а янтарное кольцо вокруг всего
+   списка спорит с его рамкой и углами. Приходит оно после клавиатуры:
+   `:focus-visible` достаётся ряду действий внутри списка, и общее правило
+   фокуса обводит список целиком. */
+.monaco-workbench:has(.point-activitybar) .context-view .monaco-menu-container :focus,
+.monaco-workbench:has(.point-activitybar) .context-view.monaco-menu-container :focus { outline: 0 !important; }
+
+/* ── Свой список под жетоном ────────────────────────────────────────────────
+   Меню Code-OSS сюда не годится: у его пункта одна подпись и колонка сочетания
+   клавиш, а строке проекта нужны три части — метка, имя и состояние справа.
+   Поверхность, радиус и тень — те же, что у всего всплывающего у Point. */
+.monaco-workbench:has(.point-activitybar) .point-popup {
+	background: var(--point-selected);
+	border: 1px solid var(--point-border);
+	border-radius: var(--point-r-lg);
+	box-shadow: 0 16px 40px rgba(0, 0, 0, .55);
+	display: flex;
+	flex-direction: column;
+	margin-top: 4px;
+	min-width: 300px;
+	/* Потолок ширины: без него список растягивался под самое длинное имя ветки
+	   и уезжал на пол-экрана, а строки при этом всё равно читались по началу
+	   имени. Что не поместилось, договаривает подсказка строки. */
+	max-width: 420px;
+	padding: 6px;
+	/* Боковая панель считается от списка, поэтому он — точка отсчёта. */
+	position: relative;
+}
+/* Заголовок раздела — прописными и мелко: он метит список, а не читается как
+   его первая строка. Ступень краски поднята с `faint` до `muted`: замер дал
+   контраст 3.53 при пороге 4.5 — на десяти пикселях прописными это уже не
+   «приглушённо», а «не прочесть». Теперь 5.25. */
+.monaco-workbench:has(.point-activitybar) .point-popup-section {
+	align-items: baseline;
+	color: var(--point-muted);
+	display: flex;
+	font: 500 10px/1.4 var(--point-font);
+	gap: 6px;
+	letter-spacing: .08em;
+	padding: 8px 10px 4px;
+	text-transform: uppercase;
+}
+/* Число у заголовка отвечает на «это все ветки?» — вопрос, который иначе
+   решается только памятью о собственном репозитории. Цифра моноширинная и
+   светлее подписи: она не часть названия раздела. */
+.monaco-workbench:has(.point-activitybar) .point-popup-section-count {
+	color: var(--point-muted);
+	font: 500 10px/1.4 var(--point-mono);
+	letter-spacing: 0;
+}
+.monaco-workbench:has(.point-activitybar) .point-popup-separator {
+	background: var(--point-border);
+	height: 1px;
+	margin: 4px 4px;
+}
+.monaco-workbench:has(.point-activitybar) .point-popup-row {
+	align-items: center;
+	background: transparent;
+	border: 0;
+	border-radius: var(--point-r);
+	color: var(--point-body);
+	cursor: pointer;
+	display: flex;
+	gap: 10px;
+	min-height: 32px;
+	padding: 0 10px;
+	text-align: left;
+	width: 100%;
+}
+.monaco-workbench:has(.point-activitybar) .point-popup-row:hover,
+.monaco-workbench:has(.point-activitybar) .point-popup-row:focus,
+.monaco-workbench:has(.point-activitybar) .point-popup-row-expanded { background: var(--point-tint-strong); }
+/* Выключенная строка видна, но подсветки не получает: подсветка обещает
+   нажатие, а нажимать тут нечего. */
+.monaco-workbench:has(.point-activitybar) .point-popup-row-disabled { cursor: default; opacity: .45; }
+.monaco-workbench:has(.point-activitybar) .point-popup-row-disabled:hover,
+.monaco-workbench:has(.point-activitybar) .point-popup-row-disabled:focus { background: transparent; }
+/* Кольцо фокуса внутри списка снято по тому же доводу, что и в меню: фокус
+   виден подсветкой строки. */
+.monaco-workbench:has(.point-activitybar) .point-popup-row:focus { outline: 0 !important; }
+/* Метка проекта — тот же квадрат с буквой, что и в жетоне. Янтарный он только
+   у открытого проекта: янтарь у Point опознаёт, а не украшает. */
+.monaco-workbench:has(.point-activitybar) .point-popup-mark {
+	align-items: center;
+	background: var(--point-tint);
+	border-radius: var(--point-r);
+	color: var(--point-muted);
+	display: flex;
+	flex: none;
+	font: 600 11px/1 var(--point-font);
+	height: 22px;
+	justify-content: center;
+	width: 22px;
+}
+.monaco-workbench:has(.point-activitybar) .point-popup-row-current .point-popup-mark {
+	/* Тот же приём, что у метки в заголовке: сплошная заливка и тёмная буква.
+	   Янтарь на янтаре не проходил порог контраста. */
+	background: var(--point-ember);
+	color: var(--point-void);
+}
+.monaco-workbench:has(.point-activitybar) .point-popup-icon {
+	color: var(--point-muted);
+	flex: none;
+	font-size: 16px;
+	/* Значок действия встаёт в ту же колонку, что и метка проекта: строки
+	   раздела ниже иначе разъезжались бы с верхними на четыре пикселя. */
+	width: 22px;
+}
+.monaco-workbench:has(.point-activitybar) .point-popup-label {
+	flex: 1 1 auto;
+	font: 500 13px/1.45 var(--point-font);
+	/* Длинное имя обрезается многоточием, а не переносится: строка в две
+	   строки ломает ритм списка, и глазу приходится заново искать, где
+	   кончается одна ветка и начинается следующая. `min-width: 0` обязателен —
+	   без него элемент флекса не сжимается ниже своего содержимого. */
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.monaco-workbench:has(.point-activitybar) .point-popup-row-current .point-popup-label { color: var(--point-primary); }
+/* Состояние справа: приглушённое и мельче — это не вторая подпись, а пометка. */
+.monaco-workbench:has(.point-activitybar) .point-popup-meta {
+	color: var(--point-faint);
+	flex: none;
+	font: 400 11px/1.45 var(--point-font);
+	padding-left: 12px;
+}
+/* Строки-действия набраны как содержимое, а не как имена проектов. */
+.monaco-workbench:has(.point-activitybar) .point-popup-row .point-popup-icon + .point-popup-label { font-weight: 400; }
+/* Галочка и стрелка в подменю — по правому краю строки, за состоянием. */
+.monaco-workbench:has(.point-activitybar) .point-popup-check {
+	color: var(--point-ember);
+	flex: none;
+	font-size: var(--point-icon-sm);
+}
+.monaco-workbench:has(.point-activitybar) .point-popup-more {
+	border-radius: var(--point-r);
+	color: var(--point-faint);
+	flex: none;
+	font-size: var(--point-icon-sm);
+	margin-right: -4px;
+	padding: 4px;
+}
+.monaco-workbench:has(.point-activitybar) .point-popup-more:hover {
+	background: var(--point-tint-strong);
+	color: var(--point-primary);
+}
+/* Поиск над списком: одна строка ввода без рамки-коробки — рамка внутри списка
+   спорила бы с его собственной. Разделяет их линия, а не вторая обводка. */
+.monaco-workbench:has(.point-activitybar) .point-popup-search {
+	align-items: center;
+	border-bottom: 1px solid var(--point-border);
+	display: flex;
+	gap: 8px;
+	margin: -6px -6px 4px;
+	padding: 10px 12px;
+}
+.monaco-workbench:has(.point-activitybar) .point-popup-search .codicon { color: var(--point-faint); font-size: var(--point-icon-sm); }
+/* Поле открывается уже с фокусом, поэтому кольцо фокуса на нём стояло бы
+   всегда — а общее правило фокуса рисует его янтарным во всю коробку. Здесь
+   фокус и так очевиден: курсор в поле, список под ним. Важность нужна, чтобы
+   перебить это общее правило. */
+.monaco-workbench:has(.point-activitybar) .point-popup-search-input {
+	background: transparent;
+	border: 0;
+	color: var(--point-primary);
+	flex: 1 1 auto;
+	font: 400 13px/1.45 var(--point-font);
+	outline: 0 !important;
+	padding: 0;
+}
+/* Замер показал, что общего `outline: 0` мало: правило фокуса адресует элемент
+   псевдоклассом и весит столько же, а при равном весе спорят порядком в файле.
+   Здесь цепочка длиннее на два класса и сам псевдокласс — спор кончается. */
+.monaco-workbench:has(.point-activitybar) .point-popup .point-popup-search .point-popup-search-input:focus,
+.monaco-workbench:has(.point-activitybar) .point-popup .point-popup-search .point-popup-search-input:focus-visible { outline: 0 !important; }
+.monaco-workbench:has(.point-activitybar) .point-popup-search-input::placeholder { color: var(--point-faint); }
+.monaco-workbench:has(.point-activitybar) .point-popup-list {
+	display: flex;
+	flex-direction: column;
+}
+/* Прокручивается только список веток: их бывает много, а шапка, поиск и «новая
+   ветка» должны остаться на месте. Список проектов ограничен восемью строками и
+   действиями — потолок высоты там прятал бы половину списка за полосой.
+   Потолок опущен с 380: над списком встала шапка состояния, и на прежнем
+   значении выпадашка перерастала окно ноутбука. */
+.monaco-workbench:has(.point-activitybar) .point-branch-popup .point-popup-list {
+	max-height: 300px;
+	overflow-x: hidden;
+	overflow-y: auto;
+	/* Место под полосу держится всегда: без этого список при появлении полосы
+	   дёргается на её ширину, а строки уезжают под неё. */
+	scrollbar-gutter: stable;
+}
+/* Полоса прокрутки своя. Системная приходит со стрелками на концах и светлым
+   ползунком: в тёмном списке она читается ярче содержимого и накрывает стрелки
+   подменю у правого края. */
+.monaco-workbench:has(.point-activitybar) .point-popup-list::-webkit-scrollbar { width: 10px; }
+.monaco-workbench:has(.point-activitybar) .point-popup-list::-webkit-scrollbar-track { background: transparent; }
+.monaco-workbench:has(.point-activitybar) .point-popup-list::-webkit-scrollbar-button { display: none; height: 0; width: 0; }
+.monaco-workbench:has(.point-activitybar) .point-popup-list::-webkit-scrollbar-thumb {
+	background: var(--point-border-soft);
+	background-clip: content-box;
+	border: 3px solid transparent;
+	/* Видимая часть ползунка — 5px, и радиус делает её полной пилюлей. */
+	border-radius: 999px;
+}
+.monaco-workbench:has(.point-activitybar) .point-popup-list::-webkit-scrollbar-thumb:hover { background: var(--point-muted); background-clip: content-box; }
+.monaco-workbench:has(.point-activitybar) .point-popup-empty {
+	color: var(--point-faint);
+	font: 400 12px/1.45 var(--point-font);
+	padding: 10px;
+}
+.monaco-workbench:has(.point-activitybar) .point-branch-popup { min-width: 330px; }
+/* Хеш справа от ветки — моноширинный: восемь знаков вперемешку из цифр и букв
+   в пропорциональном наборе читаются как слово, а не как число. */
+.monaco-workbench:has(.point-activitybar) .point-branch-popup .point-popup-meta {
+	color: var(--point-muted);
+	font: 400 10px/1.45 var(--point-mono);
+}
+
+/* ── Шапка списка ───────────────────────────────────────────────────────────
+   Состояние репозитория над списком веток: где мы, что не сохранено и что не
+   обменялось с сервером. Отбита от списка линией и своей подложкой края — это
+   не первая строка списка, а ответ на другой вопрос. */
+.monaco-workbench:has(.point-activitybar) .point-popup-head {
+	border-bottom: 1px solid var(--point-border);
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	margin: -6px -6px 0;
+	padding: 10px 12px;
+}
+/* Поле поиска идёт следом и своё верхнее отрицательное поле не тянет: иначе
+   оно наползло бы на шапку на её же рамку. */
+.monaco-workbench:has(.point-activitybar) .point-popup-head + .point-popup-search { margin-top: 0; }
+.monaco-workbench:has(.point-activitybar) .point-popup-head-line {
+	align-items: center;
+	display: flex;
+	gap: 8px;
+}
+/* Значок ветки в шапке — приглушённый. Янтарным он спорил бы с янтарным числом
+   плитки и с красной строкой предупреждения: три краски на шапку в 150 пикселей
+   высотой, и ни одна уже не значит «смотри сюда». */
+.monaco-workbench:has(.point-activitybar) .point-popup-head-icon {
+	color: var(--point-muted);
+	flex: none;
+	font-size: var(--point-icon-md);
+}
+.monaco-workbench:has(.point-activitybar) .point-popup-head-title {
+	color: var(--point-primary);
+	font: 600 13px/1.45 var(--point-font);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.monaco-workbench:has(.point-activitybar) .point-popup-head-sub {
+	align-items: center;
+	color: var(--point-muted);
+	display: flex;
+	font: 400 11px/1.45 var(--point-font);
+	gap: 6px;
+}
+.monaco-workbench:has(.point-activitybar) .point-popup-head-sub .codicon { color: var(--point-faint); font-size: var(--point-icon-sm); }
+/* Незавершённое слияние и отсоединённый HEAD — состояния, при которых обычные
+   действия работают не так, как ждут. Строка предупреждения стоит выше плиток:
+   сперва «что не так», потом «сколько чего». */
+.monaco-workbench:has(.point-activitybar) .point-popup-note {
+	align-items: center;
+	background: var(--point-tint);
+	border-radius: var(--point-r);
+	display: flex;
+	font: 400 11px/1.4 var(--point-font);
+	gap: 6px;
+	padding: 4px 6px;
+}
+.monaco-workbench:has(.point-activitybar) .point-popup-note .codicon { flex: none; font-size: var(--point-icon-sm); }
+.monaco-workbench:has(.point-activitybar) .point-popup-note-caution { color: var(--point-caution); }
+.monaco-workbench:has(.point-activitybar) .point-popup-note-wound { color: var(--point-wound); }
+
+/* Плитки состояния: крупное число и слово под ним. Три в ряд равной ширины —
+   их сравнивают друг с другом, а не читают подряд. */
+.monaco-workbench:has(.point-activitybar) .point-popup-stats {
+	display: flex;
+	gap: 4px;
+}
+.monaco-workbench:has(.point-activitybar) .point-popup-stat {
+	align-items: center;
+	background: var(--point-tint);
+	border: 0;
+	border-radius: var(--point-r);
+	cursor: pointer;
+	display: flex;
+	flex: 1 1 0;
+	flex-direction: column;
+	gap: 2px;
+	padding: 6px 4px;
+	text-align: center;
+}
+/* Плитка без действия не подсвечивается и не берёт курсор: подсветка обещает
+   нажатие, а нажимать тут нечего. */
+.monaco-workbench:has(.point-activitybar) .point-popup-stat-flat { cursor: default; }
+.monaco-workbench:has(.point-activitybar) button.point-popup-stat:hover,
+.monaco-workbench:has(.point-activitybar) button.point-popup-stat:focus { background: var(--point-tint-strong); }
+/* Фокус виден подсветкой плитки — как у строк списка; кольцо поверх подложки
+   было бы вторым, более резким «здесь». */
+.monaco-workbench:has(.point-activitybar) .point-popup .point-popup-stat:focus,
+.monaco-workbench:has(.point-activitybar) .point-popup .point-popup-stat:focus-visible { outline: 0 !important; }
+.monaco-workbench:has(.point-activitybar) .point-popup-stat-icon { color: var(--point-faint); font-size: var(--point-icon-sm); }
+.monaco-workbench:has(.point-activitybar) .point-popup-stat-value {
+	color: var(--point-body);
+	font: 500 18px/1.2 var(--point-font);
+}
+.monaco-workbench:has(.point-activitybar) .point-popup-stat-label {
+	color: var(--point-muted);
+	font: 400 10px/1.4 var(--point-font);
+}
+/* Янтарь — только там, где число требует внимания: есть что забрать, отправить
+   или сохранить. Нулевая плитка остаётся нейтральной, иначе краска «здесь
+   что-то есть» стояла бы всегда и перестала бы значить. */
+.monaco-workbench:has(.point-activitybar) .point-popup-stat-attention .point-popup-stat-value,
+.monaco-workbench:has(.point-activitybar) .point-popup-stat-attention .point-popup-stat-icon { color: var(--point-ember); }
+
+/* Ряд действий: значок и подпись столбиком. В строку четыре подписи вроде
+   «Закоммитить» в список шириной 330 не встают, а сокращать их до значков без
+   подписи — возвращать угадывание по глифу. */
+.monaco-workbench:has(.point-activitybar) .point-popup-head-actions {
+	display: flex;
+	gap: 4px;
+}
+.monaco-workbench:has(.point-activitybar) .point-popup-head-action {
+	align-items: center;
+	background: transparent;
+	border: 0;
+	border-radius: var(--point-r);
+	color: var(--point-body);
+	cursor: pointer;
+	display: flex;
+	flex: 1 1 0;
+	flex-direction: column;
+	gap: 2px;
+	min-height: var(--point-hit);
+	padding: 6px 2px;
+}
+.monaco-workbench:has(.point-activitybar) .point-popup-head-action .codicon { font-size: var(--point-icon-md); }
+.monaco-workbench:has(.point-activitybar) .point-popup-head-action-label {
+	font: 400 10px/1.4 var(--point-font);
+	text-align: center;
+}
+.monaco-workbench:has(.point-activitybar) .point-popup-head-action:hover,
+.monaco-workbench:has(.point-activitybar) .point-popup-head-action:focus {
+	background: var(--point-tint-strong);
+	color: var(--point-primary);
+}
+.monaco-workbench:has(.point-activitybar) .point-popup .point-popup-head-action:focus,
+.monaco-workbench:has(.point-activitybar) .point-popup .point-popup-head-action:focus-visible { outline: 0 !important; }
+/* Недоступное действие видно, но не подсвечивается: подсветка обещает нажатие,
+   а подсказка на нём объясняет, почему нажать нельзя. */
+.monaco-workbench:has(.point-activitybar) .point-popup-head-action-disabled { color: var(--point-muted); cursor: default; opacity: .45; }
+.monaco-workbench:has(.point-activitybar) .point-popup-head-action-disabled:hover,
+.monaco-workbench:has(.point-activitybar) .point-popup-head-action-disabled:focus {
+	background: transparent;
+	color: var(--point-muted);
+}
+
+/* ── Боковая панель подменю ─────────────────────────────────────────────────
+   Открывается рядом со списком, а не вместо него: строка, о которой подменю,
+   должна остаться на виду — иначе непонятно, чьи это действия. Поверхность на
+   ступень выше самого списка, чтобы два слоя не сливались в один прямоугольник. */
+.monaco-workbench:has(.point-activitybar) .point-popup-side {
+	background: var(--point-raised);
+	border: 1px solid var(--point-border);
+	border-radius: var(--point-r-lg);
+	box-shadow: 0 16px 40px rgba(0, 0, 0, .55);
+	display: none;
+	flex-direction: column;
+	left: 100%;
+	margin-left: 6px;
+	min-width: 220px;
+	padding: 6px;
+	position: absolute;
+	top: 0;
+	z-index: 1;
+}
+.monaco-workbench:has(.point-activitybar) .point-popup-side-open { display: flex; }
+/* Справа не поместилась — уходит влево от списка. */
+.monaco-workbench:has(.point-activitybar) .point-popup-side-left {
+	left: auto;
+	margin-left: 0;
+	margin-right: 6px;
+	right: 100%;
+}
+/* Заголовок панели — имя ветки: набирается как есть, без прописных, потому что
+   в именах веток регистр значим. */
+.monaco-workbench:has(.point-activitybar) .point-popup-side .point-popup-section {
+	color: var(--point-muted);
+	letter-spacing: 0;
+	text-transform: none;
+}
+.monaco-workbench:has(.point-activitybar) .suggest-widget .monaco-list-row,
+.monaco-workbench:has(.point-activitybar) .workbench-suggest-widget .monaco-list-row { min-height: var(--point-hit) !important; }
+.monaco-workbench:has(.point-activitybar) .monaco-editor .peekview-widget .head {
+	background: var(--point-raised) !important;
+	border-bottom: 1px solid var(--point-border);
+}
+.monaco-workbench:has(.point-activitybar) .monaco-editor .peekview-widget .head .peekview-title { font: 500 12px/1.3 var(--point-font); }
+.monaco-workbench:has(.point-activitybar) .monaco-editor .peekview-widget .head .peekview-title .filename { color: var(--point-primary); }
+.monaco-workbench:has(.point-activitybar) .monaco-editor .peekview-widget .head .peekview-title .dirname,
+.monaco-workbench:has(.point-activitybar) .monaco-editor .peekview-widget .head .peekview-title .meta { color: var(--point-faint); }
+.monaco-workbench:has(.point-activitybar) .monaco-editor .zone-widget .zone-widget-container.focus-border { border-color: var(--point-ember) !important; }
+.monaco-workbench:has(.point-activitybar) .editor-widget.find-widget .matchesCount {
+	color: var(--point-muted) !important;
+	font: 400 11px/1 var(--point-mono) !important;
+}
+.monaco-workbench:has(.point-activitybar) .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message {
+	color: var(--point-primary);
+	font: 500 13px/1.35 var(--point-font);
+}
+.monaco-workbench:has(.point-activitybar) .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-detail {
+	color: var(--point-muted);
+	font-size: 12px;
+}
+.monaco-workbench:has(.point-activitybar) .monaco-dialog-box .dialog-buttons-row .monaco-button.primary,
+.monaco-workbench:has(.point-activitybar) .monaco-dialog-box .dialog-buttons-row .monaco-text-button {
+	background: var(--point-ember) !important;
+	border-color: var(--point-ember) !important;
+	color: var(--point-void) !important;
+}
+
+/* Уведомления: акцентная кромка слева по степени важности, а не заливка. */
+.monaco-workbench:has(.point-activitybar) > .notifications-toasts .notifications-list-container,
+.monaco-workbench:has(.point-activitybar) > .notifications-center {
+	background: var(--point-selected) !important;
+	border: 1px solid var(--point-border) !important;
+	border-radius: var(--point-r-lg) !important;
+	box-shadow: 0 14px 36px rgba(0, 0, 0, .48) !important;
+	overflow: hidden;
+}
+.monaco-workbench:has(.point-activitybar) > .notifications-toasts .notification-list-item,
+.monaco-workbench:has(.point-activitybar) > .notifications-center .notification-list-item {
+	background: var(--point-selected);
+	border-left: 2px solid var(--point-ember);
+	box-sizing: border-box;
+	color: var(--point-primary);
+	padding: 10px 8px 10px 6px;
+}
+.monaco-workbench:has(.point-activitybar) > .notifications-toasts .notification-list-item:has(.codicon-error) { border-left-color: var(--point-wound); }
+.monaco-workbench:has(.point-activitybar) > .notifications-toasts .notification-list-item:has(.codicon-warning) { border-left-color: var(--point-caution); }
+.monaco-workbench:has(.point-activitybar) > .notifications-toasts .notification-list-item:has(.codicon-info) { border-left-color: var(--point-mana); }
+.monaco-workbench:has(.point-activitybar) > .notifications-toasts .notification-list-item .notification-list-item-message { font: 400 12px/1.45 var(--point-font); }
+.monaco-workbench:has(.point-activitybar) > .notifications-toasts .notification-list-item .notification-list-item-source {
+	color: var(--point-faint);
+	font: 400 11px/1.3 var(--point-font);
+}
+.monaco-workbench:has(.point-activitybar) > .notifications-toasts .notification-list-item .monaco-text-button {
+	background: transparent !important;
+	border: 1px solid var(--point-edge) !important;
+	color: var(--point-ember) !important;
+	font: 500 11px/1 var(--point-font) !important;
+}
+.monaco-workbench:has(.point-activitybar) > .notifications-toasts .notification-list-item .monaco-text-button:hover { background: var(--point-tint-strong) !important; }
+.monaco-workbench:has(.point-activitybar) > .notifications-toasts .codicon.codicon-error { color: var(--point-wound) !important; }
+.monaco-workbench:has(.point-activitybar) > .notifications-toasts .codicon.codicon-warning { color: var(--point-caution) !important; }
+.monaco-workbench:has(.point-activitybar) > .notifications-toasts .codicon.codicon-info { color: var(--point-mana) !important; }
+.monaco-workbench:has(.point-activitybar) > .notifications-toasts .progress-bit { background: var(--point-ember) !important; }
+.monaco-workbench:has(.point-activitybar) > .notifications-center > .notifications-center-header {
+	background: var(--point-raised) !important;
+	border-bottom: 1px solid var(--point-border) !important;
+}
+.monaco-workbench:has(.point-activitybar) > .notifications-center > .notifications-center-header > .notifications-center-header-title {
+	color: var(--point-primary);
+	font: 500 11px/1 var(--point-font);
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+.monaco-workbench:has(.point-activitybar) > .notifications-center .monaco-list-row:not(:last-child) > .notification-list-item { border-bottom: 1px solid var(--point-border); }

@@ -85,12 +85,33 @@ func TestRunCommandDeniesExfilAndDestructivePatterns(t *testing.T) {
 		"dd if=/dev/zero of=/dev/sda",
 		"cat ~/.aws/credentials",
 		"php -S 127.0.0.1:8080 -t public",
+		"rm -rf /*",
+		"rm -rf ~",
+		"rm -rf /etc/nginx",
+		"rm -rf / ; echo done",
 	} {
 		raw, _ := json.Marshal(map[string]any{"command": command, "reason": "denied"})
 		result := tool.Execute(context.Background(), raw)
 		if result.OK || result.Error == nil || result.Error.Code != "command_denied" {
 			t.Fatalf("denied command accepted: %q => %#v", command, result)
 		}
+	}
+}
+
+// Квест 28.09 дважды получил отказ на `rm -rf /tmp/…` — временный каталог
+// одноразового контейнера, а не корень.
+func TestSoftDenyListAllowsTemporaryAndWorkspacePaths(t *testing.T) {
+	for _, command := range []string{
+		"rm -rf /tmp/cf-deploy && mkdir -p /tmp/cf-deploy",
+		"rm -rf node_modules dist",
+		"rm -f ./build/out.tgz",
+	} {
+		if reason := deniedCommandReason(command); reason != "" {
+			t.Fatalf("harmless removal denied: %q => %s", command, reason)
+		}
+	}
+	if reason := deniedCommandReason("rm -rf /"); !strings.Contains(reason, `matched "rm -rf /"`) {
+		t.Fatalf("denial does not name the matched fragment: %q", reason)
 	}
 }
 

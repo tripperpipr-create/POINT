@@ -7,19 +7,18 @@
 // перезаписал бы свежий разговор старым.
 //
 // Состояние приходит общим мешком `ui`, как в `companion-transport.js`.
-
 import { masterQueueAfterTurn, masterQueuePause } from './master-compose-keys.js'
 import { acceptQuestAppState, acceptQuestReportState, questAppsToProbe } from './quest-app-state.js'
-
+import { masterAgentBusy, masterAgentErrors } from './master-agent-card-state.js'
+const ORDER_REPLIES = new Set(['masterWorkOrderApproved', 'masterWorkOrderRevised', 'masterWorkOrderControlled', 'masterApplicationControlled'])
 const MASTER_MESSAGES = new Set([
 	'masterDevelopment', 'masterDevelopmentError',
   'master', 'masterTurn', 'masterEvent',
   'masterStreamError', 'masterWorkOrder', 'masterWorkOrderApproved',
-  'masterWorkOrderDeleted', 'masterWorkOrderRevised', 'masterWorkOrderControlled',
+  'masterWorkOrderDeleted', 'masterWorkOrderRevised', 'masterWorkOrderControlled', 'masterAgentHired',
   'masterApplicationControlled', 'masterPage', 'masterContextSuggestions',
   'masterContext', 'masterApplicationState', 'masterReportState',
 ])
-
 export function createMasterInbox({
   ui,
   root,
@@ -41,8 +40,26 @@ export function createMasterInbox({
   sendMasterMessage,
   applyMasterFind,
 }) {
+  // Наряд без беседы — старый, до её записи в наряд: его принимает любой разговор.
+  const ownsOrder = order => !order?.conversationId || order.conversationId === masterClient.active
   return function applyMasterMessage(message) {
     if (!MASTER_MESSAGES.has(message.type)) return false
+    if (message.type === 'masterAgentHired') {
+        for (const cardId of [`order:${message.workOrderId}:${message.draftId}`, `hiring:${message.workOrderId}`]) {
+          masterAgentBusy.delete(cardId); masterAgentErrors.delete(cardId)
+        }
+        const { workOrder: order, agent } = message.result || {}
+        if (agent && ui.state.boot) {
+          const agents = Array.isArray(ui.state.boot.projectAgents) ? ui.state.boot.projectAgents : []
+          ui.state.boot.projectAgents = [agent, ...agents.filter(item => item.id !== agent.id)]
+        }
+        if (order && ownsOrder(order)) {
+          const orders = Array.isArray(ui.masterData?.workOrders) ? ui.masterData.workOrders : []
+          ui.masterData = { ...(ui.masterData || {}), workOrders: [order, ...orders.filter(item => item.id !== order.id)] }
+        }
+        render()
+        return true
+      }
 	  if (message.type === 'masterDevelopment' || message.type === 'masterDevelopmentError') {
 	    if (message.projectKey !== ui.projectKey) return true
 	    ui.masterDevelopmentBusy = false
@@ -78,33 +95,18 @@ export function createMasterInbox({
         }
         render()
       }
-      if (message.type==='masterWorkOrderApproved') {
-        const order=message.approval?.workOrder
-        if(order){ui.masterWorkOrderBusy.delete(order.id);const current=Array.isArray(ui.masterData?.workOrders)?ui.masterData.workOrders:[];ui.masterData={...(ui.masterData || {}),workOrders:[order,...current.filter(item=>item.id!==order.id)]}}
-		ui.masterComposeNote=''
+      // Ответ на действие с нарядом снимает его занятость, а карточку кладёт
+      // только в свой разговор: человек мог уйти в другой, и чужой наряд встал
+      // бы в открытую ленту.
+      if (ORDER_REPLIES.has(message.type)) {
+        const order=message.type==='masterWorkOrderApproved' ? message.approval?.workOrder : message.workOrder
+        if(order){ui.masterWorkOrderBusy.delete(order.id);if(ownsOrder(order)){const current=Array.isArray(ui.masterData?.workOrders)?ui.masterData.workOrders:[];ui.masterData={...(ui.masterData || {}),workOrders:[order,...current.filter(item=>item.id!==order.id)]}}}
+        ui.masterComposeNote=''
         render()
       }
       if (message.type==='masterWorkOrderDeleted') {
         const id=String(message.workOrderId || '');const current=Array.isArray(ui.masterData?.workOrders)?ui.masterData.workOrders:[]
         ui.masterData={...(ui.masterData || {}),workOrders:current.filter(item=>item.id!==id)};ui.masterComposeNote='Наряд убран';render()
-      }
-      if (message.type==='masterWorkOrderRevised') {
-        const order=message.workOrder
-        if(order){ui.masterWorkOrderBusy.delete(order.id);const current=Array.isArray(ui.masterData?.workOrders)?ui.masterData.workOrders:[];ui.masterData={...(ui.masterData || {}),workOrders:[order,...current.filter(item=>item.id!==order.id)]}}
-        ui.masterComposeNote=''
-        render()
-      }
-      if (message.type==='masterWorkOrderControlled') {
-        const order=message.workOrder
-        if(order){ui.masterWorkOrderBusy.delete(order.id);const current=Array.isArray(ui.masterData?.workOrders)?ui.masterData.workOrders:[];ui.masterData={...(ui.masterData || {}),workOrders:[order,...current.filter(item=>item.id!==order.id)]}}
-        ui.masterComposeNote=''
-        render()
-      }
-      if (message.type==='masterApplicationControlled') {
-        const order=message.workOrder
-        if(order){ui.masterWorkOrderBusy.delete(order.id);const current=Array.isArray(ui.masterData?.workOrders)?ui.masterData.workOrders:[];ui.masterData={...(ui.masterData || {}),workOrders:[order,...current.filter(item=>item.id!==order.id)]}}
-        ui.masterComposeNote=''
-        render()
       }
       // Живой вывод запуска приложения и фазы отчёта: блок перерисовывается
       // вместе с лентой, а занятость наряда снимает финальный ответ.
@@ -117,6 +119,9 @@ export function createMasterInbox({
       if (message.type === 'masterContextSuggestions') { if (acceptMasterMentionItems(message.query, message.items)) render() }
       if (message.type === 'masterContext') { try {receiveMasterContext(message);ui.masterDraft=ui.masterDraft.replace(/@$/, '');persistDraft();render()} catch(error){ui.masterComposeNote=error.message;render()} }
       if (message.type === 'master') {
+        // Обновление после остановки квеста приходит от наблюдателя его беседы и
+        // не переключает экран человеку, ушедшему в другой разговор.
+        if(message.completionRefresh && message.conversationId && message.conversationId!==masterClient.active) return true
         if(message.turn) masterClient.acceptTurn(message.turn)
         for(const turn of message.master?.activeTurns || []) masterClient.acceptTurn(turn)
         const incomingConversation=message.master?.sessions?.active

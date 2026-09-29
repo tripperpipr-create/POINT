@@ -82,6 +82,16 @@ const questCases = {
     quests: [],
     executions: [{ id: 'e1', status: 'running', questId: '' }],
   },
+  // Форма E1: одна работа, пять этапов Flow дочерними квестами и прошлый
+  // завершённый квест. Этапы — не отдельные квесты ни для списка, ни для значка.
+  'квест с этапами Flow и прошлый квест': {
+    quests: [
+      { id: 'root', title: 'CI cf-vue-apps', status: 'blocked' },
+      ...['Подготовка', 'CI-джобы', 'Интеграция', 'Проверка реализации', 'Приёмка'].map((title, index) => ({ id: `stage-${index}`, parentId: 'root', title, status: index === 4 ? 'failed' : 'completed' })),
+      { id: 'done', title: 'Прошлый квест', status: 'completed' },
+    ],
+    executions: [],
+  },
 }
 
 for (const [name, boot] of Object.entries(questCases)) {
@@ -94,6 +104,15 @@ for (const [name, boot] of Object.entries(questCases)) {
 const sample = render('quests', questCases['два квеста и три запуска без квеста'])
 if (questRows(sample) !== 5) {
   console.log(`строки квестов не отрисовались (${questRows(sample)}) — проверки прошли бы вхолостую`)
+  process.exit(1)
+}
+
+// Идущая работа и история разведены: заблокированный квест ждёт решения и
+// остаётся в «Сейчас», завершённый уходит в «Историю», этапы — внутрь корня.
+const staged = (html => html.slice(html.indexOf('hall-quest-list')))(render('quests', questCases['квест с этапами Flow и прошлый квест']))
+const now = staged.indexOf('>Сейчас<'), past = staged.indexOf('>История<')
+if (questRows(staged) !== 2 || now < 0 || past < 0 || !(now < staged.indexOf('CI cf-vue-apps') && staged.indexOf('CI cf-vue-apps') < past && past < staged.indexOf('Прошлый квест'))) {
+  console.log('список квестов не развёл идущую работу и историю или показал этапы Flow отдельными квестами')
   process.exit(1)
 }
 

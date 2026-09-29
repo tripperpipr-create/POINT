@@ -7,6 +7,7 @@
 | Вопрос | Документ |
 | --- | --- |
 | Цель продукта и порядок развития | [PRODUCT-VISION.md](PRODUCT-VISION.md) |
+| Единый список задач и критерии их закрытия | [TODO.md](TODO.md) |
 | Подтверждённое состояние и открытые проверки | [PROJECT-STATUS.md](PROJECT-STATUS.md) |
 | Датированные решения и прежние замеры | [PROJECT-HISTORY.md](PROJECT-HISTORY.md) |
 | Сборка и запуск | [README проекта](../README.md), [README поставки](../distribution/README.md) |

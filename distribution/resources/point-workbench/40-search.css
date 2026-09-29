@@ -1,0 +1,476 @@
+
+/* ════ Всплывающее ═══════════════════════════════════════════════════════════
+   Палитра, меню, подсказки, уведомления, диалоги: поверхность на ступень выше
+   панелей, радиус 8, тень — кромка плюс мягкая темнота. */
+.monaco-workbench:has(.point-activitybar) .quick-input-widget,
+.monaco-workbench:has(.point-activitybar) .context-view .monaco-menu-container,
+.monaco-workbench:has(.point-activitybar) .monaco-hover,
+.monaco-workbench:has(.point-activitybar) .suggest-widget,
+.monaco-workbench:has(.point-activitybar) .workbench-suggest-widget,
+.monaco-workbench:has(.point-activitybar) .parameter-hints-widget,
+.monaco-workbench:has(.point-activitybar) .monaco-select-box-dropdown-container,
+.monaco-workbench:has(.point-activitybar) .editor-widget.find-widget,
+.monaco-workbench:has(.point-activitybar) .simple-find-part,
+.monaco-workbench:has(.point-activitybar) .terminal .xterm-find-widget,
+.monaco-workbench:has(.point-activitybar) .inline-suggestion-hints-widget,
+.monaco-workbench:has(.point-activitybar) .monaco-editor .rename-box,
+.monaco-workbench:has(.point-activitybar) .monaco-dialog-box,
+.monaco-workbench:has(.point-activitybar) .monaco-editor .peekview-widget {
+	background: var(--point-selected) !important;
+	border: 1px solid var(--point-border) !important;
+	border-radius: var(--point-r-lg) !important;
+	box-shadow: 0 16px 40px rgba(0, 0, 0, .55) !important;
+	overflow: hidden;
+}
+.monaco-workbench:has(.point-activitybar) .monaco-hover,
+.monaco-workbench:has(.point-activitybar) .parameter-hints-widget {
+	color: var(--point-body) !important;
+	font: 400 12px/1.45 var(--point-font);
+}
+/* ── Окно поиска ─────────────────────────────────────────────────────────────
+   «Найти всё» в JetBrains — одна большая строка ввода без коробки, лупа слева,
+   тонкая черта под ней и список ниже. Code-OSS собирает то же место из трёх
+   прямоугольников: полоска заголовка в 1px поверх скругления окна, поле в
+   рамке ростом 28 внутри шапки ростом 44 и контур фокуса вокруг запроса. На
+   тёмном фоне это читается как форма, вставленная в окно, а не как поиск. */
+.monaco-workbench:has(.point-activitybar) .quick-input-widget {
+	background: var(--point-raised) !important;
+	box-shadow: 0 24px 64px rgba(0, 0, 0, .6), 0 2px 10px rgba(0, 0, 0, .45) !important;
+	left: 50% !important;
+	margin-left: 0 !important;
+	max-width: min(760px, calc(100vw - 48px)) !important;
+	top: 14vh !important;
+	transform: translateX(-50%) !important;
+	width: min(760px, calc(100vw - 48px)) !important;
+}
+/* Полоска заголовка почти всегда пуста: ни текста, ни кнопок — только свой фон
+   на ступень светлее и своё скругление поверх скругления окна, то есть светлый
+   волосок поперёк верхней кромки. Прятать её нельзя: у мастеров с шагами она
+   несёт заголовок. Снимаем собственный фон — пустая перестаёт быть видна,
+   полная продолжает работать. */
+.monaco-workbench:has(.point-activitybar) .quick-input-widget .quick-input-titlebar {
+	background: transparent !important;
+	border-bottom: 0 !important;
+	border-radius: 0 !important;
+	color: var(--point-muted);
+	font: 500 11px/1 var(--point-font);
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+}
+/* Шапка — это и есть строка поиска: 52 пикселя, лупа слева, черта снизу. */
+.monaco-workbench:has(.point-activitybar) .quick-input-widget .quick-input-header {
+	border-bottom: 1px solid var(--point-border);
+	padding: 0 16px 0 44px !important;
+	position: relative;
+}
+.monaco-workbench:has(.point-activitybar) .quick-input-widget .quick-input-header::before {
+	color: var(--point-faint);
+	content: "\ea6d";
+	font: normal normal 16px/1 codicon;
+	left: 16px;
+	pointer-events: none;
+	position: absolute;
+	top: 50%;
+	transform: translateY(-50%);
+}
+.monaco-workbench:has(.point-activitybar) .quick-input-widget .quick-input-and-message,
+.monaco-workbench:has(.point-activitybar) .quick-input-widget .quick-input-filter,
+.monaco-workbench:has(.point-activitybar) .quick-input-widget .quick-input-box,
+.monaco-workbench:has(.point-activitybar) .quick-input-widget .quick-input-box .monaco-inputbox,
+.monaco-workbench:has(.point-activitybar) .quick-input-widget .quick-input-box .monaco-inputbox > .ibwrapper {
+	height: 52px !important;
+	min-height: 52px !important;
+}
+/* Коробки у поля нет. Прямоугольник вокруг запроса рисовала не рамка, а контур
+   фокуса: 0.8px акцентом на .monaco-inputbox и на самом поле. Окно поиска
+   открывается уже с фокусом в строке — кольцо здесь не сообщает ничего, кроме
+   того, что и так видно по курсору, зато читается как поле формы. */
+.monaco-workbench:has(.point-activitybar) .quick-input-widget .quick-input-box .monaco-inputbox,
+.monaco-workbench:has(.point-activitybar) .quick-input-widget .quick-input-box .monaco-inputbox .input {
+	background: transparent !important;
+	border: 0 !important;
+	border-radius: 0 !important;
+	box-shadow: none !important;
+	outline: 0 !important;
+}
+.monaco-workbench:has(.point-activitybar) .quick-input-widget .monaco-inputbox .input {
+	font: 400 15px/52px var(--point-font) !important;
+	height: 52px !important;
+	padding: 0 !important;
+}
+.monaco-workbench:has(.point-activitybar) .quick-input-widget .monaco-inputbox .input::placeholder {
+	color: var(--point-faint) !important;
+	opacity: 1;
+}
+/* Счётчик найденного — подпись, а не элемент управления. */
+.monaco-workbench:has(.point-activitybar) .quick-input-widget .quick-input-visible-count {
+	color: var(--point-faint) !important;
+	font: 400 11px/1 var(--point-font) !important;
+}
+/* Список стоит на том же левом краю, что и строка ввода: иначе результат
+   набран левее запроса, который его нашёл. */
+.monaco-workbench:has(.point-activitybar) .quick-input-widget .quick-input-list .monaco-list-row { padding: 0 16px !important; }
+/* Вторая строка ряда — оригинал команды или её раздел — была набрана тем же
+   кеглем, что и название, и ряд читался как две равные надписи. Разницу даёт
+   кегль, а не цвет: Code-OSS уже гасит эту строку прозрачностью, и добавленная
+   поверх ступень цвета опускала замер до 3.32 при пороге 4.5. */
+.monaco-workbench:has(.point-activitybar) .quick-input-widget .quick-input-list-row + .quick-input-list-row { font-size: 11px !important; }
+
+/* ── Своё окно поиска ────────────────────────────────────────────────────────
+   Две вкладки: файл по имени и строка в содержимом. Палитра отвечает только на
+   первый вопрос, а на второй уводит в панель сбоку — то есть из окна. Разметку
+   рисует `pointSearchWindow.contribution.ts`, здесь только вид.
+
+   Геометрия та же, что у палитры: 760 в ширину, 14vh сверху, скругление 8 и
+   двухслойная тень. Два окна поиска в одном продукте не должны выглядеть как
+   два разных продукта. */
+.point-search-scrim {
+	align-items: flex-start;
+	background: rgba(0, 0, 0, .38);
+	bottom: 0;
+	display: flex;
+	justify-content: center;
+	left: 0;
+	padding-top: 14vh;
+	position: fixed;
+	right: 0;
+	top: 0;
+	/* Выше палитры: если открыты обе, своё окно поверх. */
+	z-index: 2600;
+}
+/* Рамка считается внутрь заявленных величин: у палитры ширина 760 — это то,
+   что видно на экране, а не 760 плюс два волоска рамки. С `content-box` окно
+   выходило 762, строка ввода 39 вместо 38, подвал 27 вместо 26 — ровно на
+   толщину собственных границ. */
+.point-search,
+.point-search-tabs,
+.point-search-field,
+.point-search-foot { box-sizing: border-box; }
+.point-search {
+	background: var(--point-raised);
+	border: 1px solid var(--point-border);
+	border-radius: var(--point-r-lg);
+	box-shadow: 0 24px 64px rgba(0, 0, 0, .6), 0 2px 10px rgba(0, 0, 0, .45);
+	display: flex;
+	flex-direction: column;
+	max-height: 62vh;
+	min-height: 0;
+	overflow: hidden;
+	width: min(760px, calc(100vw - 48px));
+}
+/* Ряд вкладок. Активная помечена подчёркиванием, а не заливкой: заливка на
+   таблетке читалась бы как нажатая кнопка, а это переключатель раздела. */
+/* `flex: 0 0 auto` здесь не украшение: окно — колонка с потолком 62vh, и на
+   полной выдаче список дожимал соседей по общему правилу усадки. Замер на
+   пятидесяти строках: полоса вкладок 29 вместо 36, подвал 12 вместо 26 — путь
+   выбранной строки складывался вдвое ровно тогда, когда он нужнее всего.
+   Усаживаться должен список, у него на то и прокрутка. */
+.point-search-tabs {
+	align-items: center;
+	border-bottom: 1px solid var(--point-border);
+	display: flex;
+	flex: 0 0 auto;
+	gap: 4px;
+	height: 36px;
+	padding: 0 12px;
+}
+.point-search-tab {
+	align-items: center;
+	background: transparent;
+	border: 0;
+	border-radius: var(--point-r);
+	color: var(--point-muted);
+	cursor: pointer;
+	display: inline-flex;
+	font: 500 13px/1 var(--point-font);
+	gap: 8px;
+	height: 28px;
+	padding: 0 10px;
+	position: relative;
+}
+/* Сочетание стоит при своей вкладке, а не в общей подсказке: две привычки
+   JetBrains — двойной Shift и Ctrl+Shift+F — ведут в разные вкладки, и знать
+   об этом нужно там, где выбирают. */
+/* Не --point-faint: на подложке окна он даёт 3.8 при пороге 4.5 для мелкого
+   текста. Ступень muted — 5.65. */
+.point-search-tab-key {
+	color: var(--point-muted);
+	font: 400 10px/1 var(--point-mono);
+	font-style: normal;
+}
+.point-search-tab.is-active .point-search-tab-key { color: var(--point-muted); }
+.point-search-tab:hover { color: var(--point-primary); }
+/* Подчёркивание рисуется полосой по нижней кромке ряда, а не тенью внутрь
+   таблетки: тень повторяет скругление и загибается на концах вверх — под
+   надписью получалась не черта, а скобка. */
+.point-search-tab.is-active { color: var(--point-primary); }
+.point-search-tab.is-active::after {
+	background: var(--point-ember);
+	bottom: -6px;
+	content: "";
+	height: 2px;
+	left: 8px;
+	position: absolute;
+	right: 8px;
+}
+.point-search-tab:focus-visible { outline: 1px solid var(--point-ember); outline-offset: 2px; }
+.point-search-hint {
+	color: var(--point-muted);
+	font: 400 11px/1 var(--point-font);
+	margin-left: auto;
+}
+/* Строка ввода — та же, что в палитре: 52 пикселя, лупа слева, черта снизу. */
+/* Строка ввода ниже, чем была: 52 пикселя — рост поля формы, а у поиска
+   JetBrains это одна строка чуть выше списка. Высокое поле съедало две строки
+   выдачи и делало окно рыхлым. */
+.point-search-field {
+	align-items: center;
+	border-bottom: 1px solid var(--point-border);
+	display: flex;
+	flex: 0 0 auto;
+	gap: 8px;
+	height: 38px;
+	padding: 0 12px;
+}
+.point-search-field > .codicon { color: var(--point-faint); font-size: var(--point-icon-md); }
+.point-search-input {
+	background: transparent;
+	border: 0;
+	color: var(--point-primary);
+	flex: 1 1 auto;
+	font: 400 14px/38px var(--point-font);
+	min-width: 0;
+	outline: 0;
+	padding: 0;
+}
+/* Кегль отдельным правилом с длинным селектором. У Code-OSS есть
+   `.monaco-workbench input { font-size: 100% }` — класс плюс тип, вес выше
+   одиночного класса, и он возвращал строку ввода к 13px, унаследованным от
+   оболочки. Замер живого окна: 13px при заявленных 14. */
+.monaco-workbench:has(.point-activitybar) .point-search input.point-search-input { font-size: 14px; }
+.point-search-input::placeholder { color: var(--point-faint); }
+/* Общее правило оболочки рисует акцентное кольцо всему, что получило фокус.
+   Здесь оно лишнее: окно открывается уже с курсором в строке, и кольцо
+   возвращает ровно ту коробку, ради снятия которой окно и заводилось. */
+/* Селектор длиннее общего правила намеренно: у того (`input:focus` внутри
+   .monaco-workbench) стоит !important, и короткая форма ему проигрывала. */
+.monaco-workbench:has(.point-activitybar) .point-search input.point-search-input:focus,
+.monaco-workbench:has(.point-activitybar) .point-search input.point-search-input:focus-visible {
+	border: 0 !important;
+	outline: 0 !important;
+}
+.point-search-list {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow: auto;
+	padding: 4px 0;
+}
+/* Список — обычный div, и системная полоса прокрутки на тёмном фоне светлее
+   всего окна. Своя повторяет ползунок оболочки: 5 в жёлобе 9, скруглён целиком. */
+.point-search-list::-webkit-scrollbar { width: 9px; }
+.point-search-list::-webkit-scrollbar-track { background: transparent; }
+.point-search-list::-webkit-scrollbar-thumb {
+	background: color-mix(in srgb, var(--point-primary) 18%, transparent);
+	background-clip: content-box;
+	border: 2px solid transparent;
+	border-radius: 999px;
+}
+.point-search-list::-webkit-scrollbar-thumb:hover {
+	background: color-mix(in srgb, var(--point-primary) 34%, transparent);
+	background-clip: content-box;
+}
+/* Строка результата: слева имя или найденный текст, справа приглушённый путь.
+   Одна высота у обеих вкладок — окно не должно менять ритм при переключении. */
+.point-search-row {
+	align-items: center;
+	cursor: pointer;
+	display: flex;
+	gap: 8px;
+	height: 28px;
+	padding: 0 12px;
+}
+/* Значок рисует тема значков — тем же правилом, что в Инвентаре: класс
+   `file-icon` плюс расширение, картинка приходит на `::before`. Размер и
+   отступ задаём здесь: у темы они рассчитаны на строку дерева. */
+.point-search-row-icon {
+	flex: 0 0 auto;
+	height: 16px;
+	width: 16px;
+}
+.point-search-row-icon::before {
+	background-position: center;
+	background-repeat: no-repeat;
+	background-size: 16px 16px;
+	content: "";
+	display: block;
+	height: 16px;
+	width: 16px;
+}
+/* Путь у вкладки файлов стоит сразу за именем и обрезается с начала:
+   `direction: rtl` переносит многоточие в начало строки, а `plaintext`
+   оставляет сам путь читаемым слева направо. */
+.point-search-row-path {
+	color: var(--point-muted);
+	direction: rtl;
+	/* Остаток строки уходит вправо от пути, а не между именем и путём: иначе
+	   путь прижимался к правому краю и переставал читаться как продолжение
+	   имени — ровно то, чем он в JetBrains и является. */
+	flex: 0 1 auto;
+	margin-right: auto;
+	font: 400 11px/1.2 var(--point-font);
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	unicode-bidi: plaintext;
+	white-space: nowrap;
+}
+.point-search-row-label {
+	color: var(--point-primary);
+	/* Строка забирает остаток, путь держит своё место: без этого длинная строка
+	   кода дожимала путь до «CONTRIBUTING…», то есть до бесполезного. */
+	flex: 1 1 auto;
+	font: 400 12px/1.2 var(--point-font);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+/* Текстовая вкладка показывает строку кода — моноширинный набор, иначе отступы
+   и выравнивание внутри строки теряются. */
+.point-search.is-text .point-search-row-label { font-family: var(--point-mono); font-size: 12px; }
+/* У вкладки файлов имя занимает своё, а не всю ширину: следом за ним идёт
+   путь. У текстовой имя — это строка кода, и остаток нужен ей. */
+.point-search:not(.is-text) .point-search-row-label { flex: 0 1 auto; }
+/* Подсветка совпадения — подложка, а не только цвет: акцентная буква посреди
+   моноширинной строки теряется, а прямоугольник виден сразу и не спорит с
+   подсветкой синтаксиса, которой в списке нет. */
+.point-search-row-label mark {
+	background: var(--point-match);
+	border-radius: var(--point-r);
+	color: var(--point-primary);
+	font-weight: 500;
+	padding: 1px 0;
+}
+.point-search-row.is-active .point-search-row-label mark { background: color-mix(in srgb, var(--point-ember) 34%, transparent); }
+.point-search-row-detail {
+	color: var(--point-muted);
+	flex: 0 0 auto;
+	max-width: 46%;
+	font: 400 11px/1.2 var(--point-font);
+	margin-left: auto;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.point-search-row:hover { background: var(--point-tint); }
+.point-search-row.is-active {
+	background: var(--point-tint-selected);
+	box-shadow: inset 2px 0 0 var(--point-ember);
+}
+.point-search-empty {
+	color: var(--point-muted);
+	font: 400 12px/1.4 var(--point-font);
+	padding: 12px 16px;
+}
+.point-search-foot {
+	align-items: center;
+	border-top: 1px solid var(--point-border);
+	color: var(--point-muted);
+	display: flex;
+	flex: 0 0 auto;
+	font: 400 11px/1 var(--point-font);
+	gap: 16px;
+	height: 26px;
+	padding: 0 12px;
+}
+/* Полный путь выбранной строки — как в JetBrains: список показывает имя, а
+   куда именно ведёт выбор, видно внизу и целиком. */
+.point-search-path {
+	color: var(--point-muted);
+	direction: rtl;
+	flex: 1 1 auto;
+	font: 400 11px/1 var(--point-mono);
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	unicode-bidi: plaintext;
+	white-space: nowrap;
+}
+/* Сколько нашлось — справа, у края: слева стоят подсказки клавиш, и число
+   среди них читалось бы как ещё одна подсказка. */
+.point-search-count {
+	color: var(--point-muted);
+	margin-left: auto;
+}
+/* Пока идёт поиск, черта под строкой ввода берёт акцентный тон: список ещё от
+   прошлого запроса, и без признака он выглядит ответом на новый. */
+.point-search.is-busy .point-search-field { border-bottom-color: var(--point-edge); }
+.monaco-workbench:has(.point-activitybar) .quick-input-widget .monaco-list-row { min-height: 28px !important; }
+.monaco-workbench:has(.point-activitybar) .quick-input-widget .monaco-list-row .monaco-highlighted-label .highlight,
+.monaco-workbench:has(.point-activitybar) .quick-input-widget .monaco-list-row .highlight {
+	color: var(--point-ember) !important;
+	font-weight: 500;
+}
+/* Ряд действий строки палитры считает высоту по содержимому — без порога
+   подросшая кнопка вылезает из своего ряда. */
+.monaco-workbench:has(.point-activitybar) .quick-input-widget .quick-input-list-entry-action-bar {
+	align-items: center;
+	min-height: var(--point-hit);
+}
+/* ── Пункты меню ────────────────────────────────────────────────────────────
+   Строка меню — две вложенные коробки: `.action-item` во всю ширину и
+   `.action-menu-item` внутри, отбитый по 4 от краёв и со скруглением. Подсветка
+   висела на обеих, и побеждала внешняя: полоса от края до края с прямыми углами
+   поперёк скруглённого списка. Красим только внутреннюю — подсветка получается
+   таблеткой, как в верхней панели. */
+.monaco-workbench:has(.point-activitybar) .monaco-menu .monaco-action-bar.vertical .action-menu-item {
+	border-radius: var(--point-r);
+	margin: 0 6px;
+	min-height: 26px;
+	/* Важность: Code-OSS кладёт инлайном обводку `menu.selectionBorder` — у Point
+	   это янтарь, и пункт под курсором получал кольцо поверх подсветки. Два
+	   способа сказать одно; остаётся подсветка. */
+	outline: none !important;
+}
+/* Подменю — такой же список, но своей заплаты у него не было: голый тёмный
+   прямоугольник с прямыми углами рядом со скруглённым родителем. */
+.monaco-workbench:has(.point-activitybar) .monaco-menu .monaco-submenu {
+	background: var(--point-selected);
+	border: 1px solid var(--point-border);
+	border-radius: var(--point-r-lg);
+	box-shadow: 0 16px 40px rgba(0, 0, 0, .55);
+}
+.monaco-workbench:has(.point-activitybar) .monaco-menu .action-item:hover,
+.monaco-workbench:has(.point-activitybar) .monaco-menu .action-item.focused { background-color: transparent !important; }
+/* Важность: цвет подсветки Code-OSS кладёт инлайном из темы (`menu.selectionBackground`). */
+.monaco-workbench:has(.point-activitybar) .monaco-menu .action-item:not(.disabled) .action-menu-item:hover,
+.monaco-workbench:has(.point-activitybar) .monaco-menu .action-item:not(.disabled) .action-menu-item.focused { background-color: var(--point-tint-strong) !important; }
+/* Выключенный пункт не подсвечивается вовсе: подсветка обещает нажатие. */
+.monaco-workbench:has(.point-activitybar) .monaco-menu .action-item.disabled .action-menu-item:hover,
+.monaco-workbench:has(.point-activitybar) .monaco-menu .action-item.disabled .action-menu-item.focused { background-color: transparent !important; }
+.monaco-workbench:has(.point-activitybar) .monaco-menu .action-item:not(.disabled) .action-menu-item:hover .action-label,
+.monaco-workbench:has(.point-activitybar) .monaco-menu .action-item:not(.disabled) .action-menu-item.focused .action-label { color: var(--point-primary); }
+/* Общая заплата мелкого хрома красит `.action-label` на наведении — меню тоже
+   панель действий, и её подсветка ложилась вторым слоем поверх таблетки, шириной
+   в надпись, а не в строку: у пунктов с сочетанием клавиш выходил тёмный огрызок
+   на треть строки. В меню подсвечивает только сам пункт. */
+.monaco-workbench:has(.point-activitybar) .monaco-menu .monaco-action-bar .action-item:hover .action-label { background: none; }
+.monaco-workbench:has(.point-activitybar) .monaco-menu .action-label { color: var(--point-body); font: 400 12px/1.3 var(--point-font); }
+.monaco-workbench:has(.point-activitybar) .monaco-menu .keybinding { color: var(--point-faint); font: 400 11px/1 var(--point-mono); }
+/* Поля Code-OSS считает в эмах от кегля пункта: `0 2em` слева и справа — это по
+   24 пикселя, и список получался вдвое шире содержимого. Слева ровно столько,
+   сколько занимает колонка галочки, справа — обычный отступ. */
+.monaco-workbench:has(.point-activitybar) .monaco-menu .monaco-action-bar.vertical .action-label:not(.separator) { padding: 0 12px 0 24px; }
+.monaco-workbench:has(.point-activitybar) .monaco-menu .monaco-action-bar.vertical .keybinding,
+.monaco-workbench:has(.point-activitybar) .monaco-menu .monaco-action-bar.vertical .submenu-indicator { padding: 0 12px; }
+.monaco-workbench:has(.point-activitybar) .monaco-menu .monaco-action-bar.vertical .menu-item-check { width: 26px; }
+/* Стрелка подменю висит на отрицательном поле, подобранном под прежние 2em:
+   с новыми полями она вылезала за край списка. */
+.monaco-workbench:has(.point-activitybar) .monaco-menu .monaco-action-bar.vertical .submenu-indicator.codicon::before { margin-right: -8px; }
+.monaco-workbench:has(.point-activitybar) .monaco-menu .monaco-action-bar.vertical { padding: 6px 0; }
+/* Разделитель отбит по краям вместе с пунктами: линия от края до края в
+   скруглённом списке упирается в его углы. */
+.monaco-workbench:has(.point-activitybar) .monaco-menu .monaco-action-bar.vertical .action-label.separator {
+	border-bottom-color: var(--point-border);
+	margin: 4px 6px !important;
+	width: auto;
+}

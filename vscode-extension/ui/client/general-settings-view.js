@@ -18,6 +18,10 @@ export function generalSettingsView({ shell, profiles, quickChatSettingsHtml, st
   </main>`)
 }
 
-export function modelConnectionsSettingsView({ shell, connectionManagerHtml, editingId, count }) {
-  return shell(`<main class="hub-connections hub-page general-settings-page"><header class="hub-page-head"><div><span>Общие настройки</span><h1>Подключения к моделям</h1><p>Подключения доступны во всех проектах Point. Ключи хранятся в защищённом хранилище IDE.</p></div><em>${count}</em></header>${connectionManagerHtml({ editingId })}</main>`)
+export function modelConnectionsSettingsView({ shell, connectionManagerHtml, editingId, count, defaults, connections = [], esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char])), note = '' }) {
+  const rows = [['master', 'Мастер'], ['archivist', 'Архивариус'], ['agent', 'Новые персонажи']].map(([role, label]) => {
+    const choice = defaults?.[role] || {}
+    return `<label><strong>${label}</strong><select data-global-model-connection="${role}"><option value="">${role === 'master' ? 'Движок Point' : 'Наследовать'}</option>${connections.map(item => `<option value="${esc(item.id)}"${item.id === choice.connectionId ? ' selected' : ''}>${esc(item.displayName || item.id)}</option>`).join('')}</select><input data-global-model-id="${role}" value="${esc(choice.model || '')}" placeholder="Model ID из подключения"></label>`
+  }).join('')
+  return shell(`<main class="hub-connections hub-page general-settings-page"><header class="hub-page-head"><div><span>Общие настройки</span><h1>Подключения к моделям</h1><p>Подключения доступны во всех проектах Point. Ключи хранятся в защищённом хранилище IDE.</p></div><em>${count}</em></header><section class="general-settings-project-note"><h2>Модели по умолчанию</h2><p>Выбираются один раз для всех проектов. Существующие персонажи сохраняют свои модели; проект может явно задать исключение для Мастера.</p>${rows}<button type="button" class="primary" data-action="save-global-models">Сохранить модели</button>${note ? `<p role="status">${esc(note)}</p>` : ''}</section>${connectionManagerHtml({ editingId })}</main>`)
 }

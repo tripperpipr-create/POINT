@@ -105,7 +105,9 @@ func (a *App) UpdateMasterSession(ctx context.Context, req MasterSessionUpdate) 
 		if req.Action == "temporary" {
 			id = domain.NewID("temporary")
 		}
-		err = a.store.SaveMasterConversation(ctx, MasterSession{ID: id, WorkspaceID: w, Title: "Новый разговор", Mode: "auto", WorkMode: "plan", Temporary: req.Action == "temporary"})
+		branchOffer := "pending"
+		if req.Action == "temporary" { branchOffer = "" }
+		err = a.store.SaveMasterConversation(ctx, MasterSession{ID: id, WorkspaceID: w, Title: "Новый разговор", Mode: "auto", WorkMode: "plan", Temporary: req.Action == "temporary", BranchOffer: branchOffer})
 		if err == nil {
 			err = a.store.SaveSetting(ctx, "master.active."+w, id)
 		}
@@ -276,7 +278,7 @@ func (a *App) MasterPage(ctx context.Context, id string, before int64, query str
 // не держит и теперь, и его правки остаются в проекте. Иначе удаление старой
 // переписки молча откатывало бы работу, которую человек давно принял.
 func (a *App) purgeUnfinishedQuestsOfConversation(ctx context.Context, workspaceID, conversationID string) ([]QuestPurgeResult, error) {
-	orders, err := a.store.ListWorkOrdersForConversationV2(ctx, conversationID)
+	orders, err := a.store.ListWorkOrdersForConversationV2(ctx, workspaceID, conversationID)
 	if err != nil {
 		return nil, err
 	}

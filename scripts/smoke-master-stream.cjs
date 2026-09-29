@@ -3,7 +3,7 @@ const vm=require('node:vm')
 const assert=require('node:assert/strict')
 const posted=[],requests=[],attempts=new Map()
 const frame=(id,sequence,type,text)=>`id: ${sequence}\nevent: master\ndata: ${JSON.stringify({turnId:id,conversationId:'chat-'+id,sequence,type,text})}\n\n`
-const sandbox={module:{exports:{}},TextDecoder,setTimeout:fn=>setImmediate(fn),require:name=>{if(name==='./master-work-order-watch')return {watchMasterWorkOrder:async()=>{},isTransientWorkOrder:()=>false};throw new Error('поток хода Мастера подключил неизвестный модуль: '+name)},fetch:async url=>{
+const sandbox={module:{exports:{}},TextDecoder,setTimeout:fn=>setImmediate(fn),require:name=>{if(name==='./master-work-order-watch')return {watchMasterWorkOrder:async()=>{},isTransientWorkOrder:()=>false,projectScope:require('../vscode-extension/master-work-order-watch.js').projectScope};throw new Error('поток хода Мастера подключил неизвестный модуль: '+name)},fetch:async url=>{
  requests.push(url)
  const id=new URL(url).pathname.split('/')[5]
  const attempt=(attempts.get(id)||0)+1;attempts.set(id,attempt)
@@ -33,5 +33,14 @@ const host={post:value=>posted.push(value),patchBoot(){},postState(){},service:{
   assert.equal(posted.filter(value=>value.type==='master'&&value.turn?.id===id).length,1)
  }
  assert.equal(host.masterTurnStreams.size,0)
- console.log('Master SSE: reconnect, replay deduplication, two independent conversations: PASS')
+ // Смена проекта посреди хода: поток прежнего мира молчит. Первый чат нового
+ // проекта тоже `legacy`, и его текст, сбой и итог легли бы туда.
+ const {forgetProjectFollowers}=sandbox.module.exports
+ const foreign=follow(host,{id:'c',conversationId:'legacy',status:'waiting'})
+ forgetProjectFollowers(host)
+ await foreign
+ assert.equal(host.masterTurnStreams.size,0)
+ const leaked=posted.filter(value=>value.type!=='masterTurn'&&(value.event?.turnId==='c'||value.turn?.id==='c'||value.conversationId==='chat-c'))
+ assert.deepEqual(leaked,[],'поток прежнего проекта прислал ответ в новый проект')
+ console.log('Master SSE: reconnect, replay deduplication, two independent conversations, silent after project switch: PASS')
 })().catch(error=>{console.error(error);process.exitCode=1})

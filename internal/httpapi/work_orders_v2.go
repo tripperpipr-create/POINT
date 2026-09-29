@@ -35,6 +35,13 @@ func (s *Server) reviseWorkOrderV2(w http.ResponseWriter, r *http.Request) {
 	s.result(w, value, err)
 }
 
+func (s *Server) hireWorkOrderAgentV2(w http.ResponseWriter, r *http.Request) {
+	var input app.HireWorkOrderAgentV2Request
+	if !s.decode(w, r, &input) { return }
+	value, err := s.app.HireWorkOrderAgentV2(r.Context(), r.PathValue("id"), input)
+	s.result(w, value, err)
+}
+
 func (s *Server) approveWorkOrderV2(w http.ResponseWriter, r *http.Request) {
 	var input app.ApproveWorkOrderV2Request
 	if !s.decode(w, r, &input) {

@@ -221,33 +221,6 @@ func (s ChatService) DiscussTask(ctx context.Context, req ChatRequest) (ChatResp
 	return response, s.persistReply(ctx, req, response, proposal.ID)
 }
 
-func permanentRosterAgents(agents []domain.ProjectAgent) []domain.ProjectAgent {
-	result := make([]domain.ProjectAgent, 0, len(agents))
-	for _, agent := range agents {
-		if !agent.Temporary && (agent.Status == "" || agent.Status == domain.ProjectAgentActive) {
-			result = append(result, agent)
-		}
-	}
-	return result
-}
-
-func projectAgentIDs(agents []domain.ProjectAgent) []string {
-	result := make([]string, 0, len(agents))
-	for _, agent := range agents {
-		result = append(result, agent.ID)
-	}
-	return result
-}
-
-func appendBriefDecision(brief *domain.TaskBrief, decision domain.BriefDecision) {
-	for _, current := range brief.Decisions {
-		if current.Topic == decision.Topic {
-			return
-		}
-	}
-	brief.Decisions = append(brief.Decisions, decision)
-}
-
 // masterIntakeTimeoutSeconds is one bounded deadline for a whole Master turn:
 // tool rounds and format repairs share it. The webview warns about a slow answer
 // before this runs out; ui/contracts.mjs keeps the two numbers ordered.

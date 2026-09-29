@@ -53,7 +53,7 @@ func (a *App) saveMasterWorkOrderV2(ctx context.Context, proposal *domain.QuestP
 	// открытый наряд беседы; новый идентификатор появляется только тогда, когда
 	// продолжать нечего.
 	orderID := "workorder-" + proposal.ID
-	if existing, ok := a.openWorkOrderForConversationV2(ctx, conversationID); ok {
+	if existing, ok := a.openWorkOrderForConversationV2(ctx, proposal.WorkspaceID, conversationID); ok {
 		orderID = existing.ID
 	}
 
@@ -119,6 +119,9 @@ func (a *App) saveMasterWorkOrderV2(ctx context.Context, proposal *domain.QuestP
 	if order.Workspace.Mode == "existing" && isCleanGitWorkspace(order.Workspace.Path) {
 		order.Delivery.CommitMode = "squash"
 	}
+	if order.Workspace.Mode == "existing" {
+		order.Sandbox = environment.Analyze(order.Workspace.Path, order.WorkspaceID).Runtime
+	}
 	order.Setup = masterSetupPlanV2(order.Stack.ID, brief)
 	order.Network = masterNetworkGrantsV2(brief, sources, order.Setup, masterToolchainsV2(brief, order.Workspace))
 	order.Completion = masterCompletionProfileV2(order)
@@ -126,6 +129,11 @@ func (a *App) saveMasterWorkOrderV2(ctx context.Context, proposal *domain.QuestP
 	if getErr == nil {
 		order.Version = current.Version + 1
 		order.CreatedAt = current.CreatedAt
+		// A user-selected runtime belongs to the reviewable WorkOrder version.
+		// A later Master turn must not silently reset it to auto detection.
+		if len(current.Sandbox.Toolchains) > 0 {
+			order.Sandbox = current.Sandbox
+		}
 		if current.Workspace.Mode == "managed" {
 			order.Workspace = current.Workspace
 			order.WorkspaceID = current.WorkspaceID
@@ -172,7 +180,7 @@ func (a *App) saveMasterWorkOrderV2(ctx context.Context, proposal *domain.QuestP
 			}, CreatedAt: saved.UpdatedAt,
 		})
 	}
-	a.dropStaleWorkOrdersForConversationV2(ctx, conversationID, saved.ID)
+	a.dropStaleWorkOrdersForConversationV2(ctx, saved.WorkspaceID, conversationID, saved.ID)
 	return saved.ID, nil
 }
 
@@ -200,12 +208,12 @@ func (a *App) rosterFromSelection(ctx context.Context, selection agentSelectionR
 
 // openWorkOrderForConversationV2 отдаёт наряд беседы, который ещё обсуждают.
 // Список идёт от свежих к старым, поэтому продолжается последний открытый.
-func (a *App) openWorkOrderForConversationV2(ctx context.Context, conversationID string) (domain.WorkOrder, bool) {
+func (a *App) openWorkOrderForConversationV2(ctx context.Context, workspaceID, conversationID string) (domain.WorkOrder, bool) {
 	conversationID = strings.TrimSpace(conversationID)
 	if conversationID == "" {
 		return domain.WorkOrder{}, false
 	}
-	orders, err := a.store.ListWorkOrdersForConversationV2(ctx, conversationID)
+	orders, err := a.store.ListWorkOrdersForConversationV2(ctx, workspaceID, conversationID)
 	if err != nil {
 		return domain.WorkOrder{}, false
 	}
@@ -231,12 +239,12 @@ func isOpenWorkOrderV2(order domain.WorkOrder) bool {
 // остались от прежних ходов до этой правки. Они ничем не заняты, и человеку
 // доставался выбор между черновиком и его же уточнением. Ошибка уборки не
 // отменяет сохранённый наряд: лишняя карточка — не повод потерять свежую.
-func (a *App) dropStaleWorkOrdersForConversationV2(ctx context.Context, conversationID, keepID string) {
+func (a *App) dropStaleWorkOrdersForConversationV2(ctx context.Context, workspaceID, conversationID, keepID string) {
 	conversationID = strings.TrimSpace(conversationID)
 	if conversationID == "" {
 		return
 	}
-	orders, err := a.store.ListWorkOrdersForConversationV2(ctx, conversationID)
+	orders, err := a.store.ListWorkOrdersForConversationV2(ctx, workspaceID, conversationID)
 	if err != nil {
 		return
 	}
@@ -301,66 +309,6 @@ func environmentCommandTextV2(item domain.EnvironmentCommand) string {
 		parts = append(parts, part)
 	}
 	return strings.Join(parts, " ")
-}
-
-// masterRosterV2 отдаёт состав исполнителей наблюдателю ростера. Раньше здесь
-// стоял перенос предложенного состава и один и тот же черновик на всякий пустой
-// проект — карточка обещала исполнителя, которого никто не подбирал.
-//
-// previous — ростер открытой карточки этой беседы: неподтверждённый черновик
-// обязан сохранить свой идентификатор между ходами, иначе согласие человека
-// сошлётся на исчезнувший черновик.
-func (a *App) masterRosterV2(ctx context.Context, order domain.WorkOrder, proposal *domain.QuestProposal, previous domain.AgentRosterPlan, hire *orchestrator.AgentDraftProposal) domain.AgentRosterPlan {
-	observation, err := a.ObserveRoster(ctx, rosterNeedFromOrder(order, proposal))
-	if err != nil {
-		return a.safeMinimumRosterV2(ctx, previous)
-	}
-	plan := a.applyModelDraftV2(ctx, observation.RosterPlan(previous), hire)
-	if validateRosterPlanV2(plan, order.Budget) != nil || len(plan.Permanent) == 0 {
-		// Негодный ростер стоит человеку всего хода: сохранение наряда проверяет
-		// его доменными правилами и поднимает ошибку наружу, а не в карточку.
-		return a.safeMinimumRosterV2(ctx, previous)
-	}
-	return plan
-}
-
-// applyModelDraftV2 принимает уточнение модели поверх собранного черновика.
-// Модель называет специалиста словами задачи — «архитектор платежей» вместо
-// «Backend-разработчик», — но не трогает ни идентификатор черновика, ни
-// согласие, ни выбор существующего исполнителя: подбор от её послушности не
-// зависит, и молчание модели ничего не стоит.
-func (a *App) applyModelDraftV2(ctx context.Context, plan domain.AgentRosterPlan, hire *orchestrator.AgentDraftProposal) domain.AgentRosterPlan {
-	if hire == nil {
-		return plan
-	}
-	for index, draft := range plan.Permanent {
-		if draft.Existing {
-			continue
-		}
-		draft.Name = hire.Name
-		draft.Role = hire.Role
-		draft.Mission = hire.Mission
-		if tools := a.filterKnownTools(ctx, appendUniqueStrings(hire.RequiredTools, draft.RequiredTools...)); len(tools) > 0 {
-			draft.RequiredTools = tools
-		}
-		plan.Permanent[index] = draft
-		break
-	}
-	return plan
-}
-
-// safeMinimumRosterV2 — то, чем карточка обходится, когда подбор не состоялся:
-// один черновик исполнителя с согласием человека и только теми инструментами,
-// которые в этой сборке существуют.
-func (a *App) safeMinimumRosterV2(ctx context.Context, previous domain.AgentRosterPlan) domain.AgentRosterPlan {
-	name, role := rosterRoleNaming("")
-	draft := domain.AgentDraft{
-		ID: domain.NewID("agentdraft"), Name: name, Role: role,
-		Mission:         rosterMission(domain.RoleRequirement{}),
-		RequiredTools:   a.filterKnownTools(ctx, []string{"project_map", "search_code", "list_files", "read_file", "propose_patch", "run_command", "git_diff"}),
-		RequiresConsent: true,
-	}
-	return domain.AgentRosterPlan{Permanent: []domain.AgentDraft{carryRosterDraftIdentity(draft, previous)}}
 }
 
 // rosterNeedFromOrder переводит наряд в сводку требований. Права выводятся из

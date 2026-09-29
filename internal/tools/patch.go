@@ -146,6 +146,10 @@ func (m *PatchManager) Execute(_ context.Context, raw json.RawMessage) domain.To
 		}
 		resolved := make([]resolvedTextEdit, 0, len(input.Edits))
 		for index, edit := range input.Edits {
+			// read_file показывает строки без \r, и модель присылает якорь с LF
+			// там, где файл живёт с CRLF. Живые квесты 28–29.09 тратили на это
+			// по два хода: неудачный патч и od -c, чтобы увидеть концы строк.
+			edit.OldText, edit.NewText = MatchFileLineEndings(original, edit.OldText, edit.NewText)
 			occurrences := strings.Count(original, edit.OldText)
 			switch occurrences {
 			case 0:

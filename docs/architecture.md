@@ -19,6 +19,8 @@ Point is Hub-first. A bare launch opens only the dedicated sessions window that 
 
 No transport owns agent behavior, policy decisions, storage semantics, or filesystem safety. VS Code remains responsible for editing, tabs, Explorer, terminals and Workspace Trust; the extension owns only the agent-specific integration and point-core lifecycle.
 
+The multi-project core proposal is tracked in [TODO.md](TODO.md), Q25. It requires a separate architecture decision replacing the current per-project process and filesystem isolation boundary.
+
 ## Module boundaries
 
 The central entry files remain compatibility composition roots, but bounded
@@ -43,13 +45,19 @@ behavior no longer has to be edited inside them:
   (the three run/workflow/flow timers and the "hidden means no polling" rule),
   `companion-thread-controller.js` (the life of one companion reply),
   `core-log.js` and `core-lease.js` (chronicle, and the warm-core lease the
-  multi-window model rests on);
+  multi-window model rests on). Every Point window also refreshes a
+  `host-<pid>.json` mark in the runtime directory; a core started by the
+  extension (`POINT_OWNER_DIR`) shuts itself down once no window mark or
+  lease has been fresh for 30 s (`cmd/server/owner_watch.go`), so cores do
+  not outlive the application even after a hard exit — a running quest is
+  paused at its checkpoint by the next startup recovery;
 - host message groups are dispatched by family through
   `handleXxxMessage.call(this, message)`: `master-chat-controller.js`,
   `infra-controller.js`, `hub-runtime-controller.js`, `roster-controller.js`,
   `learning-controller.js`, `tooling-controller.js`, `cursor-controller.js`,
   `companion-chat-controller.js`. Stateful surfaces use closure factories
   instead: `companion-controller.js`, `ide-action-controller.js`,
+  `ide-run-controller.js` (run discovery, selection, terminals and status),
   `ide-navigation-controller.js`, `project-index-controller.js`,
   `console-ssh-controller.js`, `point-panels.js`, `ide-observation-controller.js`;
 - `vscode-extension/extension-utils.js`, `run-config-utils.js`,
@@ -111,7 +119,7 @@ IDE diagnostics and failed terminal/Task outcomes are captured as bounded, redac
 
 The parent `WorkflowRun` stores its own immutable workflow snapshot, stage order and child run IDs. This makes the high-level flow reproducible while every model/tool decision remains inspectable through the existing run history. The VS Code builder supports ordering, profile selection, per-stage instructions, handoff switches, transient per-profile API keys and a live timeline.
 
-Graph Flow execution is persisted independently of webview visibility. Point Core advances deterministic nodes and schedules sandboxed execution records; the IDE supplies cloud credentials from SecretStorage only when a ready execution launches. A serialized background coordinator watches all active FlowRuns while executions are running, so closing Hub does not strand the next agent. On restart, Core marks stale running executions interrupted and restores graph state; the IDE then relaunches only pending/interrupted executions belonging to an already active Flow. Approval nodes and executions without an available credential stay pending.
+Graph Flow execution is persisted independently of webview visibility. Point Core advances deterministic nodes and schedules sandboxed execution records; the IDE supplies cloud credentials from SecretStorage only when a ready execution launches. A serialized background coordinator watches all active FlowRuns while executions are running, so closing Hub does not strand the next agent. On restart, Core marks stale running executions of its own world interrupted and restores graph state; the IDE then relaunches only pending/interrupted executions belonging to an already active Flow. Approval nodes and executions without an available credential stay pending.
 
 Every execution now owns an immutable baseline captured before work begins, including the first node and clean Git worktree runs. A user edit made while an agent is running therefore cannot change the meaning of the eventual Change Set. When a node has exactly one completed upstream execution, Point creates the next execution from that predecessor's sandbox. The next agent reads the exact files produced by the previous agent, while its Change Set contains only its own incremental edits. The new Change Set records `dependsOn` lineage to the most recent persisted predecessor set. Core enforces dependency-first Apply and dependent-first Reject/Revert; the IDE can apply the complete chain in topological order. A clean Git repository may use a detached worktree for the first execution, while a dirty or untracked working tree deliberately uses a filtered copy so current local files are not lost. Root branches in one FlowRun fork from one shared immutable start snapshot even if parallelism limits schedule them later.
 
@@ -162,7 +170,7 @@ The engine fingerprints semantic tool calls without their provider-generated IDs
 
 The completion tracker is deliberately local and deterministic. An explicit request to run tests/build/lint requires either `run_command` or an allowed custom tool explicitly designated as verification evidence; an accepted file change requires a successful verifier after the newest workspace revision when that capability is enabled. A candidate final answer that lacks this evidence receives one `<point_completion_gate>` follow-up containing only recorded facts. The next candidate is either accepted or rejected. Built-in shell evidence must match the conservative verification catalog, preserve verifier failure status, return `exitCode` zero and not time out. Custom verifiers are an explicit owner trust decision but must still return structured exit-zero/non-timeout results. Failed tools remain retryable and never become successful semantic-deduplication entries.
 
-Active runs exist in memory, while every durable state transition is persisted. A restart deliberately converts unfinished state to an auditable terminal state instead of attempting unsafe replay.
+Active runs exist in memory, while every durable state transition is persisted. A restart deliberately converts unfinished state to an auditable terminal state instead of attempting unsafe replay. Project cores share one `hub-v2.db`, so this recovery is scoped to the core's own world: a starting core converts only the unfinished runs, Master turns, learning jobs, temporary conversations and v2 quests of the project it serves (`internal/app/world_recovery.go`, `internal/storage/startup_recovery.go`). Live work of another project belongs to that project's core and is recovered when it starts. Single-process tools that open the database with `storage.Open` keep the whole-database recovery.
 
 
 ### Packages the rest of this document does not name
@@ -313,6 +321,10 @@ For desktop/core agent executions, the production process boundary is the
 version-attributed Docker backend described in [sandbox.md](sandbox.md).
 `filtered-copy` remains an explicitly reported compatibility/development
 backend and cannot satisfy the strong-isolation release gate.
+Its lifecycle and merge logic live in `internal/sandbox/manager.go`; file
+filtering, secret removal and text-file reading live in
+`internal/sandbox/manager_files.go`. Both files belong to the same package and
+use the same backend contract.
 
 ## Master methodology and development
 

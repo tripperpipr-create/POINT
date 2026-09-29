@@ -9,13 +9,9 @@ import (
 
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
-	// This one-shot idempotent repair runs after migrations and before generic
-	// interrupted-work recovery can reinterpret the historic cancelled root.
-	a.reconcileBrokenWorkOrderFinalizationsV2(context.Background())
-	a.reconcileNoopWorkOrderResumesV2(context.Background())
-	// A quest left in a live state belongs to a process that no longer exists;
-	// resolve that before anything else can read it as progress.
-	a.pauseInterruptedWorkOrderQuestsV2(context.Background())
+	// Брошенную работу ядро разбирает до приёма запросов, но только в своём
+	// мире: живое в соседних мирах ведут их ядра (world_recovery.go).
+	a.recoverAbandonedWorld(context.Background(), a.startupWorldID(context.Background()))
 	go a.cleanupExpiredQuestSandboxes(context.Background(), time.Now().UTC())
 }
 

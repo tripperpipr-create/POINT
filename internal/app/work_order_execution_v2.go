@@ -142,6 +142,15 @@ func (a *App) runWorkOrderLaunchV2(ctx context.Context, approval domain.WorkOrde
 			a.waitForSandboxV2(writeCtx, approval, latest, message)
 			return
 		}
+		if errors.Is(launchErr, sandbox.ErrRuntimeVersionUnavailable) {
+			paused, saveErr := a.setWorkOrderQuestStatusV2(writeCtx, latest, domain.QuestPaused, message)
+			if saveErr != nil {
+				slog.Error("work order runtime mismatch pause not persisted", "quest_id", approval.QuestID, "error", saveErr)
+				return
+			}
+			a.publishWorkOrderNoticeV2(writeCtx, approval, paused, "warning", "Песочница требует выбора версии: "+message)
+			return
+		}
 		// Запуск прервала остановка самого ядра, а не отказ: квест становился
 		// «blocked · context canceled», и человек нажимал «Продолжить» после
 		// каждого перезапуска. Пауза с честной причиной; если исполнять ещё было
@@ -384,14 +393,14 @@ func taskBriefFromWorkOrderV2(order domain.WorkOrder) (domain.TaskBrief, error) 
 			Tokens: order.Budget.Tokens, CostCents: order.Budget.CostCents,
 			ActiveSeconds: order.Budget.ActiveSeconds, MaxParallel: order.Budget.MaxParallel,
 			MaxReplans: order.Budget.MaxReplans, MaxAttempts: order.Budget.MaxAttempts,
-			MaxProjectAgents: order.Budget.MaxProjectAgents,
+			MaxProjectAgents: order.Budget.MaxProjectAgents, MaxSteps: order.Budget.MaxSteps,
 		},
 		WorkOrder: &domain.WorkOrderExecutionContract{
 			ID: order.ID, Version: order.Version, Digest: domain.WorkOrderDigest(order),
 			SourceDigest: domain.WorkOrderSourceDigest(order),
 			Sources:      append([]domain.SourceSnapshotRef(nil), order.Sources...),
 			Milestones:   append([]domain.MilestonePlan(nil), order.Milestones...),
-			Workspace:    order.Workspace, Stack: order.Stack, Setup: order.Setup, Routing: order.Routing,
+			Workspace:    order.Workspace, Stack: order.Stack, Sandbox: order.Sandbox, Setup: order.Setup, Routing: order.Routing,
 			Network: append([]domain.NetworkGrant(nil), order.Network...),
 			Secrets: append([]domain.SecretRequirement(nil), order.Secrets...), Completion: order.Completion, Delivery: order.Delivery,
 		},

@@ -438,7 +438,19 @@ func deterministicAcceptFailureDetail(result domain.ToolResult) string {
 	if json.Unmarshal(result.Output, &payload) != nil {
 		return ""
 	}
-	line := strings.TrimSpace(strings.SplitN(payload.Stderr, "\n", 2)[0])
+	line := ""
+	for _, candidate := range strings.Split(payload.Stderr, "\n") {
+		candidate = strings.TrimSpace(candidate)
+		if line == "" && candidate != "" {
+			line = candidate
+		}
+		lower := strings.ToLower(candidate)
+		if (strings.Contains(lower, "error") || strings.Contains(lower, "failed") || strings.Contains(lower, "not exported")) &&
+			!strings.Contains(lower, "complete log") && !strings.Contains(lower, "error code") && !strings.Contains(lower, "error command") {
+			line = candidate
+			break
+		}
+	}
 	return truncateRunes(security.Redact(line), 160)
 }
 
@@ -602,7 +614,8 @@ func (a *App) tryDeterministicAccept(quest domain.Quest, flowRun domain.FlowRun,
 			if result.Error != nil {
 				ce.Check.Detail = result.Error.Message
 			}
-			failure := criterion.ID + ": failed"
+			commandText, _ := args["command"].(string)
+			failure := fmt.Sprintf("%s: %q exited %d (expected %d)", criterion.ID, truncateRunes(security.Redact(commandText), 100), exit, expected)
 			if detail := deterministicAcceptFailureDetail(result); detail != "" {
 				failure += " (" + detail + ")"
 			}

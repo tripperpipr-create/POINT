@@ -107,6 +107,14 @@ func decodeData[T any](t *testing.T, response GitLabResponse) T {
 	return value
 }
 
+func TestGitLabFormatErrorNamesTheToolAtPinnedVersion(t *testing.T) {
+	server := domain.MCPServer{ServerVersion: gitlab.ServerVersion}
+	failure := explainGitLab(server, &gitlab.Error{Reason: gitlab.ReasonFormat, Tool: "whoami", Detail: "answer did not parse"})
+	if failure.reason != GitLabFormat || !strings.Contains(failure.problem, "whoami") || strings.Contains(failure.fix, "Point рассчитан") {
+		t.Fatalf("pinned server got misleading version advice: %+v", failure)
+	}
+}
+
 func TestGitLabPluginConnectsAndShowsScreens(t *testing.T) {
 	application := newTestApp(t)
 	useFakeGitLab(t, application)

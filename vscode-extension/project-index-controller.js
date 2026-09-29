@@ -188,7 +188,9 @@ function createProjectIndex({
         return undefined
       }
       try {
+        const generation = indexGeneration
         const status = await service.request('/api/index/status', { allowStart: false })
+        if (generation !== indexGeneration) return undefined
         if (!rebuildPromise && !debounceTimer) paint(status, true)
         return status
       } catch {
@@ -260,6 +262,7 @@ function createProjectIndex({
               forceFullRebuild = true
               result = await rebuildProjectIndex(service, undefined, { allowStart: false })
             }
+            if (generation !== indexGeneration) return result
             paint(result, true)
             service.hostLog('info', `[index] rebuild done state=${result?.state || '-'} files=${result?.files ?? '-'} chunks=${result?.chunks ?? '-'} duration_ms=${result?.durationMs ?? '-'}`)
             await notifyUpdated(result)
@@ -270,6 +273,7 @@ function createProjectIndex({
           }
           return result
         } catch (error) {
+          if (generation !== indexGeneration) return lastKnown
           const wantNotify = notifyAfter
           notifyAfter = false
           paint({ ...(lastKnown || {}), state: 'error' }, service.state === 'running')
@@ -290,8 +294,10 @@ function createProjectIndex({
           if (wantNotify) throw error
           return { state: 'error' }
         } finally {
-          rebuildPromise = undefined
-          setBusy(false)
+          if (generation === indexGeneration) {
+            rebuildPromise = undefined
+            setBusy(false)
+          }
         }
       })()
       return rebuildPromise
@@ -388,6 +394,7 @@ function createProjectIndex({
       startWatcher,
       markCoreStopped: () => {
         indexGeneration += 1
+        rebuildPromise = undefined
         pendingRebuild = false
         dirtyChanged.clear()
         dirtyDeleted.clear()

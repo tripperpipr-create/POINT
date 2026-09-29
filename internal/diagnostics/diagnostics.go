@@ -639,6 +639,12 @@ func stopReason(run domain.Run) string {
 		return "cancelled_by_user"
 	case domain.RunInterrupted:
 		return "interrupted"
+	case domain.RunPaused:
+		// Пауза — не провал: прежде она падала в «failed» по пустой ошибке.
+		if run.Controller.PauseReason == domain.PauseReasonStepBudgetExhausted {
+			return "step_limit"
+		}
+		return "paused"
 	}
 	errorText := strings.ToLower(run.Error)
 	if strings.Contains(errorText, "timed out") || strings.Contains(errorText, "deadline") {

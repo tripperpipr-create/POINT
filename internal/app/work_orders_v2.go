@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"unicode"
 
 	"local-agent-workbench/internal/domain"
+	"local-agent-workbench/internal/environment"
 	"local-agent-workbench/internal/osproc"
 	"local-agent-workbench/internal/storage"
 )
@@ -119,6 +121,38 @@ func (a *App) ReviseWorkOrderV2(ctx context.Context, id string, request ReviseWo
 	next.Version = request.ExpectedVersion + 1
 	next.CreatedAt = current.CreatedAt
 	next.State = strings.TrimSpace(next.State)
+	selectedVersions := next.Sandbox.Toolchains
+	next.Sandbox = current.Sandbox
+	if next.Sandbox.Toolchains == nil {
+		next.Sandbox.Toolchains = map[string]string{}
+	}
+	if next.Sandbox.VersionSources == nil {
+		next.Sandbox.VersionSources = map[string]string{}
+	}
+	if selectedVersions != nil {
+		for tool := range next.Sandbox.Toolchains {
+			if _, kept := selectedVersions[tool]; !kept {
+				delete(next.Sandbox.Toolchains, tool)
+				delete(next.Sandbox.VersionSources, tool)
+				next.Sandbox.ImageDigest = ""
+			}
+		}
+	}
+	for tool, version := range selectedVersions {
+		if !runtimeSelectionVersion.MatchString(version) || !allowedRuntimeSelectionTool(tool) {
+			return domain.WorkOrder{}, fmt.Errorf("unsupported sandbox version selection %s=%q", tool, version)
+		}
+		if next.Sandbox.Toolchains[tool] != version {
+			next.Sandbox.Toolchains[tool] = version
+			next.Sandbox.VersionSources[tool] = "user selection"
+			next.Sandbox.ImageDigest = ""
+		}
+	}
+	if len(next.Sandbox.Toolchains) > 0 {
+		plan := domain.EnvironmentPlan{Strategy: "managed", Runtime: next.Sandbox}
+		environment.ApplyManagedRuntimePack(&plan)
+		next.Sandbox = plan.Runtime
+	}
 	next, err = a.prepareWorkOrderWorkspaceV2(ctx, next)
 	if err != nil {
 		return domain.WorkOrder{}, err
@@ -171,6 +205,17 @@ func (a *App) ReviseWorkOrderV2(ctx context.Context, id string, request ReviseWo
 	}
 	a.recordMasterEvidence(ctx, saved, "", "revision", "user_revised")
 	return saved, nil
+}
+
+var runtimeSelectionVersion = regexp.MustCompile(`^(?:\d+(?:\.\d+){0,2}|stable)$`)
+
+func allowedRuntimeSelectionTool(tool string) bool {
+	switch tool {
+	case "node", "npm", "pnpm", "yarn", "php", "composer", "python", "pip", "go", "rust", "java", "mvn", "gradle", "dotnet":
+		return true
+	default:
+		return false
+	}
 }
 
 // DeleteWorkOrderV2 убирает карточку запуска из ленты разговора.

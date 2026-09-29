@@ -20,10 +20,17 @@ type ResolveEgressAskRequest struct {
 // EnsureEgressAsk records a pending Master→user network/git decision when missing.
 func (a *App) EnsureEgressAsk(ctx context.Context, workspaceID, questID, runID string, kind domain.EgressAskKind, target, reason string) (domain.EgressAsk, error) {
 	target = strings.TrimSpace(target)
+	if kind == domain.EgressAskNetworkHost {
+		var err error
+		target, err = workbenchtools.CanonicalHostGrant(target)
+		if err != nil {
+			return domain.EgressAsk{}, err
+		}
+	}
 	if workspaceID == "" || target == "" || kind == "" {
 		return domain.EgressAsk{}, errors.New("egress ask requires workspace, kind and target")
 	}
-	if existing, err := a.store.FindPendingEgressAsk(ctx, workspaceID, kind, target); err == nil && existing.ID != "" {
+	if existing, err := a.store.FindPendingEgressAsk(ctx, workspaceID, questID, runID, kind, target); err == nil && existing.ID != "" {
 		return existing, nil
 	}
 	if questID != "" {
@@ -60,7 +67,7 @@ func (a *App) EnsureEgressAsk(ctx context.Context, workspaceID, questID, runID s
 		CreatedAt:   time.Now().UTC(),
 	}
 	if err := a.store.SaveEgressAsk(ctx, ask); err != nil {
-		if existing, findErr := a.store.FindPendingEgressAsk(ctx, workspaceID, kind, target); findErr == nil && existing.ID != "" {
+		if existing, findErr := a.store.FindPendingEgressAsk(ctx, workspaceID, questID, runID, kind, target); findErr == nil && existing.ID != "" {
 			return existing, nil
 		}
 		return domain.EgressAsk{}, err
@@ -86,17 +93,24 @@ func (a *App) ResolveEgressAsk(ctx context.Context, id string, request ResolveEg
 		return domain.EgressAsk{}, err
 	}
 	action := strings.ToLower(strings.TrimSpace(request.Action))
+	if ask.Kind == domain.EgressAskNetworkHost && action != "deny" {
+		canonical, validationErr := workbenchtools.CanonicalHostGrant(ask.Target)
+		if validationErr != nil || canonical != ask.Target {
+			return domain.EgressAsk{}, errors.New("egress ask has an invalid TLS destination")
+		}
+	}
 	now := time.Now().UTC()
 	switch action {
 	case "allow_once":
-		ask.Status = domain.EgressAskAllowedOnce
-		a.applyEgressGrant(ask, false)
-	case "allow_quest":
-		ask.Status = domain.EgressAskAllowedQuest
-		a.applyEgressGrant(ask, true)
-		if err = a.persistQuestEgressGrant(ctx, ask); err != nil {
-			return domain.EgressAsk{}, err
+		if ask.RunID == "" {
+			return domain.EgressAsk{}, errors.New("allow_once requires a live run")
 		}
+		ask.Status = domain.EgressAskAllowedOnce
+	case "allow_quest":
+		if ask.QuestID == "" {
+			return domain.EgressAsk{}, errors.New("allow_quest requires a quest")
+		}
+		ask.Status = domain.EgressAskAllowedQuest
 	case "deny":
 		ask.Status = domain.EgressAskDenied
 		if ask.QuestID != "" && ask.WorkspaceID != "" {
@@ -117,6 +131,17 @@ func (a *App) ResolveEgressAsk(ctx context.Context, id string, request ResolveEg
 	ask.ResolvedAt = now
 	if err = a.store.SaveEgressAsk(ctx, ask); err != nil {
 		return domain.EgressAsk{}, err
+	}
+	if ask.Status == domain.EgressAskAllowedQuest {
+		if err = a.persistQuestEgressGrant(ctx, ask); err != nil {
+			ask.Status = domain.EgressAskPending
+			ask.ResolvedAt = time.Time{}
+			_ = a.store.SaveEgressAsk(ctx, ask)
+			return domain.EgressAsk{}, err
+		}
+	}
+	if ask.Status == domain.EgressAskAllowedOnce || ask.Status == domain.EgressAskAllowedQuest {
+		a.applyEgressGrant(ask, ask.Status == domain.EgressAskAllowedQuest)
 	}
 	if ask.RunID != "" && ask.Status != domain.EgressAskDenied {
 		_ = a.InjectRunMessage(ask.RunID, egressAllowMessage(ask), "")
@@ -168,6 +193,43 @@ func (a *App) applyEgressGrant(ask domain.EgressAsk, questScoped bool) {
 	}
 }
 
+// restoreQuestEgressGrants restores only durable, explicitly approved quest
+// decisions. Unspent allow_once grants deliberately disappear on core restart.
+func (a *App) restoreQuestEgressGrants(ctx context.Context, workspaceID string) error {
+	asks, err := a.store.ListEgressAsksForWorkspace(ctx, workspaceID)
+	if err != nil {
+		return err
+	}
+	quests, err := a.store.ListQuests(ctx, workspaceID)
+	if err != nil {
+		return err
+	}
+	approvedHosts := map[string]map[string]bool{}
+	for _, quest := range quests {
+		if quest.Brief == nil || !domain.IsTaskBriefApproved(*quest.Brief) {
+			continue
+		}
+		hosts := map[string]bool{}
+		for _, host := range quest.Brief.Permissions.NetworkHosts {
+			if canonical, validationErr := workbenchtools.CanonicalHostGrant(host); validationErr == nil {
+				hosts[canonical] = true
+			}
+		}
+		approvedHosts[quest.ID] = hosts
+	}
+	for _, ask := range asks {
+		if ask.Status != domain.EgressAskAllowedQuest || ask.QuestID == "" || ask.Kind != domain.EgressAskNetworkHost {
+			continue
+		}
+		canonical, validationErr := workbenchtools.CanonicalHostGrant(ask.Target)
+		if validationErr != nil || canonical != ask.Target || !approvedHosts[ask.QuestID][canonical] {
+			continue
+		}
+		a.applyEgressGrant(ask, true)
+	}
+	return nil
+}
+
 func (a *App) persistQuestEgressGrant(ctx context.Context, ask domain.EgressAsk) error {
 	if ask.QuestID == "" {
 		return nil
@@ -183,8 +245,8 @@ func (a *App) persistQuestEgressGrant(ctx context.Context, ask domain.EgressAsk)
 			break
 		}
 	}
-	if quest == nil || quest.Brief == nil {
-		return nil
+	if quest == nil || quest.Brief == nil || !domain.IsTaskBriefApproved(*quest.Brief) {
+		return errors.New("quest has no approved brief for an egress amendment")
 	}
 	brief := *quest.Brief
 	switch ask.Kind {
@@ -245,23 +307,21 @@ func egressTargetFromToolError(code, message string) (domain.EgressAskKind, stri
 		}
 		return domain.EgressAskGitRemote, "unspecified-remote"
 	case "network_denied":
-		if start := strings.Index(message, `"`); start >= 0 {
-			if end := strings.Index(message[start+1:], `"`); end >= 0 {
-				return domain.EgressAskNetworkHost, strings.ToLower(message[start+1 : start+1+end])
-			}
-		}
+		// A network decision must come from ToolError.Target, never prose.
+		return domain.EgressAskNetworkHost, ""
 	}
 	return "", ""
 }
 
-func toolFinishedEgressHint(payload map[string]any) (code, message string) {
+func toolFinishedEgressHint(payload map[string]any) (code, message, target string) {
 	if payload == nil {
-		return "", ""
+		return "", "", ""
 	}
 	if errObj, ok := payload["error"].(map[string]any); ok {
 		code, _ = errObj["code"].(string)
 		message, _ = errObj["message"].(string)
-		return code, message
+		target, _ = errObj["target"].(string)
+		return code, message, target
 	}
 	// Some publishers flatten tool results.
 	if raw, ok := payload["result"]; ok {
@@ -270,7 +330,8 @@ func toolFinishedEgressHint(payload map[string]any) (code, message string) {
 			if errObj, ok := typed["error"].(map[string]any); ok {
 				code, _ = errObj["code"].(string)
 				message, _ = errObj["message"].(string)
-				return code, message
+				target, _ = errObj["target"].(string)
+				return code, message, target
 			}
 		case string:
 			var decoded map[string]any
@@ -278,10 +339,11 @@ func toolFinishedEgressHint(payload map[string]any) (code, message string) {
 				if errObj, ok := decoded["error"].(map[string]any); ok {
 					code, _ = errObj["code"].(string)
 					message, _ = errObj["message"].(string)
-					return code, message
+					target, _ = errObj["target"].(string)
+					return code, message, target
 				}
 			}
 		}
 	}
-	return "", ""
+	return "", "", ""
 }

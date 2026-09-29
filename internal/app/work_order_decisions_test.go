@@ -45,7 +45,7 @@ func TestResumeAfterRestartReturnsQuestToWhereRestartFoundIt(t *testing.T) {
 	application := newTestApp(t)
 	ctx := context.Background()
 	workspace, approval := approvedTestWorkOrder(t, application, "restart-preflight")
-	application.pauseInterruptedWorkOrderQuestsV2(ctx)
+	application.pauseInterruptedWorkOrderQuestsV2(ctx, workspace.ID)
 	quest, err := application.workOrderQuestV2(ctx, workspace.ID, approval.QuestID)
 	if err != nil || quest.Status != domain.QuestPaused {
 		t.Fatalf("восстановление не поставило паузу: %s err=%v", quest.Status, err)

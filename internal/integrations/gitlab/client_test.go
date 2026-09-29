@@ -454,6 +454,27 @@ func TestToolErrors(t *testing.T) {
 	if _, err := client.WhoAmI(ctx); ReasonOf(err) != ReasonFormat {
 		t.Fatalf("format error = %v", err)
 	}
+	userJSON := `{"id":17,"username":"anna","name":"Anna"}`
+	caller.override["whoami"] = mcpclient.CallResult{Content: []mcpclient.Content{{Type: "text", Text: "diagnostic"}, {Type: "text", Text: userJSON}}}
+	if user, err := client.WhoAmI(ctx); err != nil || user.Username != "anna" {
+		t.Fatalf("JSON in a separate MCP content block: user=%+v error=%v", user, err)
+	}
+	caller.override["whoami"] = mcpclient.CallResult{Content: []mcpclient.Content{{Type: "text", Text: `{"id":99,"username":123}`}, {Type: "text", Text: `{"username":"anna"}`}}}
+	if user, err := client.WhoAmI(ctx); err != nil || user.Username != "anna" || user.ID != 0 {
+		t.Fatalf("failed block leaked fields into next block: user=%+v error=%v", user, err)
+	}
+	caller.override["whoami"] = mcpclient.CallResult{Structured: json.RawMessage(userJSON), Content: []mcpclient.Content{{Type: "text", Text: "diagnostic"}}}
+	if user, err := client.WhoAmI(ctx); err != nil || user.Username != "anna" {
+		t.Fatalf("structured MCP result: user=%+v error=%v", user, err)
+	}
+	caller.override["whoami"] = mcpclient.CallResult{Content: []mcpclient.Content{{Type: "text", Text: `{"id":"17","username":"anna","name":"Anna"}`}}}
+	if user, err := client.WhoAmI(ctx); err != nil || user.ID != 17 || user.Username != "anna" {
+		t.Fatalf("GitLab string user ID: user=%+v error=%v", user, err)
+	}
+	caller.override["whoami"] = mcpclient.CallResult{Content: []mcpclient.Content{{Type: "text", Text: `{"id":"bad","username":"anna"}`}}}
+	if _, err := client.WhoAmI(ctx); ReasonOf(err) != ReasonFormat {
+		t.Fatalf("invalid GitLab string user ID: %v", err)
+	}
 	delete(caller.override, "whoami")
 	user, err := client.WhoAmI(ctx)
 	if err != nil || user.Username != "anna" {

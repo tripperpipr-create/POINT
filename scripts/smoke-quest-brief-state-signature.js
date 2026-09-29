@@ -8,19 +8,9 @@
 // запуску» там, где карточки с кнопкой в ленте нет, и решал, что квест не
 // создался вовсе.
 
-const fs = require('fs')
 const path = require('path')
-const vm = require('vm')
 
-const source = fs.readFileSync(path.join(__dirname, '..', 'vscode-extension', 'extension.js'), 'utf8')
-  .replace(/\r\n/g, '\n')
-const start = source.indexOf('function cheapStateSignature(message)')
-const end = source.indexOf('\n\n// Ошибки ядра', start)
-if (start < 0 || end < 0) throw new Error('cheapStateSignature source was not found')
-
-const context = { JSON }
-vm.runInNewContext(`${source.slice(start, end)}\nthis.signature = cheapStateSignature`, context)
-const signature = context.signature
+const { cheapStateSignature: signature } = require(path.join(__dirname, '..', 'vscode-extension', 'hub-state-signature.js'))
 
 const proposal = (brief, status = 'pending') => ({
   service: { state: 'running' }, workspaceTrusted: true, workspace: 'fixture', selectedTab: 'master',
@@ -37,6 +27,17 @@ if (discussed === ready) {
 // Статус решает судьбу карточки в ленте, и его подпись обязана видеть и дальше.
 if (signature(proposal({ version: 5, state: 'ready' }, 'started')) === ready) {
   throw new Error('Запуск предложения невидим подписи postState')
+}
+
+// Квест дошёл до исхода: вкладки обязаны получить новое состояние. Без статуса
+// квеста в подписи настройки проекта навсегда показывали его активным.
+const withQuest = status => signature({ ...proposal({ version: 5, state: 'ready' }), boot: { quests: [{ id: 'quest-1', status, updatedAt: '1' }] } })
+if (withQuest('verifying') === withQuest('completed')) {
+  throw new Error('Исход квеста невидим подписи postState: вкладки остаются с «проверяется»')
+}
+const withRuntime = status => signature({ ...proposal({ version: 5, state: 'ready' }), boot: { workOrders: [{ id: 'wo-1', runtime: { status, updatedAt: '1' } }] } })
+if (withRuntime('running') === withRuntime('failed')) {
+  throw new Error('Исход наряда невидим подписи postState')
 }
 
 console.log('quest brief state signature: PASS')

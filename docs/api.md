@@ -82,6 +82,8 @@ is checked against every `HandleFunc` registration by `node scripts/check-docs.m
 | `POST` | `/api/companion/actions/decide` | Modify, apply or ignore a durable typed Hub action draft prepared by Companion |
 | `POST` | `/api/companion/config` | Save Companion personality/mode for the workspace |
 | `POST` | `/api/orchestrator/config` | Save the separate Orchestrator system agent (preset, policy, optional planner model) |
+| `GET` | `/api/global-models` | Read shared Master, Archivist and new-agent model defaults |
+| `POST` | `/api/global-models` | Save shared model defaults; project Master model overrides remain explicit |
 | `POST` | `/api/orchestrator/policy` | Return a normalized, capability-aware Orchestrator policy preview |
 | `GET` | `/api/companion/history` | Workspace-scoped Companion dialogue history |
 | `DELETE` | `/api/companion/history` | Clear Companion chat history in the current workspace |
@@ -120,6 +122,8 @@ is checked against every `HandleFunc` registration by `node scripts/check-docs.m
 | `GET` | `/api/master/turns/{id}` | Read one Master turn |
 | `GET` | `/api/master/turns/{id}/events` | Events for one Master turn |
 | `POST` | `/api/master/conversations/{id}/fork` | Fork a Master conversation |
+| `POST` | `/api/master/conversations/{id}/branch-offer` | Persist `pending` or `skipped` for the optional first-plan branch offer |
+| `POST` | `/api/master/conversations/{id}/bind-branch` | Bind a chat to a Point-managed Git worktree and move its history into that workspace |
 | `POST` | `/api/master/sessions` | Create or open a Master session |
 | `POST` | `/api/master/turns` | Start a Master turn |
 | `POST` | `/api/master/turns/{id}/cancel` | Cancel an in-flight Master turn |
@@ -143,14 +147,15 @@ is checked against every `HandleFunc` registration by `node scripts/check-docs.m
 | `DELETE` | `/api/v2/work-orders/{id}` | Delete a WorkOrder with its revisions; refused while its quest is open |
 | `GET` | `/api/v2/work-orders/{id}/diffs` | Read machine-readable diffs produced after an approved work order is revised |
 | `POST` | `/api/v2/work-orders/{id}/revise` | Create a new immutable `WorkOrder` revision and pause its active quest when required |
+| `POST` | `/api/v2/work-orders/{id}/hire-agent` | Atomically create or reuse an agent, replace an exact roster draft and return the updated WorkOrder; requires version, digest and idempotency key |
 | `POST` | `/api/v2/work-orders/{id}/approve` | Atomically approve an exact version/digest, materialize its roster/workspace, build the Flow and launch it; an optional transient `apiKey` comes from desktop SecretStorage and is never persisted |
 
 | `GET` | `/api/model-candidates` | Bounded model candidate list for routing |
 | `GET` | `/api/model-capability-evidence` | Persisted model capability probe evidence |
 | `GET` | `/api/workspace/model-routing` | Workspace model routing preferences |
 | `PUT` | `/api/workspace/model-routing` | Update workspace model routing preferences |
-| `POST` | `/api/runs/fast-agent` | Start a Fast Agent (precise daily) run |
-| `POST` | `/api/runs/{id}/extend-active-time` | One-shot extend of quest ActiveSeconds |
+| `POST` | `/api/runs/fast-agent` | Start a Fast Agent (precise daily) run; optional `conversationId` names the Master conversation that receives the quest outcome |
+| `POST` | `/api/runs/{id}/extend-active-time` | One-shot extend of the exhausted budget: ActiveSeconds, or turns when the run paused with `step_budget_exhausted` |
 | `POST` | `/api/runs/{id}/undo` | Undo selected patches from a run |
 | `POST` | `/api/executions/{id}/resume-runtime` | Resume an external/runtime session for an execution |
 | `POST` | `/api/executions/{id}/stop-runtime` | Stop an external/runtime session for an execution |
@@ -294,6 +299,16 @@ selected row does not jump between polls. Tool risk is read from the same built-
 the agent editor shows, never from a second scale. Egress asks resolve through
 `POST /api/egress-asks/{id}/resolve` with `allow_once` / `allow_quest` / `deny`, or for
 supervision hangs `continue` / `stop`.
+For TLS hosts, the target is an exact FQDN and port (a bare FQDN means 443).
+`allow_once` is consumed by one matching `run_command` execution attempt in the
+named Run; unused grants disappear on core restart. `allow_quest` applies only
+to the named Quest, updates its approved brief version, and is restored from
+the recorded decision after restart. Ambiguous or invalid destinations cannot
+produce an approval request. Tool results record the effective gateway policy
+digest and the explicit destination without storing traffic content.
+When a Docker gateway is used, the same tool result includes bounded gateway
+decisions (`networkGatewayStatus`, `networkGatewayDecisions`) tied to that digest;
+`unavailable` means its log could not be read and does not imply no traffic.
 
 `GET /api/files/history` turns the same immutable records around a file instead of a run.
 The run chronicle answers "what did run #47 do"; a person asks "what happened to engine.go".

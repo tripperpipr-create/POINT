@@ -124,5 +124,8 @@ func hubMigrations() []migration {
 		{69, "master_skills_learning_v1", migrationMasterSkillsLearningV1},
 		{70, "mcp_integrations_v1", migrationMCPIntegrationsV1},
 		{71, "work_order_manual_reviews_v2", migrationWorkOrderManualReviewsV2},
+		{72, "work_order_hires_v2", migrationWorkOrderHiresV2},
+		{73, "master_chat_branch_v1", migrationMasterChatBranchV1},
+		{74, "orchestrator_project_model_override_v1", migrationOrchestratorProjectModelOverrideV1},
 	}
 }

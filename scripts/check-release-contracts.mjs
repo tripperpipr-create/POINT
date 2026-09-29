@@ -77,6 +77,7 @@ const requiredFiles = [
   'internal/app/run_execution.go',
   'internal/app/run_views.go',
   'internal/sandbox/container_integration_test.go',
+  'internal/sandbox/manager_files.go',
   'internal/companion/interventions.go',
   'internal/companion/focus.go',
   'internal/companion/model_reply.go',
@@ -98,6 +99,7 @@ const requiredFiles = [
   'vscode-extension/ide-navigation-utils.js',
   'vscode-extension/companion-controller.js',
   'vscode-extension/ide-action-controller.js',
+  'vscode-extension/ide-run-controller.js',
   'vscode-extension/ide-navigation-controller.js',
   'vscode-extension/connection-controller.js',
   'vscode-extension/integrations-controller.js',
@@ -602,9 +604,12 @@ for (const token of [
   "require('./git-tool-controller')", "require('./hub-surfaces-controller')",
   "require('./hub-polling-controller')", "require('./companion-thread-controller')",
   "require('./integrations-controller')", "require('./hub-message-router')",
+  "require('./language-support')",
 ]) {
   requireText(extensionSource, token, 'extension module boundary')
 }
+requireText(read('vscode-extension/ide-action-controller.js'), "require('./ide-run-controller')", 'IDE action module boundary')
+requireText(read('vscode-extension/ide-run-controller.js'), "require('./run-config-utils')", 'run configuration module boundary')
 // Ветки внешнего разбора сообщений живут в hub-message-router.js: подтверждения
 // форм, которые шлёт сам разбор, ищутся в оболочке вместе с ним.
 const hubMessageSource = `${extensionSource}\n${read('vscode-extension/hub-message-router.js')}`
@@ -689,6 +694,8 @@ for (const token of [
   "from './hub-entity-inbox.js'", "from './run-inbox.js'",
   "from './world-state-inbox.js'", "from './integrations-ui.js'",
   "from './drag-drop.js'", "from './ui-snapshot.js'",
+  "from './quest-history-views.js'", "from './companion-proposal-views.js'",
+  "from './companion-setup-controller.js'",
 ]) {
   requireText(webviewSource, token, 'webview module boundary')
 }
@@ -702,12 +709,18 @@ for (const token of [
 // можно сколько угодно.
 for (const [file, maximum] of Object.entries({
   'internal/storage/hub.go': 100,
-  'internal/domain/hub.go': 1077,
+  // Правила отбора файлов и удаления секретов при filtered-copy живут отдельно
+  // от жизненного цикла sandbox и слияния изменений.
+  'internal/sandbox/manager.go': 750,
+  'internal/sandbox/manager_files.go': 300,
+  // С 1077 (29.09.2026): наблюдения IDE и вмешательства Компаньона — в companion_signals.go.
+  'internal/domain/hub.go': 1030,
   // 27.09.2026 четыре Go-файла у потолка разрезаны по пакету: входы и
   // результаты узлов, циклы и шаблоны Flow; инструменты git и run_command;
   // проверки и машинные определения хранилища; отказы и нагрузка soak.
   'internal/flowruntime/runtime.go': 590,
-  'internal/storage/sqlite.go': 566,
+  // С 566 (29.09.2026): восстановление после остановки ядра — в startup_recovery.go.
+  'internal/storage/sqlite.go': 485,
   'internal/tools/workspace_tools.go': 142,
   'cmd/point-soak/main.go': 542,
   // Потолок опущен с 5068: заплаты первого кадра окон (фон, скелет верстака,
@@ -720,8 +733,26 @@ for (const [file, maximum] of Object.entries({
   'distribution/overlay-rail.mjs': 419,
   'distribution/overlay-titlebar.mjs': 1120,
   'distribution/overlay-diff-editor.mjs': 193,
+  'distribution/point-workbench-css.mjs': 30,
+  'distribution/resources/point-workbench.css': 12,
+  'distribution/resources/point-workbench/00-foundation.css': 245,
+  'distribution/resources/point-workbench/10-titlebar.css': 540,
+  'distribution/resources/point-workbench/20-rails-editor.css': 435,
+  'distribution/resources/point-workbench/30-diff-panels.css': 510,
+  'distribution/resources/point-workbench/40-search.css': 480,
+  'distribution/resources/point-workbench/50-menus.css': 495,
+  'distribution/resources/point-workbench/60-settings.css': 150,
   'vscode-extension/ui/layers/07-master-quiet.css': 2110,
-  'vscode-extension/ui/layers/05-hall.css': 1841,
+  // Разделённые CSS остаются в прежнем порядке каскада; лимиты не дают снова
+  // собрать крупные области в один файл.
+  'vscode-extension/ui/layers/05-hall.css': 640,
+  'vscode-extension/ui/layers/05a-hall-controls.css': 475,
+  'vscode-extension/ui/layers/05b-hall-decisions.css': 625,
+  'vscode-extension/ui/layers/07a-master-compose.css': 565,
+  'vscode-extension/ui/layers/07a-master-compose1-controls.css': 575,
+  'vscode-extension/ui/layers/96-tool-windows.css': 145,
+  'vscode-extension/ui/layers/96-tool-windows1-git.css': 885,
+  'vscode-extension/ui/layers/96-tool-windows2-layout.css': 200,
   // Три файла пишутся руками мимо `ui/build.mjs`: главная и Летопись
   // подключают только `rpg-tokens.css` и в общий бандл не входят. Ни бюджета,
   // ни шкал у них не было вовсе — теперь есть хотя бы трещотка по строкам.
@@ -731,15 +762,22 @@ for (const [file, maximum] of Object.entries({
   'internal/app/app.go': 720,
   'internal/companion/service.go': 600,
   // Опущен с 3750 (27.09.2026): внешний разбор сообщений вебвью — пятьсот
-  // строк веток — ушёл в hub-message-router.js. Новая ветка растёт там.
-  'vscode-extension/extension.js': 3232,
+  // строк веток — ушёл в hub-message-router.js. Новая ветка растёт там. С 3232:
+  // поддержка языков — в language-support.js.
+  // С 3136 (29.09.2026): подпись состояния — в hub-state-signature.js.
+  'vscode-extension/extension.js': 3105,
+  'vscode-extension/language-support.js': 140,
   'vscode-extension/hub-message-router.js': 600,
+  // Подпись состояния: поле вне её не доезжает до вкладок (см. модуль).
+  'vscode-extension/hub-state-signature.js': 90,
   'vscode-extension/git-tool-controller.js': 400,
   'vscode-extension/hub-surfaces-controller.js': 400,
   'vscode-extension/hub-polling-controller.js': 300,
   'vscode-extension/companion-thread-controller.js': 250,
   'vscode-extension/companion-controller.js': 1500,
-  'vscode-extension/ide-action-controller.js': 1500,
+  // Поиск, выбор и запуск конфигураций вынесены из общего IDE-контроллера.
+  'vscode-extension/ide-action-controller.js': 700,
+  'vscode-extension/ide-run-controller.js': 400,
   'vscode-extension/ide-navigation-controller.js': 1500,
   'vscode-extension/connection-controller.js': 1500,
   // Интеграции: хост только доставляет ответы ядра и держит секреты и
@@ -752,12 +790,19 @@ for (const [file, maximum] of Object.entries({
   // зарасти обратно.
   // И с 4330 (27.09.2026): перетаскивание — в drag-drop.js, снимок фокуса и
   // прокрутки — в ui-snapshot.js, таблица отказов — к их маршрутам.
-  'vscode-extension/ui/client/main.js': 4118,
+  // Панель квеста и история файла, предложения и правила настройки
+  // Компаньона вынесены из main.js; состояние по-прежнему принадлежит ему.
+  // С 3800 (29.09.2026): короткие заголовки квестов — в quest-titles.js.
+  'vscode-extension/ui/client/main.js': 3783,
+  'vscode-extension/ui/client/quest-history-views.js': 180,
+  'vscode-extension/ui/client/companion-proposal-views.js': 140,
+  'vscode-extension/ui/client/companion-setup-controller.js': 240,
   'vscode-extension/ui/client/drag-drop.js': 100,
   'vscode-extension/ui/client/ui-snapshot.js': 160,
   'vscode-extension/ui/client/infra-actions.js': 220,
   // Опущен с 280: блок приложения и отчёт ушли в quest-app-actions.js.
-  'vscode-extension/ui/client/master-actions.js': 255,
+  // С 255 (29.09.2026): чтение формы карточки наряда — в master-work-order-v2.js.
+  'vscode-extension/ui/client/master-actions.js': 246,
   'vscode-extension/ui/client/run-actions.js': 280,
   'vscode-extension/ui/client/flow-actions.js': 180,
   'vscode-extension/ui/client/roster-actions.js': 330,
@@ -780,7 +825,8 @@ for (const [file, maximum] of Object.entries({
   // Опущены с 300: сборка прогона, доказательства и управление ушли в
   // quest-run-views.js, журнал этапа — в quest-journal-views.js.
   'vscode-extension/ui/client/work-order-execution-views.js': 190,
-  'vscode-extension/ui/client/master-work-order-v2.js': 270,
+  // С 270 (29.09.2026): подписи и тона состояний — в quest-status.js.
+  'vscode-extension/ui/client/master-work-order-v2.js': 262,
   'vscode-extension/ui/client/quest-run-views.js': 420,
   'vscode-extension/ui/client/quest-app-views.js': 140,
   'vscode-extension/ui/client/quest-app-state.js': 90,
@@ -789,7 +835,8 @@ for (const [file, maximum] of Object.entries({
   'vscode-extension/ui/client/stage-labels.js': 80,
   'vscode-extension/ui/client/diff-view.js': 60,
   'vscode-extension/ui/client/master-hiring-card.js': 300,
-  'vscode-extension/ui/client/master-agent-card.js': 450,
+  // С 450 (29.09.2026): разбор ввода карточки — в master-agent-card-state.js.
+  'vscode-extension/ui/client/master-agent-card.js': 430,
   // Лист персонажа вынесен из карточки исполнителя: словарь классов, шкалы
   // характеристик и три яруса разметки при них — связный кусок, а карточка
   // стояла у своей границы.
@@ -799,7 +846,10 @@ for (const [file, maximum] of Object.entries({
   'vscode-extension/ui/client/companion-actions.js': 400,
   'vscode-extension/ui/client/onboarding-actions.js': 450,
   'vscode-extension/ui/client/companion-transport.js': 450,
-  'vscode-extension/ui/client/master-inbox.js': 200,
+  'vscode-extension/ui/client/master-inbox.js': 191,
+  // Единая таблица состояний квеста для всех поверхностей и короткие заголовки.
+  'vscode-extension/ui/client/quest-status.js': 90,
+  'vscode-extension/ui/client/quest-titles.js': 60,
   // Лента Мастера по заботам: разбор ответа, идущий ход, след хода, замена
   // ленты, движение, клавиши композера. Каждый вынесен, чтобы main.js и
   // master-thread-views.js не росли, — потолки держат их от обратного

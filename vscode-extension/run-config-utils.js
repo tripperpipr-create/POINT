@@ -37,7 +37,7 @@ function parseJsonc(raw) {
     }
     out += ch
   }
-  try { return JSON.parse(out.replace(/,\s*([}\]])/g, '$1')) } catch { return undefined }
+  try { return JSON.parse(out.replace(/("(?:\\.|[^"\\])*")|,\s*([}\]])/g, (_match, quoted, closing) => quoted || closing)) } catch { return undefined }
 }
 
 function makefileTargets(raw) {

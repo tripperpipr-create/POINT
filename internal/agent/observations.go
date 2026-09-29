@@ -11,6 +11,7 @@ import (
 
 	"local-agent-workbench/internal/domain"
 	"local-agent-workbench/internal/providers"
+	workbenchtools "local-agent-workbench/internal/tools"
 	"local-agent-workbench/internal/workspace"
 )
 
@@ -109,6 +110,26 @@ func (t *observationTracker) Observe(call providers.ToolCall, result domain.Tool
 		}
 	case "list_files":
 		t.workspace[executionKey] = workspaceObservation{Revision: revision, AvailableAtStep: step + 1}
+	case "propose_patch":
+		// Файл, записанный целиком, модель знает дословно: она сама его
+		// прислала. Прежде следующая перезапись того же файла требовала
+		// read_file — живой квест 29.09 отдал на это ход. Точечная правка
+		// такого права не даёт: остальной файл модель могла и не видеть.
+		var input struct {
+			Content *string `json:"content"`
+		}
+		var output struct {
+			Status string `json:"status"`
+			Path   string `json:"path"`
+			SHA256 string `json:"sha256"`
+		}
+		if json.Unmarshal(call.Arguments, &input) != nil || input.Content == nil ||
+			json.Unmarshal(result.Output, &output) != nil || output.Status != "applied" || !validSHA256(output.SHA256) {
+			return
+		}
+		if path := normalizeObservationPath(output.Path); path != "" {
+			t.files[path] = append(t.files[path], fileObservation{Key: executionKey, Revision: revision, AvailableAtStep: step, SHA256: strings.ToLower(output.SHA256), Complete: true})
+		}
 	}
 }
 
@@ -130,6 +151,28 @@ func (t *observationTracker) Release(executionKey string) {
 			t.files[path] = filtered
 		}
 	}
+}
+
+// PatchTargetKeys — ключи чтений цели патча без забывания самих наблюдений.
+// Неудачный якорь не делает прочитанное ложным, но подсказка велит прочитать
+// файл снова, и сторож повторов не должен отбивать это чтение.
+func (t *observationTracker) PatchTargetKeys(raw json.RawMessage) []string {
+	if t == nil {
+		return nil
+	}
+	var input struct {
+		Path string `json:"path"`
+	}
+	if json.Unmarshal(raw, &input) != nil {
+		return nil
+	}
+	keys := []string{}
+	for _, item := range t.files[normalizeObservationPath(input.Path)] {
+		if item.Key != "" {
+			keys = append(keys, item.Key)
+		}
+	}
+	return keys
 }
 
 func (t *observationTracker) ReleasePatchTarget(raw json.RawMessage) []string {
@@ -268,7 +311,12 @@ func exactEditAnchorsCovered(edits []struct {
 		}
 		covered := false
 		for _, observation := range observations {
-			if observation.Fragment != "" && strings.Contains(observation.Fragment, edit.OldText) {
+			if observation.Fragment == "" {
+				continue
+			}
+			// Та же поправка на концы строк, что и у самого патча.
+			anchor, _ := workbenchtools.MatchFileLineEndings(observation.Fragment, edit.OldText, "")
+			if strings.Contains(observation.Fragment, anchor) {
 				covered = true
 				break
 			}

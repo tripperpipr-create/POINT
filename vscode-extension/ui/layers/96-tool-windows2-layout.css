@@ -1,0 +1,195 @@
+
+/* ── Узкая рейка ─────────────────────────────────────────────────────────────
+   Макет нарисован на панель в 940 пикселей. В боковой рейке её триста, и
+   раскладка «в строку» перестаёт работать: заголовок расползается на три ряда,
+   вкладки обрезаются, панель коммита превращается в лесенку из пяти этажей.
+   Здесь тот же набор, собранный под ширину: слово «Git» уходит (раздел и так
+   подписан оболочкой), вкладки делят строку поровну, кнопки коммита — пополам. */
+@media (max-width: 639px) {
+  .nc-brand b { display: none; }
+  .nc-tab { font-size: var(--nc-t-label); gap: var(--nc-1); min-width: 0; padding: var(--nc-1) var(--nc-2); }
+  .nc-tab span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* Значок вкладки уходит раньше подписи: три подписи и значка в триста
+     пикселей не помещаются, и обрезалось как раз слово — «Измен…», «Ист…».
+     Слово опознаёт вкладку, значок рядом с ним ничего не добавляет. */
+  .nc-tab > .nc-icon { display: none; }
+  /* «Прошлые» встают в строку с «Дополнить последний коммит», а не отдельным
+     этажом: подвал коммита и так в четыре ряда. Со словом кнопка в строку не
+     влезала — остаётся значок часов, а слово живёт в подсказке. */
+  .nc-ghost { margin-left: auto; padding: 5px var(--nc-2); }
+  .nc-ghost > span { display: none; }
+  .nc-branch { max-width: 38%; }
+  /* Подпись раздела в узкой панели повторяет активную вкладку строкой выше и
+     обрезается до «ЛОКАЛЬНЫЕ ИЗМЕНЕН…». Остаются действия — ровно панель
+     инструментов JetBrains. Подпись правой колонки (.nc-path) остаётся: она
+     говорит о другом содержимом. */
+  .nc-list .nc-sub > span:not(.nc-path) { display: none; }
+  /* Плюс-минус строк уходит вместе с подписью раздела. В триста пикселей эта
+     колонка стоила полсотни — ровно те, из-за которых от «template.php»
+     оставалось «template.p…». Размер правки — справка, имя файла — то, ради
+     чего в список смотрят; в дереве изменений JetBrains этой колонки нет
+     вовсе. На широкой панели она возвращается. */
+  .nc-file .nc-plus,
+  .nc-file .nc-minus { display: none; }
+  .nc-commit { padding: var(--nc-3) var(--nc-4); }
+  .nc-commit-head small { white-space: nowrap; }
+  .nc-commit-chips { display: none; }
+  .nc-commit-foot { gap: var(--nc-2); }
+  .nc-commit-actions { flex: 1 1 100%; }
+  .nc-target { flex: 1 1 100%; max-width: none; }
+  .nc-btn { flex: 1 1 auto; justify-content: center; padding: 5px var(--nc-3); white-space: nowrap; }
+}
+.nc-group-main { flex: 1 1 auto; min-width: 0; }
+.nc-group-main em { white-space: nowrap; }
+/* Правило про рост имени файла жило здесь и спорило с `.nc-file-main strong`
+   выше: имя растягивалось во всю строку и уносило прежнее имя к самому краю.
+   Ширину теперь держит одно правило — там же, где остальной вид строки. */
+
+.nc-notice {
+  align-items: center;
+  background: var(--nc-panel);
+  border-top: 1px solid var(--nc-line);
+  color: var(--nc-accent);
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--nc-3);
+  padding: var(--nc-2) var(--nc-6);
+}
+.nc-notice p { color: var(--nc-text-2); font-size: var(--nc-t-small); margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nc-notice.is-error { color: var(--nc-warn); }
+.nc-notice > button { margin-left: auto; transform: rotate(45deg); }
+
+
+.point-run-card {
+  background: var(--ui-raised);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--r-1);
+  display: grid;
+  gap: var(--s-4);
+  padding: var(--s-5);
+}
+.point-run-card > span { color: var(--ui-muted); font: var(--fw-semibold) var(--t-micro)/1 var(--font-mono); }
+.point-run-card > strong { font-size: var(--t-base); }
+.point-run-card > p { color: var(--ui-muted); font-size: var(--t-small); margin: 0; }
+.point-run-card > p.danger-copy { color: var(--wound); }
+.point-run-card footer { display: flex; flex-wrap: wrap; gap: var(--s-3); }
+.point-terminal-card { align-items: center; border-bottom: 1px solid var(--ui-border-soft); display: flex; gap: var(--s-4); padding: var(--s-4); }
+.point-terminal-card.active { box-shadow: inset var(--s-1) 0 0 var(--vital); }
+.point-terminal-card i { color: var(--mana); font: var(--fw-semibold) var(--t-base)/1 var(--font-mono); }
+.point-terminal-card strong,
+.point-terminal-card small { display: block; }
+.point-terminal-card small { color: var(--ui-muted); font-size: var(--t-tiny); margin-top: var(--s-2); }
+
+.point-log-stream { border: 1px solid var(--ui-border); border-radius: var(--r-1); min-height: 160px; overflow: auto; }
+.point-log-row {
+  border-bottom: 1px solid var(--ui-border-soft);
+  display: grid;
+  gap: var(--s-2) var(--s-4);
+  grid-template-columns: auto auto minmax(0, 1fr);
+  padding: var(--s-4);
+}
+.point-log-row > span { color: var(--ui-muted); font: var(--fw-normal) var(--t-micro)/1.3 var(--font-mono); grid-column: 1 / -1; }
+.point-log-row > b { color: var(--ui-muted); font: var(--fw-semibold) var(--t-micro)/1.4 var(--font-mono); text-transform: uppercase; }
+.point-log-row > em { color: var(--mana); font: var(--fw-medium) var(--t-tiny)/1.4 var(--font-mono); }
+.point-log-row > p { font: var(--fw-normal) var(--t-tiny)/1.45 var(--font-mono); margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.point-log-row.level-error { box-shadow: inset var(--s-1) 0 0 var(--wound); }
+.point-log-row.level-error > b { color: var(--wound); }
+.point-log-row.level-warning { box-shadow: inset var(--s-1) 0 0 var(--caution); }
+.point-log-row.level-warning > b { color: var(--caution); }
+.point-log-path { color: var(--ui-muted); font: var(--fw-normal) var(--t-micro)/1.3 var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.point-tool-status {
+  align-items: center;
+  background: var(--ui-void);
+  border-top: 1px solid var(--ui-border);
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--s-4);
+  justify-content: space-between;
+  min-height: var(--s-7);
+  padding: 0 var(--s-4);
+}
+.point-tool-status span { align-items: center; color: var(--ui-muted); display: flex; font-size: var(--t-micro); gap: var(--s-3); min-width: 0; }
+.point-tool-status i { background: var(--ui-muted); border-radius: var(--r-full); height: var(--s-2); width: var(--s-2); }
+.point-tool-status i.live { background: var(--vital); }
+/* Показание индекса в подвале — кнопка: по ней открывают состояние индекса.
+   Цель у неё была 65×11 при полосе в 24px: надпись в 9px с интерлиньяжем 1 и
+   без отбивки. Первый же замер окон инструментов (цикл 34) нашёл её в каждом
+   из пяти. Кнопка занимает полосу по высоте целиком; отрицательная отбивка
+   справа возвращает надпись на прежнее место — иначе она уехала бы внутрь на
+   ширину новой отбивки, а левая половина полосы её не имеет. */
+.point-tool-status button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: var(--ui-muted);
+  cursor: pointer;
+  display: inline-flex;
+  font: var(--fw-medium) var(--t-micro)/1 var(--font-mono);
+  margin-right: calc(var(--s-3) * -1);
+  min-height: var(--s-7);
+  padding: 0 var(--s-3);
+}
+
+/* Infrastructure views share the full Hub implementation, but collapse to a
+   single readable column inside a 300–420 px tool window. */
+.point-tool-app .hub-page .connection-list,
+.point-tool-app .hub-page .settings-grid { grid-template-columns: minmax(0, 1fr); }
+.point-tool-app .hub-page .hub-card,
+.point-tool-app .hub-page .connection-form,
+.point-tool-app .hub-page .connection-secret-note,
+.point-tool-app .hub-page .db-query-result,
+.point-tool-app .hub-page .db-schema { border-radius: var(--r-1); margin: 0; padding: var(--s-5); }
+.point-tool-app .hub-page .hub-card-footer { align-items: stretch; display: grid; gap: var(--s-3); grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.point-tool-app .hub-page .hub-card-footer > button:first-child { grid-column: 1 / -1; }
+.point-tool-app .hub-page .hub-transitional { display: none; }
+.point-tool-app .hub-page input,
+.point-tool-app .hub-page select,
+.point-tool-app .hub-page textarea { width: 100%; }
+
+@media (max-width: 340px) {
+  /* На узкой панели шаг уровня уступает имени файла: глубокий путь съедал бы
+     столько, что от имени оставался бы огрызок. Ступень видно и на 14px. */
+  .point-git-tree { --nc-step: 14px; }
+  .point-tool-metrics { grid-template-columns: minmax(0, 1fr); }
+  .point-git-commit > footer { align-items: stretch; flex-direction: column; }
+  .point-tool-app .hub-page .hub-card-footer { grid-template-columns: minmax(0, 1fr); }
+  .point-tool-app .hub-page .hub-card-footer > button:first-child { grid-column: auto; }
+}
+
+/* ── Широкая форма: окна инструментов в нижней панели ────────────────────────
+   Запуск, Службы и Логи переехали из правой рейки вниз (docs/IDE-DESIGN.md),
+   и форма у них перевернулась: было узко и высоко, стало широко и низко.
+   Вертикальный поток в такой коробке даёт колонку в треть ширины и полосу
+   прокрутки при пустом месте справа — читать приходится через скролл там, где
+   всё помещается рядом.
+
+   Порог 720px разделяет две формы сам: правая панель и рейка столько не
+   занимают (стенд меряет их на 420, 300 и 255), а нижняя панель почти всегда
+   шире. Отдельного признака «я внизу» у вебвью нет — он и не нужен: решает
+   не место, а ширина коробки.
+
+   Широкими остаются блоки, которым ширина и нужна: шапка, пояснение,
+   ряд действий, метрики, лента логов, таблица результата и подвал. Остальное —
+   карточки, формы, списки — встаёт в две колонки в порядке разметки. */
+@media (min-width: 720px) {
+  body[data-layout^='tool-'] .point-tool-page,
+  body[data-layout^='tool-'] .point-tool-app .hub-page {
+    align-content: start;
+    column-gap: var(--s-5);
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  body[data-layout^='tool-'] .point-tool-page > .point-tool-head,
+  body[data-layout^='tool-'] .point-tool-page > .point-tool-actions,
+  body[data-layout^='tool-'] .point-tool-page > .point-tool-metrics,
+  body[data-layout^='tool-'] .point-tool-page > .point-log-stream,
+  body[data-layout^='tool-'] .point-tool-page > .point-log-path,
+  body[data-layout^='tool-'] .point-tool-page > .error-banner,
+  body[data-layout^='tool-'] .point-tool-app .hub-page > .hub-page-head,
+  body[data-layout^='tool-'] .point-tool-app .hub-page > .connection-secret-note,
+  body[data-layout^='tool-'] .point-tool-app .hub-page > .safety-note,
+  body[data-layout^='tool-'] .point-tool-app .hub-page > .db-query-result,
+  body[data-layout^='tool-'] .point-tool-app .hub-page > .db-schema,
+  body[data-layout^='tool-'] .point-tool-app .hub-page > .hub-transitional { grid-column: 1 / -1; }
+}

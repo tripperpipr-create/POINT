@@ -232,8 +232,11 @@ func (a *App) handleToolFinishedEgress(event domain.Event) {
 	if err := json.Unmarshal(event.Data, &payload); err != nil {
 		return
 	}
-	code, message := toolFinishedEgressHint(payload)
+	code, message, structuredTarget := toolFinishedEgressHint(payload)
 	kind, target := egressTargetFromToolError(code, message)
+	if kind == domain.EgressAskNetworkHost {
+		target = structuredTarget
+	}
 	if kind == "" || target == "" || target == "unspecified-remote" {
 		return
 	}

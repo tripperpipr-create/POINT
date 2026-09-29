@@ -219,8 +219,20 @@ func DefaultStageInstruction(role string) string {
 }
 
 // EnsureProjectPipeline inserts integrate + read-only review + accept before the
-// verifier when a compiled flow is missing those stage roles, and labels concurrent writers.
+// verifier when a compiled flow is missing those stage roles, labels concurrent
+// writers and gives agent stages the default retry policy.
+//
+// Без политики узел проектного потока имел failurePolicy {} — режим stop, — и
+// первый же сбой этапа закрывал квест «Заблокировано», хотя наряд разрешал три
+// попытки (живой квест 29.09). Потолок попыток брифа и правило «та же ошибка
+// дважды — стоп» остаются в recoverFlowNodeFailure.
 func EnsureProjectPipeline(flow domain.FlowGraph, agentIDs []string) domain.FlowGraph {
+	flow = ensureProjectStages(flow, agentIDs)
+	applyDefaultAgentRetryPolicy(flow.Nodes)
+	return flow
+}
+
+func ensureProjectStages(flow domain.FlowGraph, agentIDs []string) domain.FlowGraph {
 	hasIntegrate, hasReview, hasAcceptAgent := false, false, false
 	for _, node := range flow.Nodes {
 		switch domain.FlowNodeStageRole(node) {

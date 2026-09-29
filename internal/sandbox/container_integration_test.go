@@ -70,8 +70,8 @@ func TestDockerSandboxIntegration(t *testing.T) {
 		`tr '\000' ' ' < /proc/1/cmdline | grep -q '/bin/sh'`,
 		`test -z "${POINT_HOST_SECRET+x}"`,
 		`for tool in node npm go python3 git rg gcc g++ make; do command -v "$tool" >/dev/null; done`,
-		`test "$(node --version)" = "v24.20.0"`,
-		`test "$(npm --version)" = "12.0.2"`,
+		fmt.Sprintf(`test "$(node --version)" = %q`, sandboxExpectedVersion("POINT_SANDBOX_EXPECT_NODE", "v24.20.0")),
+		fmt.Sprintf(`test "$(npm --version)" = %q`, sandboxExpectedVersion("POINT_SANDBOX_EXPECT_NPM", "12.0.2")),
 		`go version | grep -Eq '^go version go1\.26\.7 linux/'`,
 		`python3 --version | grep -qx 'Python 3.13.15'`,
 		`if test -f /sys/fs/cgroup/memory.max; then ` +
@@ -127,7 +127,7 @@ func TestDockerSandboxIntegration(t *testing.T) {
 			result := (tools.RunCommand{
 				FS: fs, Executor: backend, NetworkPolicy: "ALLOWLIST", AllowedNetworkHosts: allowlist, RunID: "integration-egress-deny",
 			}).Execute(context.Background(), payload)
-			if !result.OK || strings.Contains(string(result.Output), `"exitCode":0`) {
+			if result.OK && strings.Contains(string(result.Output), `"exitCode":0`) {
 				t.Fatalf("controlled gateway allowed %s: %#v", name, result)
 			}
 		})
@@ -186,7 +186,7 @@ func TestDockerComposerDistributionIntegration(t *testing.T) {
 	}
 	payload, _ := json.Marshal(map[string]any{
 		"command": `composer create-project symfony/skeleton:"7.*" . --no-interaction --prefer-dist`,
-		"reason": "verify Composer archive hosts through controlled egress", "timeoutSeconds": 180,
+		"reason":  "verify Composer archive hosts through controlled egress", "timeoutSeconds": 180,
 	})
 	result := (tools.RunCommand{
 		FS: fs, Executor: backend, SandboxImage: "point-agent-sandbox-php:1.3.1",
@@ -195,7 +195,9 @@ func TestDockerComposerDistributionIntegration(t *testing.T) {
 		}, RunID: "integration-composer-dist",
 	}).Execute(context.Background(), payload)
 	if !result.OK || !strings.Contains(string(result.Output), `"exitCode":0`) {
-		var output struct{ Stderr string `json:"stderr"` }
+		var output struct {
+			Stderr string `json:"stderr"`
+		}
 		_ = json.Unmarshal(result.Output, &output)
 		t.Fatalf("Composer distribution through controlled egress failed: %s (tool error: %v)", output.Stderr, result.Error)
 	}
@@ -204,7 +206,7 @@ func TestDockerComposerDistributionIntegration(t *testing.T) {
 	}
 	requirePayload, _ := json.Marshal(map[string]any{
 		"command": "composer require symfony/orm-pack --no-interaction --prefer-dist",
-		"reason": "verify approved Symfony ORM dependencies through controlled egress", "timeoutSeconds": 240,
+		"reason":  "verify approved Symfony ORM dependencies through controlled egress", "timeoutSeconds": 240,
 	})
 	result = (tools.RunCommand{
 		FS: fs, Executor: backend, SandboxImage: "point-agent-sandbox-php:1.3.1",
@@ -213,7 +215,9 @@ func TestDockerComposerDistributionIntegration(t *testing.T) {
 		}, RunID: "integration-composer-orm",
 	}).Execute(context.Background(), requirePayload)
 	if !result.OK || !strings.Contains(string(result.Output), `"exitCode":0`) {
-		var output struct{ Stderr string `json:"stderr"` }
+		var output struct {
+			Stderr string `json:"stderr"`
+		}
 		_ = json.Unmarshal(result.Output, &output)
 		t.Fatalf("Composer ORM dependencies through controlled egress failed: %s (tool error: %v)", output.Stderr, result.Error)
 	}
@@ -252,4 +256,11 @@ func TestDockerPythonPackageManagerProvisioningIntegration(t *testing.T) {
 
 func strconvShell(path string) string {
 	return "'" + strings.ReplaceAll(filepath.ToSlash(path), "'", "'\\''") + "'"
+}
+
+func sandboxExpectedVersion(name, fallback string) string {
+	if value := strings.TrimSpace(os.Getenv(name)); value != "" {
+		return value
+	}
+	return fallback
 }

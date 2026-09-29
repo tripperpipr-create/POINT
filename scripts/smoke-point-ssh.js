@@ -76,6 +76,10 @@ async function main() {
     sshRemotePickerEntries(['src/', 'main.go']).map(item => [item.remoteName, item.directory]),
     [['src', true], ['main.go', false]],
   )
+  assert.deepEqual(
+    sshRemotePickerEntries(['.', '..', '../', './', 'src/main.go', 'src\\main.go', 'safe.txt']).map(item => item.remoteName),
+    ['safe.txt'],
+  )
 
   const service = {
     async request(route, options) {

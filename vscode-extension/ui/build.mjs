@@ -58,7 +58,16 @@ function withoutComments(css) {
 // содержат правила с !important на общих именах вроде `.primary`, поэтому новый
 // слой, переиспользовавший такое имя, проигрывает независимо от специфичности.
 // Проверка ловит это на сборке, а не глазами в браузере.
-const NAMESPACES = { '05-hall.css': /^(hall-|is-)/, '07-master-quiet.css': /^(hall-|is-)/, '07c-master-feed.css': /^(hall-|is-)/, '07d-master-inspector.css': /^(hall-|is-)/, '27-chat-directory.css': /^(hall-|is-)/ }
+const NAMESPACES = {
+  '05-hall.css': /^(hall-|is-)/,
+  '05a-hall-controls.css': /^(hall-|is-)/,
+  '05b-hall-decisions.css': /^(hall-|is-)/,
+  '07-master-quiet.css': /^(hall-|is-)/,
+  '07c-master-feed.css': /^(hall-|is-)/,
+  '07d-master-inspector.css': /^(hall-|is-)/,
+  '27-chat-directory.css': /^(hall-|is-)/,
+}
+const HALL_LAYERS = new Set(['05-hall.css', '05a-hall-controls.css', '05b-hall-decisions.css'])
 
 function classNames(source) {
   const css = withoutComments(source)
@@ -140,7 +149,11 @@ for (const name of layerNames) {
   // Имена всех прочих слоёв — база для проверки коллизий.
   const others = new Set()
   for (const [other, source] of sources) {
-    if (other !== name) for (const cls of classNames(source)) others.add(cls)
+    // Части прежнего 05-hall.css образуют один логический слой: совпадения
+    // между ними существовали и до разделения файла.
+    if (other !== name && !(HALL_LAYERS.has(name) && HALL_LAYERS.has(other))) {
+      for (const cls of classNames(source)) others.add(cls)
+    }
   }
   problems = problems.concat(lint(name, css))
   structural = structural.concat(structuralCheck(name, css), namespaceCheck(name, css, others))

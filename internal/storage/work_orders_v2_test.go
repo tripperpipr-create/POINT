@@ -545,7 +545,7 @@ func TestConversationWorkOrdersDoNotDeadlockOnTheSingleConnection(t *testing.T) 
 	listCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	started := time.Now()
-	orders, err := store.ListWorkOrdersForConversationV2(listCtx, "conversation-1")
+	orders, err := store.ListWorkOrdersForConversationV2(listCtx, order.WorkspaceID, "conversation-1")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -2,8 +2,6 @@ package app
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -97,7 +95,7 @@ func TestAgentSelectorUsesGeneralDeveloperDraftForSymfony(t *testing.T) {
 	}
 }
 
-func TestRejectDraftCascadesAndExcludesFamilyForSameSelection(t *testing.T) {
+func TestSelectorProposalStaysUnpersistedUntilApproval(t *testing.T) {
 	application, world := rosterTestApp(t, "dispatcher")
 	order := rosterTestOrder(t, application, rosterTestProposal(world.ID, "selector-reject", "Развернуть Symfony", true), "conversation-selector-reject")
 	if len(order.Roster.Permanent) != 1 || order.Roster.Permanent[0].Existing {
@@ -105,36 +103,6 @@ func TestRejectDraftCascadesAndExcludesFamilyForSameSelection(t *testing.T) {
 	}
 	if _, getErr := application.store.GetProjectAgent(context.Background(), order.Roster.Permanent[0].ID); getErr == nil {
 		t.Fatalf("non-persisted selector proposal appeared in project roster")
-	}
-	return
-	if len(order.Roster.AgentIDs) != 1 {
-		t.Fatalf("selector result = %#v", order.Roster)
-	}
-	root, err := application.store.GetProjectAgent(context.Background(), order.Roster.AgentIDs[0])
-	if err != nil {
-		t.Fatal(err)
-	}
-	child := root
-	child.ID, child.Status, child.ParentAgentID, child.OwnerQuestID, child.Temporary = "draft-child", domain.ProjectAgentActive, root.ID, "quest-x", true
-	child.Name = "Symfony child"
-	if err = application.store.SaveProjectAgent(context.Background(), child); err != nil {
-		t.Fatal(err)
-	}
-	result, err := application.RejectProjectAgentDraft(root.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(result.ReplacementAgentIDs) != 0 {
-		t.Fatalf("rejected family was proposed again: %#v", result)
-	}
-	for _, id := range []string{root.ID, child.ID} {
-		if _, getErr := application.store.GetProjectAgent(context.Background(), id); !errors.Is(getErr, sql.ErrNoRows) {
-			t.Fatalf("rejected agent %s survived: %v", id, getErr)
-		}
-	}
-	rejected, err := application.store.RejectedRoleFamiliesForWorkOrder(context.Background(), order.ID)
-	if err != nil || len(rejected) != 1 || rejected[0] != "developer" {
-		t.Fatalf("rejection exclusion = %#v err=%v", rejected, err)
 	}
 }
 

@@ -695,24 +695,39 @@ type UsageRecord struct {
 // OrchestratorConfig is the project-scoped system agent that assigns parties
 // and starts Flows. It is separate from Companion: Companion only recommends.
 type OrchestratorConfig struct {
-	Learning *MasterLearningConfig `json:"learning,omitempty"`
-	ID                 string       `json:"id"`
-	WorkspaceID        string       `json:"workspaceId,omitempty"`
-	Preset             string       `json:"preset"`
-	ConnectionID       string       `json:"connectionId,omitempty"`
-	Provider           ProviderKind `json:"provider,omitempty"`
-	ProviderPreset     string       `json:"providerPreset,omitempty"`
-	BaseURL            string       `json:"baseUrl,omitempty"`
-	APIVersion         string       `json:"apiVersion,omitempty"`
-	Model              string       `json:"model,omitempty"`
-	Temperature        float64      `json:"temperature,omitempty"`
-	MaxOutputTokens    int          `json:"maxOutputTokens,omitempty"`
-	PlanningDepth      int          `json:"planningDepth"`
-	Parallelism        int          `json:"parallelism"`
-	ApprovalStrictness int          `json:"approvalStrictness"`
-	TeamPreference     int          `json:"teamPreference"`
-	CreatedAt          time.Time    `json:"createdAt"`
-	UpdatedAt          time.Time    `json:"updatedAt"`
+	ProjectModelOverride bool                  `json:"projectModelOverride,omitempty"`
+	Learning             *MasterLearningConfig `json:"learning,omitempty"`
+	ID                   string                `json:"id"`
+	WorkspaceID          string                `json:"workspaceId,omitempty"`
+	Preset               string                `json:"preset"`
+	ConnectionID         string                `json:"connectionId,omitempty"`
+	Provider             ProviderKind          `json:"provider,omitempty"`
+	ProviderPreset       string                `json:"providerPreset,omitempty"`
+	BaseURL              string                `json:"baseUrl,omitempty"`
+	APIVersion           string                `json:"apiVersion,omitempty"`
+	Model                string                `json:"model,omitempty"`
+	Temperature          float64               `json:"temperature,omitempty"`
+	MaxOutputTokens      int                   `json:"maxOutputTokens,omitempty"`
+	PlanningDepth        int                   `json:"planningDepth"`
+	Parallelism          int                   `json:"parallelism"`
+	ApprovalStrictness   int                   `json:"approvalStrictness"`
+	TeamPreference       int                   `json:"teamPreference"`
+	CreatedAt            time.Time             `json:"createdAt"`
+	UpdatedAt            time.Time             `json:"updatedAt"`
+}
+
+type GlobalModelChoice struct {
+	ConnectionID string `json:"connectionId,omitempty"`
+	Model        string `json:"model,omitempty"`
+}
+
+// GlobalModelDefaults are shared by all projects. Project agent bindings
+// already saved in the roster are never rewritten when these defaults change.
+type GlobalModelDefaults struct {
+	Master    GlobalModelChoice `json:"master"`
+	Archivist GlobalModelChoice `json:"archivist"`
+	Agent     GlobalModelChoice `json:"agent"`
+	UpdatedAt time.Time         `json:"updatedAt,omitempty"`
 }
 
 // CompanionConfig stores personality and mode preferences.
@@ -837,55 +852,6 @@ type CompanionActionProposal struct {
 	ContinuationLabel  string    `json:"continuationLabel,omitempty"`
 	CreatedAt          time.Time `json:"createdAt"`
 	UpdatedAt          time.Time `json:"updatedAt"`
-}
-
-// IDEObservation is bounded, workspace-scoped evidence reported by the IDE.
-// It lets Companion reason about editor diagnostics and terminal/task outcomes
-// without turning the LLM into the runtime or granting it terminal access.
-type IDEObservation struct {
-	ID          string    `json:"id"`
-	WorkspaceID string    `json:"workspaceId"`
-	Kind        string    `json:"kind"` // diagnostic | terminal | task | debug | run | scm
-	Source      string    `json:"source,omitempty"`
-	Level       string    `json:"level"` // info | warning | error
-	Summary     string    `json:"summary"`
-	Detail      string    `json:"detail,omitempty"`
-	Path        string    `json:"path,omitempty"`
-	Line        int       `json:"line,omitempty"`
-	Command     string    `json:"command,omitempty"`
-	ExitCode    *int      `json:"exitCode,omitempty"`
-	ObservedAt  time.Time `json:"observedAt"`
-	FirstSeen   time.Time `json:"firstSeen,omitempty"`
-	LastSeen    time.Time `json:"lastSeen,omitempty"`
-	Count       int       `json:"count,omitempty"`
-	NoveltyHash string    `json:"noveltyHash,omitempty"`
-	FocusPath   string    `json:"focusPath,omitempty"`
-}
-
-// CompanionIntervention is a live, non-blocking recommendation derived from
-// observable project state. Enforcement remains in policy/permission layers.
-type CompanionInterventionAction string
-
-const (
-	CompanionInterventionOpenRun         CompanionInterventionAction = "open_run"
-	CompanionInterventionMessageRun      CompanionInterventionAction = "message_run"
-	CompanionInterventionPrompt          CompanionInterventionAction = "companion_prompt"
-	CompanionInterventionProbeConnection CompanionInterventionAction = "probe_connection"
-)
-
-type CompanionIntervention struct {
-	ID            string                      `json:"id"`
-	Level         string                      `json:"level"` // suggestion | warning | critical
-	Title         string                      `json:"title"`
-	Detail        string                      `json:"detail"`
-	ActionTab     string                      `json:"actionTab,omitempty"`
-	RelatedID     string                      `json:"relatedId,omitempty"`
-	RelatedPath   string                      `json:"relatedPath,omitempty"`
-	RelatedLine   int                         `json:"relatedLine,omitempty"`
-	ActionKind    CompanionInterventionAction `json:"actionKind,omitempty"`
-	ActionLabel   string                      `json:"actionLabel,omitempty"`
-	ActionMessage string                      `json:"actionMessage,omitempty"`
-	OccurrenceKey string                      `json:"occurrenceKey"`
 }
 
 // QuestProposal is a typed Companion recommendation.

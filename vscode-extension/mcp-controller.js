@@ -168,7 +168,7 @@ function createMcpController({ vscode, secrets, request, coreKey, post }) {
           return
         case 'probe':
           await request(`/api/mcp/servers/${encodeURIComponent(id)}/probe`, { method: 'POST', body: '{}', timeoutMs: PROBE_TIMEOUT_MS })
-          await publish()
+          await publish({ probed: id })
           return
         case 'stop':
           await request(`/api/mcp/servers/${encodeURIComponent(id)}/stop`, { method: 'POST', body: '{}' })

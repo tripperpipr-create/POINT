@@ -1,0 +1,534 @@
+
+/* ════ Заголовок окна ════════════════════════════════════════════════════════
+   Полоса чипов: слева меню и опознание проекта, по центру поиск, справа
+   запуск. Чипы без рамок — рамка только у поля поиска и у кнопки запуска. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar {
+	/* Плоская ступень грунта, та же, что у левой рейки: заголовок и рейка
+	   образуют один угол хрома, и градиент делал из него две разные вещи.
+	   Декоративные градиенты регистр оболочки не использует (§ «Геометрия и
+	   типографика» в docs/RPG-DESIGN-SYSTEM.md). */
+	background: var(--point-rail) !important;
+	border-bottom: 1px solid var(--point-border) !important;
+	box-shadow: none;
+	gap: 8px;
+	min-height: 30px;
+	overflow: hidden;
+	padding: 0 12px;
+}
+.monaco-workbench:has(.point-activitybar) .part.titlebar .titlebar-left,
+.monaco-workbench:has(.point-activitybar) .part.titlebar .titlebar-center,
+.monaco-workbench:has(.point-activitybar) .part.titlebar .titlebar-right {
+	min-width: 0;
+	overflow: hidden;
+}
+/* Project and run controls keep their intrinsic width. Search is centered in
+   the remaining space and may shrink as the window becomes narrower. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .titlebar-left {
+	/* Ширина 20% от `has-center` держала левую часть шире содержимого, и между
+	   клоном и поиском оставалась дыра в четверть экрана. */
+	flex: 0 0 auto !important;
+	/* Тот же просвет, что внутри рядов действий: у запуска с отладкой 4px, а
+	   значок окна, гамбургер и жетон проекта стояли встык — на наведении их
+	   подложки слипались в один сегментированный переключатель. Между группами
+	   остаётся 8px (отступ центральной области). */
+	column-gap: 4px;
+	width: auto !important;
+}
+.monaco-workbench:has(.point-activitybar) .part.titlebar .titlebar-center {
+	flex: 1 1 auto !important;
+	justify-content: center;
+	margin: 0 0 0 8px !important;
+	max-width: none !important;
+	width: auto !important;
+}
+.monaco-workbench:has(.point-activitybar) .part.titlebar .titlebar-right {
+	flex: 0 0 auto !important;
+	width: auto !important;
+}
+
+/* Неактивное окно. Code-OSS гасит содержимое заголовка до 60%, и на этом
+   имя проекта, ветка и конфигурация запуска перестают проходить порог
+   контраста: замер живого окна в сценарии file дал 3.03 у подписи поиска и
+   3.47 у метки проекта при пороге 4.5 — притом что в активном окне у них 6.1 и
+   7.7. Признак «окно не в фокусе» нужен, но он не обязан стоить читаемости:
+   85% сохраняет разницу и держит обе надписи выше порога (5.1 и 5.4).
+   Заодно это снимает зависимость замера от фокуса: до правки один и тот же
+   код давал разные находки в зависимости от того, активно ли окно стенда. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar.inactive > * { opacity: .85; }
+
+/* Порядок в полосе задан флексом. Важность у значка окна нужна: Code-OSS
+   задаёт ему порядок цепочкой от контейнера, она длиннее здешней, и без неё
+   гамбургер уезжал левее логотипа. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .window-appicon {
+	background-size: 22px 22px !important;
+	margin-left: 8px;
+	order: 0 !important;
+	width: 29px;
+}
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-title-actions {
+	align-items: center;
+	-webkit-app-region: no-drag;
+	display: flex;
+	gap: 4px;
+	height: 100%;
+	order: 2;
+	position: relative;
+	z-index: 2500;
+}
+/* Гамбургер у левого края, запуск и отладка — в правой части. Оба ряда несут
+   класс `point-title-actions`, поэтому их порядок объявлен ПОСЛЕ общего: при
+   равном весе побеждает то правило, что ниже. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-lead-actions { order: 0; }
+/* Правая часть шире содержимого. Автоотступ есть и у контейнера действий
+   Code-OSS, поэтому свободное место делилось между ним и нашим рядом — на
+   широком окне это две дыры по трети полосы. Отступ снимаем, выравнивание
+   области по правому краю прижимает всё в один угол. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-run-actions {
+	margin-right: 8px;
+	order: 0;
+}
+.monaco-workbench:has(.point-activitybar) .part.titlebar .titlebar-right > .action-toolbar-container { margin-left: 0 !important; }
+/* Кнопки раскладки и стрелки навигации — из Code-OSS, и он даёт им 22×22 при
+   пороге цели 24. Замер живого окна находил их во всех четырёх сценариях, но
+   считать это отступлением статус-бара было нельзя: рядом стоят собственные
+   кнопки Point ростом 28, и разнобой видно глазом. Ставим тот же рост, а не
+   минимальный проходной: одна полоса — одна геометрия.
+   Важность нужна: размер этим кнопкам Code-OSS задаёт цепочкой от
+   `.monaco-action-bar`, и она длиннее здешней. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .monaco-action-bar .action-item > .action-label.codicon {
+	align-items: center;
+	border-radius: var(--point-r);
+	display: flex !important;
+	height: 28px !important;
+	justify-content: center;
+	min-width: 28px;
+	width: 28px !important;
+}
+
+/* ── Одна геометрия на всю полосу ───────────────────────────────────────────
+   Чипы, кнопки и пункты меню — один рост 28, один радиус, одно наведение:
+   мягкая подложка без рамки. Рамка на наведении обводила каждую мелочь
+   янтарной ниткой, и полоса из шести таких обводок читалась как мозаика.
+   Рамку носит только запуск — единственное, что и должно выделяться. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-project-switcher,
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-branch-chip {
+	align-items: center;
+	-webkit-app-region: no-drag;
+	background: transparent;
+	border: 1px solid transparent;
+	border-radius: var(--point-r);
+	color: var(--point-primary);
+	cursor: pointer;
+	display: flex;
+	gap: 8px;
+	height: 28px;
+	order: 1;
+	padding: 0 8px;
+	position: relative;
+	transition: background-color var(--point-motion-fast) ease, color var(--point-motion-fast) ease;
+	z-index: 2500;
+}
+/* Раскрытый жетон держит подсветку наведения, пока висит его список: указатель
+   к этому времени уже на списке, и без этого выпадашка выглядит прилетевшей
+   ниоткуда. Тот же приём, что у развёрнутого пункта строки меню. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-project-switcher:hover,
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-project-switcher.point-widget-open,
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-branch-chip:hover,
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-branch-chip.point-widget-open { background: var(--point-tint-strong); }
+/* Раскрытый жетон переворачивает стрелку: список открыт — стрелка смотрит на
+   него, а не вниз. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-widget-open .codicon-chevron-down { transform: rotate(180deg); }
+/* Строка в 13 пикселей при `line-height: 1` даёт коробку ровно в кегль, а
+   `overflow: hidden` для многоточия срезает по ней: у «go-health-git» пропадали
+   хвосты «g». Полтора интерлиньяжа коробку отпускают, высоту жетона держит его
+   собственные 28. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-project-switcher-label {
+	font: 500 13px/1.45 var(--point-font);
+	max-width: 118px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+/* Метка проекта — квадрат с буквой: рядом с именем папки значок папки ничего
+   не добавляет, а буква работает как герб проекта. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-project-mark {
+	align-items: center;
+	/* Заливкой, а не обводкой: рядом с чипом, у которого рамки нет, обведённый
+	   квадрат читался вторым элементом управления.
+	   Заливка сплошная, буква тёмная. Янтарная буква на янтарной подложке
+	   давала контраст 2.97 при пороге 4.5 — замер живого окна нашёл это в
+	   каждом сценарии, где открыт проект. Теперь 8.9. */
+	background: var(--point-ember);
+	border-radius: var(--point-r);
+	color: var(--point-void);
+	display: flex;
+	flex: none;
+	font: 600 11px/1 var(--point-font);
+	height: 20px;
+	justify-content: center;
+	width: 20px;
+}
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-project-switcher .codicon-chevron-down { color: var(--point-faint); font-size: var(--point-icon-sm); }
+/* Ветка — свойство проекта, а не действие, и набрана обычным текстом. Прежде
+   она шла светлой ступенью акцента, и в полосе заголовка получалось два
+   янтарных пятна подряд: метка проекта и имя ветки. Опознаёт ветку значок. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-branch-chip { color: var(--point-body); }
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-branch-chip .codicon { font-size: var(--point-icon-sm); }
+/* Стрелка у ветки — той же светлоты и размера, что у проекта и конфигурации
+   запуска: три жетона панели раскрывают списки и должны обещать это одинаково. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-branch-chip .codicon-chevron-down { color: var(--point-faint); font-size: var(--point-icon-sm); }
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-branch-chip-label {
+	font: 400 12px/1.45 var(--point-font);
+	max-width: 180px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+/* Пометки жетона — точка несохранённого и счётчики обмена с сервером — живут
+   своей обёрткой между именем и стрелкой. Не в одной коробке с именем: имя
+   обрезается многоточием, и счётчики обрезались бы вместе с ним, то есть
+   пропадали бы ровно у длинных имён веток — там, где и без того тесно. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-branch-chip-marks {
+	align-items: center;
+	display: flex;
+	flex: none;
+	gap: 4px;
+}
+/* Точка несохранённого — та же, что у изменённой вкладки редактора: один знак
+   на продукт для «есть работа, которой нет в истории». */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-branch-chip-dot {
+	background: var(--point-ember);
+	border-radius: 50%;
+	height: 6px;
+	width: 6px;
+}
+/* Счётчики — цифра на подложке, а не текст в строку: рядом с именем ветки
+   голое число читается продолжением имени. Краска нейтральная: янтарь у Point
+   опознаёт продукт, и красить им каждое число значило бы его растратить. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-branch-chip-count {
+	background: var(--point-tint);
+	border-radius: var(--point-r);
+	color: var(--point-muted);
+	font: 500 10px/1.45 var(--point-mono);
+	padding: 0 4px;
+}
+/* Неопубликованная ветка — не «ноль исходящих», а другое состояние: отправлять
+   некуда вовсе. Числом это не сказать, поэтому значок. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-branch-chip-unpublished {
+	color: var(--point-muted);
+	font-size: var(--point-icon-sm);
+}
+/* Репозитория нет — чипа нет вовсе. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-branch-chip-idle { display: none; }
+
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-title-action {
+	align-items: center;
+	background: transparent;
+	border: 1px solid transparent;
+	border-radius: var(--point-r);
+	color: var(--point-muted);
+	cursor: pointer;
+	display: flex;
+	height: 28px;
+	justify-content: center;
+	padding: 0;
+	transition: background-color var(--point-motion-fast) ease, color var(--point-motion-fast) ease;
+	width: 28px;
+}
+/* Значок 18 в кнопке 28: до этого 16 в 26 — иконка тонула в подложке и с
+   расстояния читалась пятном, а не действием. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-title-action .codicon { font-size: var(--point-icon-lg); }
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-title-action:hover {
+	background: var(--point-tint-strong);
+	color: var(--point-primary);
+}
+/* Чип конфигурации запуска: точка, имя, галочка. Точка нейтральная — она
+   опознаёт конфигурацию, а не сообщает, что прогон идёт; врать про состояние
+   хуже, чем не показывать его. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-run-chip {
+	align-items: center;
+	-webkit-app-region: no-drag;
+	background: transparent;
+	border: 1px solid transparent;
+	border-radius: var(--point-r);
+	color: var(--point-body);
+	cursor: pointer;
+	display: flex;
+	font: 400 12px/1 var(--point-font);
+	gap: 8px;
+	height: 28px;
+	max-width: 190px;
+	padding: 0 8px;
+	transition: background-color var(--point-motion-fast) ease;
+}
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-run-chip:hover,
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-run-chip.point-widget-open { background: var(--point-tint-strong); }
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-run-chip-dot {
+	background: var(--point-faint);
+	border-radius: 50%;
+	flex: none;
+	height: 6px;
+	width: 6px;
+}
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-run-chip-label {
+	line-height: 1.45;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-run-chip .codicon-chevron-down { color: var(--point-faint); font-size: 13px; }
+/* Конфигурации нет — чипа нет. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-run-chip-idle { display: none; }
+
+/* Запуск — единственная кнопка заголовка с рамкой и подложкой. В макете она
+   выделена акцентом; у Point акцент запуска зелёный, как во всём продукте. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-title-action-run {
+	background: color-mix(in srgb, var(--point-vital) 12%, transparent);
+	border-color: color-mix(in srgb, var(--point-vital) 55%, transparent);
+	color: var(--point-vital);
+}
+.monaco-workbench:has(.point-activitybar) .part.titlebar .point-title-action-run:hover {
+	background: color-mix(in srgb, var(--point-vital) 20%, transparent);
+	border-color: var(--point-vital);
+	color: var(--point-vital);
+}
+
+/* ── Развёрнутый ряд меню ────────────────────────────────────────────────────
+   Второй слой заголовка: гамбургер меняет чипы на меню и обратно. Меню тут
+   настоящее — то, что собирает Code-OSS; полоса лишь показывает его вместо
+   чипов, как в макете, и подсвечивает себя акцентной кромкой снизу.
+
+   Ряд ведёт себя как в JetBrains: список раскрывается наведением, а уход с
+   панели закрывает и список, и сам ряд (заплаты `point-menubar-hover` и
+   `point-menu-hover-close`). Раз указатель тут не выбирает, а сразу
+   открывает, — состояние под ним обязано читаться мгновенно: наведённый пункт
+   получает подложку, раскрытый ещё и акцент. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .menubar {
+	flex: 1 1 auto;
+	gap: 1px;
+	/* Code-OSS центрует ряд меню, когда в заголовке есть центральная область;
+	   в макете он начинается сразу за крестиком. */
+	justify-content: flex-start;
+	min-width: 0;
+	opacity: 0;
+	order: 1;
+	pointer-events: none;
+	position: absolute;
+	transform: translateY(6px);
+	transition: opacity var(--point-motion-base) ease, transform var(--point-motion-base) ease;
+}
+.monaco-workbench:has(.point-activitybar) .part.titlebar .titlebar-container.point-menu .menubar {
+	opacity: 1;
+	pointer-events: auto;
+	position: static;
+	transform: none;
+}
+/* Ряду меню нужна вся полоса. Левая область при центральном командном центре
+   зажата в 20% ширины, и меню обрывалось на третьем пункте; на время разворота
+   центр убирается совсем, а левая область забирает освободившееся место. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .titlebar-container.point-menu .titlebar-left {
+	flex: 1 1 auto;
+	position: relative;
+	width: auto !important;
+}
+.monaco-workbench:has(.point-activitybar) .part.titlebar .titlebar-container.point-menu .titlebar-center { display: none; }
+
+/* Чипы уходят наверх и гаснут — второй слой занимает их место. В макете
+   развёрнутая полоса оставляет только крестик и меню, поэтому запуск и
+   отладка уходят вместе с чипами. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .titlebar-container.point-menu .point-project-switcher,
+.monaco-workbench:has(.point-activitybar) .part.titlebar .titlebar-container.point-menu .point-branch-chip,
+.monaco-workbench:has(.point-activitybar) .part.titlebar .titlebar-container.point-menu .point-title-actions:not(.point-lead-actions) {
+	opacity: 0;
+	pointer-events: none;
+	/* Не `display: none`: погашенные чипы обязаны уйти из потока, иначе ряд
+	   меню начинается там, где кончались невидимые чипы — но остаться в DOM,
+	   чтобы гаснуть плавно. Абсолютное положение без смещений оставляет их на
+	   своём месте и вынимает из строки. */
+	position: absolute;
+	transform: translateY(-6px);
+	transition: opacity var(--point-motion-base) ease, transform var(--point-motion-base) ease;
+}
+.monaco-workbench:has(.point-activitybar) .part.titlebar:has(.titlebar-container.point-menu) {
+	/* Развёрнутый ряд меню — ступень выше рейки, плоская: слой открыт, и это
+	   сказано светлотой, а не градиентом. */
+	background: var(--point-raised) !important;
+	border-bottom-color: transparent !important;
+	box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--point-ember) 40%, transparent);
+}
+/* Крестик вместо гамбургера, пока ряд развёрнут. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .titlebar-container.point-menu .point-menu-toggle {
+	background: var(--point-tint-strong);
+	color: var(--point-ember);
+}
+.monaco-workbench:has(.point-activitybar) .part.titlebar .titlebar-container.point-menu .point-menu-toggle .codicon::before { content: '\ea76'; }
+/* Гамбургер и ряд — разные вещи: первый переключает слой, второй ведёт по нему.
+   Линейка между ними это и говорит, а заодно отбивает пункты от кнопки, чтобы
+   «Файл» не читался четвёртой иконкой. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .titlebar-container.point-menu .point-lead-actions::after {
+	background: var(--point-border-soft);
+	content: '';
+	height: 16px;
+	margin: 0 4px 0 8px;
+	width: 1px;
+}
+.monaco-workbench:has(.point-activitybar) .part.titlebar .menubar-menu-button {
+	background: none !important;
+	color: var(--point-body);
+	font: 400 12px/1 var(--point-font);
+	/* Пункт занимает всю высоту полосы, а не только свою таблетку. Дело не в
+	   цели указателя (она и так велика), а в том, где раскрывается список:
+	   Code-OSS ставит его по нижней кромке **надписи**, и укоротить её значило
+	   бы въехать списком в полосу — при высоте 26 он начинался на три пикселя
+	   выше низа пункта и накрывал акцентную кромку панели. */
+	height: 100%;
+	/* Свои поля кнопке не нужны: Code-OSS держит их на надписи внутри, и два
+	   набора складывались — пункты расползались вдвое против макета. */
+	padding: 0;
+	transition: color var(--point-motion-fast) ease;
+}
+.monaco-workbench:has(.point-activitybar) .part.titlebar .menubar-menu-title {
+	/* Наведение и раскрытие Code-OSS красит сам: `menubarControl.css` кладёт на
+	   надпись заливку `menubar.selectionBackground` во всю её высоту и обводку
+	   `menubar.selectionBorder` — на наведении пунктирную. Заливка от верха до
+	   низа полосы и есть та кривизна, за которую ряд ругали: серый прямоугольник
+	   вместо таблетки, да ещё и поверх нашей подложки. Важность нужна: цепочка
+	   там своя, длиной с нашу, и порядок файлов её не решает. */
+	background: none !important;
+	height: 100%;
+	outline: none !important;
+	/* Надпись центрируется межстрочным, а не флексом: во флексе буква мнемоники
+	   («Ф» в «Файле») — отдельный элемент, и он становится отдельной колонкой,
+	   отрываясь от остального слова. */
+	line-height: 44px;
+	/* Своя область наложения: подложка лежит слоем ниже надписи и не может
+	   уехать за спину панели. */
+	isolation: isolate;
+	padding: 0 8px;
+	position: relative;
+}
+/* Подложка — таблетка 28 внутри полосы 44 (заплата «Point title bar height»):
+   отступ сверху и снизу по (44 − 28) / 2. Рост тот же, что у чипов и кнопок
+   полосы. Высота полосы и таблетки меняются вместе — иначе подложка съедет. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .menubar-menu-title::before {
+	border-radius: var(--point-r);
+	content: '';
+	inset: 8px 0;
+	position: absolute;
+	transition: background-color var(--point-motion-fast) ease;
+	z-index: -1;
+}
+/* Клавиатурный фокус рисуется по таблетке, а не по надписи во всю высоту.
+   `:focus-visible`, а не `:focus`: список открывается наведением, и кольцо на
+   каждом пройденном пункте — шум. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .menubar-menu-button:focus-visible .menubar-menu-title::before {
+	outline: 1px solid var(--point-ember);
+	outline-offset: 1px;
+}
+.monaco-workbench:has(.point-activitybar) .part.titlebar .menubar-menu-button:hover { color: var(--point-primary); }
+.monaco-workbench:has(.point-activitybar) .part.titlebar .menubar-menu-button:hover .menubar-menu-title::before { background: var(--point-tint); }
+.monaco-workbench:has(.point-activitybar) .part.titlebar .menubar-menu-button.open { color: var(--point-primary); }
+.monaco-workbench:has(.point-activitybar) .part.titlebar .menubar-menu-button.open .menubar-menu-title::before { background: var(--point-tint-strong); }
+/* Список пункта висит под своим пунктом и остаётся внутри панели
+   (`position: fixed` в потомке кнопки) — общая заплата всплывающего бьёт по
+   `.context-view` и сюда не достаёт. Важность нужна: `menubar.css` снимает
+   рамку у `.monaco-menu-container` цепочкой той же длины, но объявленной
+   позже нашей. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .menubar-menu-items-holder {
+	background: var(--point-selected);
+	border: 1px solid var(--point-border) !important;
+	border-radius: var(--point-r-lg);
+	box-shadow: 0 16px 40px rgba(0, 0, 0, .55);
+	/* Отступ от полосы: список не приклеен к пункту, а висит под ним — так
+	   видно, что это отдельный слой, а не продолжение панели. */
+	margin-top: 4px;
+}
+/* Подменю («Открыть последние ▸») живёт внутри своего пункта абсолютным блоком,
+   а считается от ближайшего позиционированного предка — самого списка. Обрезка
+   по его краю срезала бы подменю целиком, поэтому её тут нет; углы держат
+   внутренние поверхности, а подсветка пунктов и так отбита от краёв. */
+.monaco-workbench:has(.point-activitybar) .context-view .monaco-menu-container,
+.monaco-workbench:has(.point-activitybar) .context-view.monaco-menu-container,
+.monaco-workbench:has(.point-activitybar) .part.titlebar .menubar-menu-items-holder { overflow: visible !important; }
+.monaco-workbench:has(.point-activitybar) .monaco-menu,
+.monaco-workbench:has(.point-activitybar) .monaco-menu > .monaco-scrollable-element { border-radius: inherit; }
+/* Список раскрывается наведением, и Code-OSS ставит фокус на ряд действий
+   внутри него — общее правило фокуса обводило янтарной ниткой **весь** список.
+   Внутри меню фокус виден подсветкой пункта; рамка вокруг всего списка только
+   спорит с его рамкой и углами. Важность: правило фокуса общее и адресует
+   элемент по `[tabindex]`, здешняя цепочка его не перебивает. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .menubar-menu-items-holder :focus { outline: 0 !important; }
+
+/* Командный центр — поле поиска на всю центральную часть. Ширину держат
+   вложенные обёртки панели действий: без них поле сжимается по тексту.
+   Ряд и сам элемент растянуты на всю плашку: раньше она рисовалась на 24, а
+   щёлкали по вложенному элементу высотой 16 — четыре пикселя сверху и снизу
+   видимой цели не отвечали, а «Поиск везде» вызывают часто. */
+/* Центр заголовка пуст, как в JetBrains. Командный центр выключен, и на его
+   месте Code-OSS печатает заголовок окна — «main_test.go — go-health — Point»,
+   где имя файла уже стоит во вкладке, имя проекта в переключателе слева и в
+   статус-баре, а имя продукта — это само окно. Находка цикла 24 снимается
+   вместе с ним. Сам `window.title` не тронут: он нужен панели задач ОС. */
+/* Заголовок окна прячется, но не вместе с полем поиска: Code-OSS кладёт
+   командный центр **внутрь** `.window-title`, и `display: none` на нём убирал
+   из полосы и поиск. Замер показал ровно это — поле было в разметке, но 0×0 и
+   без предка раскладки, а все заплаты, красившие его под «Поиск по проекту»,
+   не работали ни разу. Прячем только заголовок без поля. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .window-title:not(:has(.command-center)) { display: none; }
+.monaco-workbench:has(.point-activitybar) .part.titlebar .window-title {
+	align-items: center;
+	display: flex;
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+/* Ширина полю задаётся своя, а не в процентах: центр полосы у Point шириной по
+   содержимому, и `width: 100%` считался бы от него самого — круг, который
+   браузер разрешает нулём. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .command-center {
+	flex: 0 1 auto;
+	width: clamp(140px, 24vw, 380px);
+}
+.monaco-workbench:has(.point-activitybar) .part.titlebar .command-center .actions-container { align-items: stretch; }
+.monaco-workbench:has(.point-activitybar) .part.titlebar .command-center-center .monaco-toolbar,
+.monaco-workbench:has(.point-activitybar) .part.titlebar .command-center-center .monaco-action-bar,
+.monaco-workbench:has(.point-activitybar) .part.titlebar .command-center-center .actions-container { width: 100% !important; }
+.monaco-workbench:has(.point-activitybar) .part.titlebar .command-center-quick-pick {
+	align-items: center;
+	background: var(--point-void) !important;
+	border: 1px solid var(--point-border) !important;
+	border-radius: var(--point-r) !important;
+	display: flex;
+	gap: 8px !important;
+	height: 28px !important;
+	justify-content: flex-start !important;
+	max-width: min(900px, 40vw) !important;
+	min-height: var(--point-hit);
+	padding: 0 10px !important;
+	width: 100% !important;
+}
+.monaco-workbench:has(.point-activitybar) .part.titlebar .command-center-quick-pick:hover { border-color: var(--point-border-soft) !important; }
+.monaco-workbench:has(.point-activitybar) .part.titlebar .command-center-quick-pick .search-icon { color: var(--point-faint) !important; font-size: 13px !important; }
+.monaco-workbench:has(.point-activitybar) .part.titlebar .command-center-quick-pick .search-label {
+	color: var(--point-muted) !important;
+	flex: 1;
+	font: 400 12px/1 var(--point-font) !important;
+	max-width: 100%;
+	overflow: hidden;
+	text-align: left;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+/* Поле обязано называть свою клавишу, иначе им пользуются только мышью.
+   Ctrl+N — «Поиск везде» в раскладке Point. */
+.monaco-workbench:has(.point-activitybar) .part.titlebar .command-center-quick-pick::after {
+	border: 1px solid var(--point-border);
+	border-radius: var(--point-r);
+	color: var(--point-faint);
+	content: "Shift Shift";
+	flex: none;
+	font: 400 10px/1 var(--point-mono);
+	padding: 2px 4px;
+}
+.monaco-workbench:has(.point-activitybar) .part.titlebar .window-controls-container .window-icon { border-radius: 0; }

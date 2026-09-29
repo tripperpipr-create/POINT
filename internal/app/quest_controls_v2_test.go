@@ -248,7 +248,7 @@ func TestTerminalFailedFlowRejectsNoopResumeAndRecoversPreflight(t *testing.T) {
 	if err != nil || storedRun.Status != domain.RunRunning { t.Fatalf("resume changed flow: %#v %v", storedRun.Status, err) }
 	quest.Status = domain.QuestPreflight
 	if err = application.store.SaveQuest(ctx, quest); err != nil { t.Fatal(err) }
-	application.reconcileNoopWorkOrderResumesV2(ctx)
+	application.reconcileNoopWorkOrderResumesV2(ctx, world.ID)
 	after, err = application.WorkOrderQuestV2(ctx, quest.ID)
 	if err != nil || after.Status != domain.QuestBlocked { t.Fatalf("recovery status=%s err=%v", after.Status, err) }
 	storedRun, err = application.store.GetFlowRun(ctx, flowRun.ID)

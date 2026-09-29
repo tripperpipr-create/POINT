@@ -46,6 +46,12 @@ func (a *App) ControlWorkOrderQuestV2(ctx context.Context, questID, action strin
 	if err != nil {
 		return WorkOrderQuestControlResult{}, err
 	}
+	// Ядра проектов пишут в одну базу, и идентификатор квеста виден из любого
+	// из них. Пауза, отмена и сообщение принадлежат миру квеста: окно другого
+	// проекта не управляет чужой работой, даже если узнало её идентификатор.
+	if err = a.guardWorld(quest.WorkspaceID); err != nil {
+		return WorkOrderQuestControlResult{}, err
+	}
 	result := WorkOrderQuestControlResult{QuestID: questID, Status: quest.Status, Action: action, FlowRunID: quest.FlowRunID}
 	if err = validateWorkOrderRuntimeControl(quest.Status, action); err != nil {
 		return result, err

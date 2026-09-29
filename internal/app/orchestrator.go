@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
@@ -106,8 +107,20 @@ func (a *App) loadOrchestratorConfig(workspaceID string) (domain.OrchestratorCon
 		return domain.OrchestratorConfig{}, false
 	}
 	cfg, err := a.store.GetOrchestratorConfig(context.Background(), workspaceID)
+	if errors.Is(err, sql.ErrNoRows) {
+		cfg = domain.OrchestratorConfig{WorkspaceID: workspaceID, Preset: "conductor"}
+	} else if err != nil {
+		return domain.OrchestratorConfig{}, false
+	}
+	cfg, err = a.globalMasterConfig(context.Background(), workspaceID, cfg)
 	if err != nil {
 		return domain.OrchestratorConfig{}, false
+	}
+	if cfg.ID == "" && cfg.ConnectionID == "" && cfg.Model == "" {
+		defaults, defaultsErr := a.GlobalModelDefaults(context.Background())
+		if defaultsErr != nil || defaults.UpdatedAt.IsZero() {
+			return domain.OrchestratorConfig{}, false
+		}
 	}
 	resolved, err := a.resolveOrchestratorConnection(cfg)
 	if err != nil {

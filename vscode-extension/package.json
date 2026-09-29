@@ -818,7 +818,7 @@
         {
           "id": "pointGitLab",
           "title": "GitLab",
-          "icon": "$(git-merge)"
+          "icon": "media/git.svg"
         }
       ],
       "panel": [

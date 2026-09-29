@@ -178,8 +178,14 @@ function createProjectRegistry(dependencies) {
     try {
       const gitPath = path.join(fsPath, '.git')
       const stat = await withTimeout(fsp.stat(gitPath), STAT_TIMEOUT_MS)
-      if (!stat.isDirectory()) return ''
-      const head = await withTimeout(fsp.readFile(path.join(gitPath, 'HEAD'), 'utf8'), STAT_TIMEOUT_MS)
+      let directory = gitPath
+      if (stat.isFile()) {
+        const link = await withTimeout(fsp.readFile(gitPath, 'utf8'), STAT_TIMEOUT_MS)
+        const found = /^gitdir:\s*(.+)$/m.exec(String(link))
+        if (!found) return ''
+        directory = path.resolve(fsPath, found[1].trim())
+      } else if (!stat.isDirectory()) return ''
+      const head = await withTimeout(fsp.readFile(path.join(directory, 'HEAD'), 'utf8'), STAT_TIMEOUT_MS)
       const ref = /^ref:\s*refs\/heads\/(.+)$/m.exec(String(head).trim())
       return ref ? ref[1].trim() : ''
     } catch {

@@ -215,10 +215,18 @@ func (s *SQLite) ClaimMasterLearning(ctx context.Context, ws string) (domain.Mas
 }
 
 func (s *SQLite) RecoverMasterLearning(ctx context.Context) error {
+	return s.recoverMasterLearning(ctx, "")
+}
+
+// Пустой мир — все миры; ядро проекта передаёт свой: задание обучения соседа
+// ещё идёт, и его резерв бюджета списывать рано.
+func (s *SQLite) recoverMasterLearning(ctx context.Context, workspaceID string) error {
 	// A crash may occur after provider billing but before usage arrives. Charge
 	// the full reservation; releasing it would allow spending the budget twice.
-	_, err := s.db.ExecContext(ctx, `UPDATE master_learning_spend SET spent=spent+reserved,reserved=0 WHERE reserved>0;
-UPDATE master_learning_jobs SET status='deferred',payload=json_set(payload,'$.status','deferred','$.reason','Возобновление после перезапуска; ожидается авторизация модели') WHERE status='running';`)
+	if _, err := s.db.ExecContext(ctx, `UPDATE master_learning_spend SET spent=spent+reserved,reserved=0 WHERE reserved>0 AND (?='' OR workspace_id=?)`, workspaceID, workspaceID); err != nil {
+		return err
+	}
+	_, err := s.db.ExecContext(ctx, `UPDATE master_learning_jobs SET status='deferred',payload=json_set(payload,'$.status','deferred','$.reason','Возобновление после перезапуска; ожидается авторизация модели') WHERE status='running' AND (?='' OR workspace_id=?)`, workspaceID, workspaceID)
 	return err
 }
 

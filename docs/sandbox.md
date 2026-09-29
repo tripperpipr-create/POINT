@@ -83,6 +83,14 @@ gateway, which enforces the same exact rule independently of child behavior.
 The model cannot expand a running policy: profile changes are human control-plane
 actions and only a new run receives the new immutable schema-v3 snapshot and
 policy digest. Unrestricted `ALLOW` always fails closed.
+For a mid-run TLS decision, `run_command` recompiles the exact gateway policy
+before each process. A one-command grant is reserved atomically for one Run and
+one explicit destination; a Quest grant is versioned in the approved brief and
+restored from the durable decision after a restart. The tool result records the
+policy digest, explicit destinations and grant scope; the gateway records actual
+connection decisions without URL paths or bodies. Before removing the gateway,
+the runtime copies its bounded, policy-matched decision records into the tool
+result; a read failure is recorded as `unavailable` rather than an empty log.
 
 Purpose-built SSH and database tools do not execute arbitrary child programs;
 they retain their own explicit approval, destination and read/write policy.
@@ -116,6 +124,8 @@ Build the versioned runtime image before starting Point Core:
 
 ```powershell
 docker build --pull -f Dockerfile.sandbox -t point-agent-sandbox:1.2.2 .
+docker build --pull -f Dockerfile.sandbox-node --build-arg NODE_MAJOR=20 -t point-agent-sandbox-node20:1.0.0 .
+docker build --pull -f Dockerfile.sandbox-node --build-arg NODE_MAJOR=22 -t point-agent-sandbox-node22:1.0.0 .
 ```
 
 PHP/Composer Agent Hub vertical:

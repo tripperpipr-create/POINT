@@ -228,19 +228,29 @@ func (a *App) askAgentSelector(ctx context.Context, cfg domain.OrchestratorConfi
 		return selectorDecision{}, err
 	}
 	payload, _ := json.Marshal(map[string]any{"task": summary, "roster": roster})
-	request := providers.ModelRequest{Model: cfg.Model, Messages: []providers.Message{{Role: "system", Content: agentSelectorRoleHint + agentSelectorPrompt}, {Role: "user", Content: "UNTRUSTED INPUT:\n" + string(payload)}}, Temperature: 0, MaxOutputTokens: 1024, ContextWindowTokens: 16384}
+	request := providers.ModelRequest{Model: cfg.Model, Messages: []providers.Message{{Role: "system", Content: agentSelectorRoleHint + agentSelectorPrompt}, {Role: "user", Content: "UNTRUSTED INPUT:\n" + string(payload)}}, Temperature: 0, MaxOutputTokens: domain.OutputBudgetForThinking(1024, cfg.Model, "medium"), ContextWindowTokens: 65536}
 	var raw strings.Builder
 	callCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
-	if err = model.Stream(callCtx, request, func(event providers.ModelEvent) error {
-		if event.Kind == providers.EventTextDelta {
-			if raw.Len()+len(event.Delta) > 16*1024 {
-				return errors.New("ответ комплектовщика слишком велик")
+	stream := func() error {
+		return model.Stream(callCtx, request, func(event providers.ModelEvent) error {
+			if event.Kind == providers.EventTextDelta {
+				if raw.Len()+len(event.Delta) > 16*1024 {
+					return errors.New("ответ комплектовщика слишком велик")
+				}
+				raw.WriteString(event.Delta)
 			}
-			raw.WriteString(event.Delta)
+			return nil
+		})
+	}
+	if err = stream(); providers.IsTruncatedReasoningError(err) {
+		if grown := domain.GrowThinkingOutputBudget(request.MaxOutputTokens, request.Model); grown > request.MaxOutputTokens && grown <= request.ContextWindowTokens/2 {
+			request.MaxOutputTokens = grown
+			raw.Reset()
+			err = stream()
 		}
-		return nil
-	}); err != nil {
+	}
+	if err != nil {
 		return selectorDecision{}, err
 	}
 	text, err := modeljson.Payload(raw.String())

@@ -17,12 +17,13 @@
 import { writeFileSync, readFileSync, mkdirSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { readPointWorkbenchCss } from '../distribution/point-workbench-css.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const root = join(here, '..')
 const out = resolve(process.argv[2] || join(root, 'build', 'preview', 'branch-popup.html'))
 
-const workbenchCss = readFileSync(join(root, 'distribution', 'resources', 'point-workbench.css'), 'utf8')
+const workbenchCss = readPointWorkbenchCss()
 const codicons = join(root, '.cache', 'code-oss', 'src', 'vs', 'base', 'browser', 'ui', 'codicons', 'codicon')
 const codiconCss = readFileSync(join(codicons, 'codicon.css'), 'utf8')
 const codiconFont = readFileSync(join(codicons, 'codicon.ttf')).toString('base64')

@@ -181,9 +181,16 @@ func (s *SQLite) DeleteWorkOrderV2(ctx context.Context, workspaceID, workOrderID
 	return tx.Commit()
 }
 
-func (s *SQLite) ListWorkOrdersForConversationV2(ctx context.Context, conversationID string) ([]domain.WorkOrder, error) {
+// ListWorkOrdersForConversationV2 отдаёт наряды беседы своего мира.
+//
+// Беседа названа внутри мира, а не глобально: первый разговор каждого проекта
+// — `legacy`. Выборка по одному идентификатору беседы шла по общей базе всех
+// проектов, и первый чат нового проекта получал карточки, квест и черновики
+// чужого `legacy` — а уборка черновиков удаляла чужие.
+func (s *SQLite) ListWorkOrdersForConversationV2(ctx context.Context, workspaceID, conversationID string) ([]domain.WorkOrder, error) {
+	workspaceID = strings.TrimSpace(workspaceID)
 	conversationID = strings.TrimSpace(conversationID)
-	if conversationID == "" {
+	if workspaceID == "" || conversationID == "" {
 		return []domain.WorkOrder{}, nil
 	}
 	// The pool holds a single SQLite connection, so the runtime of each order
@@ -191,7 +198,7 @@ func (s *SQLite) ListWorkOrdersForConversationV2(ctx context.Context, conversati
 	// waits for a connection that only this loop can release: the Master feed
 	// hung until the client gave up, and the user's own message vanished with
 	// the failed reload.
-	rows, err := s.db.QueryContext(ctx, `SELECT payload_json FROM work_order_current_v2 ORDER BY updated_at DESC`)
+	rows, err := s.db.QueryContext(ctx, `SELECT payload_json FROM work_order_current_v2 WHERE workspace_id IN (?,'') ORDER BY updated_at DESC`, workspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -203,7 +210,7 @@ func (s *SQLite) ListWorkOrdersForConversationV2(ctx context.Context, conversati
 			return nil, err
 		}
 		var order domain.WorkOrder
-		if json.Unmarshal([]byte(raw), &order) != nil || order.ConversationID != conversationID {
+		if json.Unmarshal([]byte(raw), &order) != nil || order.ConversationID != conversationID || order.WorkspaceID != workspaceID {
 			continue
 		}
 		order.Digest = domain.WorkOrderDigest(order)

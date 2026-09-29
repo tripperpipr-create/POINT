@@ -303,15 +303,15 @@ FROM usage_records WHERE workspace_id=? ORDER BY created_at DESC LIMIT ?`, works
 
 func (s *SQLite) SaveOrchestratorConfig(ctx context.Context, cfg domain.OrchestratorConfig) error {
 	result, err := s.db.ExecContext(ctx, `
-INSERT INTO orchestrator_config(id,workspace_id,preset,connection_id,provider,provider_preset,base_url,api_version,model,temperature,max_output_tokens,planning_depth,parallelism,approval_strictness,team_preference,created_at,updated_at)
-VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+INSERT INTO orchestrator_config(id,workspace_id,preset,connection_id,provider,provider_preset,base_url,api_version,model,temperature,max_output_tokens,planning_depth,parallelism,approval_strictness,team_preference,created_at,updated_at,project_model_override)
+VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 ON CONFLICT(id) DO UPDATE SET preset=excluded.preset, connection_id=excluded.connection_id, provider=excluded.provider, provider_preset=excluded.provider_preset,
   base_url=excluded.base_url, api_version=excluded.api_version, model=excluded.model, temperature=excluded.temperature, max_output_tokens=excluded.max_output_tokens,
   planning_depth=excluded.planning_depth, parallelism=excluded.parallelism, approval_strictness=excluded.approval_strictness,
-  team_preference=excluded.team_preference, updated_at=excluded.updated_at
+  team_preference=excluded.team_preference, updated_at=excluded.updated_at, project_model_override=excluded.project_model_override
 WHERE orchestrator_config.workspace_id=excluded.workspace_id`,
 		cfg.ID, cfg.WorkspaceID, cfg.Preset, cfg.ConnectionID, cfg.Provider, cfg.ProviderPreset, cfg.BaseURL, cfg.APIVersion, cfg.Model, cfg.Temperature, cfg.MaxOutputTokens,
-		cfg.PlanningDepth, cfg.Parallelism, cfg.ApprovalStrictness, cfg.TeamPreference, formatTime(cfg.CreatedAt), formatTime(cfg.UpdatedAt))
+		cfg.PlanningDepth, cfg.Parallelism, cfg.ApprovalStrictness, cfg.TeamPreference, formatTime(cfg.CreatedAt), formatTime(cfg.UpdatedAt), cfg.ProjectModelOverride)
 	if err != nil {
 		return err
 	}
@@ -330,16 +330,18 @@ WHERE orchestrator_config.workspace_id=excluded.workspace_id`,
 
 func (s *SQLite) GetOrchestratorConfig(ctx context.Context, workspaceID string) (domain.OrchestratorConfig, error) {
 	row := s.db.QueryRowContext(ctx, `
-SELECT id,workspace_id,preset,connection_id,provider,provider_preset,base_url,api_version,model,temperature,max_output_tokens,planning_depth,parallelism,approval_strictness,team_preference,created_at,updated_at
+SELECT id,workspace_id,preset,connection_id,provider,provider_preset,base_url,api_version,model,temperature,max_output_tokens,planning_depth,parallelism,approval_strictness,team_preference,created_at,updated_at,project_model_override
 FROM orchestrator_config WHERE workspace_id=? ORDER BY updated_at DESC LIMIT 1`, workspaceID)
 	var cfg domain.OrchestratorConfig
 	var created, updated string
+	var projectModelOverride bool
 	if err := row.Scan(&cfg.ID, &cfg.WorkspaceID, &cfg.Preset, &cfg.ConnectionID, &cfg.Provider, &cfg.ProviderPreset, &cfg.BaseURL, &cfg.APIVersion, &cfg.Model,
 		&cfg.Temperature, &cfg.MaxOutputTokens, &cfg.PlanningDepth, &cfg.Parallelism, &cfg.ApprovalStrictness, &cfg.TeamPreference,
-		&created, &updated); err != nil {
+		&created, &updated, &projectModelOverride); err != nil {
 		return domain.OrchestratorConfig{}, err
 	}
 	cfg.CreatedAt, cfg.UpdatedAt = parseTime(created), parseTime(updated)
+	cfg.ProjectModelOverride = projectModelOverride
 	learning, err := s.MasterLearningConfig(ctx, workspaceID)
 	if err != nil {
 		return cfg, err

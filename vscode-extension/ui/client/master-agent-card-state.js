@@ -19,3 +19,31 @@ export function releaseMasterAgentCards(cards) {
   const active = new Set(cards.map(card => String(card?.id || '')).filter(Boolean))
   for (const id of masterAgentBusy) if (!active.has(id)) masterAgentBusy.delete(id)
 }
+
+// Ввод в поле карточки сразу становится черновиком: перерисовка ленты не
+// теряет набранное, а прежняя ошибка сохранения гаснет вместе с правкой.
+export function readMasterAgentCardInput(target) {
+  const field = target?.dataset?.agentField
+  const host = target?.closest?.('[data-agent-card]')
+  if (!field || !host) return ''
+  const id = String(host.dataset.agentCard || '')
+  const patch = { ...(masterAgentDrafts.get(id) || {}) }
+  if (field === 'tool') {
+    patch.allowedTools = [...host.querySelectorAll('[data-agent-field="tool"]')].filter(item => item.checked).map(item => item.value)
+  } else if (field === 'policy') {
+    patch.toolPolicies = { ...(patch.toolPolicies || {}) }
+    patch.toolPolicies[String(target.dataset.tool || '')] = target.value
+  } else if (field === 'maxSteps' || field === 'maxDurationSeconds') {
+    patch[field] = Number(target.value) || 0
+  } else {
+    patch[field] = target.value
+  }
+  masterAgentDrafts.set(id, patch)
+  masterAgentErrors.delete(id)
+  const note = host.querySelector('.master-agent-error')
+  if (note) {
+    note.textContent = ''
+    note.classList.add('is-hidden')
+  }
+  return id
+}

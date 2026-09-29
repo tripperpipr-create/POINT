@@ -146,3 +146,15 @@ func TestCanonicalToolNameKeepsUnknownNames(t *testing.T) {
 		t.Fatalf("empty name resolved to %q", got)
 	}
 }
+
+// Поле MaxSteps добавлено 29.09.2026: брифы, утверждённые раньше, обязаны
+// сохранить дайджест, иначе они уйдут в карантин при чтении.
+func TestTaskBudgetMaxStepsKeepsOldDigests(t *testing.T) {
+	encoded, err := json.Marshal(TaskBudget{Tokens: 1000, ActiveSeconds: 60, MaxParallel: 1, MaxAttempts: 3})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(encoded), "maxSteps") {
+		t.Fatalf("empty maxSteps changes the digest input: %s", encoded)
+	}
+}

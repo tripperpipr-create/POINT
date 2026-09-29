@@ -79,6 +79,7 @@ const checks = [
   'smoke-master-inspector.mjs',
   'smoke-master-stream.cjs',
   'smoke-master-stream-view.mjs',
+  'smoke-work-order-watch-outcome.cjs',
   'smoke-master-message-actions.js',
   'smoke-master-questions.js',
   'smoke-master-quest-path.js',

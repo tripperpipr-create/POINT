@@ -224,6 +224,10 @@ type ToolResult struct {
 type ToolError struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
+	// Target is a validated destination for a user-facing egress decision.
+	// Free-form error text must never be parsed into a network grant.
+	Target       string `json:"target,omitempty"`
+	PolicyDigest string `json:"policyDigest,omitempty"`
 	// Hint is an optional, deterministic next-step suggestion for the model.
 	// It must not invent workspace state or claim that an action already succeeded.
 	Hint string `json:"hint,omitempty"`

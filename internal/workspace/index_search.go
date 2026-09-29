@@ -27,6 +27,21 @@ func (f *FS) ProjectMap(ctx context.Context, maxSymbols int) (ProjectMap, error)
 			return ProjectMap{}, err
 		}
 	}
+	return projectMapFrom(index, maxSymbols), nil
+}
+
+// ReadyProjectMap отдаёт карту только по готовому индексу и никогда не строит
+// его сам. Нужна там, где ответ ждёт человек: полная сборка большого проекта
+// идёт дольше таймаута запроса, и отмена запроса обрывала её на середине.
+func (f *FS) ReadyProjectMap(maxSymbols int) (ProjectMap, bool) {
+	index := f.peekReadyIndex()
+	if index == nil {
+		return ProjectMap{}, false
+	}
+	return projectMapFrom(index, maxSymbols), true
+}
+
+func projectMapFrom(index *projectIndex, maxSymbols int) ProjectMap {
 	if maxSymbols <= 0 || maxSymbols > 200 {
 		maxSymbols = 80
 	}
@@ -47,7 +62,7 @@ func (f *FS) ProjectMap(ctx context.Context, maxSymbols int) (ProjectMap, error)
 	if len(symbols) > maxSymbols {
 		symbols = symbols[:maxSymbols]
 	}
-	return ProjectMap{FilesByLanguage: cloneLanguageCounts(index.language), TopDirectories: topDirectories, Symbols: symbols, Status: index.status}, nil
+	return ProjectMap{FilesByLanguage: cloneLanguageCounts(index.language), TopDirectories: topDirectories, Symbols: symbols, Status: index.status}
 }
 
 // LookupIndex ranks the already-built index for IDE navigation. It never starts a rebuild.

@@ -20,7 +20,7 @@ import { masterCardMoreAttrs } from './master-card-open.js'
 import { questMenuHtml } from './master-quest-views.js'
 import { EFFORT_OPTIONS, agentGearHtml, agentPortraitHtml, agentStatsHtml } from './master-agent-sheet.js'
 import { masterAgentBusy, masterAgentConsent, masterAgentDrafts, masterAgentErrors } from './master-agent-card-state.js'
-export { masterAgentBusy, masterAgentConsent, masterAgentDrafts, masterAgentErrors, releaseMasterAgentCards } from './master-agent-card-state.js'
+export { masterAgentBusy, masterAgentConsent, masterAgentDrafts, masterAgentErrors, readMasterAgentCardInput, releaseMasterAgentCards } from './master-agent-card-state.js'
 
 const text = value => String(value ?? '').trim()
 
@@ -105,6 +105,8 @@ export function masterAgentCardsFor(masterData) {
         kind: 'work-order',
         workOrderId: text(order.id),
         draftId: text(draft.id),
+        expectedVersion: Number(order.version),
+        expectedDigest: text(order.digest),
         goal: text(order.goal),
         why: text(card?.reason),
         blueprints: list(card?.blueprints),
@@ -122,12 +124,15 @@ export function masterAgentCardsFor(masterData) {
   // хватает, и молчит о том, решено ли задание.
   for (const item of hiring) {
     if (!item?.draft || cards.some(card => card.workOrderId === item.workOrderId)) continue
-    if (!orderCollected(orders.find(order => text(order?.id) === text(item.workOrderId)))) continue
+    const order = orders.find(order => text(order?.id) === text(item.workOrderId))
+    if (!orderCollected(order)) continue
     cards.push({
       id: 'hiring:' + text(item.workOrderId),
       kind: 'work-order',
       workOrderId: text(item.workOrderId),
       draftId: text(item.draft.id),
+      expectedVersion: Number(order.version),
+      expectedDigest: text(order.digest),
       goal: text(item.goal),
       why: text(item.reason),
       blueprints: list(item.blueprints),
@@ -154,15 +159,21 @@ export function masterAgentCardsAll(masterData, actionProposals) {
 // Что уйдёт в ядро: черновик карточки плюс правки человека. Политики умений
 // сливаются по ключам, а не целиком: в черновике может стоять политика сети,
 // которую карточка не показывает, и замена объекта молча снимала бы её.
-export function masterAgentValue(card) {
+export function masterAgentValue(card, connections = []) {
   const patch = masterAgentDrafts.get(card?.id) || {}
   const base = card?.base || {}
-  return {
+  const value = {
     ...base,
     ...patch,
     toolPolicies: { ...(base.toolPolicies || {}), ...(patch.toolPolicies || {}) },
     allowedTools: list(patch.allowedTools || base.allowedTools),
   }
+  const available = list(connections)
+  const chosen = available.find(item => item.id === value.connectionId)
+    || available.find(item => item.isDefault) || available[0]
+  if (!text(value.connectionId) && chosen) value.connectionId = chosen.id
+  if (!text(value.model) && chosen) value.model = text(chosen.defaultModel)
+  return value
 }
 
 // Отказ должен быть назван словами и до отправки. Прежняя форма отправляла
@@ -260,7 +271,7 @@ function blueprintsHtml(card, value, esc) {
 // четыре стояли в ряд одним весом, глаз выбирал крайнюю левую.
 export function masterAgentCardHtml(card, esc, deps = {}) {
   if (!card) return ''
-  const value = masterAgentValue(card)
+  const value = masterAgentValue(card, deps.connections)
   const busy = masterAgentBusy.has(card.id)
   const consented = card.kind === 'work-order' && masterAgentConsent.has(card.workOrderId)
   const issue = masterAgentErrors.get(card.id) || ''
@@ -270,6 +281,7 @@ export function masterAgentCardHtml(card, esc, deps = {}) {
     { action: 'agent-card-workshop', card: card.id, label: 'Открыть мастерскую', busy },
     card.kind === 'action' ? { action: 'agent-card-dismiss', card: card.id, label: 'Не создавать', busy } : null,
   ], esc)
+  const available = card.kind === 'work-order' ? list(deps.projectAgents).filter(agent => agent?.status === 'active' && !agent.temporary) : []
   return `<section class="hall-deck master-agent" data-agent-card="${esc(card.id)}">
     <header><span class="hall-quest-kick"><span class="hall-quest-dot" aria-hidden="true"></span>Новый исполнитель</span><small>${esc(why || 'заводите вы — Мастер только предлагает')}</small></header>
     <div class="hall-panel-row master-agent-sheet">
@@ -295,6 +307,7 @@ export function masterAgentCardHtml(card, esc, deps = {}) {
       </div>
       <small class="hall-fineprint is-trailing">Исполнитель появится в ростере проекта и встанет в это задание.</small>
     </div>
+    ${available.length ? `<div class="hall-panel-row hall-actions"><select data-agent-card-existing="${esc(card.id)}" aria-label="Существующий исполнитель">${available.map(agent => `<option value="${esc(agent.id)}">${esc(agent.name)}</option>`).join('')}</select><button type="button" class="hall-btn" data-action="agent-card-use-existing" data-card="${esc(card.id)}"${busy ? ' disabled' : ''}>Подставить существующего</button></div>` : ''}
   </section>`
 }
 
@@ -305,32 +318,6 @@ export function masterAgentCardsHtml(cards, esc, deps = {}) {
 // Ввод снимается на каждом знаке, но полной перерисовки не вызывает: она
 // отобрала бы каретку у поля. Объяснение отказа гасим на месте — тем же
 // приёмом, что и счётчик у кнопки отправки ответов.
-export function readMasterAgentCardInput(target) {
-  const field = target?.dataset?.agentField
-  const host = target?.closest?.('[data-agent-card]')
-  if (!field || !host) return ''
-  const id = String(host.dataset.agentCard || '')
-  const patch = { ...(masterAgentDrafts.get(id) || {}) }
-  if (field === 'tool') {
-    patch.allowedTools = [...host.querySelectorAll('[data-agent-field="tool"]')].filter(item => item.checked).map(item => item.value)
-  } else if (field === 'policy') {
-    patch.toolPolicies = { ...(patch.toolPolicies || {}) }
-    patch.toolPolicies[String(target.dataset.tool || '')] = target.value
-  } else if (field === 'maxSteps' || field === 'maxDurationSeconds') {
-    patch[field] = Number(target.value) || 0
-  } else {
-    patch[field] = target.value
-  }
-  masterAgentDrafts.set(id, patch)
-  masterAgentErrors.delete(id)
-  const note = host.querySelector('.master-agent-error')
-  if (note) {
-    note.textContent = ''
-    note.classList.add('is-hidden')
-  }
-  return id
-}
-
 function blueprintPatch(blueprint) {
   const tools = list(blueprint?.allowedTools || blueprint?.tools)
   const model = text(blueprint?.primaryModel || blueprint?.model)
@@ -352,7 +339,7 @@ export function handleMasterAgentCardAction(action, target, ctx) {
   // Второе нажатие создаёт второго агента, а не повторяет первого: здесь
   // каждое нажатие порождает новую сущность, и запертой кнопки в разметке для
   // этого мало — ответа ядра ждём заметное время, и за него успевают нажать.
-  if (masterAgentBusy.has(id) && (action === 'agent-card-create' || action === 'agent-card-dismiss')) return true
+  if (masterAgentBusy.has(id) && (action === 'agent-card-create' || action === 'agent-card-use-existing' || action === 'agent-card-dismiss')) return true
   if (action === 'agent-card-blueprint') {
     const template = String(target.dataset.template || '')
     const blueprint = ctx.blueprintById(template) || list(card.blueprints).find(item => item.blueprintId === template)
@@ -386,7 +373,7 @@ export function handleMasterAgentCardAction(action, target, ctx) {
     return true
   }
   if (action === 'agent-card-workshop') {
-    ctx.openWorkshop(card, masterAgentValue(card))
+    ctx.openWorkshop(card, masterAgentValue(card, ctx.connections()))
     return true
   }
   if (action === 'agent-card-dismiss') {
@@ -396,7 +383,7 @@ export function handleMasterAgentCardAction(action, target, ctx) {
     return true
   }
   if (action === 'agent-card-create') {
-    const value = masterAgentValue(card)
+    const value = masterAgentValue(card, ctx.connections())
     const issue = masterAgentIssue(value, ctx.connections())
     if (issue) {
       masterAgentErrors.set(id, issue)
@@ -426,6 +413,15 @@ export function handleMasterAgentCardAction(action, target, ctx) {
     } else {
       ctx.createAgent(card, value)
     }
+    ctx.render()
+    return true
+  }
+  if (action === 'agent-card-use-existing' && card.kind === 'work-order') {
+    const agentId = String(target.closest?.('[data-agent-card]')?.querySelector?.('[data-agent-card-existing]')?.value || '')
+    if (!agentId) return true
+    masterAgentErrors.delete(id)
+    masterAgentBusy.add(id)
+    ctx.useExisting(card, agentId)
     ctx.render()
     return true
   }

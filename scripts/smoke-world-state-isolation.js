@@ -25,6 +25,7 @@ const script = fs.readFileSync(path.join(__dirname, '..', 'vscode-extension', 'm
 function bootWebview(layout) {
   const listeners = {}
   const posted = []
+  const saved = []
   const root = {
     innerHTML: '',
     addEventListener(type, callback) { listeners[`root:${type}`] = callback },
@@ -35,7 +36,7 @@ function bootWebview(layout) {
     acquireVsCodeApi: () => ({
       postMessage(message) { posted.push(message) },
       getState() { return undefined },
-      setState() { },
+      setState(value) { saved.push(value) },
     }),
     document: {
       getElementById: id => (id === 'root' ? root : undefined),
@@ -60,7 +61,7 @@ function bootWebview(layout) {
   context.globalThis = context
   vm.runInNewContext(script, context, { filename: 'media/main.js' })
   const send = message => listeners['window:message']({ data: message })
-  return { posted, root, send }
+  return { posted, root, send, saved }
 }
 
 const worldState = workspacePath => ({
@@ -115,6 +116,22 @@ if (hub.root.innerHTML.includes('42.00')) {
 hub.send(statisticsFor(100, 500))
 if (!hub.root.innerHTML.includes('5.00')) {
   throw new Error('мир B: свежая статистика не отрисовалась')
+}
+
+// Черновик первого разговора. Первый разговор каждого проекта — `legacy`, а
+// черновики разговоров master-inbox держит псевдонимом. Сброс мира подменял
+// объект черновиков новым, псевдоним оставался при старом — и набранное в
+// проекте A всплывало в поле первого чата проекта B.
+const chat = bootWebview('master')
+const masterView = active => ({ sessions: { active, items: [{ id: 'legacy', title: 'Первый разговор' }, { id: 'other', title: 'Другой' }] }, history: [], workOrders: [], configured: true })
+chat.send({ ...worldState('C:/worlds/alpha'), selectedTab: 'master' })
+chat.send({ type: 'master', master: masterView('legacy'), loaded: true, draft: 'черновик мира A' })
+chat.send({ type: 'master', master: masterView('other'), sessionChanged: true })
+chat.send({ ...worldState('C:/worlds/beta'), selectedTab: 'master' })
+chat.send({ type: 'master', master: masterView('legacy'), sessionChanged: true })
+const lastSaved = chat.saved.at(-1) || {}
+if (lastSaved.masterDraft === 'черновик мира A' || Object.values(lastSaved.masterSessionDrafts || {}).includes('черновик мира A')) {
+  throw new Error('черновик первого разговора проекта A всплыл в первом разговоре проекта B')
 }
 
 console.log('smoke-world-state-isolation: ok')

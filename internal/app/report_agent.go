@@ -24,6 +24,17 @@ func (a *App) GenerateReport(ctx context.Context, request orchestrator.ReportReq
 	if err != nil {
 		return ReportArtifactView{}, err
 	}
+	defaults, err := a.GlobalModelDefaults(ctx)
+	if err != nil {
+		return ReportArtifactView{}, err
+	}
+	if defaults.Archivist.ConnectionID != "" {
+		cfg.ConnectionID, cfg.Model = defaults.Archivist.ConnectionID, defaults.Archivist.Model
+		cfg, err = a.resolveOrchestratorConnection(cfg)
+		if err != nil {
+			return ReportArtifactView{}, err
+		}
+	}
 	// Only user-supplied text is sent to the model. Project facts and files are
 	// never attached implicitly; adding sources must remain an explicit action.
 	artifact, err := orchestrator.GenerateReport(ctx, cfg, request, a.budgetedModelFactory(modelBudgetScope{

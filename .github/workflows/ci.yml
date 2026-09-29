@@ -126,6 +126,13 @@ jobs:
           go-version-file: go.mod
       - name: Build immutable execution image
         run: docker build --pull -f Dockerfile.sandbox -t point-agent-sandbox:ci .
+      - name: Build and verify Node runtime packs
+        run: |
+          for major in 20 22; do
+            docker build --pull -f Dockerfile.sandbox-node --build-arg NODE_MAJOR="$major" -t "point-agent-sandbox-node${major}:1.0.0" .
+            docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges=true --user 10001:10001 "point-agent-sandbox-node${major}:1.0.0" node --version | grep -E "^v${major}\."
+            docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges=true --user 10001:10001 "point-agent-sandbox-node${major}:1.0.0" npm --version | grep -Fx '10.9.0'
+          done
       - name: Generate sandbox CycloneDX SBOM
         uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
         with:
@@ -151,7 +158,15 @@ jobs:
         env:
           POINT_SANDBOX_DOCKER_TEST: '1'
           POINT_SANDBOX_IMAGE: point-agent-sandbox:ci
-        run: go test ./internal/sandbox -run DockerSandboxIntegration -count=1 -v
+        run: go test ./internal/sandbox -run 'DockerSandboxIntegration|DockerRuntimeVersionsIntegration' -count=1 -v
+      - name: Verify Node 20 sandbox boundary
+        env:
+          POINT_SANDBOX_DOCKER_TEST: '1'
+          POINT_SANDBOX_IMAGE: point-agent-sandbox-node20:1.0.0
+          POINT_SANDBOX_EXPECT_NPM: '10.9.0'
+        run: |
+          export POINT_SANDBOX_EXPECT_NODE="$(docker run --rm --network none point-agent-sandbox-node20:1.0.0 node --version)"
+          go test ./internal/sandbox -run DockerSandboxIntegration -count=1 -v
 
   frontend:
     runs-on: ubuntu-latest

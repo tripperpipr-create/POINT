@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
+import { readPointWorkbenchCss } from '../distribution/point-workbench-css.mjs';
 
 // Оверлей читается вместе с его модулями overlay-*.mjs: заплаты переезжают
 // между ними, и чтение одного файла ослепло бы на переезде.
@@ -75,8 +76,7 @@ if (!extensionSource.includes('TerminalLocation.Editor') || !extensionSource.inc
   throw new Error('Console channels must open in TerminalLocation.Editor for Alt+F12 smoke');
 }
 
-const workbenchCssSource = path.join(projectRoot, 'distribution', 'resources', 'point-workbench.css');
-const workbenchCssText = fs.readFileSync(workbenchCssSource, 'utf8');
+const workbenchCssText = readPointWorkbenchCss();
 // Проверяем селекторы, а не заголовки комментариев: комментарий переживает
 // переименование раздела, а поверхность — нет. Раньше здесь стояли подписи
 // вроде «Console channel as editor tab», и переписанный стиль с теми же

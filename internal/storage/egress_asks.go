@@ -78,11 +78,11 @@ FROM egress_asks WHERE workspace_id = ? ORDER BY created_at ASC`, workspaceID)
 	return out, rows.Err()
 }
 
-func (s *SQLite) FindPendingEgressAsk(ctx context.Context, workspaceID string, kind domain.EgressAskKind, target string) (domain.EgressAsk, error) {
+func (s *SQLite) FindPendingEgressAsk(ctx context.Context, workspaceID, questID, runID string, kind domain.EgressAskKind, target string) (domain.EgressAsk, error) {
 	row := s.db.QueryRowContext(ctx, `
 SELECT id, workspace_id, quest_id, run_id, kind, target, reason, risk, status, created_at, resolved_at
-FROM egress_asks WHERE workspace_id = ? AND kind = ? AND target = ? AND status = ? LIMIT 1`,
-		workspaceID, string(kind), strings.TrimSpace(target), string(domain.EgressAskPending))
+FROM egress_asks WHERE workspace_id = ? AND quest_id = ? AND run_id = ? AND kind = ? AND target = ? AND status = ? LIMIT 1`,
+		workspaceID, questID, runID, string(kind), strings.TrimSpace(target), string(domain.EgressAskPending))
 	return scanEgressAsk(row)
 }
 

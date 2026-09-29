@@ -1,5 +1,6 @@
 import { fillAttribute, formatBytes, formatDuration } from './format-units.js'
 import { icon } from './ui-icons.js'
+import { isRootQuest, questPhase } from './quest-status.js'
 export function createQuestRuntimeViews(dependencies) {
   const {
     CREATE_FLOW_STAGES,
@@ -399,27 +400,43 @@ export function createQuestRuntimeViews(dependencies) {
     </section>`
   }
   
+  // В списке — квесты человека, а не строки базы. Этапы Flow (подготовка,
+  // интеграция, приёмка) — дочерние квесты одной работы: показанные наравне с
+  // ней, они превращали одну задачу в шесть, и завершённые этапы соседствовали
+  // с «активными». Идущая работа и история разведены: исход квеста уводит его
+  // из «Сейчас», а blocked, paused и needs_review остаются там — по ним решают.
   function questListHtml() {
-    const quests = ui.state.boot?.quests || []
+    const all = ui.state.boot?.quests || []
+    const quests = all.filter(isRootQuest)
     if (!quests.length) return ''
     const agents = hubAgents()
     const nameOf = id => (agents.find(item => item.id === id) || {}).name || id
-    const rows = quests.map(quest => {
+    const statusOf = quest => questStatusLabels[quest.status] || quest.status || ''
+    const stagesHtml = quest => {
+      const stages = all.filter(item => item.parentId === quest.id)
+      if (!stages.length) return ''
+      return `<div class="hall-quest-work"><div class="hall-quest-block"><span class="hall-quest-block-label">Этапы</span>
+        ${stages.map(stage => `<div class="hall-quest-line"><b>${esc(statusOf(stage))}</b><span>${esc(stage.title || 'Этап')}</span><small></small></div>`).join('')}
+      </div></div>`
+    }
+    const row = quest => {
       const party = (quest.teamAgentIds || []).map(nameOf).filter(Boolean)
       const open = quest.id === openQuestId
-      const status = questStatusLabels[quest.status] || quest.status || ''
       return `<div class="hall-quest-row${open ? ' is-open' : ''}">
         <button class="hall-quest-head" data-action="toggle-quest" data-id="${esc(quest.id)}">
-          <span class="hall-quest-status is-${esc(quest.status || 'draft')}">${esc(status)}</span>
+          <span class="hall-quest-status is-${esc(quest.status || 'draft')}">${esc(statusOf(quest))}</span>
           <b>${esc(quest.title || 'Без названия')}</b>
           <small>${party.length ? esc(party.join(', ')) : 'отряд не назначен'}</small>
         </button>
-        ${open ? `${questWorkHtml(quest)}${questOutcomeHtml(quest)}` : ''}
+        ${open ? `${stagesHtml(quest)}${questWorkHtml(quest)}${questOutcomeHtml(quest)}` : ''}
       </div>`
-    }).join('')
+    }
+    const group = (title, items) => items.length ? `<h3 class="hall-quest-group">${title}</h3>${items.map(row).join('')}` : ''
+    const current = quests.filter(quest => questPhase(quest.status) !== 'history')
+    const past = quests.filter(quest => questPhase(quest.status) === 'history')
     return `<section class="hall-panel hall-quest-list">
       <header><b>Квесты проекта</b><small>${esc(countOf(quests.length, 'квест', 'квеста', 'квестов'))}</small></header>
-      ${rows}
+      ${group('Сейчас', current)}${group('История', past)}
     </section>`
   }
   

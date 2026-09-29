@@ -11,7 +11,7 @@
 поверхности (Помощник, Хаб агентов, Летопись), и они встают в ту же систему.
 
 Цвета, шкалы и движение здесь не объявляются. Их источник —
-`vscode-extension/ui/tokens.css` и шапка `distribution/resources/point-workbench.css`;
+`vscode-extension/ui/tokens.css` и `distribution/resources/point-workbench/00-foundation.css`;
 словарь и правила сборки CSS — [RPG-DESIGN-SYSTEM.md](RPG-DESIGN-SYSTEM.md).
 Что из перечисленного доведено до рабочего маршрута с регрессией — в
 [IDE-CAPABILITY-MATRIX.md](IDE-CAPABILITY-MATRIX.md).
@@ -45,7 +45,13 @@
 Редактор — главная зона, и он не сжимается ниже 480px по ширине. При сужении
 окна первой уходит правая панель, затем левая; нижняя остаётся, потому что её
 открывают под конкретную задачу. Поведение узкого окна собрано в блоке «Узкое
-окно и покой» `distribution/resources/point-workbench.css`.
+окно и покой» `distribution/resources/point-workbench/60-settings.css`.
+
+Стиль оболочки разбит на тематические части в
+`distribution/resources/point-workbench/`. Порядок задаёт компактный
+`point-workbench.css` с локальными импортами; `distribution/point-workbench-css.mjs`
+собирает части в один файл по прежнему пути Code-OSS при наложении оверлея.
+Проверки палитры и шкал читают тот же собранный текст.
 
 ## Карта окна
 

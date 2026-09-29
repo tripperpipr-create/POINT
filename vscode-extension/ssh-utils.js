@@ -28,7 +28,10 @@ function sshRemotePathJoin(base, entry) {
 function sshRemotePickerEntries(entries) {
   return (Array.isArray(entries) ? entries : [])
     .map(raw => String(raw || '').replace(/\r$/, ''))
-    .filter(raw => raw && raw !== './' && raw !== '../' && !/[\r\n\0]/.test(raw))
+    .filter(raw => {
+      const name = raw.replace(/\/$/, '')
+      return name && name !== '.' && name !== '..' && !/[/\\\r\n\0]/.test(name)
+    })
     .map(raw => {
       const directory = raw.endsWith('/')
       const name = directory ? raw.slice(0, -1) : raw

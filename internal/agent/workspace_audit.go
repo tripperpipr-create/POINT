@@ -126,14 +126,62 @@ func mergeBoundedPaths(first, second []string, limit int) []string {
 	return result
 }
 
+// maxModelAuditPaths — сколько путей аудита видит модель. Полный перечень
+// (до maxWorkspaceEventPaths) уходит в событие workspace.changed: в E6
+// перечень 200 пропущенных файлов занял 184 тыс. из 209 тыс. символов вывода
+// 18 команд, и модель читала его после каждой.
+const maxModelAuditPaths = 20
+
+// modelWorkspaceAudit — та же сводка, но для модели: счётчики, отметка
+// полноты снимка и короткая выборка путей; пропущенные пути — только числом.
+type modelWorkspaceAudit struct {
+	Tool                     string   `json:"tool"`
+	ApprovalID               string   `json:"approvalId,omitempty"`
+	TotalChanges             int      `json:"totalChanges"`
+	RevertibleChanges        int      `json:"revertibleChanges"`
+	RecordedChanges          int      `json:"recordedChanges"`
+	NonRevertibleChanges     int      `json:"nonRevertibleChanges"`
+	OmittedRevertibleChanges int      `json:"omittedRevertibleChanges"`
+	Paths                    []string `json:"paths,omitempty"`
+	NonRevertiblePaths       []string `json:"nonRevertiblePaths,omitempty"`
+	OmittedPaths             int      `json:"omittedPaths,omitempty"`
+	SnapshotComplete         bool     `json:"snapshotComplete"`
+	SkippedCount             int      `json:"skippedCount,omitempty"`
+}
+
+func compactWorkspaceAudit(summary workspaceAuditSummary) modelWorkspaceAudit {
+	paths, omitted := firstPaths(summary.Paths)
+	nonRevertible, omittedNonRevertible := firstPaths(summary.NonRevertiblePaths)
+	return modelWorkspaceAudit{
+		Tool: summary.Tool, ApprovalID: summary.ApprovalID, TotalChanges: summary.TotalChanges,
+		RevertibleChanges: summary.RevertibleChanges, RecordedChanges: summary.RecordedChanges,
+		NonRevertibleChanges: summary.NonRevertibleChanges, OmittedRevertibleChanges: summary.OmittedRevertibleChanges,
+		Paths: paths, NonRevertiblePaths: nonRevertible, OmittedPaths: omitted + omittedNonRevertible,
+		SnapshotComplete: summary.SnapshotComplete, SkippedCount: len(summary.SkippedPaths),
+	}
+}
+
+func firstPaths(paths []string) ([]string, int) {
+	if len(paths) <= maxModelAuditPaths {
+		return paths, 0
+	}
+	return paths[:maxModelAuditPaths], len(paths) - maxModelAuditPaths
+}
+
+// attachWorkspaceAudit подшивает к выводу инструмента сжатую сводку аудита.
+// Команда, которая ничего не изменила при полном снимке, выходит без неё:
+// то же правило, по которому не публикуется событие workspace.changed.
 func attachWorkspaceAudit(result domain.ToolResult, summary workspaceAuditSummary) domain.ToolResult {
+	if summary.TotalChanges == 0 && summary.SnapshotComplete {
+		return result
+	}
 	output := make(map[string]any)
 	if len(result.Output) > 0 && json.Valid(result.Output) {
 		if err := json.Unmarshal(result.Output, &output); err != nil {
 			output = map[string]any{"toolOutput": json.RawMessage(append([]byte(nil), result.Output...))}
 		}
 	}
-	output["_pointWorkspaceAudit"] = summary
+	output["_pointWorkspaceAudit"] = compactWorkspaceAudit(summary)
 	encoded, err := json.Marshal(output)
 	if err == nil {
 		result.Output = encoded

@@ -104,3 +104,50 @@ func main() { _ = os.WriteFile("generated.txt", []byte("changed"), 0600) }
 		t.Fatalf("audit failure was not persisted: %#v", eventsList)
 	}
 }
+
+// E6: перечень пропущенных путей снимка ехал в выводе каждой команды — 184 тыс.
+// из 209 тыс. символов. Модели остаются счётчики, перечень — событию.
+func TestModelSeesCompactWorkspaceAudit(t *testing.T) {
+	skipped := make([]string, maxWorkspaceEventPaths)
+	for index := range skipped {
+		skipped[index] = fmt.Sprintf("cf-pages/public/asset-%03d.bin", index)
+	}
+	changed := make([]string, maxModelAuditPaths+5)
+	for index := range changed {
+		changed[index] = fmt.Sprintf("src/file-%02d.go", index)
+	}
+	raw := workbenchtools.OK(map[string]any{"exitCode": 0, "stdout": "ok"})
+
+	quiet := attachWorkspaceAudit(raw, workspaceAuditSummary{Tool: "run_command", Paths: []string{}, SnapshotComplete: true, SkippedPaths: skipped})
+	if strings.Contains(string(quiet.Output), "_pointWorkspaceAudit") {
+		t.Fatalf("command without changes must not carry an audit: %s", quiet.Output)
+	}
+
+	summary := workspaceAuditSummary{Tool: "run_command", TotalChanges: len(changed), RevertibleChanges: len(changed), RecordedChanges: len(changed), Paths: changed, SnapshotComplete: true, SkippedPaths: skipped}
+	noisy := attachWorkspaceAudit(raw, summary)
+	var output struct {
+		Audit map[string]any `json:"_pointWorkspaceAudit"`
+	}
+	if err := json.Unmarshal(noisy.Output, &output); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(noisy.Output), "asset-000") || output.Audit["skippedCount"] != float64(len(skipped)) {
+		t.Fatalf("skipped paths must be counted, not listed: %s", noisy.Output)
+	}
+	if paths, _ := output.Audit["paths"].([]any); len(paths) != maxModelAuditPaths || output.Audit["omittedPaths"] != float64(5) || output.Audit["totalChanges"] != float64(len(changed)) {
+		t.Fatalf("audit=%v", output.Audit)
+	}
+	if len(noisy.Output) > 4096 {
+		t.Fatalf("model-facing audit is too large: %d bytes", len(noisy.Output))
+	}
+	if len(summary.SkippedPaths) != maxWorkspaceEventPaths {
+		t.Fatal("the event summary must keep the full list")
+	}
+}
+
+func TestFailedWorkspaceAuditStillReachesModel(t *testing.T) {
+	result := attachWorkspaceAudit(workbenchtools.Fail("workspace_audit_failed", "boom"), workspaceAuditSummary{Tool: "run_command", SnapshotComplete: false})
+	if !strings.Contains(string(result.Output), `"_pointWorkspaceAudit"`) {
+		t.Fatalf("incomplete snapshot must stay visible to the model: %s", result.Output)
+	}
+}

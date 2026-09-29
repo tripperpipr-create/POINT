@@ -54,10 +54,7 @@ export function createMasterInbox({
           const agents = Array.isArray(ui.state.boot.projectAgents) ? ui.state.boot.projectAgents : []
           ui.state.boot.projectAgents = [agent, ...agents.filter(item => item.id !== agent.id)]
         }
-        if (order && ownsOrder(order)) {
-          const orders = Array.isArray(ui.masterData?.workOrders) ? ui.masterData.workOrders : []
-          ui.masterData = { ...(ui.masterData || {}), workOrders: upsertNewer(orders, order, workOrderStamp) }
-        }
+        if (order && ownsOrder(order)) ui.masterData = { ...(ui.masterData || {}), workOrders: upsertNewer(ui.masterData?.workOrders, order, workOrderStamp) }
         render()
         return true
       }

@@ -716,10 +716,7 @@ class AgentViewProvider {
     if (kept.length !== records.length) await this.context.workspaceState.update(POINT_COMPANION_FEEDBACK_KEY, kept)
   }
 
-  patchBoot(fields) {
-    this.boot = mergeBootSnapshot(this.boot, fields)
-    return this.boot
-  }
+  patchBoot(fields) { this.boot = mergeBootSnapshot(this.boot, fields); return this.boot }
 
   upsertBootItem(collection, value) {
     this.patchBoot({ [collection]: upsertById(this.boot?.[collection], value) })

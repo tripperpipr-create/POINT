@@ -175,7 +175,8 @@ func (t RunCommand) Execute(ctx context.Context, raw json.RawMessage) domain.Too
 	} else if runtime.GOOS == "windows" {
 		cmd = osproc.Command("cmd.exe", "/d", "/s", "/c", input.Command)
 	} else {
-		cmd = osproc.Command("/bin/sh", "-c", input.Command)
+		program, args := HostShellCommand(input.Command)
+		cmd = osproc.Command(program, args...)
 	}
 	if t.Executor == nil {
 		cmd.Dir = cwd

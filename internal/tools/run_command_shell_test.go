@@ -15,7 +15,7 @@ import (
 // substitution" as a project failure; the tool now names its real shell.
 func TestRunCommandNamesItsShell(t *testing.T) {
 	description := RunCommand{}.Definition().Description
-	want := "POSIX /bin/sh"
+	want := hostShell().program
 	if runtime.GOOS == "windows" {
 		want = "cmd.exe"
 	}
@@ -94,5 +94,31 @@ func TestLimitedWriterKeepsHeadAndTail(t *testing.T) {
 	_, _ = small.Write([]byte("ok\n"))
 	if small.truncated || small.String() != "ok\n" {
 		t.Fatalf("short output changed: %q", small.String())
+	}
+}
+
+// Q08: на хосте `/bin/sh` — часто dash без pipefail, и падение сборки
+// пряталось за `| tail`. Хостовая оболочка сохраняет код первой команды.
+func TestHostRunCommandKeepsExitCodeThroughPipe(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("cmd.exe has no pipefail")
+	}
+	if !hostShell().pipefail {
+		t.Skip("no shell with pipefail on this host")
+	}
+	fs, err := workspace.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := RunCommand{FS: fs}.Execute(context.Background(), json.RawMessage(`{"command":"sh -c 'echo building; exit 3' 2>&1 | tail -1","reason":"pipe"}`))
+	var output struct {
+		ExitCode int    `json:"exitCode"`
+		Stdout   string `json:"stdout"`
+	}
+	if err := json.Unmarshal(result.Output, &output); err != nil {
+		t.Fatalf("output=%s err=%v", result.Output, err)
+	}
+	if output.ExitCode != 3 || !strings.Contains(output.Stdout, "building") {
+		t.Fatalf("pipe hid the exit code: %+v", output)
 	}
 }

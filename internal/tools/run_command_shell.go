@@ -21,7 +21,7 @@ func (t RunCommand) runCommandShellNote() string {
 	case runtime.GOOS == "windows":
 		return " It runs through cmd.exe on Windows."
 	default:
-		return " It runs through POSIX /bin/sh."
+		return hostShellNote()
 	}
 }
 

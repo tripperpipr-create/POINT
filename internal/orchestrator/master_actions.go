@@ -139,7 +139,7 @@ func maskedCriterionCommands(brief domain.TaskBrief) *domain.ToolResult {
 	if len(lines) == 0 {
 		return nil
 	}
-	failure := workbenchtools.FailWithHint("invalid_brief", "задание не прошло проверку сервера: "+strings.Join(lines, "; "), "убери из команды «|| true», «; exit 0», «; echo …» и «set +e»: критерий должен падать вместе с проверкой; пайп вроде «| tail» допустим — в песочнице включён pipefail")
+	failure := workbenchtools.FailWithHint("invalid_brief", "задание не прошло проверку сервера: "+strings.Join(lines, "; "), "убери из команды «|| true», «; exit 0», «; echo …» и «set +e»: критерий должен падать вместе с проверкой; пайп вроде «| tail» допустим — в песочнице и в оболочке хоста включён pipefail")
 	return &failure
 }
 

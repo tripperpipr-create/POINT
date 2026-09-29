@@ -50,6 +50,8 @@ func (s *SQLite) ExpireTemporaryMasterConversations(ctx context.Context, workspa
 	return s.purgeTemporaryMasterConversations(ctx, workspaceID)
 }
 
+const deliveredAppInterruptedSummary = "Ядро остановилось посреди действия с приложением; его исход неизвестен, и Point его не повторяет. Проверьте состояние приложения и запустите действие заново."
+
 func (s *SQLite) MarkInterrupted(ctx context.Context) error {
 	return s.markInterrupted(ctx, "")
 }
@@ -151,6 +153,16 @@ WHERE status IN (?, ?, ?) AND (run_id='' OR run_id NOT IN (
 		return err
 	}
 	if _, err = tx.ExecContext(ctx, `UPDATE patches SET status='rejected' WHERE status='pending' AND (?='' OR run_id IN (SELECT id FROM runs WHERE workspace_id=?))`, workspaceID, workspaceID); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+	// Запуск или остановка приложения доставки, начатые прошлым процессом,
+	// навсегда оставались «executing»: карточка показывала идущее действие,
+	// которого никто не делает (Q14). Исход неизвестен — повторять его сам
+	// Point не вправе, решает человек. Время записи не меняется: иначе старое
+	// действие встало бы новее тех, что были после него.
+	if _, err = tx.ExecContext(ctx, `UPDATE delivered_app_controls_v2 SET response_json=json_set(response_json,'$.status','unknown_outcome','$.summary',?) WHERE json_extract(response_json,'$.status')='executing' AND (?='' OR quest_id IN (SELECT id FROM quests WHERE workspace_id=?))`,
+		deliveredAppInterruptedSummary, workspaceID, workspaceID); err != nil {
 		_ = tx.Rollback()
 		return err
 	}

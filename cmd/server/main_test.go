@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -8,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -160,5 +162,21 @@ func TestWatchOwnersClosesWithoutOwnersOnly(t *testing.T) {
 	case <-watchOwners(ctx, owned, 20*time.Millisecond, 5*time.Millisecond, time.Now, logger):
 		t.Fatal("ядро вышло при живом окне")
 	case <-time.After(300 * time.Millisecond):
+	}
+}
+
+// Q14: повторный сигнал во время остановки попадает в журнал с номером.
+func TestLaterSignalsAreLogged(t *testing.T) {
+	var buffer bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&buffer, nil))
+	signals := make(chan os.Signal, 2)
+	signals <- syscall.SIGTERM
+	close(signals)
+	logLaterSignals(signals, time.Now(), logger)
+	line := buffer.String()
+	for _, want := range []string{"signal during shutdown", "signal=terminated", "count=2", "ppid="} {
+		if !strings.Contains(line, want) {
+			t.Fatalf("log lacks %q: %s", want, line)
+		}
 	}
 }

@@ -17,6 +17,7 @@ import (
 )
 
 func main() {
+	startedAt := time.Now()
 	logger := observability.ConfigureLogger()
 	slog.SetDefault(logger)
 	dataDir := env("DATA_DIR", filepath.Join(".", "data"))
@@ -61,7 +62,9 @@ func main() {
 		cancel()
 		os.Exit(1)
 	}
-	signals := make(chan os.Signal, 1)
+	// Буфер на несколько сигналов: второй SIGTERM прежде никто не читал, и
+	// «двойная остановка» в журнале ядра была невидима (Q14).
+	signals := make(chan os.Signal, 4)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 	// Без POINT_OWNER_DIR канал остаётся nil и в select не срабатывает никогда:
 	// ядро, запущенное не из расширения, хозяев не ждёт (owner_watch.go).
@@ -77,7 +80,8 @@ func main() {
 			logger.Error("HTTP server failed", "error", err)
 		}
 	case sig := <-signals:
-		logger.Info("shutdown requested", "signal", sig.String())
+		logger.Info("shutdown requested", signalAttrs(sig, 1, startedAt)...)
+		go logLaterSignals(signals, startedAt, logger)
 	case <-orphaned:
 		logger.Info("shutdown requested", "reason", "no Point window alive")
 	}
@@ -93,4 +97,22 @@ func env(name, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+// signalAttrs — что известно о сигнале остановки. Отправителя Go не сообщает
+// (si_pid недоступен), поэтому рядом — родитель и возраст процесса: сигнал от
+// расширения, от смены окна или от системы различаются по ним и по журналу
+// расширения, где у каждой остановки назван вызвавший её код.
+func signalAttrs(sig os.Signal, count int, startedAt time.Time) []any {
+	return []any{"signal", sig.String(), "count", count, "pid", os.Getpid(), "ppid", os.Getppid(), "uptime", time.Since(startedAt).Round(time.Millisecond).String()}
+}
+
+// logLaterSignals пишет каждый следующий сигнал, пришедший, пока ядро
+// останавливается: именно их и не хватало, чтобы разобрать двойной SIGTERM.
+func logLaterSignals(signals <-chan os.Signal, startedAt time.Time, logger *slog.Logger) {
+	count := 1
+	for sig := range signals {
+		count++
+		logger.Warn("signal during shutdown", signalAttrs(sig, count, startedAt)...)
+	}
 }

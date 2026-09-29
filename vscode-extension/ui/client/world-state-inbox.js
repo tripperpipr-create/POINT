@@ -11,7 +11,7 @@
 //
 // Состояние приходит общим мешком `ui`, как в `companion-transport.js`.
 
-import { newerBoot } from '../../snapshot-order.js'
+import { newerBoot } from './snapshot-order.js'
 
 export function createWorldStateInbox({
   ui,

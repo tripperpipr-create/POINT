@@ -366,13 +366,24 @@ func (s ChatService) discussWithModel(ctx context.Context, req ChatRequest, worl
 	// размышляющая модель не успела бы закончить, и ход пропал бы целиком.
 	exploreEnd := masterExploreRounds
 	var longestRound time.Duration
-	for round := 0; round < masterIntakeRounds; round++ {
+	// Пустой круг после исследования получает один восстановительный круг за
+	// ход (master_empty_round.go); pendingRecovery — что следующий круг он.
+	recoveryUsed, pendingRecovery := false, false
+	for round := 0; round < masterIntakeRounds || pendingRecovery; round++ {
 		trace.round = round + 1
+		recovering := pendingRecovery
+		pendingRecovery = false
 		if round > 0 && round < exploreEnd && masterTimeRunsShort(ctx, longestRound) {
 			exploreEnd = round
 		}
 		tools := append(append([]domain.ToolDefinition(nil), readDefinitions...), actionDefinitions...)
 		switch {
+		case recovering:
+			// Исследование на этом кончено: после ответа по собранному
+			// круги идут только с инструментами разговора.
+			exploreEnd = min(exploreEnd, round)
+			tools = actionDefinitions
+			messages = append(messages, providers.Message{Role: "user", Content: masterEmptyRoundPrompt})
 		case round == exploreEnd:
 			tools = actionDefinitions
 			s.Skills.Operation.Repairs++
@@ -390,6 +401,11 @@ func (s ChatService) discussWithModel(ctx context.Context, req ChatRequest, worl
 			messages = append(messages, providers.Message{Role: "user", Content: "Ответь человеку текстом; инструменты проекта больше недоступны."})
 		}
 		request := providers.ModelRequest{Model: req.Config.Model, Messages: messages, Tools: tools, MaxOutputTokens: output, ContextWindowTokens: window, Temperature: req.Config.Temperature}
+		// Восстановительный круг идёт без размышления там, где рантайм это
+		// принимает: прошлый круг размышление и съело.
+		if recovering && domain.RuntimeAcceptsThinkingSwitch(req.Config.Provider, req.Config.ProviderPreset) {
+			request.DisableThinking = true
+		}
 		compacted, compactedUser, done, err := compactIntakeMessages(request, historyStart, userIndex)
 		if err != nil {
 			// Не вмещается уже после сжатия. Если модель успела что-то
@@ -411,6 +427,8 @@ func (s ChatService) discussWithModel(ctx context.Context, req ChatRequest, worl
 		var raw strings.Builder
 		var calls []providers.ToolCall
 		var reasoning []providers.ReasoningBlock
+		var loopGuard reasoningLoopGuard
+		finishReason := ""
 		roundStarted := time.Now()
 		err = streamMasterModel(ctx, model, request, domain.ShouldSuppressThinking(req.Config.Provider, req.Config.ProviderPreset), trace, func(event providers.ModelEvent) error {
 			switch event.Kind {
@@ -427,6 +445,9 @@ func (s ChatService) discussWithModel(ctx context.Context, req ChatRequest, worl
 			case providers.EventReasoning:
 				if event.Reasoning != nil {
 					reasoning = append(reasoning, *event.Reasoning)
+					if loopGuard.looped(event.Reasoning.Text) {
+						return errMasterReasoningLoop
+					}
 					// Рассуждение копится за весь ход, а не за раунд: человек
 					// спрашивал один раз, и путь к ответу у него тоже один.
 					if text := strings.TrimSpace(event.Reasoning.Text); text != "" {
@@ -441,11 +462,20 @@ func (s ChatService) discussWithModel(ctx context.Context, req ChatRequest, worl
 				usage.InputTokens += int64(event.InputTokens)
 				usage.OutputTokens += int64(event.OutputTokens)
 				usage.TotalTokens += int64(event.InputTokens + event.OutputTokens)
+			case providers.EventFinish:
+				finishReason = event.FinishReason
 			}
 			return nil
 		})
 		usage.LatencyMs = time.Since(startedAt).Milliseconds()
 		longestRound = max(longestRound, time.Since(roundStarted))
+		looped := errors.Is(err, errMasterReasoningLoop)
+		if looped {
+			// Петля — тот же пустой круг, только замеченный раньше предела
+			// вывода. Начатые в нём вызовы не исполняются: круг оборван.
+			err, calls, reasoning = nil, nil, nil
+			finishReason = "reasoning_loop"
+		}
 		if err != nil {
 			// Срок вышел, но сказанное и оформленное человек уже видел в
 			// потоке: ход кончается им, как при переполнении контекста.
@@ -463,6 +493,25 @@ func (s ChatService) discussWithModel(ctx context.Context, req ChatRequest, worl
 			spoken = append(spoken, text)
 		}
 		if len(calls) == 0 {
+			if emptyRound := strings.TrimSpace(raw.String()) == ""; emptyRound && (round > 0 || looped) {
+				detail := map[string]any{"reason": "empty_round", "finishReason": finishReason, "reasoningChars": loopGuard.size()}
+				if looped {
+					detail["reason"] = "reasoning_loop"
+				}
+				if !recoveryUsed {
+					recoveryUsed, pendingRecovery = true, true
+					s.Skills.Operation.Repairs++
+					trace.retry("ответ по собранному", detail)
+					continue
+				}
+				// Второй пустой круг за ход: оформленное вызовами (задание,
+				// вопросы) — ответ, одна вводная фраза — нет.
+				if actions.silentReply() == "" {
+					trace.retry("модель не ответила по собранному", detail)
+					trace.flush()
+					return taskIntakeEnvelope{}, usage, errMasterEmptyAnswer
+				}
+			}
 			trace.flush()
 			return s.finishMasterTurn(actions, spoken, usage)
 		}

@@ -193,6 +193,7 @@ func streamOllamaResponse(ctx context.Context, body io.Reader, onEvent func(Mode
 		var chunk struct {
 			Message         wireMessage `json:"message"`
 			Done            bool        `json:"done"`
+			DoneReason      string      `json:"done_reason"`
 			PromptEvalCount int         `json:"prompt_eval_count"`
 			EvalCount       int         `json:"eval_count"`
 			Error           string      `json:"error"`
@@ -223,6 +224,11 @@ func streamOllamaResponse(ctx context.Context, body io.Reader, onEvent func(Mode
 		}
 		if chunk.Done && (chunk.PromptEvalCount > 0 || chunk.EvalCount > 0) {
 			if err = onEvent(ModelEvent{Kind: EventUsage, InputTokens: chunk.PromptEvalCount, OutputTokens: chunk.EvalCount}); err != nil {
+				return err
+			}
+		}
+		if chunk.Done && chunk.DoneReason != "" {
+			if err = onEvent(ModelEvent{Kind: EventFinish, FinishReason: chunk.DoneReason}); err != nil {
 				return err
 			}
 		}

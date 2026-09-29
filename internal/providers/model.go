@@ -71,6 +71,10 @@ const (
 	EventUsage     EventKind = "usage"
 	EventRetry     EventKind = "retry"
 	EventReasoning EventKind = "reasoning"
+	// EventFinish закрывает поток и несёт finish_reason провайдера. Пустой
+	// ответ без ошибки иначе неотличим: модель остановилась сама, упёрлась в
+	// предел или шлюз закрыл поток — а чинится это по-разному.
+	EventFinish EventKind = "finish"
 )
 
 type ModelEvent struct {
@@ -96,6 +100,7 @@ type ModelEvent struct {
 	Attempt              int    `json:"attempt,omitempty"`
 	DelayMs              int64  `json:"delayMs,omitempty"`
 	Message              string `json:"message,omitempty"`
+	FinishReason         string `json:"finishReason,omitempty"`
 }
 
 type Model interface {

@@ -138,6 +138,7 @@ func TestOpenAICompatibleStreamingTextToolAndUsage(t *testing.T) {
 			map[string]any{"choices": []any{map[string]any{"delta": map[string]any{"content": "Checking "}}}},
 			map[string]any{"choices": []any{map[string]any{"delta": map[string]any{"tool_calls": []any{map[string]any{"index": 0, "id": "call_1", "function": map[string]any{"name": "read_file", "arguments": "{\"path\":"}}}}}}},
 			map[string]any{"choices": []any{map[string]any{"delta": map[string]any{"tool_calls": []any{map[string]any{"index": 0, "function": map[string]any{"arguments": "\"main.go\"}"}}}}}}, "usage": map[string]any{"prompt_tokens": 12, "completion_tokens": 4}},
+			map[string]any{"choices": []any{map[string]any{"delta": map[string]any{}, "finish_reason": "tool_calls"}}},
 		}
 		for _, chunk := range chunks {
 			data, _ := json.Marshal(chunk)
@@ -150,6 +151,7 @@ func TestOpenAICompatibleStreamingTextToolAndUsage(t *testing.T) {
 	var text string
 	var call *ToolCall
 	var usage ModelEvent
+	var finish string
 	err := model.Stream(context.Background(), ModelRequest{Model: "test", Messages: []Message{{Role: "user", Content: "inspect"}}, Tools: []domain.ToolDefinition{{Name: "read_file", InputSchema: json.RawMessage(`{"type":"object"}`)}}}, func(event ModelEvent) error {
 		switch event.Kind {
 		case EventTextDelta:
@@ -158,6 +160,11 @@ func TestOpenAICompatibleStreamingTextToolAndUsage(t *testing.T) {
 			call = event.ToolCall
 		case EventUsage:
 			usage = event
+		case EventFinish:
+			if call == nil {
+				t.Error("finish must close the stream after tool calls")
+			}
+			finish = event.FinishReason
 		}
 		return nil
 	})
@@ -172,6 +179,9 @@ func TestOpenAICompatibleStreamingTextToolAndUsage(t *testing.T) {
 	}
 	if usage.InputTokens != 12 || usage.OutputTokens != 4 {
 		t.Fatalf("usage=%#v", usage)
+	}
+	if finish != "tool_calls" {
+		t.Fatalf("finish_reason is not reported: %q", finish)
 	}
 }
 
@@ -259,14 +269,18 @@ func TestOllamaStreaming(t *testing.T) {
 		w.Header().Set("Content-Type", "application/x-ndjson")
 		fmt.Fprintln(w, `{"message":{"role":"assistant","content":"hello "},"done":false}`)
 		fmt.Fprintln(w, `{"message":{"role":"assistant","tool_calls":[{"function":{"name":"list_files","arguments":{"maxDepth":2}}}]},"done":false}`)
-		fmt.Fprintln(w, `{"message":{"role":"assistant","content":"world"},"done":true,"prompt_eval_count":8,"eval_count":3}`)
+		fmt.Fprintln(w, `{"message":{"role":"assistant","content":"world"},"done":true,"done_reason":"stop","prompt_eval_count":8,"eval_count":3}`)
 	}))
 	defer server.Close()
 	model := NewOllama(Config{BaseURL: server.URL, TimeoutSeconds: 5})
 	var parts []string
 	var toolName string
 	var inputTokens int
+	var finish string
 	err := model.Stream(context.Background(), ModelRequest{Model: "test", Messages: []Message{{Role: "user", Content: "inspect"}}}, func(event ModelEvent) error {
+		if event.Kind == EventFinish {
+			finish = event.FinishReason
+		}
 		if event.Kind == EventTextDelta {
 			parts = append(parts, event.Delta)
 		}
@@ -281,8 +295,8 @@ func TestOllamaStreaming(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Join(parts, "") != "hello world" || toolName != "list_files" || inputTokens != 8 {
-		t.Fatalf("parts=%v tool=%s tokens=%d", parts, toolName, inputTokens)
+	if strings.Join(parts, "") != "hello world" || toolName != "list_files" || inputTokens != 8 || finish != "stop" {
+		t.Fatalf("parts=%v tool=%s tokens=%d finish=%q", parts, toolName, inputTokens, finish)
 	}
 }
 

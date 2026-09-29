@@ -401,5 +401,8 @@ func streamOpenAIResponse(ctx context.Context, body io.Reader, onEvent func(Mode
 			return err
 		}
 	}
+	if finishReason != "" {
+		return onEvent(ModelEvent{Kind: EventFinish, FinishReason: finishReason})
+	}
 	return nil
 }

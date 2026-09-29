@@ -10,7 +10,7 @@ import (
 // итог говорит «проверено» там, где проверка провалилась (Q08, E1). Пайпы сюда
 // не входят: в песочнице включён pipefail, и `… | tail` код сохраняет.
 var exitMaskingPatterns = []*regexp.Regexp{
-	regexp.MustCompile(`\|\|\s*(?:true|:|exit(?:\s+0)?)\s*(?:$|[;&|)])`),
+	regexp.MustCompile(`\|\|\s*(?:true|:|exit\s+0)\s*(?:$|[;&|)])`),
 	regexp.MustCompile(`;\s*(?:true|:|exit\s+0)\s*$`),
 	regexp.MustCompile(`;\s*echo\b[^;&|]*$`),
 	regexp.MustCompile(`(?:^|[;&|]\s*)set\s+\+e\b`),

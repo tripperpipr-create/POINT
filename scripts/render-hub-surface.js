@@ -1062,6 +1062,10 @@ if (process.argv[2] === 'master') {
           ],
         },
       }
+      // Подготовленное лежит в наборе изменений этапа: карточка показывает его
+      // diff и причину недоставки (Q13), а не голые пути.
+      boot.changeSets = [...(boot.changeSets || []), { id: 'cs-bench', questId: 'quest-bench', title: 'Health-эндпоинт', status: 'pending', createdAt: '2026-08-15T10:00:00Z',
+        items: [{ id: 'cs-bench-1', path: 'src/Controller/HealthController.php', kind: 'add', diff: '--- /dev/null\n+++ b/src/Controller/HealthController.php\n@@ -0,0 +1,3 @@\n+<?php\n+final class HealthController {}\n+// health' }] }]
     }
     if (variant === 'work-order-approved' || variant === 'work-order-app-starting') {
       // Квест взят: строка с чипами итога, вердикт, действия, условия с тем,

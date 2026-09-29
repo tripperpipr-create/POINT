@@ -27,6 +27,7 @@ import { stageFlowNode, stageLabel, stageLabelText } from './stage-labels.js'
 import { activeStage, requireEsc, stageSpan, workOrderExecutionParts } from './work-order-execution-views.js'
 import { diffCountHtml, diffStats } from './diff-view.js'
 import { questApplicationHtml, questReportHtml } from './quest-app-views.js'
+import { preparedFilesHtml } from './quest-prepared-views.js'
 
 const LIVE = new Set(['preflight', 'running', 'verifying', 'applying'])
 // Работающий или остановленный квест остаётся частью ленты разговора: этапы,
@@ -210,11 +211,9 @@ function changesHtml(order, ui, esc) {
   const runtime = order.runtime || {}
   const evidence = runtime.evidence
   const files = list(evidence?.changedFiles)
-  // Подготовленное, но не доставленное — не «нет изменений» и не доставка.
-  const prepared = list(evidence?.preparedFiles)
-  const preparedHtml = prepared.length
-    ? `<div class="quest-section"><h4>Подготовлено, не доставлено · ${countOf(prepared.length, 'файл', 'файла', 'файлов')}</h4><ul class="quest-files">${prepared.slice(0, 12).map(path => `<li><span class="hall-step-icon">${icon('file')}</span><span>${esc(path)}</span></li>`).join('')}</ul></div>`
-    : ''
+  // Подготовленное, но не доставленное — не «нет изменений» и не доставка:
+  // diff, причина и выход — в quest-prepared-views.js.
+  const preparedHtml = preparedFilesHtml(order, ui, esc)
   if (!files.length) return preparedHtml
   const target = String(evidence.deliveryTarget || runtime.deliveryReceipt?.target || '')
   const delivered = Boolean(runtime.deliveryReceipt?.id) && target !== 'isolated_review'

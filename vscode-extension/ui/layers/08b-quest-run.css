@@ -368,6 +368,20 @@
 .hall-dialogue .quest-checks > li > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hall-dialogue .quest-checks code { color: var(--hub-text-3); font: var(--fw-normal) var(--t-small) / 1.4 var(--font-mono); }
 
+/* Подготовленный файл раскрывается в свой diff (quest-prepared-views.js):
+   строка списка — заголовок раскрытия, а не сетка из трёх колонок. */
+.hall-dialogue .quest-files > li:has(> .quest-prepared-file) { display: block; }
+.hall-dialogue .quest-prepared-file > summary {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: var(--control-sm);
+  cursor: pointer;
+  list-style: none;
+}
+.hall-dialogue .quest-prepared-file > summary::-webkit-details-marker { display: none; }
+.hall-dialogue .quest-prepared-reason { margin: 0; color: var(--hub-text-2); font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui); }
 .hall-dialogue .quest-section { display: grid; gap: var(--s-2); }
 .hall-dialogue .quest-section > h4 { margin: 0; color: var(--hub-muted); font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui); }
 /* Путь файла — цель указателя во всю строку, а не строка текста в 15 пикселей. */

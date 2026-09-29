@@ -16,6 +16,7 @@ const { restoreSystemBackup } = require('./backup-controller')
 const { createNdjsonReader } = require('./core-stream')
 const { createCoreLog } = require('./core-log')
 const { createCoreLease } = require('./core-lease')
+const { mergeBootSnapshot } = require('./snapshot-order')
 const { createLanguageSupport } = require('./language-support')
 const { createGitTools } = require('./git-tool-controller')
 const { createHubSurfaces } = require('./hub-surfaces-controller')
@@ -716,7 +717,7 @@ class AgentViewProvider {
   }
 
   patchBoot(fields) {
-    this.boot = { ...(this.boot || {}), ...(fields || {}) }
+    this.boot = mergeBootSnapshot(this.boot, fields)
     return this.boot
   }
 

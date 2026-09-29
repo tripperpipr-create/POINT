@@ -193,6 +193,11 @@ func (a *App) finalizeQuestAfterFlow(questID string, success bool) {
 		if quest.ID != questID {
 			continue
 		}
+		// Поздний колбэк отменённого прогона не выносит вердикт (как у v2).
+		loaded := quest.Status
+		if loaded == domain.QuestCancelled {
+			return
+		}
 		quest.Status = domain.QuestFailed
 		content := fmt.Sprintf("Quest «%s» finished with status %s. Objectives: %s", quest.Title, quest.Status, strings.Join(quest.Objectives, "; "))
 		verified := success
@@ -224,8 +229,8 @@ func (a *App) finalizeQuestAfterFlow(questID string, success bool) {
 			quest.FinishedAt = nil
 		}
 		quest.UpdatedAt = now
-		if err := a.store.SaveQuest(context.Background(), quest); err != nil {
-			slog.Warn("quest completion not persisted", "quest_id", quest.ID, "status", quest.Status, "error", err)
+		if err := a.saveLoadedQuest(context.Background(), quest, loaded, "flow_completion"); errors.Is(err, storage.ErrQuestStatusChanged) {
+			return
 		}
 		if domain.IsTerminalQuestStatus(quest.Status) {
 			a.queueQuestSubagentEvaluations(quest.ID)

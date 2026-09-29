@@ -10,6 +10,7 @@
 import { masterQueueAfterTurn, masterQueuePause } from './master-compose-keys.js'
 import { acceptQuestAppState, acceptQuestReportState, questAppsToProbe } from './quest-app-state.js'
 import { masterAgentBusy, masterAgentErrors } from './master-agent-card-state.js'
+import { mergeNewerById, upsertNewer, workOrderStamp } from '../../snapshot-order.js'
 const ORDER_REPLIES = new Set(['masterWorkOrderApproved', 'masterWorkOrderRevised', 'masterWorkOrderControlled', 'masterApplicationControlled'])
 const MASTER_MESSAGES = new Set([
 	'masterDevelopment', 'masterDevelopmentError',
@@ -55,7 +56,7 @@ export function createMasterInbox({
         }
         if (order && ownsOrder(order)) {
           const orders = Array.isArray(ui.masterData?.workOrders) ? ui.masterData.workOrders : []
-          ui.masterData = { ...(ui.masterData || {}), workOrders: [order, ...orders.filter(item => item.id !== order.id)] }
+          ui.masterData = { ...(ui.masterData || {}), workOrders: upsertNewer(orders, order, workOrderStamp) }
         }
         render()
         return true
@@ -88,7 +89,7 @@ export function createMasterInbox({
         // разговор: его обновление не должно подкладывать чужую карточку.
         if(message.conversationId && message.conversationId!==masterClient.active) return true
         const current=Array.isArray(ui.masterData?.workOrders)?ui.masterData.workOrders:[]
-        ui.masterData={...(ui.masterData || {}),workOrders:[message.workOrder,...current.filter(item=>item.id!==message.workOrder.id)]}
+        ui.masterData={...(ui.masterData || {}),workOrders:upsertNewer(current,message.workOrder,workOrderStamp)}
         if (ui.hiringReloadFor && ui.hiringReloadFor === message.workOrder?.id) {
           ui.hiringReloadFor = ''
           vscode.postMessage({ type: 'loadMaster', conversationId: masterClient.active })
@@ -100,7 +101,7 @@ export function createMasterInbox({
       // бы в открытую ленту.
       if (ORDER_REPLIES.has(message.type)) {
         const order=message.type==='masterWorkOrderApproved' ? message.approval?.workOrder : message.workOrder
-        if(order){ui.masterWorkOrderBusy.delete(order.id);if(ownsOrder(order)){const current=Array.isArray(ui.masterData?.workOrders)?ui.masterData.workOrders:[];ui.masterData={...(ui.masterData || {}),workOrders:[order,...current.filter(item=>item.id!==order.id)]}}}
+        if(order){ui.masterWorkOrderBusy.delete(order.id);if(ownsOrder(order)){const current=Array.isArray(ui.masterData?.workOrders)?ui.masterData.workOrders:[];ui.masterData={...(ui.masterData || {}),workOrders:upsertNewer(current,order,workOrderStamp)}}}
         ui.masterComposeNote=''
         render()
       }
@@ -144,7 +145,7 @@ export function createMasterInbox({
         if (message.sessionChanged && previousSession) masterSessionDrafts[previousSession] = ui.masterDraft
         if (message.sessionChanged && previousSession !== message.master?.sessions?.active) ui.masterDiscussionProposalId = ''
         const sessionTitleChanged = JSON.stringify(ui.masterData?.sessions?.items) !== JSON.stringify(message.master?.sessions?.items)
-        ui.masterData = message.master
+        ui.masterData = Array.isArray(message.master?.workOrders) ? { ...message.master, workOrders: mergeNewerById(ui.masterData?.workOrders, message.master.workOrders, workOrderStamp) } : message.master
         if(message.regenerate)setTimeout(()=>sendMasterMessage(message.draft || '',{retry:true}),0)
         const nextProposal = ui.masterData?.response?.proposal
         if (nextProposal?.brief) {

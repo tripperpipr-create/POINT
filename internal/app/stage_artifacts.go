@@ -97,7 +97,7 @@ func (a *App) recordFlowNodeArtifact(flowRun domain.FlowRun, node domain.FlowNod
 			ProducerID: node.AgentID, AttemptID: executionID, Status: status,
 			InputRevision: flowRun.ID,
 		})
-		_ = a.store.SaveQuest(context.Background(), quests[i])
+		_ = a.saveLoadedQuest(context.Background(), quests[i], quests[i].Status, "stage_artifact")
 		return
 	}
 }

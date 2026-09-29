@@ -114,6 +114,12 @@ func (a *App) setFlowChildQuestStatus(flowRunID, nodeID string, status domain.Qu
 		if quest.FlowRunID != flowRunID || quest.FlowNodeID != nodeID {
 			continue
 		}
+		// Отмена дерева квеста окончательна: колбэк этапа, пришедший после
+		// неё, не возвращает этап в работу и не выносит ему вердикт.
+		loaded := quest.Status
+		if loaded == domain.QuestCancelled {
+			return
+		}
 		quest.Status = status
 		quest.UpdatedAt = now
 		switch status {
@@ -122,7 +128,7 @@ func (a *App) setFlowChildQuestStatus(flowRunID, nodeID string, status domain.Qu
 		default:
 			quest.FinishedAt = nil
 		}
-		_ = a.store.SaveQuest(context.Background(), quest)
+		_ = a.saveLoadedQuest(context.Background(), quest, loaded, "flow_stage_status")
 		return
 	}
 }
@@ -148,12 +154,11 @@ func (a *App) closeUnfinishedFlowChildQuests(flowRunID string, success bool) {
 		case domain.QuestCompleted, domain.QuestNeedsReview, domain.QuestBlocked, domain.QuestFailed, domain.QuestCancelled:
 			continue
 		}
-		if success {
-			quest.Status = domain.QuestCancelled // branch was skipped by a successful Flow
-		} else {
-			quest.Status = domain.QuestCancelled
-		}
+		loaded := quest.Status
+		// Незавершённый этап закрывается отменой при любом исходе Flow:
+		// успешный Flow его пропустил, неудачный — не дошёл.
+		quest.Status = domain.QuestCancelled
 		quest.UpdatedAt, quest.FinishedAt = now, &now
-		_ = a.store.SaveQuest(context.Background(), quest)
+		_ = a.saveLoadedQuest(context.Background(), quest, loaded, "flow_stage_close")
 	}
 }

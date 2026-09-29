@@ -231,3 +231,63 @@ func TestVerdictClosesLaunchPhaseAndMessage(t *testing.T) {
 		t.Fatalf("вердикт стёр текущий milestone: %v", latest.Controller)
 	}
 }
+
+// Колбэк этапа, пришедший после отмены дерева, прежде писал этапу `running`
+// поверх `cancelled`: отменённый квест снова показывал этап в работе.
+func TestLateStageCallbackKeepsCancelledStage(t *testing.T) {
+	application := newTestApp(t)
+	ctx := context.Background()
+	quest, _ := runningQuestWithFlowChildrenForTest(t, application, "late-stage")
+	if _, err := application.store.ControlWorkOrderQuestV2(ctx, quest.ID, "cancel", ""); err != nil {
+		t.Fatal(err)
+	}
+	application.setFlowChildQuestStatus(quest.FlowRunID, "child-open-late-stage", domain.QuestRunning)
+	stage, err := application.store.GetQuest(ctx, "child-open-late-stage")
+	if err != nil || stage.Status != domain.QuestCancelled {
+		t.Fatalf("поздний колбэк вернул отменённый этап в работу: %s err=%v", stage.Status, err)
+	}
+}
+
+// Решение надзора, отказ сети, артефакт этапа держат снимок квеста, снятый до
+// отмены. Запись таким снимком не возвращает квест в прежний статус.
+func TestStaleQuestSnapshotDoesNotReviveCancellation(t *testing.T) {
+	application := newTestApp(t)
+	ctx := context.Background()
+	quest, _ := runningQuestWithFlowChildrenForTest(t, application, "stale-snapshot")
+	snapshot, err := application.store.GetQuest(ctx, quest.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = application.store.ControlWorkOrderQuestV2(ctx, quest.ID, "cancel", ""); err != nil {
+		t.Fatal(err)
+	}
+	bumpQuestCounter(&snapshot, "supervisionContinues")
+	if err = application.saveLoadedQuest(ctx, snapshot, snapshot.Status, "test"); !errors.Is(err, storage.ErrQuestStatusChanged) {
+		t.Fatalf("снимок, снятый до отмены, записан: %v", err)
+	}
+	latest, err := application.store.GetQuest(ctx, quest.ID)
+	if err != nil || latest.Status != domain.QuestCancelled {
+		t.Fatalf("отмена потеряна: %s err=%v", latest.Status, err)
+	}
+}
+
+// Квест без наряда: поздний колбэк отменённого Flow прежде выносил ему
+// completed или failed поверх отмены.
+func TestLateFlowCompletionKeepsCancelledQuest(t *testing.T) {
+	application := newTestApp(t)
+	ctx := context.Background()
+	workspace, err := application.OpenWorkspace(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	quest := domain.Quest{ID: "quest-v1-cancelled", WorkspaceID: workspace.Workspace.ID, Title: "v1", Status: domain.QuestCancelled, CreatedAt: now, UpdatedAt: now, FinishedAt: &now}
+	if err = application.store.SaveQuest(ctx, quest); err != nil {
+		t.Fatal(err)
+	}
+	application.finalizeQuestAfterFlow(quest.ID, true)
+	latest, err := application.store.GetQuest(ctx, quest.ID)
+	if err != nil || latest.Status != domain.QuestCancelled {
+		t.Fatalf("поздний колбэк переписал отмену: %s err=%v", latest.Status, err)
+	}
+}

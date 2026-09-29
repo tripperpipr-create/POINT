@@ -119,8 +119,9 @@ func (a *App) ResolveEgressAsk(ctx context.Context, id string, request ResolveEg
 					if quest.ID != ask.QuestID {
 						continue
 					}
+					loaded := quest.Status
 					recordDeniedEgress(&quest, ask.Target)
-					_ = a.store.SaveQuest(ctx, quest)
+					_ = a.saveLoadedQuest(ctx, quest, loaded, "egress_denied")
 					break
 				}
 			}
@@ -267,7 +268,7 @@ func (a *App) persistQuestEgressGrant(ctx context.Context, ask domain.EgressAsk)
 	}
 	quest.Brief = &approved
 	quest.UpdatedAt = time.Now().UTC()
-	if err = a.store.SaveQuest(ctx, *quest); err != nil {
+	if err = a.saveLoadedQuest(ctx, *quest, quest.Status, "egress_grant"); err != nil {
 		return err
 	}
 	if session, listErr := a.store.FindIntakeSessionByQuestID(ctx, ask.QuestID); listErr == nil {

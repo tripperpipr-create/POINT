@@ -79,7 +79,7 @@ func (a *App) ReviseActiveQuestBrief(ctx context.Context, questID string, brief 
 	}
 	quest.BudgetTokens = approved.Budget.Tokens
 	quest.UpdatedAt = time.Now().UTC()
-	if err = a.store.SaveQuest(ctx, quest); err != nil {
+	if err = a.saveLoadedQuest(ctx, quest, quest.Status, "brief_revision"); err != nil {
 		return domain.Quest{}, err
 	}
 	return quest, nil

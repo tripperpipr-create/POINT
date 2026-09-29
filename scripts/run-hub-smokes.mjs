@@ -92,6 +92,7 @@ const checks = [
   'smoke-master-agent-card.mjs',
   'smoke-master-card-open.mjs',
   'smoke-quest-brief-state-signature.js',
+  'smoke-quest-snapshot-order.js',
   'smoke-onboarding-wizard.js',
   'smoke-point-connections.js',
   'smoke-point-guild-roster.js',

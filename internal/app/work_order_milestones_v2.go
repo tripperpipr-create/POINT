@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"local-agent-workbench/internal/domain"
+	"local-agent-workbench/internal/storage"
 )
 
 func nextWorkOrderMilestoneV2(order domain.WorkOrder, runtimes []domain.MilestoneRuntime) (domain.MilestonePlan, domain.MilestoneRuntime, bool) {
@@ -158,7 +159,12 @@ func (a *App) advanceWorkOrderMilestoneV2(approval domain.WorkOrderApproval, suc
 	}
 	quest.Controller["statusMessage"] = "Предыдущий milestone проверен; строится Flow следующего milestone"
 	quest.UpdatedAt = time.Now().UTC()
-	if err = a.store.SaveQuest(ctx, quest); err != nil {
+	// Снимок прочитан до записи milestone: отмена за это время сильнее, и
+	// следующий milestone отменённого квеста не запускается.
+	if err = a.saveLoadedQuest(ctx, quest, quest.Status, "milestone_transition"); err != nil {
+		if errors.Is(err, storage.ErrQuestStatusChanged) {
+			return true, nil
+		}
 		return false, err
 	}
 	result, launchErr := a.launchApprovedWorkOrderV2(ctx, approval, quest, apiKey)

@@ -276,8 +276,9 @@ func (a *App) ResolveSupervisionContinue(ctx context.Context, askID string, cont
 					if quest.ID != ask.QuestID {
 						continue
 					}
+					loaded := quest.Status
 					bumpQuestCounter(&quest, "supervisionContinues")
-					_ = a.store.SaveQuest(ctx, quest)
+					_ = a.saveLoadedQuest(ctx, quest, loaded, "supervision_continue")
 					break
 				}
 			}

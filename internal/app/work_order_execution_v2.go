@@ -186,9 +186,7 @@ func (a *App) runWorkOrderLaunchV2(ctx context.Context, approval domain.WorkOrde
 			}
 			latest.Controller["plannerNote"] = note
 			latest.UpdatedAt = time.Now().UTC()
-			if saveErr := a.store.SaveQuest(writeCtx, latest); saveErr != nil {
-				slog.Warn("terminal work order planner note not persisted", "quest_id", approval.QuestID, "error", saveErr)
-			}
+			_ = a.saveLoadedQuest(writeCtx, latest, latest.Status, "planner_note")
 		}
 		return
 	}

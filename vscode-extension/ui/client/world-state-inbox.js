@@ -11,6 +11,8 @@
 //
 // Состояние приходит общим мешком `ui`, как в `companion-transport.js`.
 
+import { newerBoot } from '../../snapshot-order.js'
+
 export function createWorldStateInbox({
   ui,
   vscode,
@@ -36,14 +38,17 @@ export function createWorldStateInbox({
   return function applyWorldStateMessage(message) {
     if (message.type !== 'state') return false
       if (message.type === 'state') {
-        if (String(message.workspacePath || '') !== ui.projectKey) {
+        // Квест или наряд старше показанного не заменяет его (snapshot-order.js);
+        // снимок другого проекта сравнивать не с чем.
+        const sameProject = String(message.workspacePath || '') === ui.projectKey
+        if (!sameProject) {
           ui.projectKey = String(message.workspacePath || '')
           resetProjectScopedState()
 	      ui.masterDevelopment = undefined
 	      ui.masterDevelopmentBusy = false
 	      ui.masterDevelopmentError = ''
         }
-        ui.state={...message, selectedTab: canonicalTab(message.selectedTab)}
+        ui.state={...message, boot: sameProject ? newerBoot(ui.state?.boot, message.boot) : message.boot, selectedTab: canonicalTab(message.selectedTab)}
         const discussed = (ui.state.boot?.questProposals || []).find(p => p.id === ui.masterDiscussionProposalId)
         if (discussed && discussed.status !== 'pending') {
           ui.masterDiscussionProposalId = ''

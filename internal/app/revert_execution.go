@@ -189,13 +189,12 @@ func (a *App) RevertQuest(questID string) (map[string]any, error) {
 			if quest.ID != questID {
 				continue
 			}
+			loaded := quest.Status
 			quest.Status = domain.QuestCancelled
 			now := time.Now().UTC()
 			quest.FinishedAt = &now
 			quest.UpdatedAt = now
-			if err := a.store.SaveQuest(context.Background(), quest); err != nil {
-				slog.Warn("quest cancellation not persisted", "quest_id", quest.ID, "error", err)
-			}
+			_ = a.saveLoadedQuest(context.Background(), quest, loaded, "revert_cancel")
 		}
 	}
 	return map[string]any{"questId": questID, "executions": executionIDs, "revertedPatches": total}, nil

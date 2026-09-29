@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"local-agent-workbench/internal/domain"
 	"local-agent-workbench/internal/egress"
@@ -226,28 +227,57 @@ func (t RunCommand) Execute(ctx context.Context, raw json.RawMessage) domain.Too
 	)
 }
 
+// limitedWriter держит начало и конец потока, а середину отбрасывает. Прежде
+// он хранил только начало, и ошибка сборки — она почти всегда в последних
+// строках — пропадала: модель видела «exitCode 1» и сотни строк прогресса без
+// причины (Q08). Половина лимита — голове, половина — хвосту.
 type limitedWriter struct {
 	buffer    bytes.Buffer
+	tail      []byte
 	limit     int
+	dropped   int
 	truncated bool
 }
 
 func (w *limitedWriter) Write(p []byte) (int, error) {
 	original := len(p)
-	remaining := w.limit - w.buffer.Len()
-	if remaining <= 0 {
-		w.truncated = true
+	head := w.limit - w.limit/2
+	if room := head - w.buffer.Len(); room > 0 {
+		take := min(room, len(p))
+		w.buffer.Write(p[:take])
+		p = p[take:]
+	}
+	if len(p) == 0 {
 		return original, nil
 	}
-	if len(p) > remaining {
-		p = p[:remaining]
-		w.truncated = true
+	w.truncated = true
+	tailLimit := w.limit / 2
+	w.tail = append(w.tail, p...)
+	if over := len(w.tail) - tailLimit; over > 0 {
+		w.dropped += over
+		if len(w.tail) > 2*tailLimit || tailLimit == 0 {
+			w.tail = append([]byte(nil), w.tail[over:]...)
+		} else {
+			w.tail = w.tail[over:]
+		}
 	}
-	_, err := w.buffer.Write(p)
-	return original, err
+	return original, nil
 }
 
-func (w *limitedWriter) String() string { return w.buffer.String() }
+func (w *limitedWriter) String() string {
+	if !w.truncated {
+		return w.buffer.String()
+	}
+	tail := w.tail
+	// Хвост мог начаться посреди символа UTF-8: неполные байты отбрасываются.
+	for len(tail) > 0 && !utf8.RuneStart(tail[0]) {
+		tail = tail[1:]
+	}
+	if w.dropped == 0 {
+		return w.buffer.String() + string(tail)
+	}
+	return w.buffer.String() + fmt.Sprintf("\n…[обрезано %d байт]…\n", w.dropped+len(w.tail)-len(tail)) + string(tail)
+}
 
 var backgroundCommand = regexp.MustCompile(`(?i)(^|[;&|]\s*)(nohup|disown|start)(\s|$)`)
 

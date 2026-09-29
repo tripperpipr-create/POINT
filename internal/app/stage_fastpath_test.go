@@ -257,3 +257,16 @@ func TestApplyStageExecutionBudgetPreservesImplementCeiling(t *testing.T) {
 		t.Fatalf("review budget steps=%d output=%d", review.MaxSteps, review.MaxOutputTokens)
 	}
 }
+
+// E1: «npm run verify | tail» и подобные давали 0 при упавшей сборке.
+// Утверждённый критерий с «|| true» не засчитывается, а ждёт человека.
+func TestMaskedCriterionCommandWaitsForReview(t *testing.T) {
+	criterion := domain.AcceptanceCriterion{ID: "verify", Kind: "verification", Tool: "run_command", Arguments: json.RawMessage(`{"command":"npm run verify || true"}`)}
+	evidence, fragment, masked := maskedCriterionEvidence(criterion, map[string]any{"command": "npm run verify || true"})
+	if !masked || evidence.Status != "needs_review" || evidence.Check == nil || !strings.Contains(evidence.Check.Detail, "|| true") || fragment == "" {
+		t.Fatalf("masked command counted as proof: masked=%v evidence=%#v", masked, evidence)
+	}
+	if _, _, masked = maskedCriterionEvidence(criterion, map[string]any{"command": "npm run verify"}); masked {
+		t.Fatal("ordinary command marked as masked")
+	}
+}

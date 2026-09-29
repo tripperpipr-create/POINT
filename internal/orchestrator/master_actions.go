@@ -2,11 +2,13 @@ package orchestrator
 
 import (
 	"encoding/json"
+	"fmt"
 	"slices"
 	"strings"
 
 	"local-agent-workbench/internal/domain"
 	workbenchtools "local-agent-workbench/internal/tools"
+	"local-agent-workbench/internal/verification"
 )
 
 // Инструменты разговора Мастера — то, чем он оформляет структуру хода.
@@ -101,6 +103,10 @@ func (a *masterActions) proposeBrief(arguments json.RawMessage) domain.ToolResul
 		}
 		return workbenchtools.FailWithHint("invalid_brief", "задание не прошло проверку сервера: "+strings.Join(lines, "; "), strings.Join(hints, "; "))
 	}
+	if failure := maskedCriterionCommands(brief); failure != nil {
+		a.rejectedBriefs++
+		return *failure
+	}
 	a.brief = &brief
 	a.title = input.Title
 	a.proposalID = strings.TrimSpace(input.ProposalID)
@@ -109,6 +115,32 @@ func (a *masterActions) proposeBrief(arguments json.RawMessage) domain.ToolResul
 		note = "Задание принято в обсуждении. Открытые вопросы задай вызовом ask_clarifications с вариантами, первым поставь свой; в тексте их не повторяй."
 	}
 	return workbenchtools.OK(map[string]any{"accepted": true, "state": brief.State, "note": note})
+}
+
+// maskedCriterionCommands отказывает критерию, чья команда проглатывает код
+// выхода: `npm run verify || true` проходит и при упавшей сборке, и итог
+// сказал бы «проверено» там, где проверка провалилась (Q08). Правило живёт
+// здесь, а не в domain.ValidateTaskBrief: та решает и об утверждённости уже
+// сохранённых заданий, и новое правило отправило бы их в карантин.
+func maskedCriterionCommands(brief domain.TaskBrief) *domain.ToolResult {
+	var lines []string
+	for index, criterion := range brief.Criteria {
+		if criterion.Kind == "manual" || criterion.Tool != "run_command" {
+			continue
+		}
+		var arguments struct {
+			Command string `json:"command"`
+		}
+		_ = json.Unmarshal(criterion.Arguments, &arguments)
+		if fragment, masked := verification.MasksExitCode(arguments.Command); masked {
+			lines = append(lines, fmt.Sprintf("/criteria/%d: команда критерия %q скрывает код выхода (%s)", index, criterion.ID, fragment))
+		}
+	}
+	if len(lines) == 0 {
+		return nil
+	}
+	failure := workbenchtools.FailWithHint("invalid_brief", "задание не прошло проверку сервера: "+strings.Join(lines, "; "), "убери из команды «|| true», «; exit 0», «; echo …» и «set +e»: критерий должен падать вместе с проверкой; пайп вроде «| tail» допустим — в песочнице включён pipefail")
+	return &failure
 }
 
 // awaitsQuestionCard — задание осталось в обсуждении, а карточки вопросов нет.

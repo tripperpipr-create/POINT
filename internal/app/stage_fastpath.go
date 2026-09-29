@@ -16,6 +16,7 @@ import (
 	"local-agent-workbench/internal/sandbox"
 	"local-agent-workbench/internal/security"
 	"local-agent-workbench/internal/tools"
+	"local-agent-workbench/internal/verification"
 	"local-agent-workbench/internal/workspace"
 )
 
@@ -579,6 +580,12 @@ func (a *App) tryDeterministicAccept(quest domain.Quest, flowRun domain.FlowRun,
 		if args == nil {
 			args = map[string]any{}
 		}
+		if masked, fragment, ok := maskedCriterionEvidence(criterion, args); ok {
+			evidence.Criteria = append(evidence.Criteria, masked)
+			evidence.Status = "needs_review"
+			summaries = append(summaries, criterion.ID+": command masks its exit code ("+fragment+")")
+			continue
+		}
 		if _, ok := args["timeoutSeconds"]; !ok {
 			args["timeoutSeconds"] = 300
 		}
@@ -691,4 +698,25 @@ func (a *App) tryDeterministicAccept(quest domain.Quest, flowRun domain.FlowRun,
 	}
 	a.recordFlowNodeArtifact(updated, node, allOK, exec.ID)
 	return true, updated, nil
+}
+
+// maskedCriterionEvidence не запускает команду, которая проглатывает код
+// выхода: «|| true» даёт 0 и при упавшей сборке, и такой запуск ничего не
+// доказывает. Критерий уже утверждён, поэтому не отвергается, а ждёт человека
+// с причиной (Q08).
+func maskedCriterionEvidence(criterion domain.AcceptanceCriterion, args map[string]any) (agent.CriterionEvidence, string, bool) {
+	command, _ := args["command"].(string)
+	if criterion.Tool != "run_command" {
+		return agent.CriterionEvidence{}, "", false
+	}
+	fragment, masked := verification.MasksExitCode(command)
+	if !masked {
+		return agent.CriterionEvidence{}, "", false
+	}
+	return agent.CriterionEvidence{
+		CriterionID: criterion.ID, Text: criterion.Text, Kind: criterion.Kind, Status: "needs_review",
+		ExpectedExitCode: criterion.ExpectedExitCode,
+		Check: &agent.CheckEvidence{Tool: criterion.Tool, Arguments: criterion.Arguments, Status: "unresolved",
+			Detail: "команда скрывает код выхода (" + fragment + "): результат не доказывает критерий"},
+	}, fragment, true
 }

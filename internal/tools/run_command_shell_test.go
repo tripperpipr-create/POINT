@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"local-agent-workbench/internal/workspace"
 )
@@ -68,5 +69,30 @@ func TestSandboxRunCommandEnablesPipefail(t *testing.T) {
 		if !strings.Contains(description, want) {
 			t.Fatalf("sandbox description misses %q: %s", want, description)
 		}
+	}
+}
+
+// Q08: ошибка сборки стоит в конце вывода, и обрезка по началу её теряла.
+func TestLimitedWriterKeepsHeadAndTail(t *testing.T) {
+	writer := &limitedWriter{limit: 1024}
+	_, _ = writer.Write([]byte("start of build\n"))
+	for index := 0; index < 2000; index++ {
+		_, _ = writer.Write([]byte("compiling module ✓\n"))
+	}
+	_, _ = writer.Write([]byte("ERROR: vue-demi could not be resolved\n"))
+	output := writer.String()
+	if !writer.truncated || !strings.HasPrefix(output, "start of build") || !strings.HasSuffix(output, "ERROR: vue-demi could not be resolved\n") {
+		t.Fatalf("head or tail lost: %q", output)
+	}
+	if !strings.Contains(output, "…[обрезано ") || len(output) > 1024+64 {
+		t.Fatalf("truncation must be marked and bounded: %d bytes", len(output))
+	}
+	if !utf8.ValidString(output) {
+		t.Fatal("tail starts in the middle of a rune")
+	}
+	small := &limitedWriter{limit: 1024}
+	_, _ = small.Write([]byte("ok\n"))
+	if small.truncated || small.String() != "ok\n" {
+		t.Fatalf("short output changed: %q", small.String())
 	}
 }

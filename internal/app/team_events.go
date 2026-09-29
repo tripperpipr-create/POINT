@@ -56,7 +56,10 @@ func (a *App) PublishTeamEvent(ctx context.Context, event domain.TeamEvent) (dom
 	if event.Kind == "blocker" && event.QuestID != "" {
 		quests, _ := a.store.ListQuests(ctx, ws.ID)
 		for _, quest := range quests {
-			if quest.ID == event.QuestID && quest.Kind == "project" {
+			// Блокер закрытого проекта остаётся в журнале команды, но не
+			// возвращает квест в паузу или в перепланирование.
+			if quest.ID == event.QuestID && quest.Kind == "project" && !domain.IsTerminalQuestStatus(quest.Status) {
+				loaded := quest.Status
 				quest.ControllerState = controllerReplanning
 				if quest.Controller == nil {
 					quest.Controller = map[string]any{}
@@ -69,7 +72,7 @@ func (a *App) PublishTeamEvent(ctx context.Context, event domain.TeamEvent) (dom
 					quest.FlowID = run.FlowID
 				}
 				quest.UpdatedAt = time.Now().UTC()
-				if err = a.store.SaveQuest(ctx, quest); err != nil {
+				if err = a.saveLoadedQuest(ctx, quest, loaded, "team blocker"); err != nil {
 					return event, err
 				}
 				maxReplans := 0
@@ -80,7 +83,7 @@ func (a *App) PublishTeamEvent(ctx context.Context, event domain.TeamEvent) (dom
 					quest.ControllerState = controllerNeedsUser
 					quest.Status = domain.QuestPaused
 					quest.UpdatedAt = time.Now().UTC()
-					_ = a.store.SaveQuest(ctx, quest)
+					_ = a.saveLoadedQuest(ctx, quest, loaded, "team blocker: needs user")
 				} else if result, replanErr := a.ReplanQuest(ctx, ReplanQuestRequest{
 					QuestID: quest.ID,
 					Reason:  "team blocker: " + event.Message,
@@ -95,7 +98,7 @@ func (a *App) PublishTeamEvent(ctx context.Context, event domain.TeamEvent) (dom
 						quest.Controller["pendingReplanReason"] = replanErr.Error()
 					}
 					quest.UpdatedAt = time.Now().UTC()
-					_ = a.store.SaveQuest(ctx, quest)
+					_ = a.saveLoadedQuest(ctx, quest, loaded, "team blocker: replan refused")
 				}
 				break
 			}

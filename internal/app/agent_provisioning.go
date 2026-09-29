@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"local-agent-workbench/internal/domain"
+	"local-agent-workbench/internal/storage"
 )
 
 func detectRoleGap(task string, agents []domain.ProjectAgent) *domain.RoleRequirement {
@@ -158,6 +159,9 @@ func (a *App) createAgentPrepChain(ctx context.Context, parent *domain.Quest, re
 	if parent == nil || parent.Brief == nil || !domain.IsTaskBriefApproved(*parent.Brief) {
 		return domain.AgentPrepChain{}, errors.New("agent provisioning requires an approved parent task")
 	}
+	if domain.IsTerminalQuestStatus(parent.Status) {
+		return domain.AgentPrepChain{}, errors.New("agent provisioning requires an open parent task; it is " + string(parent.Status))
+	}
 	if requirement.PreparationKind == "create_agent" || requirement.PreparationKind == "reconfigure_agent" {
 		return a.createUserAgentPrepChain(ctx, parent, requirement)
 	}
@@ -205,9 +209,10 @@ func (a *App) createAgentPrepChain(ctx context.Context, parent *domain.Quest, re
 	if err = a.store.SaveAgentPrepChain(ctx, chain); err != nil {
 		return domain.AgentPrepChain{}, err
 	}
+	loaded := parent.Status
 	parent.PrerequisiteIDs = appendUniqueStrings(parent.PrerequisiteIDs, prep.ID)
 	parent.ControllerState, parent.Status, parent.UpdatedAt = controllerWaitingPrerequisite, domain.QuestPaused, now
-	if err = a.store.SaveQuest(ctx, *parent); err != nil {
+	if err = a.saveLoadedQuest(ctx, *parent, loaded, "agent provisioning: waiting prerequisite"); err != nil {
 		return domain.AgentPrepChain{}, err
 	}
 	chain.State = "create"
@@ -242,9 +247,10 @@ func (a *App) createUserAgentPrepChain(ctx context.Context, parent *domain.Quest
 	if err := a.store.SaveAgentPrepChain(ctx, chain); err != nil {
 		return domain.AgentPrepChain{}, err
 	}
+	loaded := parent.Status
 	parent.PrerequisiteIDs = appendUniqueStrings(parent.PrerequisiteIDs, prep.ID)
 	parent.ControllerState, parent.Status, parent.UpdatedAt = controllerWaitingPrerequisite, domain.QuestPaused, now
-	if err := a.store.SaveQuest(ctx, *parent); err != nil {
+	if err := a.saveLoadedQuest(ctx, *parent, loaded, "agent creation: waiting prerequisite"); err != nil {
 		return domain.AgentPrepChain{}, err
 	}
 	if requirement.PreparationKind == "create_agent" {
@@ -335,11 +341,12 @@ func (a *App) materializeAgentCandidate(ctx context.Context, chain domain.AgentP
 		chain.State = "ready"
 		quests, _ := a.store.ListQuests(ctx, chain.WorkspaceID)
 		for _, quest := range quests {
-			if quest.ID == chain.PrepQuestID {
+			if quest.ID == chain.PrepQuestID && !domain.IsTerminalQuestStatus(quest.Status) {
+				loaded := quest.Status
 				quest.Status, quest.ControllerState = domain.QuestCompleted, "ready"
 				now := time.Now().UTC()
 				quest.UpdatedAt, quest.FinishedAt = now, &now
-				_ = a.store.SaveQuest(ctx, quest)
+				_ = a.saveLoadedQuest(ctx, quest, loaded, "agent provisioning: ready")
 			}
 		}
 	}
@@ -500,12 +507,15 @@ func (a *App) reconcileUserAgentPrepChains(ctx context.Context, agent domain.Pro
 			return listErr
 		}
 		for _, quest := range quests {
-			if quest.ID != chain.PrepQuestID {
+			// Отменённая подготовка агента не становится completed оттого, что
+			// человек позже сам настроил подходящего агента.
+			if quest.ID != chain.PrepQuestID || domain.IsTerminalQuestStatus(quest.Status) {
 				continue
 			}
+			loaded := quest.Status
 			now := time.Now().UTC()
 			quest.Status, quest.ControllerState, quest.UpdatedAt, quest.FinishedAt = domain.QuestCompleted, "ready", now, &now
-			if err = a.store.SaveQuest(ctx, quest); err != nil {
+			if err = a.saveLoadedQuest(ctx, quest, loaded, "agent creation: ready"); err != nil && !errors.Is(err, storage.ErrQuestStatusChanged) {
 				return err
 			}
 		}

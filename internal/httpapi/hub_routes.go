@@ -59,6 +59,11 @@ func (s *Server) diffProjectAgent(w http.ResponseWriter, r *http.Request) {
 	s.result(w, value, err)
 }
 
+func (s *Server) projectAgentEffectivePermissions(w http.ResponseWriter, r *http.Request) {
+	value, err := s.app.EffectivePermissions(r.Context(), r.PathValue("id"), r.URL.Query().Get("questId"))
+	s.result(w, value, err)
+}
+
 func (s *Server) saveSkill(w http.ResponseWriter, r *http.Request) {
 	var input domain.SkillDefinition
 	if !s.decode(w, r, &input) {

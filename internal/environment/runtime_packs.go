@@ -97,17 +97,51 @@ func RuntimeRequirementsForWorkOrder(order *domain.WorkOrder) sandbox.RuntimeReq
 	if order == nil {
 		return sandbox.RuntimeRequirements{}
 	}
-	return runtimeRequirements(order.Stack, order.Setup, order.Completion, order.Sandbox.Toolchains)
+	return runtimeRequirements(order.Stack, order.Setup, order.Completion, order.Sandbox)
 }
 
 func RuntimeRequirementsForExecutionContract(contract *domain.WorkOrderExecutionContract) sandbox.RuntimeRequirements {
 	if contract == nil {
 		return sandbox.RuntimeRequirements{}
 	}
-	return runtimeRequirements(contract.Stack, contract.Setup, contract.Completion, contract.Sandbox.Toolchains)
+	return runtimeRequirements(contract.Stack, contract.Setup, contract.Completion, contract.Sandbox)
 }
 
-func runtimeRequirements(stack domain.StackPresetRef, setup domain.SetupPlan, completion domain.CompletionProfile, versions map[string]string) sandbox.RuntimeRequirements {
+// UserSelectedVersion — источник версии, выбранной человеком в ревизии наряда.
+// Такой выбор снимает расхождение источников проекта по этому инструменту.
+const UserSelectedVersion = "user selection"
+
+// unresolvedVersionConflicts — расхождения версий, которые человек не
+// разрешил своим выбором. Запись конфликта начинается с имени инструмента
+// («node: 20 (…) / 22 (…)»), см. applyDetectedVersions.
+func unresolvedVersionConflicts(spec domain.RuntimeSpec) []string {
+	open := []string{}
+	for _, conflict := range spec.VersionConflicts {
+		if spec.VersionSources[conflictTool(conflict)] == UserSelectedVersion {
+			continue
+		}
+		open = append(open, conflict)
+	}
+	return open
+}
+
+// ConflictedTools — инструменты с неразрешённым расхождением версий.
+func ConflictedTools(spec domain.RuntimeSpec) map[string]bool {
+	tools := map[string]bool{}
+	for _, conflict := range unresolvedVersionConflicts(spec) {
+		tools[conflictTool(conflict)] = true
+	}
+	return tools
+}
+
+func conflictTool(conflict string) string {
+	tool, _, _ := strings.Cut(conflict, ":")
+	return strings.TrimSpace(tool)
+}
+
+func runtimeRequirements(stack domain.StackPresetRef, setup domain.SetupPlan, completion domain.CompletionProfile, spec domain.RuntimeSpec) sandbox.RuntimeRequirements {
+	versions := spec.Toolchains
+	conflicts := unresolvedVersionConflicts(spec)
 	selected := map[string]bool{}
 	for _, tool := range stackRuntimeTools[strings.ToLower(strings.TrimSpace(stack.ID))] {
 		selected[tool] = true
@@ -129,7 +163,7 @@ func runtimeRequirements(stack domain.StackPresetRef, setup domain.SetupPlan, co
 		}
 	}
 	sort.Strings(unsupported)
-	if len(selected) == 0 && len(unsupported) == 0 {
+	if len(selected) == 0 && len(unsupported) == 0 && len(conflicts) == 0 {
 		return sandbox.RuntimeRequirements{}
 	}
 	tools := make([]string, 0, len(selected))
@@ -148,11 +182,22 @@ func runtimeRequirements(stack domain.StackPresetRef, setup domain.SetupPlan, co
 		candidates = append(candidates, Node20ManagedImage)
 	} else if strings.HasPrefix(trustedVersions["node"], "22") {
 		candidates = append(candidates, Node22ManagedImage)
+	} else if trustedVersions["node"] == "" && versionMajor(trustedVersions["npm"]) == "10" {
+		// npm 10 без названной ноды: оба пакета Node собираются с npm 10.9.0
+		// (Dockerfile.sandbox-node), образ по умолчанию несёт npm 12. Версию
+		// всё равно подтверждает проба образа, а не это предположение.
+		candidates = append(candidates, Node20ManagedImage, Node22ManagedImage)
 	}
 	return sandbox.RuntimeRequirements{
 		ID: strings.TrimSpace(stack.ID), Version: strings.TrimSpace(stack.Version),
-		RequiredCommands: commands, ToolVersions: trustedVersions, UnsupportedTools: unsupported, Packages: packages, CandidateImages: candidates,
+		RequiredCommands: commands, ToolVersions: trustedVersions, UnsupportedTools: unsupported, VersionConflicts: conflicts,
+		Packages: packages, CandidateImages: candidates,
 	}
+}
+
+func versionMajor(version string) string {
+	major, _, _ := strings.Cut(strings.TrimSpace(version), ".")
+	return major
 }
 
 func collectApprovedRuntimeTools(command string, selected map[string]bool) {

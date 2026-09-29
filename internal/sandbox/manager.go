@@ -101,6 +101,12 @@ type RuntimeRequirements struct {
 	RequiredCommands []string
 	ToolVersions     map[string]string
 	UnsupportedTools []string
+	// VersionConflicts — расхождения версий между источниками проекта
+	// («node: 20 (cf-vue-apps/.gitlab-ci.yml) / 22 (cf-pages/.gitlab-ci.yml)»),
+	// которые человек ещё не разрешил своим выбором. Песочница по ним не
+	// поднимается: молча взятая одна из версий превращала бы невоспроизводимую
+	// сборку в чужую.
+	VersionConflicts []string
 	Packages         []string
 	CandidateImages  []string
 	// Progress reports bounded provisioning phases to the existing quest feed.

@@ -12,6 +12,34 @@ type Decision struct {
 	Reason           string
 	Risk             domain.ToolRisk
 	Policy           domain.ToolPolicy
+	// Source — какое правило решило: человеку показывается не только
+	// ALLOW/ASK/DENY, но и откуда оно взялось (Q05).
+	Source DecisionSource
+}
+
+// DecisionSource — происхождение решения Evaluate.
+type DecisionSource string
+
+const (
+	SourceCatalogDefault       DecisionSource = "catalog_default"
+	SourceCatalogDefaultDeny   DecisionSource = "catalog_default_deny"
+	SourceProfileExplicit      DecisionSource = "profile_explicit"
+	SourceTrustedCustomTool    DecisionSource = "trusted_custom_tool"
+	SourceApprovalModeAlways   DecisionSource = "approval_mode_always"
+	SourceCustomToolAlwaysAsks DecisionSource = "custom_tool_always_ask"
+	SourceBuiltinConfirmation  DecisionSource = "builtin_confirmation"
+)
+
+// policySource — откуда взялась политика PolicyForTool: явная запись профиля,
+// запрет по умолчанию из каталога или умолчание по риску.
+func policySource(profile domain.AgentProfile, toolName string) DecisionSource {
+	if _, explicit := profile.ToolPolicies[toolName]; explicit {
+		return SourceProfileExplicit
+	}
+	if toolDefaultsToDeny(toolName) {
+		return SourceCatalogDefaultDeny
+	}
+	return SourceCatalogDefault
 }
 
 type Engine struct {
@@ -30,7 +58,7 @@ func (e Engine) trusted(toolName string) bool {
 func (e Engine) Evaluate(profile domain.AgentProfile, toolName string) Decision {
 	risk := RiskForTool(toolName)
 	policy := PolicyForTool(profile, toolName)
-	decision := Decision{Risk: risk, Policy: policy}
+	decision := Decision{Risk: risk, Policy: policy, Source: policySource(profile, toolName)}
 	// Доверенный инструмент исполняется без окна, но перебить он может только
 	// умолчание. Явная запись в политике профиля — стоячее указание человека,
 	// «подтверждать всё» — тоже, а DENY доверием не отменяется вовсе.
@@ -38,6 +66,7 @@ func (e Engine) Evaluate(profile domain.AgentProfile, toolName string) Decision 
 	if !explicit && policy != domain.ToolPolicyDeny && profile.ApprovalMode != domain.ApprovalAlways && e.trusted(toolName) {
 		decision.Policy = domain.ToolPolicyAllow
 		decision.Reason = "Инструмент подтверждён вручную нужное число раз и переведён в доверенные"
+		decision.Source = SourceTrustedCustomTool
 		return decision
 	}
 	switch policy {
@@ -53,11 +82,13 @@ func (e Engine) Evaluate(profile domain.AgentProfile, toolName string) Decision 
 	if profile.ApprovalMode == domain.ApprovalAlways {
 		decision.RequiresApproval = true
 		decision.Reason = "Agent profile requires confirmation for every tool"
+		decision.Source = SourceApprovalModeAlways
 		return decision
 	}
 	if strings.HasPrefix(toolName, "customtool_") {
 		decision.RequiresApproval = true
 		decision.Reason = "Пользовательский инструмент запускает заранее настроенную команду"
+		decision.Source = SourceCustomToolAlwaysAsks
 		return decision
 	}
 	switch toolName {
@@ -82,6 +113,9 @@ func (e Engine) Evaluate(profile domain.AgentProfile, toolName string) Decision 
 	case "db_query", "db_schema":
 		decision.RequiresApproval = true
 		decision.Reason = "Запросы к БД обращаются к внешним данным и требуют подтверждения"
+	}
+	if decision.RequiresApproval {
+		decision.Source = SourceBuiltinConfirmation
 	}
 	return decision
 }

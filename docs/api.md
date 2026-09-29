@@ -101,6 +101,7 @@ is checked against every `HandleFunc` registration by `node scripts/check-docs.m
 | `POST` | `/api/project-agents/{id}/apply-blueprint` | Apply Blueprint overrides into this ProjectAgent only |
 | `POST` | `/api/project-agents/{id}/update-blueprint` | Push ProjectAgent overrides back into its Blueprint |
 | `GET` | `/api/project-agents/{id}/diff` | Full workspace-scoped diff of all inherited ProjectAgent ↔ Blueprint fields; project-only rules are reported but never synchronized |
+| `GET` | `/api/project-agents/{id}/effective-permissions?questId=` | Effective tool permissions of a current-workspace agent, optionally under the approved brief of `questId`: per tool `effect` (`allow`/`ask`/`deny`/`not_granted`/`excluded_by_task`), policy, rule `source`, task auto-approval, plus the compiled sandbox network. Computed by the same functions execution uses; an agent or quest of another workspace is refused |
 | `POST` | `/api/skills` | Save SkillDefinition |
 | `POST` | `/api/project-skills/equip` | Equip a skill into the current workspace |
 | `POST` | `/api/project-skills/preview` | Preview grants and blockers before equipping a skill |

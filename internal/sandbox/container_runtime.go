@@ -25,6 +25,9 @@ func (b *ContainerBackend) resolveRuntimeImage(ctx context.Context, requested st
 	if len(runtime.UnsupportedTools) > 0 {
 		return "", "", fmt.Errorf("%w: unsupported package managers or tools %s", ErrRuntimeVersionUnavailable, strings.Join(runtime.UnsupportedTools, ", "))
 	}
+	if len(runtime.VersionConflicts) > 0 {
+		return "", "", fmt.Errorf("%w: project sources disagree on versions (%s); choose a version for the work order and retry", ErrRuntimeVersionUnavailable, strings.Join(runtime.VersionConflicts, "; "))
+	}
 	baseImage, baseDigest, err := b.resolveExecutionImage(ctx, requested)
 	if err != nil {
 		return "", "", err

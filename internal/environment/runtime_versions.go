@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
@@ -16,11 +17,13 @@ var versionToken = regexp.MustCompile(`\d+(?:\.\d+){0,2}`)
 // applyDetectedVersions records where each suggestion came from. CI wins over
 // project hints because it is the project's independent verification target.
 // Only local, bounded files are read; their contents never become image names.
-func applyDetectedVersions(root string, runtime *domain.RuntimeSpec) {
+// prefix ("" or "cf-vue-apps/") names the nested project the files belong to.
+func applyDetectedVersions(root, prefix string, runtime *domain.RuntimeSpec) {
 	if runtime.VersionSources == nil {
 		runtime.VersionSources = map[string]string{}
 	}
 	choose := func(tool, value, source string, priority bool) {
+		source = prefix + source
 		value = strings.TrimSpace(value)
 		if value == "" {
 			return
@@ -49,6 +52,7 @@ func applyDetectedVersions(root string, runtime *domain.RuntimeSpec) {
 	projectVersionHints(root, choose)
 	ciVersionHints(root, choose)
 	sort.Strings(runtime.VersionConflicts)
+	runtime.VersionConflicts = slices.Compact(runtime.VersionConflicts)
 }
 
 func sameVersion(left, right string) bool {

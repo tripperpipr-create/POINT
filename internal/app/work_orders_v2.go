@@ -122,7 +122,12 @@ func (a *App) ReviseWorkOrderV2(ctx context.Context, id string, request ReviseWo
 	next.CreatedAt = current.CreatedAt
 	next.State = strings.TrimSpace(next.State)
 	selectedVersions := next.Sandbox.Toolchains
+	// Карты копируются: запись выбора человека в общую карту меняла и
+	// current, его дайджест уезжал, и любая смена версии в карточке получала
+	// отказ «work order changed».
 	next.Sandbox = current.Sandbox
+	next.Sandbox.Toolchains = cloneStringMap(current.Sandbox.Toolchains)
+	next.Sandbox.VersionSources = cloneStringMap(current.Sandbox.VersionSources)
 	if next.Sandbox.Toolchains == nil {
 		next.Sandbox.Toolchains = map[string]string{}
 	}
@@ -138,13 +143,17 @@ func (a *App) ReviseWorkOrderV2(ctx context.Context, id string, request ReviseWo
 			}
 		}
 	}
+	conflicted := environment.ConflictedTools(next.Sandbox)
 	for tool, version := range selectedVersions {
 		if !runtimeSelectionVersion.MatchString(version) || !allowedRuntimeSelectionTool(tool) {
 			return domain.WorkOrder{}, fmt.Errorf("unsupported sandbox version selection %s=%q", tool, version)
 		}
-		if next.Sandbox.Toolchains[tool] != version {
+		// Карточка показывает расхождение источников рядом с полем версии.
+		// Сохранённая версия такого инструмента — выбор человека, даже если
+		// совпала с предложенной: иначе согласие с Point не снимало бы паузу.
+		if next.Sandbox.Toolchains[tool] != version || conflicted[tool] {
 			next.Sandbox.Toolchains[tool] = version
-			next.Sandbox.VersionSources[tool] = "user selection"
+			next.Sandbox.VersionSources[tool] = environment.UserSelectedVersion
 			next.Sandbox.ImageDigest = ""
 		}
 	}

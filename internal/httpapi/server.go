@@ -200,6 +200,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/project-agents/{id}/apply-blueprint", s.applyBlueprintToAgent)
 	s.mux.HandleFunc("POST /api/project-agents/{id}/update-blueprint", s.updateBlueprintFromAgent)
 	s.mux.HandleFunc("GET /api/project-agents/{id}/diff", s.diffProjectAgent)
+	s.mux.HandleFunc("GET /api/project-agents/{id}/effective-permissions", s.projectAgentEffectivePermissions)
 	s.mux.HandleFunc("POST /api/skills", s.saveSkill)
 	s.mux.HandleFunc("POST /api/project-skills/equip", s.equipSkill)
 	s.mux.HandleFunc("POST /api/project-skills/preview", s.previewSkillEquip)

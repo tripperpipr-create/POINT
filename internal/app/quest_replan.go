@@ -56,6 +56,11 @@ func (a *App) ReplanQuest(ctx context.Context, req ReplanQuestRequest) (ReplanQu
 	if !found {
 		return ReplanQuestResult{}, errors.New("quest not found")
 	}
+	// Перепланирование закрытого квеста переписало бы граф и вернуло квест
+	// в active поверх отмены или итога (Q01).
+	if domain.IsTerminalQuestStatus(quest.Status) {
+		return ReplanQuestResult{}, fmt.Errorf("quest is closed (%s) and cannot be replanned", quest.Status)
+	}
 	if quest.Brief == nil || !domain.IsTaskBriefApproved(*quest.Brief) {
 		return ReplanQuestResult{}, errors.New("replans require an approved structured task brief")
 	}
@@ -234,6 +239,7 @@ func (a *App) ReplanQuest(ctx context.Context, req ReplanQuestRequest) (ReplanQu
 		return ReplanQuestResult{}, err
 	}
 	if quest.Kind == "project" {
+		loaded := quest.Status
 		quest.ControllerState = controllerExecutingWave
 		quest.Status = domain.QuestActive
 		if quest.Controller == nil {
@@ -245,7 +251,7 @@ func (a *App) ReplanQuest(ctx context.Context, req ReplanQuestRequest) (ReplanQu
 		delete(quest.Controller, "pendingReplan")
 		delete(quest.Controller, "pendingReplanReason")
 		quest.UpdatedAt = time.Now().UTC()
-		if err = a.store.SaveQuest(ctx, quest); err != nil {
+		if err = a.saveLoadedQuest(ctx, quest, loaded, "replan"); err != nil {
 			return ReplanQuestResult{}, err
 		}
 	}

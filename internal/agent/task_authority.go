@@ -49,14 +49,7 @@ func RestrictTaskProfile(profile domain.AgentProfile, brief *domain.TaskBrief, c
 	}
 	tools := make([]string, 0, len(profile.AllowedTools))
 	for _, name := range profile.AllowedTools {
-		if name == "propose_patch" && !brief.Permissions.WriteFiles {
-			continue
-		}
-		if (name == "run_command" || customNames[name] || strings.HasPrefix(name, "customtool_")) && !brief.Permissions.ExecuteCommands {
-			continue
-		}
-		// External writes have independent user-controlled UI actions.
-		if name == "db_exec" || name == "ssh_exec_remote" || name == "docker_control" {
+		if TaskToolExclusion(name, brief, customNames) != "" {
 			continue
 		}
 		tools = append(tools, name)
@@ -96,8 +89,39 @@ func RestrictTaskProfile(profile domain.AgentProfile, brief *domain.TaskBrief, c
 	return profile, nil
 }
 
+// Причины, по которым утверждённое задание убирает инструмент из профиля.
+const (
+	TaskExcludesWrites        = "task_forbids_file_writes"
+	TaskExcludesCommands      = "task_forbids_commands"
+	TaskExcludesExternalWrite = "external_write_needs_own_action"
+)
+
+// TaskToolExclusion — почему задание убирает инструмент из профиля, или "".
+// Одно правило на исполнение (RestrictTaskProfile) и на показ действующих прав.
+func TaskToolExclusion(name string, brief *domain.TaskBrief, customNames map[string]bool) string {
+	if brief == nil {
+		return ""
+	}
+	if name == "propose_patch" && !brief.Permissions.WriteFiles {
+		return TaskExcludesWrites
+	}
+	if (name == "run_command" || customNames[name] || strings.HasPrefix(name, "customtool_")) && !brief.Permissions.ExecuteCommands {
+		return TaskExcludesCommands
+	}
+	// External writes have independent user-controlled UI actions.
+	if name == "db_exec" || name == "ssh_exec_remote" || name == "docker_control" {
+		return TaskExcludesExternalWrite
+	}
+	return ""
+}
+
 func (e *Engine) taskAutoApproved(active *activeRun, profile domain.AgentProfile, tool string) bool {
-	b := active.taskBrief
+	return TaskAutoApproves(active.taskBrief, profile, tool, e.strongTaskSandbox())
+}
+
+// TaskAutoApproves — исполняется ли вызов без окна подтверждения по праву
+// утверждённого задания. strongSandbox — у исполнителя сильная граница ОС.
+func TaskAutoApproves(b *domain.TaskBrief, profile domain.AgentProfile, tool string, strongSandbox bool) bool {
 	if b == nil || !domain.IsTaskBriefApproved(*b) {
 		return false
 	}
@@ -105,6 +129,13 @@ func (e *Engine) taskAutoApproved(active *activeRun, profile domain.AgentProfile
 		return false
 	}
 	if explicit, ok := profile.ToolPolicies[tool]; ok && !strings.EqualFold(strings.TrimSpace(explicit), "ALLOW") {
+		return false
+	}
+	// Самодельный инструмент — команда с именем. Явный запрет run_command —
+	// указание человека «без команд без меня»; задание не должно исполнять
+	// такие команды молча под другим именем. Инструмент остаётся доступен,
+	// но каждый вызов идёт через окно подтверждения (Q05).
+	if strings.HasPrefix(tool, "customtool_") && strings.EqualFold(strings.TrimSpace(profile.ToolPolicies["run_command"]), "DENY") {
 		return false
 	}
 	// Fast Agent (Cursor daily): auto-approve file writes on precise tasks.
@@ -115,7 +146,7 @@ func (e *Engine) taskAutoApproved(active *activeRun, profile domain.AgentProfile
 		}
 		return false
 	}
-	if b.Mode != domain.TaskModeProject || !e.strongTaskSandbox() {
+	if b.Mode != domain.TaskModeProject || !strongSandbox {
 		return false
 	}
 	if tool == "propose_patch" {

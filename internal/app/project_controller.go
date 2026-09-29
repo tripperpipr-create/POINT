@@ -89,33 +89,39 @@ func (a *App) ReconcileProjectController(ctx context.Context, questID string) (d
 	if target == nil {
 		return domain.Quest{}, errors.New("quest not found")
 	}
-	if target.Kind != "project" {
+	// Закрытый проект контроллер не трогает: незавершённая предпосылка
+	// отменённого квеста ставила ему паузу, и он снова появлялся среди
+	// активных (Q01).
+	if target.Kind != "project" || domain.IsTerminalQuestStatus(target.Status) {
 		return *target, nil
 	}
 	for _, prerequisite := range target.PrerequisiteIDs {
 		if status[prerequisite] != domain.QuestCompleted {
+			loaded := target.Status
 			target.ControllerState = controllerWaitingPrerequisite
 			target.Status = domain.QuestPaused
 			target.UpdatedAt = time.Now().UTC()
-			_ = a.store.SaveQuest(ctx, *target)
+			_ = a.saveLoadedQuest(ctx, *target, loaded, "project controller: waiting prerequisite")
 			return *target, nil
 		}
 	}
 	if target.ControllerState == controllerWaitingPrerequisite {
+		loaded := target.Status
 		target.ControllerState = controllerReplanning
 		target.Status = domain.QuestActive
 		target.UpdatedAt = time.Now().UTC()
-		if err = a.store.SaveQuest(ctx, *target); err != nil {
+		if err = a.saveLoadedQuest(ctx, *target, loaded, "project controller: prerequisites met"); err != nil {
 			return domain.Quest{}, err
 		}
 	}
 	if derived := a.deriveProjectControllerState(ctx, ws.ID, *target); derived != "" && derived != target.ControllerState {
+		loaded := target.Status
 		target.ControllerState = derived
 		if derived == controllerNeedsUser {
 			target.Status = domain.QuestPaused
 		}
 		target.UpdatedAt = time.Now().UTC()
-		_ = a.store.SaveQuest(ctx, *target)
+		_ = a.saveLoadedQuest(ctx, *target, loaded, "project controller: derived state")
 	}
 	return *target, nil
 }
@@ -174,15 +180,16 @@ func (a *App) setProjectControllerState(ctx context.Context, questID, state stri
 	if !ok || quest.Kind != "project" {
 		return
 	}
-	if quest.ControllerState == controllerCompleted {
+	if quest.ControllerState == controllerCompleted || domain.IsTerminalQuestStatus(quest.Status) {
 		return
 	}
+	loaded := quest.Status
 	quest.ControllerState = state
 	if state == controllerNeedsUser {
 		quest.Status = domain.QuestPaused
 	}
 	quest.UpdatedAt = time.Now().UTC()
-	_ = a.store.SaveQuest(ctx, quest)
+	_ = a.saveLoadedQuest(ctx, quest, loaded, "project controller: "+state)
 }
 
 func (a *App) projectControllerFinished(ctx context.Context, quest *domain.Quest, flowSucceeded bool) bool {

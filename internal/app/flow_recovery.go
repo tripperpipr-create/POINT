@@ -108,6 +108,8 @@ func (a *App) recoverFlowNodeFailure(flowRunID, nodeID string, execution domain.
 	state.Output["attemptExecutionIds"] = attemptIDs
 	state.Output["previousExecutionId"] = execution.ID
 	state.Output["lastError"] = execution.Error
+	// Следующая попытка получит отчёт о прерванной (flow_previous_attempt.go).
+	state.Output["previousAttempt"] = a.previousAttemptSummary(context.Background(), execution, len(attemptIDs))
 	state.Output["needsSchedule"] = true
 	state.Output["waitReason"] = "retry_scheduled"
 	delete(state.Output, "executionId")

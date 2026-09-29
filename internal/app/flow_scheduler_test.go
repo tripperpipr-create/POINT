@@ -144,6 +144,11 @@ func TestFlowFallbackCreatesFreshExecutionWithReadyExplicitAgent(t *testing.T) {
 	if err != nil || !recovered {
 		t.Fatalf("recovered=%v err=%v", recovered, err)
 	}
+	// Q11: повтор получает отчёт о прерванной попытке, а не начинает с нуля.
+	attempt, ok := previousAttemptContext(recoveredRun, "work")
+	if !ok || !strings.Contains(attempt.Content, "temporary transport error") {
+		t.Fatalf("retry has no report of the interrupted attempt: %#v", attempt)
+	}
 	if err = application.scheduleFlowAgentExecutionsFromRun(recoveredRun); err != nil {
 		t.Fatal(err)
 	}

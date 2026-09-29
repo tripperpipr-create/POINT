@@ -662,7 +662,7 @@ func CompileModelFlow(req CompileRequest, plan ModelPlan, model string) domain.F
 	flow.Nodes = append(flow.Nodes, input)
 	anchor := input.ID
 	byPhase := map[int][]PlanStage{}
-	for _, stage := range plan.Stages {
+	for _, stage := range criteriaInLatestPhase(plan.Stages) {
 		byPhase[stage.Phase] = append(byPhase[stage.Phase], stage)
 	}
 	phases := make([]int, 0, len(byPhase))
@@ -709,6 +709,33 @@ func CompileModelFlow(req CompileRequest, plan ModelPlan, model string) domain.F
 	flow.Nodes = append(flow.Nodes, output)
 	flow.Edges = append(flow.Edges, domain.FlowEdge{ID: domain.NewID("edge"), From: anchor, To: output.ID})
 	return flow
+}
+
+// criteriaInLatestPhase оставляет критерий только за самой поздней фазой,
+// которая его называет. В E3 планировщик дал `verify-local` и реализации, и
+// проверке: исполнитель тратил шаги на чужую проверку, а предел ходов считал
+// её невыполненной. Параллельные этапы одной фазы общий критерий сохраняют.
+func criteriaInLatestPhase(stages []PlanStage) []PlanStage {
+	latest := map[string]int{}
+	for _, stage := range stages {
+		for _, id := range stage.CriterionIDs {
+			if phase, seen := latest[id]; !seen || stage.Phase > phase {
+				latest[id] = stage.Phase
+			}
+		}
+	}
+	result := make([]PlanStage, len(stages))
+	for index, stage := range stages {
+		kept := make([]string, 0, len(stage.CriterionIDs))
+		for _, id := range stage.CriterionIDs {
+			if latest[id] == stage.Phase {
+				kept = append(kept, id)
+			}
+		}
+		stage.CriterionIDs = kept
+		result[index] = stage
+	}
+	return result
 }
 
 func modelStageNode(stage PlanStage) domain.FlowNode {

@@ -181,6 +181,32 @@ func TestCompileModelFlowOwnsParallelJoinVerificationAndApproval(t *testing.T) {
 	}
 }
 
+// E3: `verify-local` стоял и у реализации, и у проверки. Критерий остаётся
+// за последней фазой, общий критерий параллельных этапов — за обоими.
+func TestCompileModelFlowKeepsCriterionInLatestPhase(t *testing.T) {
+	plan := ModelPlan{
+		AgentIDs: []string{"backend", "frontend", "qa"}, Rationale: "Implement, then verify.",
+		Stages: []PlanStage{
+			{Name: "Backend", AgentID: "backend", Instruction: "Implement backend.", Phase: 1, CriterionIDs: []string{"api", "verify-local"}},
+			{Name: "Frontend", AgentID: "frontend", Instruction: "Implement frontend.", Phase: 1, CriterionIDs: []string{"api", "ui"}},
+			{Name: "Verify", AgentID: "qa", Instruction: "Run verification.", Phase: 2, CriterionIDs: []string{"verify-local"}},
+		},
+	}
+	flow := CompileModelFlow(CompileRequest{Title: "E3"}, plan, "planner")
+	want := map[string][]string{"Backend": {"api"}, "Frontend": {"api", "ui"}, "Verify": {"verify-local"}}
+	for _, node := range flow.Nodes {
+		expected, ok := want[node.Name]
+		if !ok {
+			continue
+		}
+		ids, _ := node.Config["criterionIds"].([]string)
+		contract, _ := node.Config["workContract"].(domain.WorkContract)
+		if strings.Join(ids, ",") != strings.Join(expected, ",") || strings.Join(contract.CriterionIDs, ",") != strings.Join(expected, ",") {
+			t.Fatalf("%s: criterionIds=%v contract=%v, want %v", node.Name, ids, contract.CriterionIDs, expected)
+		}
+	}
+}
+
 func TestValidateStageModelRejectsUnknownZeroPriceAndIncompleteBinding(t *testing.T) {
 	candidates := []domain.ModelCandidate{{
 		ConnectionID: "conn-1", Model: "qwen", Runtime: "point", Healthy: true, PricingKnown: false,

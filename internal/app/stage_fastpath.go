@@ -633,6 +633,11 @@ func (a *App) tryDeterministicAccept(quest domain.Quest, flowRun domain.FlowRun,
 		}
 		evidence.Criteria = append(evidence.Criteria, ce)
 	}
+	for _, drift := range a.candidateLockfileDrift(flowRun, sandboxRecord.Path) {
+		allOK = false
+		evidence.Criteria = append(evidence.Criteria, lockfileDriftEvidence(drift))
+		summaries = append(summaries, lockfileSyncCriterionID+": "+drift.summary())
+	}
 	if allOK && evidence.Status != "needs_review" {
 		evidence.Status = "verified"
 	} else if !allOK {

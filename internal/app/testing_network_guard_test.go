@@ -8,6 +8,7 @@ import (
 )
 
 func TestOrdinaryTestsRejectDeveloperOllamaAndAllowManagedFake(t *testing.T) {
+	expectedOllamaDials.Add(1)
 	response, err := http.Get("http://127.0.0.1:11434/api/chat")
 	if err == nil {
 		response.Body.Close()

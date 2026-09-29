@@ -240,7 +240,7 @@ async function main() {
     const template = boot.profileTemplates.find(item => item.id === 'reviewer')
     const created = await api(`${baseUrl}/api/profiles`, body('POST', {
       id: '', name: 'Smoke reviewer', roleDescription: template.roleDescription,
-      systemPrompt: template.systemPrompt, provider: 'ollama', baseUrl: 'http://127.0.0.1:11434',
+      systemPrompt: template.systemPrompt, provider: 'ollama', baseUrl: `http://127.0.0.1:${providerPort}`,
       model: 'smoke-model', allowedTools: template.allowedTools, maxSteps: template.maxSteps,
       maxDurationSeconds: template.maxDurationSeconds, approvalMode: template.approvalMode,
     }))

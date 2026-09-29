@@ -27,6 +27,7 @@ import (
 	projectenv "local-agent-workbench/internal/environment"
 	"local-agent-workbench/internal/osproc"
 	"local-agent-workbench/internal/security"
+	workbenchtools "local-agent-workbench/internal/tools"
 	"local-agent-workbench/internal/workspace"
 )
 
@@ -669,6 +670,12 @@ func intakeSlug(value string) string {
 
 func ensureDeliveryBranch(ctx context.Context, runner GitRunner, target domain.DeliveryTarget) error {
 	if _, err := os.Stat(filepath.Join(target.WorkspacePath, ".git")); err != nil {
+		// Папка без Git в корне, но с Git-проектами внутри: `git init` здесь
+		// накрыл бы их чужим репозиторием. Доставка в выбранный вложенный
+		// репозиторий — отдельная работа (Q06), а до неё честный отказ.
+		if nested := workbenchtools.DiscoverGitRepos(target.WorkspacePath); len(nested) > 0 {
+			return fmt.Errorf("папка содержит несколько Git-проектов (%s); доставка в конкретный вложенный репозиторий пока не поддерживается", strings.Join(nested, ", "))
+		}
 		if _, err = runner.Run(ctx, target.WorkspacePath, "init"); err != nil {
 			return err
 		}

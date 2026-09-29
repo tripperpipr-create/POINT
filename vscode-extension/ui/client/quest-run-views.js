@@ -179,14 +179,17 @@ function finishedActionsHtml(order, controls, esc) {
 
 // Условия готовности вместе с тем, чем каждое доказано: команда, код, время.
 // Хвост вывода — в подсказке.
+const NOT_PROVEN = { not_run: 'не запускалась', unavailable: 'проверяется после доставки' }
 function criteriaRowsWithProof(order, rows) {
   const evidence = order.runtime?.evidence
   const proofs = new Map(list(evidence?.criteria).map(item => [String(item.criterionId), item]))
   return rows.map(row => {
     const proof = proofs.get(String(row.id))
     if (!proof) return row
-    const meta = [proof.command, proof.command && proof.exitCode != null ? `код ${Number(proof.exitCode)}` : '', proof.durationMs ? formatDuration(proof.durationMs) : ''].filter(Boolean).join(' · ')
-    return { ...row, meta, title: String(proof.summary || ''), failed: Boolean(evidence?.id) && !row.done && row.kind !== 'manual' }
+    // Ядро называет исход поштучно; «не запускалась» — не провал. Старые пакеты без status — по-прежнему.
+    const status = String(proof.status || '')
+    const meta = [proof.command, proof.command && proof.exitCode != null ? `код ${Number(proof.exitCode)}` : '', proof.durationMs ? formatDuration(proof.durationMs) : '', NOT_PROVEN[status] || ''].filter(Boolean).join(' · ')
+    return { ...row, meta, title: String(proof.summary || ''), failed: status ? status === 'failed' : Boolean(evidence?.id) && !row.done && row.kind !== 'manual' }
   })
 }
 
@@ -207,7 +210,12 @@ function changesHtml(order, ui, esc) {
   const runtime = order.runtime || {}
   const evidence = runtime.evidence
   const files = list(evidence?.changedFiles)
-  if (!files.length) return ''
+  // Подготовленное, но не доставленное — не «нет изменений» и не доставка.
+  const prepared = list(evidence?.preparedFiles)
+  const preparedHtml = prepared.length
+    ? `<div class="quest-section"><h4>Подготовлено, не доставлено · ${countOf(prepared.length, 'файл', 'файла', 'файлов')}</h4><ul class="quest-files">${prepared.slice(0, 12).map(path => `<li><span class="hall-step-icon">${icon('file')}</span><span>${esc(path)}</span></li>`).join('')}</ul></div>`
+    : ''
+  if (!files.length) return preparedHtml
   const target = String(evidence.deliveryTarget || runtime.deliveryReceipt?.target || '')
   const delivered = Boolean(runtime.deliveryReceipt?.id) && target !== 'isolated_review'
   const details = ui?.state?.details
@@ -223,7 +231,7 @@ function changesHtml(order, ui, esc) {
     return `<li><span class="hall-step-icon">${icon('file')}</span>${name}${diffCountHtml(diffStats(diffs.get(String(path))))}</li>`
   }).join('')
   const rest = files.length - shown.length
-  return `<div class="quest-section"><h4>Изменения · ${countOf(files.length, 'файл', 'файла', 'файлов')}</h4><ul class="quest-files">${rows}</ul>${rest > 0 ? `<small class="quest-more">и ещё ${countOf(rest, 'файл', 'файла', 'файлов')}</small>` : ''}</div>`
+  return `<div class="quest-section"><h4>Изменения · ${countOf(files.length, 'файл', 'файла', 'файлов')}</h4><ul class="quest-files">${rows}</ul>${rest > 0 ? `<small class="quest-more">и ещё ${countOf(rest, 'файл', 'файла', 'файлов')}</small>` : ''}</div>${preparedHtml}`
 }
 
 function tokensText(tokens) {

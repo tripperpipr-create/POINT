@@ -18,15 +18,14 @@ func TestFlowFailureFinalizesQuestAndSkipsScheduling(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	primary, err := application.SaveProjectAgent(domain.ProjectAgent{
-		Name: "Primary", Provider: domain.ProviderOllama, ProviderPreset: "ollama", PrimaryModel: "test", MaxSteps: 20,
-	})
+	primaryDraft := domain.ProjectAgent{Name: "Primary", PrimaryModel: "test", MaxSteps: 20}
+	reviewerDraft := domain.ProjectAgent{Name: "Reviewer", PrimaryModel: "test", MaxSteps: 20}
+	useRefusingTestModel(t, &primaryDraft, &reviewerDraft)
+	primary, err := application.SaveProjectAgent(primaryDraft)
 	if err != nil {
 		t.Fatal(err)
 	}
-	reviewer, err := application.SaveProjectAgent(domain.ProjectAgent{
-		Name: "Reviewer", Provider: domain.ProviderOllama, ProviderPreset: "ollama", PrimaryModel: "test", MaxSteps: 20,
-	})
+	reviewer, err := application.SaveProjectAgent(reviewerDraft)
 	if err != nil {
 		t.Fatal(err)
 	}

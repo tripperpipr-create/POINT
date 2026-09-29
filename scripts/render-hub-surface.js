@@ -1044,12 +1044,14 @@ if (process.argv[2] === 'master') {
         stages: stagesAt([['completed', 19, 19], ['completed', 18, 9], ['completed', 9, 8], ['completed', 8, 6], ['failed', 6, 5], ['pending']]),
         evidence: {
           id: 'evidence-blocked', version: 3, workspaceRevision: 'sha256:9f2c41d07ab3e6b1c5d8', deliveryTarget: 'C:\\Users\\Rif\\Point\\systemio',
-          changedFiles: ['composer.json', 'src/Controller/HealthController.php'], commitIds: [],
+          // Не доставлено: файлы лежат в наборе изменений этапа (preparedFiles), а
+          // не в проекте; исход каждого условия ядро называет в status.
+          changedFiles: [], preparedFiles: ['composer.json', 'src/Controller/HealthController.php'], commitIds: [],
           knownLimitations: ['Шлюз доказательств: work is not proven: criterion:health, delivery_verified'],
           criteria: [
-            { criterionId: 'compose', satisfied: true, tool: 'run_command', command: 'composer show symfony/framework-bundle', exitCode: 0, durationMs: 1800 },
-            { criterionId: 'health', satisfied: false, tool: 'run_command', command: 'curl -fsS http://localhost:8080/health', exitCode: 7, durationMs: 240, summary: 'curl: (7) Failed to connect to localhost port 8080' },
-            { criterionId: 'readme', satisfied: false, summary: 'Требуется ручная приёмка' },
+            { criterionId: 'compose', status: 'passed', satisfied: true, tool: 'run_command', command: 'composer show symfony/framework-bundle', exitCode: 0, durationMs: 1800 },
+            { criterionId: 'health', status: 'failed', satisfied: false, tool: 'run_command', command: 'curl -fsS http://localhost:8080/health', exitCode: 7, durationMs: 240, summary: 'curl: (7) Failed to connect to localhost port 8080' },
+            { criterionId: 'readme', status: 'needs_review', satisfied: false, summary: 'Требуется ручная приёмка' },
           ],
           verificationChecks: [
             { id: 'completion:service_start', kind: 'service_start', command: 'docker compose up -d --wait', exitCode: 1, satisfied: false, durationMs: 31000, summary: 'service "app" failed to build' },
@@ -1103,8 +1105,8 @@ if (process.argv[2] === 'master') {
     if (variant !== 'work-order-running' && run) {
       const done = variant !== 'work-order-blocked'
       history.push({ id: 'wo-3', role: 'assistant', mode: 'quest_completion', proposalId: 'qp-bench', createdAt: today(15, 2), content: done
-        ? 'Готово\nИзменено файлов: 3\nФайлы: composer.json, src/Controller/HealthController.php, README.md\nВыполненные проверки: composer.json содержит symfony/framework-bundle 7.x, GET /health возвращает HTTP 200 с JSON-телом\nНевыполненные/ручные проверки: README описывает команды установки и запуска\nПроваленные проверки: нет\nОграничения: нет'
-        : 'Заблокировано\nИзменено файлов: 2\nПроваленные проверки: GET /health возвращает HTTP 200 с JSON-телом\nОграничения: Шлюз доказательств: work is not proven: criterion:health, delivery_verified\nНужно действие: устраните причину из строки «Ограничения» и повторите запуск квеста.' })
+        ? 'Готово\nДоставлено в проект: 3\nФайлы: README.md; composer.json; src/Controller/HealthController.php\nПройдены: GET /health возвращает HTTP 200 с JSON-телом (`curl -fsS http://localhost:8080/health`, код 0); composer.json содержит symfony/framework-bundle 7.x (`composer show symfony/framework-bundle`, код 0)\nПровалены: нет\nНе запускались: нет\nЖдут ручной оценки: README описывает команды установки и запуска\nОграничения: нет'
+        : 'Заблокировано\nДоставлено в проект: 0\nПодготовлено, не доставлено: 2\nПодготовленные файлы: composer.json; src/Controller/HealthController.php\nПройдены: composer.json содержит symfony/framework-bundle 7.x (`composer show symfony/framework-bundle`, код 0)\nПровалены: GET /health возвращает HTTP 200 с JSON-телом (`curl -fsS http://localhost:8080/health`, код 7)\nНе запускались: нет\nЖдут ручной оценки: README описывает команды установки и запуска\nОграничения: Шлюз доказательств: work is not proven: criterion:health, delivery_verified\nНужно действие: опишите Мастеру, что исправить, — он подготовит новую версию наряда, и она пойдёт новым квестом.' })
     }
     listeners['window:message']({ data: { type: 'master', master: {
       configured: true, config: boot.orchestrator,

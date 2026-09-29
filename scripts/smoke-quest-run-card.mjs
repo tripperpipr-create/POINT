@@ -97,6 +97,10 @@ const verdict = visible(blockedHtml.match(/<div class="quest-verdict[\s\S]*?<\/d
 expect(verdict.includes('не доказано: «GET /health возвращает HTTP 200 с JSON-телом»') && verdict.includes('доставка не подтверждена'), 'gate reason is not named in human words')
 expect(!verdict.includes('work is not proven') && !verdict.includes('criterion:'), 'gate reason leaked as a machine string')
 expect(/<li class="is-failed"[^>]*>[\s\S]*?GET \/health/.test(blockedHtml), 'unproven criterion is not marked as failed')
+// Недоставленная работа — не «нет изменений» и не доставка (Q03, E3).
+expect(blocked.includes('Подготовлено, не доставлено · 2 файла') && blocked.includes('src/Controller/HealthController.php'), 'undelivered prepared files are not shown')
+expect(!blocked.includes('Изменения ·'), 'prepared files are presented as delivered changes')
+expect(!/<li class="is-failed"[^>]*>[\s\S]{0,300}composer\.json содержит/.test(blockedHtml), 'a passed check is painted as failed on a blocked quest')
 expect(!blocked.includes('Загружаем журнал'), 'a quest stopped by a verdict promises a journal that will never load')
 expect(!blockedHtml.includes('data-control="resume"'), 'a quest with a final verdict offers a retry the core refuses')
 

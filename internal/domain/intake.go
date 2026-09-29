@@ -137,6 +137,11 @@ type CriterionEvidence struct {
 	DurationMs  int64  `json:"durationMs,omitempty"`
 	Summary     string `json:"summary,omitempty"`
 	ArtifactID  string `json:"artifactId,omitempty"`
+	// Status names what happened to the criterion — passed, failed,
+	// needs_review, not_run or unavailable — so "never ran" does not read as
+	// "failed" or as "manual". It is a reading aid: the gate decides by
+	// Satisfied, ExitCode and the bound check, never by this field.
+	Status string `json:"status,omitempty"`
 	// Review is a human decision on a manual criterion (ManualReviewAccepted
 	// or ManualReviewRejected). It is overlaid from ManualCriterionReview on
 	// read and is never produced by a model or an executor.
@@ -202,6 +207,9 @@ type EvidenceBundle struct {
 	// say why — `role "postgres" does not exist` named a stale volume that the
 	// summary `db=down` alone blamed on the code.
 	HostDiagnostics string `json:"hostDiagnostics,omitempty"`
+	// PreparedFiles are paths of change sets the quest produced but never
+	// delivered: pending work is neither "no work" nor a delivery.
+	PreparedFiles []string `json:"preparedFiles,omitempty"`
 }
 
 type IntakeSession struct {

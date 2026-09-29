@@ -9,7 +9,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -28,13 +27,14 @@ type GitDiff struct {
 func (t GitDiff) Definition() domain.ToolDefinition {
 	return domain.ToolDefinition{
 		Name:        "git_diff",
-		Description: "Show Git changes. Without arguments: uncommitted changes versus HEAD (staged and unstaged) plus a short status summary. With commit: the changes introduced by that revision, with its author, date and subject. Read-only.",
-		InputSchema: schema(`{"type":"object","properties":{"path":{"type":"string","description":"Optional workspace-relative path to limit the diff"},"commit":{"type":"string","description":"Optional revision (commit hash, tag, branch or HEAD~1) to show the changes introduced by that commit instead of the working tree"}},"additionalProperties":false}`),
+		Description: "Show Git changes. Without arguments: uncommitted changes versus HEAD (staged and unstaged) plus a short status summary. With commit: the changes introduced by that revision, with its author, date and subject. Read-only." + gitReposNote(t.FS),
+		InputSchema: schema(`{"type":"object","properties":{` + gitRepoSchemaProperty + `,"path":{"type":"string","description":"Optional workspace-relative path to limit the diff"},"commit":{"type":"string","description":"Optional revision (commit hash, tag, branch or HEAD~1) to show the changes introduced by that commit instead of the working tree"}},"additionalProperties":false}`),
 	}
 }
 
 func (t GitDiff) Execute(ctx context.Context, raw json.RawMessage) domain.ToolResult {
 	var input struct {
+		Repo   string `json:"repo"`
 		Path   string `json:"path"`
 		Commit string `json:"commit"`
 	}
@@ -43,16 +43,12 @@ func (t GitDiff) Execute(ctx context.Context, raw json.RawMessage) domain.ToolRe
 			return *bad
 		}
 	}
-	root := t.FS.Root()
-	if !gitWorkTreeAvailable(ctx, root) {
-		return FailWithHint(
-			"git_unavailable",
-			"workspace is not a usable Git repository",
-			"filtered-copy sandboxes omit .git; use a PreferWorktree sandbox, or inspect Change Sets instead of git_diff",
-		)
+	root, repo, bad := resolveGitRepo(ctx, t.FS, input.Repo, input.Path)
+	if bad != nil {
+		return *bad
 	}
 	if revision := strings.TrimSpace(input.Commit); revision != "" {
-		return t.showCommit(ctx, root, revision, input.Path)
+		return t.showCommit(ctx, root, repo, revision, input.Path)
 	}
 
 	statusCmd := osproc.CommandContext(ctx, "git", "status", "--porcelain=v1", "--branch")
@@ -64,17 +60,11 @@ func (t GitDiff) Execute(ctx context.Context, raw json.RawMessage) domain.ToolRe
 	}
 
 	diffArgs := []string{"diff", "--no-ext-diff", "HEAD", "--"}
-	pathFilter := ""
-	if rel := strings.TrimSpace(input.Path); rel != "" {
-		resolved, err := t.FS.Resolve(rel, false)
-		if err != nil {
-			return Fail("invalid_path", err.Error())
-		}
-		relPath, err := filepath.Rel(root, resolved)
-		if err != nil {
-			return Fail("invalid_path", err.Error())
-		}
-		pathFilter = filepath.ToSlash(relPath)
+	pathFilter, bad := repoRelativePath(t.FS, root, input.Path)
+	if bad != nil {
+		return *bad
+	}
+	if pathFilter != "" {
 		diffArgs = append(diffArgs, pathFilter)
 	}
 
@@ -117,6 +107,7 @@ func (t GitDiff) Execute(ctx context.Context, raw json.RawMessage) domain.ToolRe
 	}
 	result := OK(map[string]any{
 		"scope":  "worktree",
+		"repo":   repo,
 		"status": statusText,
 		"diff":   diffText,
 		"base":   "HEAD",
@@ -134,7 +125,7 @@ func (t GitDiff) Execute(ctx context.Context, raw json.RawMessage) domain.ToolRe
 // git принимает опции там же, где ссылки, поэтому имя проверяется до вызова, а
 // затем разрешается в хеш — несуществующая ссылка обязана отвечать отказом, а
 // не пустым diff, который модель прочитает как «изменений нет».
-func (t GitDiff) showCommit(ctx context.Context, root, revision, path string) domain.ToolResult {
+func (t GitDiff) showCommit(ctx context.Context, root, repo, revision, path string) domain.ToolResult {
 	if !safeGitRevision(revision) {
 		return FailWithHint(
 			"invalid_revision",
@@ -156,16 +147,12 @@ func (t GitDiff) showCommit(ctx context.Context, root, revision, path string) do
 		header = append(header, "")
 	}
 	diffArgs := []string{"show", "--no-ext-diff", "--format=", hash}
-	if rel := strings.TrimSpace(path); rel != "" {
-		resolved, err := t.FS.Resolve(rel, false)
-		if err != nil {
-			return Fail("invalid_path", err.Error())
-		}
-		relPath, err := filepath.Rel(root, resolved)
-		if err != nil {
-			return Fail("invalid_path", err.Error())
-		}
-		diffArgs = append(diffArgs, "--", filepath.ToSlash(relPath))
+	relPath, bad := repoRelativePath(t.FS, root, path)
+	if bad != nil {
+		return *bad
+	}
+	if relPath != "" {
+		diffArgs = append(diffArgs, "--", relPath)
 	}
 	diffOut, diffErr := runGitDiff(ctx, root, diffArgs)
 	if diffErr != nil {
@@ -182,6 +169,7 @@ func (t GitDiff) showCommit(ctx context.Context, root, revision, path string) do
 	}
 	result := OK(map[string]any{
 		"scope":  "commit",
+		"repo":   repo,
 		"base":   hash,
 		"commit": map[string]any{"hash": header[0], "author": header[1], "date": header[2], "subject": header[3]},
 		"diff":   diffText,
@@ -212,13 +200,6 @@ func runGitDiff(ctx context.Context, root string, args []string) ([]byte, error)
 	cmd := osproc.CommandContext(ctx, "git", args...)
 	cmd.Dir = root
 	return cmd.CombinedOutput()
-}
-
-// GitWorkTreeAvailable — есть ли у корня рабочее дерево Git. Песочница
-// отфильтрованной копии .git не несёт, и git-инструменты там только тратят
-// ход на отказ git_unavailable.
-func GitWorkTreeAvailable(ctx context.Context, root string) bool {
-	return gitWorkTreeAvailable(ctx, root)
 }
 
 // IsGitReadTool — читающие git-инструменты, которым нужно рабочее дерево.
@@ -262,13 +243,14 @@ type GitBranches struct {
 func (t GitBranches) Definition() domain.ToolDefinition {
 	return domain.ToolDefinition{
 		Name:        "git_branches",
-		Description: "List Git branches of the workspace: the current branch, local branches, and remote-tracking branches with their upstream and ahead/behind counts. Read-only. Call this when asked which branches exist — the supplied context carries only the current one.",
-		InputSchema: schema(`{"type":"object","properties":{"remote":{"type":"boolean","description":"Include remote-tracking branches. Default true."},"contains":{"type":"string","description":"Optional case-insensitive substring to filter branch names."}},"additionalProperties":false}`),
+		Description: "List Git branches of the workspace: the current branch, local branches, and remote-tracking branches with their upstream and ahead/behind counts. Read-only. Call this when asked which branches exist — the supplied context carries only the current one." + gitReposNote(t.FS),
+		InputSchema: schema(`{"type":"object","properties":{` + gitRepoSchemaProperty + `,"remote":{"type":"boolean","description":"Include remote-tracking branches. Default true."},"contains":{"type":"string","description":"Optional case-insensitive substring to filter branch names."}},"additionalProperties":false}`),
 	}
 }
 
 func (t GitBranches) Execute(ctx context.Context, raw json.RawMessage) domain.ToolResult {
 	input := struct {
+		Repo     string `json:"repo"`
 		Remote   *bool  `json:"remote"`
 		Contains string `json:"contains"`
 	}{}
@@ -277,13 +259,9 @@ func (t GitBranches) Execute(ctx context.Context, raw json.RawMessage) domain.To
 			return *bad
 		}
 	}
-	root := t.FS.Root()
-	if !gitWorkTreeAvailable(ctx, root) {
-		return FailWithHint(
-			"git_unavailable",
-			"workspace is not a usable Git repository",
-			"filtered-copy sandboxes omit .git; branches are only visible in a worktree sandbox",
-		)
+	root, repo, bad := resolveGitRepo(ctx, t.FS, input.Repo, "")
+	if bad != nil {
+		return *bad
 	}
 	max := t.MaxRefs
 	if max <= 0 {
@@ -341,6 +319,7 @@ func (t GitBranches) Execute(ctx context.Context, raw json.RawMessage) domain.To
 		truncated = add(remote, "remote") || truncated
 	}
 	result := OK(map[string]any{
+		"repo":     repo,
 		"current":  current,
 		"branches": refs,
 		// Оговорка та же, что у жетона ветки: git на сервер сам не ходит, и
@@ -378,14 +357,15 @@ type GitLog struct {
 func (t GitLog) Definition() domain.ToolDefinition {
 	return domain.ToolDefinition{
 		Name:        "git_log",
-		Description: "List recent Git commits of the workspace: hash, author, ISO date, ref names and subject, newest first. Read-only. Call this when asked about commit history, recent changes, or who changed something — the supplied context carries no history.",
-		InputSchema: schema(`{"type":"object","properties":{"limit":{"type":"integer","minimum":1,"maximum":200,"description":"How many commits to return, newest first. Default 20."},"path":{"type":"string","description":"Optional workspace-relative path; only commits touching it are returned."},"contains":{"type":"string","description":"Optional case-insensitive substring the commit message must contain."}},"additionalProperties":false}`),
+		Description: "List recent Git commits of the workspace: hash, author, ISO date, ref names and subject, newest first. Read-only. Call this when asked about commit history, recent changes, or who changed something — the supplied context carries no history." + gitReposNote(t.FS),
+		InputSchema: schema(`{"type":"object","properties":{` + gitRepoSchemaProperty + `,"limit":{"type":"integer","minimum":1,"maximum":200,"description":"How many commits to return, newest first. Default 20."},"path":{"type":"string","description":"Optional workspace-relative path; only commits touching it are returned."},"contains":{"type":"string","description":"Optional case-insensitive substring the commit message must contain."}},"additionalProperties":false}`),
 	}
 }
 
 func (t GitLog) Execute(ctx context.Context, raw json.RawMessage) domain.ToolResult {
 	started := time.Now()
 	var input struct {
+		Repo     string `json:"repo"`
 		Limit    int    `json:"limit"`
 		Path     string `json:"path"`
 		Contains string `json:"contains"`
@@ -395,13 +375,9 @@ func (t GitLog) Execute(ctx context.Context, raw json.RawMessage) domain.ToolRes
 			return *bad
 		}
 	}
-	root := t.FS.Root()
-	if !gitWorkTreeAvailable(ctx, root) {
-		return logExecute(ctx, "git_log", started, FailWithHint(
-			"git_unavailable",
-			"workspace is not a usable Git repository",
-			"filtered-copy sandboxes omit .git; history is only visible in a worktree sandbox",
-		))
+	root, repo, bad := resolveGitRepo(ctx, t.FS, input.Repo, input.Path)
+	if bad != nil {
+		return logExecute(ctx, "git_log", started, *bad)
 	}
 	limit := t.MaxCommits
 	if limit <= 0 {
@@ -421,17 +397,11 @@ func (t GitLog) Execute(ctx context.Context, raw json.RawMessage) domain.ToolRes
 	if needle := strings.TrimSpace(input.Contains); needle != "" {
 		args = append(args, "--fixed-strings", "--regexp-ignore-case", "--grep="+needle)
 	}
-	pathFilter := ""
-	if rel := strings.TrimSpace(input.Path); rel != "" {
-		resolved, err := t.FS.Resolve(rel, false)
-		if err != nil {
-			return logExecute(ctx, "git_log", started, Fail("invalid_path", err.Error()))
-		}
-		relPath, err := filepath.Rel(root, resolved)
-		if err != nil {
-			return logExecute(ctx, "git_log", started, Fail("invalid_path", err.Error()))
-		}
-		pathFilter = filepath.ToSlash(relPath)
+	pathFilter, bad := repoRelativePath(t.FS, root, input.Path)
+	if bad != nil {
+		return logExecute(ctx, "git_log", started, *bad)
+	}
+	if pathFilter != "" {
 		args = append(args, "--", pathFilter)
 	}
 	cmd := osproc.CommandContext(ctx, "git", args...)
@@ -442,7 +412,7 @@ func (t GitLog) Execute(ctx context.Context, raw json.RawMessage) domain.ToolRes
 		// отказ здесь заставил бы модель гадать, что именно недоступно.
 		if isMissingHEAD(string(out) + err.Error()) {
 			return logExecute(ctx, "git_log", started, OK(map[string]any{
-				"commits": []any{}, "count": 0,
+				"repo": repo, "commits": []any{}, "count": 0,
 				"note": "repository has no commits yet",
 			}), "commits", 0)
 		}
@@ -464,7 +434,7 @@ func (t GitLog) Execute(ctx context.Context, raw json.RawMessage) domain.ToolRes
 		commits = append(commits, commit)
 	}
 	payload := map[string]any{
-		"commits": commits, "count": len(commits),
+		"repo": repo, "commits": commits, "count": len(commits),
 		// Оговорка та же, что у веток: git на сервер сам не ходит, и «последний
 		// коммит» верен на момент последнего `git fetch`.
 		"note": "local history only; commits pushed by others appear after a fetch",
@@ -492,14 +462,15 @@ type GitTags struct {
 func (t GitTags) Definition() domain.ToolDefinition {
 	return domain.ToolDefinition{
 		Name:        "git_tags",
-		Description: "List Git tags of the workspace with their commit, creation date and annotation subject, newest first. Read-only. Call this when asked about tags, releases or versions — git_branches covers branches only and never returns tags.",
-		InputSchema: schema(`{"type":"object","properties":{"contains":{"type":"string","description":"Optional case-insensitive substring to filter tag names."}},"additionalProperties":false}`),
+		Description: "List Git tags of the workspace with their commit, creation date and annotation subject, newest first. Read-only. Call this when asked about tags, releases or versions — git_branches covers branches only and never returns tags." + gitReposNote(t.FS),
+		InputSchema: schema(`{"type":"object","properties":{` + gitRepoSchemaProperty + `,"contains":{"type":"string","description":"Optional case-insensitive substring to filter tag names."}},"additionalProperties":false}`),
 	}
 }
 
 func (t GitTags) Execute(ctx context.Context, raw json.RawMessage) domain.ToolResult {
 	started := time.Now()
 	var input struct {
+		Repo     string `json:"repo"`
 		Contains string `json:"contains"`
 	}
 	if len(raw) > 0 {
@@ -507,13 +478,9 @@ func (t GitTags) Execute(ctx context.Context, raw json.RawMessage) domain.ToolRe
 			return *bad
 		}
 	}
-	root := t.FS.Root()
-	if !gitWorkTreeAvailable(ctx, root) {
-		return logExecute(ctx, "git_tags", started, FailWithHint(
-			"git_unavailable",
-			"workspace is not a usable Git repository",
-			"filtered-copy sandboxes omit .git; tags are only visible in a worktree sandbox",
-		))
+	root, repo, bad := resolveGitRepo(ctx, t.FS, input.Repo, "")
+	if bad != nil {
+		return logExecute(ctx, "git_tags", started, *bad)
 	}
 	max := t.MaxRefs
 	if max <= 0 {
@@ -554,7 +521,7 @@ func (t GitTags) Execute(ctx context.Context, raw json.RawMessage) domain.ToolRe
 		tags = append(tags, tag)
 	}
 	result := OK(map[string]any{
-		"tags": tags, "count": len(tags),
+		"repo": repo, "tags": tags, "count": len(tags),
 		"note": "local tags only; tags pushed by others appear after a fetch",
 	})
 	result.Truncated = truncated

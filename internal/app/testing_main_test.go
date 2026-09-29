@@ -7,8 +7,14 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 )
+
+// ollamaDials считает попытки тестов достучаться до ollama разработчика.
+// Отказ подключения тест проглатывал и оставался зелёным, а обращение к
+// настоящей модели жило незамеченным; теперь любая такая попытка роняет пакет.
+var ollamaDials atomic.Int64
 
 func appTestDialGuard(ctx context.Context, network, address string) (net.Conn, error) {
 	host, port, err := net.SplitHostPort(address)
@@ -19,6 +25,9 @@ func appTestDialGuard(ctx context.Context, network, address string) (net.Conn, e
 	loopback := strings.EqualFold(host, "localhost")
 	if parsed := net.ParseIP(host); parsed != nil && parsed.IsLoopback() {
 		loopback = true
+	}
+	if port == "11434" {
+		ollamaDials.Add(1)
 	}
 	if !loopback || port == "11434" {
 		return nil, fmt.Errorf("unexpected network request in internal/app tests: %s", address)
@@ -46,5 +55,17 @@ func TestMain(m *testing.M) {
 	if os.Getenv("POINT_FILE_ISOLATION") == "" {
 		_ = os.Setenv("POINT_FILE_ISOLATION", "sandbox")
 	}
-	os.Exit(m.Run())
+	code := m.Run()
+	// Одну попытку делает сам TestOrdinaryTestsRejectDeveloperOllamaAndAllowManagedFake —
+	// он проверяет сторож; всё сверх неё — тест, который идёт к настоящей модели.
+	if dials := ollamaDials.Load(); dials > expectedOllamaDials.Load() {
+		fmt.Fprintf(os.Stderr, "internal/app tests dialed developer Ollama on 127.0.0.1:11434 %d time(s); use useRefusingTestModel or an httptest model instead\n", dials-expectedOllamaDials.Load())
+		if code == 0 {
+			code = 1
+		}
+	}
+	os.Exit(code)
 }
+
+// expectedOllamaDials — попытки, которые тест сторожа делает намеренно.
+var expectedOllamaDials atomic.Int64

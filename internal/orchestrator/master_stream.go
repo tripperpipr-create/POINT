@@ -2,6 +2,8 @@ package orchestrator
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	"local-agent-workbench/internal/domain"
 	"local-agent-workbench/internal/providers"
@@ -26,9 +28,19 @@ import (
 // Каждая попытка называется в ленте: повтор идёт минуты, и молчаливое «думаю»
 // на третьем круге неотличимо от зависшей модели.
 func streamMasterModel(ctx context.Context, model providers.Model, request providers.ModelRequest, selfHostedRuntime bool, trace *masterTrace, onEvent func(providers.ModelEvent) error) error {
+	started := time.Now()
 	err := model.Stream(ctx, request, onEvent)
 	if err == nil || !providers.IsTruncatedReasoningError(err) {
 		return err
+	}
+	// Повтор начинает размышление с нуля и идёт не быстрее упёршейся
+	// попытки. Если до конца хода столько не осталось, он лишь дождётся
+	// обрыва: ход 29.09 так потратил последние пять минут и кончился
+	// «Модель Мастера не ответила» вместо честной причины.
+	spent := time.Since(started)
+	if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) < spent {
+		trace.retry("повтор не успеет до конца хода", map[string]any{"reason": "deadline", "spentSeconds": int(spent.Seconds())})
+		return fmt.Errorf("модель размышляла %d с и исчерпала предел вывода; повтор не успеет до конца хода: %w", int(spent.Seconds()), err)
 	}
 	grown := domain.GrowThinkingOutputBudget(request.MaxOutputTokens, request.Model)
 	// Вывод не может занимать больше половины окна: остальное нужно самому
@@ -41,7 +53,11 @@ func streamMasterModel(ctx context.Context, model providers.Model, request provi
 			"reason": "reasoning_budget", "from": request.MaxOutputTokens, "to": grown,
 		})
 		request.MaxOutputTokens = grown
+		retryStarted := time.Now()
 		if err = model.Stream(ctx, request, onEvent); err == nil || !providers.IsTruncatedReasoningError(err) {
+			return err
+		}
+		if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) < time.Since(retryStarted) {
 			return err
 		}
 	}
@@ -53,4 +69,21 @@ func streamMasterModel(ctx context.Context, model providers.Model, request provi
 	retry.DisableThinking = true
 	retry.ReasoningEffort = ""
 	return model.Stream(ctx, retry, onEvent)
+}
+
+// masterOutputBudget — предел вывода хода Мастера. Платному рантайму он
+// зажат в 8192…16384: вывод там стоит денег. Бесплатному (llmux, локальные)
+// сразу даётся полный предел размышляющей модели, не больше половины окна:
+// прежде первая попытка упиралась в 8192, и повтор начинал размышление с нуля
+// — живой ход 29.09 потерял на этом три с половиной минуты из десяти.
+func masterOutputBudget(cfg domain.OrchestratorConfig, window int) int {
+	output := min(max(cfg.MaxOutputTokens, 8192), 16384)
+	if domain.RuntimeChargesForTokens(cfg.Provider, cfg.ProviderPreset) {
+		return output
+	}
+	grown := domain.GrowThinkingOutputBudget(output, cfg.Model)
+	if half := window / 2; half > 0 && grown > half {
+		grown = half
+	}
+	return max(output, grown)
 }

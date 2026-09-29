@@ -135,7 +135,7 @@ func TestGitToolsHiddenWithoutWorkTree(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if workbenchtools.GitWorkTreeAvailable(context.Background(), fs.Root()) {
+	if workbenchtools.GitAvailable(context.Background(), fs.Root()) {
 		t.Skip("temporary directory is inside a Git work tree")
 	}
 	definitions := []domain.ToolDefinition{{Name: "read_file"}, {Name: "git_diff"}, {Name: "git_log"}, {Name: "run_command"}}

@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -15,7 +17,13 @@ import (
 // выданное имя без реализации просто исчезает из Definitions, и модель узнаёт
 // об инструменте только из отказа. Проверка держит их вместе.
 func TestCompanionReadToolsExposeEveryAllowedName(t *testing.T) {
-	fs, err := workspace.Open(t.TempDir())
+	// Git лежит во вложенном проекте: без него git-инструменты скрываются
+	// (проверка ниже), а здесь сверяется полнота реестра.
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "app", ".git"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	fs, err := workspace.Open(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -213,5 +221,18 @@ func TestCompanionRejectsClaudeCLI(t *testing.T) {
 		t.Fatal("локальный CLI принят настройкой после снятия CLI")
 	} else if !strings.Contains(err.Error(), "removed") && !strings.Contains(err.Error(), "CLI") {
 		t.Fatalf("ожидался отказ снятого CLI, got %v", err)
+	}
+}
+
+// Мастер 29.09 потратил круг на git_log в папке без единого репозитория.
+func TestCompanionReadToolsHideGitWithoutRepositories(t *testing.T) {
+	fs, err := workspace.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, definition := range newCompanionReadTools(fs, nil).Definitions() {
+		if strings.HasPrefix(definition.Name, "git_") {
+			t.Fatalf("git tool offered without any repository: %s", definition.Name)
+		}
 	}
 }

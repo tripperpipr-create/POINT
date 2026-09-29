@@ -116,6 +116,8 @@ func (a *App) finalizeWorkOrderQuestAfterFlowV2(approval domain.WorkOrderApprova
 		bundle.DeliveryVerified = true
 		bundle.DeliveryTarget = "isolated_review"
 	}
+	bundle.PreparedFiles = subtractStringsV2(bundle.PreparedFiles, bundle.ChangedFiles)
+	markWorkOrderCriterionStatusesV2(approval.WorkOrder, &bundle)
 	// Проваленная проверка на хосте при оставшихся попытках — не вердикт, а
 	// следующая попытка с отчётом о том, что увидел хост.
 	if flowSucceeded && bundle.DeliveryVerified && a.startWorkOrderRepairAttemptV2(ctx, approval, quest, bundle, hostChecks) {
@@ -189,7 +191,10 @@ func (a *App) publishWorkOrderOutcomeV2(ctx context.Context, approval domain.Wor
 	case status == domain.QuestNeedsReview:
 		title, level = "Ждёт ручной приёмки", "warning"
 	}
-	passed, unavailable, failed := []string{}, []string{}, []string{}
+	// Прошла, упала, не запускалась и ждёт человека — четыре разных факта. Одна
+	// строка «невыполненные/ручные» смешивала приёмку, которая не стартовала,
+	// с ручной оценкой, а проваленная проверка шла без команды и кода.
+	passed, failed, notRun, manual := []string{}, []string{}, []string{}, []string{}
 	action := ""
 	criterionText := map[string]string{}
 	for _, criterion := range approval.WorkOrder.Criteria {
@@ -207,11 +212,11 @@ func (a *App) publishWorkOrderOutcomeV2(ctx context.Context, approval domain.Wor
 		}
 		switch {
 		case check.Satisfied:
-			passed = append(passed, name)
+			passed = append(passed, verificationCheckLabelV2(name, check))
 		case check.ExitCode == nil:
-			unavailable = append(unavailable, name)
+			notRun = append(notRun, name)
 		default:
-			failed = append(failed, name)
+			failed = append(failed, verificationCheckLabelV2(name, check))
 			if action == "" {
 				action = hostCheckActionV2(check.Summary)
 			}
@@ -219,25 +224,32 @@ func (a *App) publishWorkOrderOutcomeV2(ctx context.Context, approval domain.Wor
 	}
 	for _, criterion := range approval.WorkOrder.Criteria {
 		if criterion.Kind == "manual" {
-			unavailable = append(unavailable, criterion.Text)
+			manual = append(manual, criterion.Text)
 		}
 	}
 	line := func(label string, values []string) string {
 		if len(values) == 0 {
 			return label + ": нет"
 		}
-		return label + ": " + strings.Join(uniqueSortedStringsV2(values), ", ")
+		return label + ": " + strings.Join(uniqueSortedStringsV2(values), "; ")
 	}
 	files := uniqueSortedStringsV2(bundle.ChangedFiles)
-	content := []string{
-		title,
-		fmt.Sprintf("Изменено файлов: %d", len(files)),
-		line("Файлы", files),
-		line("Выполненные проверки", passed),
-		line("Невыполненные/ручные проверки", unavailable),
-		line("Проваленные проверки", failed),
-		line("Ограничения", bundle.KnownLimitations),
+	prepared := subtractStringsV2(bundle.PreparedFiles, files)
+	content := []string{title, fmt.Sprintf("Доставлено в проект: %d", len(files))}
+	if len(files) > 0 {
+		content = append(content, line("Файлы", files))
 	}
+	// Подготовленное, но не доставленное — не «0 изменений» и не доставка.
+	if len(prepared) > 0 {
+		content = append(content, fmt.Sprintf("Подготовлено, не доставлено: %d", len(prepared)), line("Подготовленные файлы", prepared))
+	}
+	content = append(content,
+		line("Пройдены", passed),
+		line("Провалены", failed),
+		line("Не запускались", notRun),
+		line("Ждут ручной оценки", manual),
+		line("Ограничения", bundle.KnownLimitations),
+	)
 	if highlights := hostDiagnosticHighlightsV2(bundle.HostDiagnostics, 4); len(highlights) > 0 {
 		content = append(content, "Журнал контейнеров: "+strings.Join(highlights, " · "))
 	}
@@ -252,8 +264,8 @@ func (a *App) publishWorkOrderOutcomeV2(ctx context.Context, approval domain.Wor
 		// Вердикт окончателен для квеста: «повторите запуск» вело к кнопке,
 		// которая ничего не запускала.
 		content = append(content, "Нужно действие: опишите Мастеру, что исправить, — он подготовит новую версию наряда, и она пойдёт новым квестом.")
-	} else if bundle.Assurance == domain.WorkOrderAssurancePartial && len(unavailable) > 0 {
-		content = append(content, "Нужно действие: при необходимости выполните перечисленные ручные проверки.")
+	} else if bundle.Assurance == domain.WorkOrderAssurancePartial && len(notRun)+len(manual) > 0 {
+		content = append(content, "Нужно действие: при необходимости выполните проверки из строк «Не запускались» и «Ждут ручной оценки».")
 	}
 	_, err := a.store.SaveCompanionMessageOnce(ctx, domain.CompanionMessage{
 		ID: "master-workorder-final-" + quest.ID, WorkspaceID: approval.WorkOrder.WorkspaceID,
@@ -622,12 +634,19 @@ func (a *App) buildWorkOrderEvidenceV2(ctx context.Context, approval domain.Work
 					Command string `json:"command"`
 				}
 				_ = json.Unmarshal(criterion.Check.Arguments, &arguments)
-				proofChecks[criterion.CriterionID] = domain.VerificationCheck{
+				check := domain.VerificationCheck{
 					ID: criterion.CriterionID, Kind: workOrderVerificationKindV2(criterion.CriterionID, order.Criteria),
 					Command: strings.TrimSpace(arguments.Command), ExitCode: criterion.Check.ExitCode,
 					Satisfied: criterion.Status == "satisfied" && criterion.Check.Status == "passed" && !criterion.Check.TimedOut,
 					Summary:   security.Redact(criterion.Check.Detail),
 				}
+				// A check from before the last change proves nothing about the
+				// final revision: its exit code is not this revision's result.
+				if criterion.Status == "stale" {
+					check.ExitCode, check.Satisfied = nil, false
+					check.Summary = "Проверка выполнялась до последнего изменения; на итоговой ревизии не запускалась"
+				}
+				proofChecks[criterion.CriterionID] = check
 			}
 		}
 		bundle.ChangedFiles = append(bundle.ChangedFiles, outcome.AppliedFiles...)
@@ -643,8 +662,10 @@ func (a *App) buildWorkOrderEvidenceV2(ctx context.Context, approval domain.Work
 		if criterion.Kind == "manual" {
 			ev.Satisfied, ev.Summary = false, "Требуется ручная приёмка"
 		}
+		// A failed flow voids the claims, not the facts: a criterion keeps its
+		// success only when a bound check actually passed on the final revision.
 		if !flowSucceeded && criterion.Kind != "manual" {
-			ev.Satisfied = false
+			ev.Satisfied = ev.Satisfied && proofChecks[criterion.ID].Satisfied && proofChecks[criterion.ID].ExitCode != nil
 		}
 		if criterion.Tool == "run_command" && len(criterion.Arguments) > 0 {
 			var args struct {
@@ -659,7 +680,7 @@ func (a *App) buildWorkOrderEvidenceV2(ctx context.Context, approval domain.Work
 		if criterion.Kind != "manual" {
 			check, ok := proofChecks[criterion.ID]
 			if !ok {
-				check = domain.VerificationCheck{ID: criterion.ID, Kind: workOrderVerificationKindV2(criterion.ID, order.Criteria), Command: ev.Command, Satisfied: false, Summary: "Нет привязанного результата проверки"}
+				check = domain.VerificationCheck{ID: criterion.ID, Kind: workOrderVerificationKindV2(criterion.ID, order.Criteria), Command: ev.Command, Satisfied: false, Summary: "Проверка не запускалась"}
 			}
 			if check.Command == "" {
 				check.Command = ev.Command
@@ -674,8 +695,117 @@ func (a *App) buildWorkOrderEvidenceV2(ctx context.Context, approval domain.Work
 		bundle.KnownLimitations = append(bundle.KnownLimitations, "Flow завершился с ошибкой")
 		bundle.KnownLimitations = append(bundle.KnownLimitations, executionFailures...)
 	}
+	bundle.PreparedFiles = a.workOrderPreparedFilesV2(ctx, order, quest)
 	a.collectWorkOrderEvidenceLedgersV2(ctx, order, quest, &bundle)
 	return bundle
+}
+
+// workOrderPreparedFilesV2 lists paths of the quest tree's change sets that
+// are still waiting for delivery. Stage quests of a Flow own them, not the root:
+// counting only the root's applied sets reported "0 files" for real work.
+func (a *App) workOrderPreparedFilesV2(ctx context.Context, order domain.WorkOrder, root domain.Quest) []string {
+	quests, err := a.store.ListQuests(ctx, order.WorkspaceID)
+	if err != nil {
+		return nil
+	}
+	byID := make(map[string]*domain.Quest, len(quests))
+	for index := range quests {
+		byID[quests[index].ID] = &quests[index]
+	}
+	executions, err := a.store.ListExecutions(ctx, order.WorkspaceID, 500)
+	if err != nil {
+		return nil
+	}
+	owned := map[string]bool{}
+	for _, execution := range executions {
+		if questDescendsFrom(execution.QuestID, root.ID, byID) {
+			owned[execution.ID] = true
+		}
+	}
+	sets, err := a.store.ListChangeSets(ctx, order.WorkspaceID)
+	if err != nil {
+		return nil
+	}
+	files := []string{}
+	for _, set := range sets {
+		if !questDescendsFrom(set.QuestID, root.ID, byID) && !owned[set.ExecutionID] {
+			continue
+		}
+		// A conflicting set is undelivered work too; superseded, rejected and
+		// reverted ones are not the quest's result any more.
+		if set.Status != domain.ChangeSetPending && set.Status != domain.ChangeSetApproved && set.Status != domain.ChangeSetConflict {
+			continue
+		}
+		for _, item := range set.Items {
+			files = append(files, item.Path)
+		}
+	}
+	return uniqueSortedStringsV2(files)
+}
+
+// markWorkOrderCriterionStatusesV2 names each criterion's fate for readers.
+// It follows the gate's own binding rule, so "passed" here never disagrees
+// with what the gate accepted.
+func markWorkOrderCriterionStatusesV2(order domain.WorkOrder, bundle *domain.EvidenceBundle) {
+	checks := make(map[string]domain.VerificationCheck, len(bundle.VerificationChecks))
+	for _, check := range bundle.VerificationChecks {
+		checks[check.ID] = check
+	}
+	criteria := make(map[string]domain.AcceptanceCriterion, len(order.Criteria))
+	for _, criterion := range order.Criteria {
+		criteria[criterion.ID] = criterion
+	}
+	for index := range bundle.Criteria {
+		item := &bundle.Criteria[index]
+		criterion := criteria[item.CriterionID]
+		check, checked := checks[item.CriterionID]
+		switch {
+		case criterion.Kind == "manual" && item.Review == domain.ManualReviewAccepted:
+			item.Status = domain.CriterionStatusPassed
+		case criterion.Kind == "manual" && item.Review == domain.ManualReviewRejected:
+			item.Status = domain.CriterionStatusFailed
+		case criterion.Kind == "manual":
+			item.Status = domain.CriterionStatusNeedsReview
+		case checked && verificationCheckSatisfiesCriterionV2(criterion, *item, check):
+			item.Status = domain.CriterionStatusPassed
+		case checked && check.ExitCode != nil || item.ExitCode != nil:
+			item.Status = domain.CriterionStatusFailed
+		case deferredHostCriterionV2(order, criterion):
+			item.Status = domain.CriterionStatusUnavailable
+		default:
+			item.Status = domain.CriterionStatusNotRun
+		}
+	}
+}
+
+// verificationCheckLabelV2 names a check with the command and exit code that
+// back it: "build failed" without them sends the reader to the logs.
+func verificationCheckLabelV2(name string, check domain.VerificationCheck) string {
+	parts := []string{}
+	if command := strings.TrimSpace(check.Command); command != "" {
+		parts = append(parts, "`"+truncateRunes(security.Redact(command), 100)+"`")
+	}
+	if check.ExitCode != nil {
+		parts = append(parts, fmt.Sprintf("код %d", *check.ExitCode))
+	}
+	if len(parts) == 0 {
+		return name
+	}
+	return name + " (" + strings.Join(parts, ", ") + ")"
+}
+
+func subtractStringsV2(values, remove []string) []string {
+	drop := make(map[string]bool, len(remove))
+	for _, value := range remove {
+		drop[strings.TrimSpace(value)] = true
+	}
+	kept := []string{}
+	for _, value := range uniqueSortedStringsV2(values) {
+		if !drop[value] {
+			kept = append(kept, value)
+		}
+	}
+	return kept
 }
 
 func (a *App) workOrderExecutionFailuresV2(ctx context.Context, workspaceID, flowRunID string) []string {

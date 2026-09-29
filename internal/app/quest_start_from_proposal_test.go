@@ -46,10 +46,12 @@ func TestOrchestratorIsSeparateFromCompanionAndShapesStart(t *testing.T) {
 	if boot.Companion == nil {
 		t.Fatal("companion is still the IDE accompanist and is seeded")
 	}
-	if _, err = application.SaveProjectAgent(domain.ProjectAgentFromBlueprint(boot.CurrentWorkspace.ID, boot.Blueprints[0])); err != nil {
+	first := domain.ProjectAgentFromBlueprint(boot.CurrentWorkspace.ID, boot.Blueprints[0])
+	second := domain.ProjectAgentFromBlueprint(boot.CurrentWorkspace.ID, boot.Blueprints[0])
+	useRefusingTestModel(t, &first, &second)
+	if _, err = application.SaveProjectAgent(first); err != nil {
 		t.Fatal(err)
 	}
-	second := domain.ProjectAgentFromBlueprint(boot.CurrentWorkspace.ID, boot.Blueprints[0])
 	second.Name = "Review Twin"
 	if _, err = application.SaveProjectAgent(second); err != nil {
 		t.Fatal(err)
@@ -457,10 +459,10 @@ func TestCriticalImportanceSchedulesDualSandboxes(t *testing.T) {
 	for index := 0; index < 2; index++ {
 		agent := domain.ProjectAgent{
 			Name: fmt.Sprintf("Critical Agent %d", index+1), WorkspaceID: boot.CurrentWorkspace.ID,
-			Provider: domain.ProviderOllama, BaseURL: "http://127.0.0.1:11434",
 			PrimaryModel: "qwen2.5-coder:7b",
 			AllowedTools: append([]string(nil), domain.DefaultProfile().AllowedTools...), MaxSteps: 30,
 		}
+		useRefusingTestModel(t, &agent)
 		if _, err = application.SaveProjectAgent(agent); err != nil {
 			t.Fatal(err)
 		}

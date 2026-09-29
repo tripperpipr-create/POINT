@@ -86,8 +86,12 @@ func TestWorkOrderEvidenceStatusWaitsForHumanOnManualCriterion(t *testing.T) {
 			t.Fatalf("stale gate reason survived acceptance: %q", line)
 		}
 	}
-	if _, verdict = ApplyManualReviews(order, bundle, []ManualCriterionReview{{QuestID: "q1", CriterionID: "c1", Decision: ManualReviewRejected, CreatedAt: time.Now().UTC()}}); verdict.Status != QuestBlocked {
-		t.Fatalf("rejected manual criterion must block, got %s", verdict.Status)
+	if accepted.Criteria[0].Status != CriterionStatusPassed {
+		t.Fatalf("accepted manual criterion must read as passed, got %q", accepted.Criteria[0].Status)
+	}
+	rejected, verdict := ApplyManualReviews(order, bundle, []ManualCriterionReview{{QuestID: "q1", CriterionID: "c1", Decision: ManualReviewRejected, CreatedAt: time.Now().UTC()}})
+	if verdict.Status != QuestBlocked || rejected.Criteria[0].Status != CriterionStatusFailed {
+		t.Fatalf("rejected manual criterion must block and read as failed, got %s %q", verdict.Status, rejected.Criteria[0].Status)
 	}
 }
 

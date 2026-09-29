@@ -2,7 +2,11 @@ package app
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+
+	"local-agent-workbench/internal/domain"
 )
 
 // Подготовка мира для теста: одно приложение на временном каталоге.
@@ -22,4 +26,24 @@ func newTestApp(t *testing.T) *App {
 	}
 	t.Cleanup(func() { application.Shutdown(context.Background()) })
 	return application
+}
+
+// Модель, которая сразу отказывает, — для тестов, которым прогоны агентов
+// нужны лишь побочным эффектом запуска Flow.
+//
+// Такие тесты смотрели в ollama разработчика на 127.0.0.1:11434 и держались
+// только на стороже пакета, который рубил подключение. Здесь отказ свой,
+// мгновенный и не повторяемый (400), а пресет местный и бесплатный, как
+// ollama, — бюджет квеста считается так же.
+func useRefusingTestModel(t *testing.T, agents ...*domain.ProjectAgent) {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error":{"message":"test model refuses every request"}}`))
+	}))
+	t.Cleanup(server.Close)
+	for _, agent := range agents {
+		agent.Provider, agent.ProviderPreset, agent.BaseURL = domain.ProviderOpenAI, "llama-cpp", server.URL
+	}
 }

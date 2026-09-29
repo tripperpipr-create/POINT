@@ -27,8 +27,8 @@ func TestFlowCreatesOnlyAgentNodeChildQuestsAndReusesChildForRetry(t *testing.T)
 		t.Fatal(err)
 	}
 	agent := domain.ProjectAgentFromBlueprint(view.Workspace.ID, boot.Blueprints[0])
-	agent.Provider, agent.ProviderPreset, agent.PrimaryModel = domain.ProviderOllama, "ollama", "qwen2.5-coder:7b"
-	agent.BaseURL = "http://127.0.0.1:11434"
+	agent.PrimaryModel = "qwen2.5-coder:7b"
+	useRefusingTestModel(t, &agent)
 	agent, err = application.SaveProjectAgent(agent)
 	if err != nil {
 		t.Fatal(err)
@@ -104,16 +104,16 @@ func TestFlowFallbackCreatesFreshExecutionWithReadyExplicitAgent(t *testing.T) {
 	}
 	boot, _ := application.Bootstrap()
 	primary := domain.ProjectAgentFromBlueprint(view.Workspace.ID, boot.Blueprints[0])
-	primary.Provider, primary.ProviderPreset, primary.PrimaryModel = domain.ProviderOllama, "ollama", "qwen2.5-coder:7b"
-	primary.BaseURL = "http://127.0.0.1:11434"
+	primary.PrimaryModel = "qwen2.5-coder:7b"
+	useRefusingTestModel(t, &primary)
 	primary.Name = "Primary"
 	primary, err = application.SaveProjectAgent(primary)
 	if err != nil {
 		t.Fatal(err)
 	}
 	fallback := domain.ProjectAgentFromBlueprint(view.Workspace.ID, boot.Blueprints[0])
-	fallback.Provider, fallback.ProviderPreset, fallback.PrimaryModel = domain.ProviderOllama, "ollama", "qwen2.5-coder:7b"
-	fallback.BaseURL = "http://127.0.0.1:11434"
+	fallback.PrimaryModel = "qwen2.5-coder:7b"
+	useRefusingTestModel(t, &fallback)
 	fallback.Name = "Fallback"
 	fallback, err = application.SaveProjectAgent(fallback)
 	if err != nil {

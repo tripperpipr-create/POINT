@@ -167,30 +167,13 @@ func joinFeedback(existing *string, addition string) string {
 }
 
 // withoutUnusableGitTools убирает git-инструменты из того, что видит модель,
-// когда у корня нет рабочего дерева Git. Реестр их сохраняет: критерии,
-// названные по имени, проверяются по нему. Живые квесты 28–29.09 тратили на
-// git_diff без .git по ходу.
+// когда у корня нет ни рабочего дерева, ни вложенных репозиториев. Живые
+// квесты 28–29.09 тратили на git_diff без .git по ходу.
 func withoutUnusableGitTools(ctx context.Context, definitions []domain.ToolDefinition, patches *workbenchtools.PatchManager) []domain.ToolDefinition {
 	if patches == nil || patches.FS == nil {
 		return definitions
 	}
-	hasGit := false
-	for _, definition := range definitions {
-		if workbenchtools.IsGitReadTool(definition.Name) {
-			hasGit = true
-			break
-		}
-	}
-	if !hasGit || workbenchtools.GitWorkTreeAvailable(ctx, patches.FS.Root()) {
-		return definitions
-	}
-	filtered := make([]domain.ToolDefinition, 0, len(definitions))
-	for _, definition := range definitions {
-		if !workbenchtools.IsGitReadTool(definition.Name) {
-			filtered = append(filtered, definition)
-		}
-	}
-	return filtered
+	return workbenchtools.WithoutUnusableGitTools(ctx, patches.FS.Root(), definitions)
 }
 
 // autoExtendSteps пробует автопродление и сообщает о нём событием guardrail.

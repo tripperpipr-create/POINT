@@ -354,29 +354,35 @@ func (s ChatService) discussWithModel(ctx context.Context, req ChatRequest, worl
 		readDefinitions = s.ReadTools.Definitions()
 	}
 	actionDefinitions := masterActionDefinitions()
-	output := req.Config.MaxOutputTokens
-	if output < 8192 {
-		output = 8192
-	}
-	if output > 16384 {
-		output = 16384
-	}
+	output := masterOutputBudget(req.Config, window)
 	seenTools := map[string]struct{}{}
 	trace := newMasterTrace(s)
 	actions := &masterActions{}
 	// Текст всех кругов — один ответ. Что модель сказала перед чтением файла,
 	// человек уже видел в потоке, и финальная реплика не вправе это отнять.
 	var spoken []string
+	// Исследование кончается на восьмом круге — или раньше, если до срока хода
+	// осталось меньше, чем занял самый долгий круг: ещё один круг чтения
+	// размышляющая модель не успела бы закончить, и ход пропал бы целиком.
+	exploreEnd := masterExploreRounds
+	var longestRound time.Duration
 	for round := 0; round < masterIntakeRounds; round++ {
 		trace.round = round + 1
+		if round > 0 && round < exploreEnd && masterTimeRunsShort(ctx, longestRound) {
+			exploreEnd = round
+		}
 		tools := append(append([]domain.ToolDefinition(nil), readDefinitions...), actionDefinitions...)
 		switch {
-		case round == masterExploreRounds:
+		case round == exploreEnd:
 			tools = actionDefinitions
 			s.Skills.Operation.Repairs++
-			trace.retry("ответ по собранному", map[string]any{"reason": "explore_limit", "rounds": masterExploreRounds})
+			reason := "explore_limit"
+			if exploreEnd < masterExploreRounds {
+				reason = "turn_deadline"
+			}
+			trace.retry("ответ по собранному", map[string]any{"reason": reason, "rounds": exploreEnd})
 			messages = append(messages, providers.Message{Role: "user", Content: "Предел исследования на эту реплику исчерпан. Ответь человеку по уже собранному; задание или уточнения при необходимости оформи инструментами разговора."})
-		case round > masterExploreRounds:
+		case round > exploreEnd:
 			// Инструменты разговора остаются в запросе и здесь: история уже
 			// несёт вызовы инструментов, и провайдер вправе отвергнуть запрос,
 			// в котором вызовы есть, а их определений нет.
@@ -405,6 +411,7 @@ func (s ChatService) discussWithModel(ctx context.Context, req ChatRequest, worl
 		var raw strings.Builder
 		var calls []providers.ToolCall
 		var reasoning []providers.ReasoningBlock
+		roundStarted := time.Now()
 		err = streamMasterModel(ctx, model, request, domain.ShouldSuppressThinking(req.Config.Provider, req.Config.ProviderPreset), trace, func(event providers.ModelEvent) error {
 			switch event.Kind {
 			case providers.EventTextDelta:
@@ -438,7 +445,16 @@ func (s ChatService) discussWithModel(ctx context.Context, req ChatRequest, worl
 			return nil
 		})
 		usage.LatencyMs = time.Since(startedAt).Milliseconds()
+		longestRound = max(longestRound, time.Since(roundStarted))
 		if err != nil {
+			// Срок вышел, но сказанное и оформленное человек уже видел в
+			// потоке: ход кончается им, как при переполнении контекста.
+			if ctx.Err() != nil && (len(spoken) > 0 || actions.silentReply() != "") {
+				trace.retry("ответ по сказанному: срок хода вышел", map[string]any{"reason": "turn_deadline"})
+				trace.flush()
+				usage.Reasoning = strings.TrimSpace(usage.Reasoning + "\n\nОтвет собран по уже сказанному: срок хода вышел, пока модель размышляла.")
+				return s.finishMasterTurn(actions, spoken, usage)
+			}
 			return taskIntakeEnvelope{}, usage, err
 		}
 		// Тот же текст в соседнем круге — повтор, а не продолжение: модель,
@@ -471,7 +487,7 @@ func (s ChatService) discussWithModel(ctx context.Context, req ChatRequest, worl
 					actions.undecodable = true
 				}
 			case !offered[call.Name]:
-				if round >= masterExploreRounds {
+				if round >= exploreEnd {
 					result = workbenchtools.FailWithHint("tool_not_allowed", "исследование на эту реплику закончено", "ответь по уже собранному")
 				}
 			case action:
@@ -714,4 +730,12 @@ func appendRepairTrace(reasoning, reply string, issues []domain.TaskBriefValidat
 		return trace
 	}
 	return strings.TrimSpace(reasoning) + "\n" + trace
+}
+
+// masterTimeRunsShort — хватит ли времени ещё на один круг чтения. Мерой
+// служит самый долгий круг этого же хода: скорость модели на данном контексте
+// лучше любой константы.
+func masterTimeRunsShort(ctx context.Context, longestRound time.Duration) bool {
+	deadline, ok := ctx.Deadline()
+	return ok && longestRound > 0 && time.Until(deadline) < longestRound
 }

@@ -29,6 +29,7 @@ import (
 type companionReadTools struct {
 	registry *workbenchtools.Registry
 	grants   policy.Grants
+	root     string
 }
 
 func newCompanionReadTools(fs *workspace.FS, skills []domain.SkillRuntime) *companionReadTools {
@@ -48,11 +49,21 @@ func newCompanionReadTools(fs *workspace.FS, skills []domain.SkillRuntime) *comp
 		items = append(items, workbenchtools.ReadSkill{Skills: skills})
 		grants = grants.WithGroups(policy.SkillGroup)
 	}
-	return &companionReadTools{registry: workbenchtools.NewRegistry(items...), grants: grants}
+	root := ""
+	if fs != nil {
+		root = fs.Root()
+	}
+	return &companionReadTools{registry: workbenchtools.NewRegistry(items...), grants: grants, root: root}
 }
 
+// Definitions не предлагает git-инструменты там, где им не с чем работать:
+// Мастер 29.09 потратил круг на git_log в папке без репозитория в корне.
 func (t *companionReadTools) Definitions() []domain.ToolDefinition {
-	return t.registry.Definitions(t.grants.ToolNames())
+	definitions := t.registry.Definitions(t.grants.ToolNames())
+	if t.root == "" {
+		return definitions
+	}
+	return workbenchtools.WithoutUnusableGitTools(context.Background(), t.root, definitions)
 }
 
 func (t *companionReadTools) Execute(ctx context.Context, name string, arguments json.RawMessage) domain.ToolResult {

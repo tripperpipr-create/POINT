@@ -23,8 +23,11 @@ func PresetDefaults(preset string) (domain.OrchestratorConfig, bool) {
 	return cfg, true
 }
 
+// masterTurnTimeoutSeconds — срок хода Мастера. Бесплатный рантайм получает
+// тот же срок, что и Ollama: размышляющая модель на llmux думает по три-пять
+// минут на круг, и в десять минут ход с исследованием не укладывался (29.09).
 func masterTurnTimeoutSeconds(cfg domain.OrchestratorConfig) int {
-	if cfg.Provider == domain.ProviderOllama {
+	if cfg.Provider == domain.ProviderOllama || !domain.RuntimeChargesForTokens(cfg.Provider, cfg.ProviderPreset) {
 		return masterIntakeOllamaTimeoutSeconds
 	}
 	return masterIntakeTimeoutSeconds

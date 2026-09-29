@@ -319,6 +319,15 @@ const (
 	ManualReviewRejected = "rejected"
 )
 
+// CriterionEvidence.Status values.
+const (
+	CriterionStatusPassed      = "passed"
+	CriterionStatusFailed      = "failed"
+	CriterionStatusNeedsReview = "needs_review"
+	CriterionStatusNotRun      = "not_run"
+	CriterionStatusUnavailable = "unavailable"
+)
+
 // ManualCriterionReview is a human decision on a manual criterion. Evidence
 // bundles are immutable, so the decision is stored beside the bundle and
 // overlaid on it; without it a quest with a manual criterion could only end
@@ -354,9 +363,9 @@ func ApplyManualReviews(order WorkOrder, bundle EvidenceBundle, reviews []Manual
 			at := review.CreatedAt
 			item.Review, item.ReviewNote, item.ReviewedAt = review.Decision, review.Note, &at
 			item.Satisfied = review.Decision == ManualReviewAccepted
-			item.Summary = "Не принято человеком"
+			item.Summary, item.Status = "Не принято человеком", CriterionStatusFailed
 			if item.Satisfied {
-				item.Summary = "Принято человеком"
+				item.Summary, item.Status = "Принято человеком", CriterionStatusPassed
 			}
 			if strings.TrimSpace(review.Note) != "" {
 				item.Summary += ": " + strings.TrimSpace(review.Note)

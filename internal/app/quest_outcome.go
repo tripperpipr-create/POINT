@@ -113,9 +113,27 @@ func (a *App) QuestOutcome(ctx context.Context, questID string) (QuestOutcome, e
 			runIDs[execution.RunID] = true
 		}
 	}
+	// Задание с брифом исполняют этапы Flow — дочерние квесты; их наборы тоже
+	// работа этого квеста, иначе итог говорил «0 файлов» при сделанной работе.
+	owns := func(set domain.ChangeSet) bool { return set.QuestID == quest.ID || executionIDs[set.ExecutionID] }
+	if quest.Brief != nil {
+		byID := make(map[string]*domain.Quest, len(quests))
+		for i := range quests {
+			byID[quests[i].ID] = &quests[i]
+		}
+		tree := map[string]bool{}
+		for _, execution := range executions {
+			if questDescendsFrom(execution.QuestID, quest.ID, byID) {
+				tree[execution.ID] = true
+			}
+		}
+		owns = func(set domain.ChangeSet) bool {
+			return questDescendsFrom(set.QuestID, quest.ID, byID) || tree[set.ExecutionID]
+		}
+	}
 	applied := make([]string, 0, 8)
 	for _, set := range changeSets {
-		if set.QuestID != quest.ID && !executionIDs[set.ExecutionID] {
+		if !owns(set) {
 			continue
 		}
 		if set.Status != domain.ChangeSetApplied {
@@ -231,7 +249,10 @@ func (a *App) taskBriefOutcome(ctx context.Context, quest domain.Quest, quests [
 	if err != nil {
 		return out, err
 	}
-	if count > 1 && quest.Brief.Permissions.WriteFiles && a.requiresMergedResultCheck(ctx, quest, executions, byID) {
+	// Отклонённая приёмка уже не станет подтверждением, а её поштучные коды —
+	// единственное объяснение провала: требование merged-result их не стирает.
+	rejected := proof != nil && proof.Status == rejectedCompletionStatus
+	if !rejected && count > 1 && quest.Brief.Permissions.WriteFiles && a.requiresMergedResultCheck(ctx, quest, executions, byID) {
 		if merged := a.mergedResultCompletionEvidence(ctx, quest); merged != nil {
 			proof = merged
 		} else if mergedProof != nil {
@@ -257,6 +278,9 @@ func (a *App) taskBriefOutcome(ctx context.Context, quest domain.Quest, quests [
 			p.Evidence = e.Status
 			if e.Check != nil {
 				p.Evidence = e.Check.Tool + ": " + e.Check.Detail + "; " + e.Status
+				if e.Check.ExitCode != nil {
+					p.Evidence += fmt.Sprintf(" (код %d)", *e.Check.ExitCode)
+				}
 			}
 		}
 		if p.Met {
@@ -271,6 +295,8 @@ func (a *App) taskBriefOutcome(ctx context.Context, quest domain.Quest, quests [
 		out.Honest = "Критерии задания подтверждены. Результат готов к просмотру; применение изменений — отдельное решение."
 	case out.UnverifiedReason != "":
 		out.Honest = out.UnverifiedReason
+	case rejected:
+		out.Honest = fmt.Sprintf("Приёмка отклонила результат: подтверждено %d из %d критериев.", out.Met, out.Total)
 	case proof != nil && proof.Status == "needs_review":
 		out.Honest = "Исполнение закончено; результат требует оценки пользователя."
 	default:
@@ -279,10 +305,16 @@ func (a *App) taskBriefOutcome(ctx context.Context, quest domain.Quest, quests [
 	return out, nil
 }
 
-// parentBriefCompletionProof walks completed executions newest-first and returns
+// rejectedCompletionStatus marks evidence taken from a final rejected verdict.
+// Its per-criterion results are facts, the whole is never a confirmation.
+const rejectedCompletionStatus = "rejected"
+
+// parentBriefCompletionProof walks finished executions newest-first and returns
 // completion evidence from the first run whose started brief matches the parent
-// quest brief. When the flow includes an Accept agent stage, only that stage's
-// proof counts — implement must not finalize intake.
+// quest brief and which recorded a final verdict. A rejected verdict counts too:
+// its exit codes are what the user needs to see, and a newer rejection must not
+// be hidden behind an older acceptance. When the flow includes an Accept agent
+// stage, only that stage's proof counts — implement must not finalize intake.
 func (a *App) parentBriefCompletionProof(ctx context.Context, quest domain.Quest, executions []domain.ExecutionInstance, byID map[string]*domain.Quest) (*agent.CompletionEvidence, *agent.CompletionEvidence, error) {
 	if quest.Brief == nil {
 		return nil, nil, nil
@@ -297,7 +329,7 @@ func (a *App) parentBriefCompletionProof(ctx context.Context, quest domain.Quest
 		if !questDescendsFrom(e.QuestID, quest.ID, byID) {
 			continue
 		}
-		if e.Status != domain.RunCompleted || strings.TrimSpace(e.RunID) == "" {
+		if (e.Status != domain.RunCompleted && e.Status != domain.RunFailed) || strings.TrimSpace(e.RunID) == "" {
 			continue
 		}
 		ordered = append(ordered, candidate{exec: e})
@@ -312,7 +344,9 @@ func (a *App) parentBriefCompletionProof(ctx context.Context, quest domain.Quest
 		if err != nil {
 			return nil, nil, err
 		}
-		if !bound {
+		// A failed run without a verdict says nothing about the criteria; a
+		// completed one without proof still voids older proof, as before.
+		if !bound || proof == nil && item.exec.Status == domain.RunFailed {
 			continue
 		}
 		if requireAccept {
@@ -379,15 +413,27 @@ func (a *App) completionProofFromRun(ctx context.Context, runID string, quest do
 				Evidence  *agent.CompletionEvidence `json:"evidence"`
 			}
 			proof = nil
-			if json.Unmarshal(event.Data, &p) == nil && p.Status == "accepted_after_revision" && p.Evidence != nil && p.Evidence.BriefVersion == quest.Brief.Version {
-				proof = p.Evidence
-				if p.CheckKind == "merged-result" {
-					mergedProof = p.Evidence
+			if json.Unmarshal(event.Data, &p) == nil && p.Evidence != nil && p.Evidence.BriefVersion == quest.Brief.Version {
+				switch p.Status {
+				case "accepted_after_revision":
+					proof = p.Evidence
+					if p.CheckKind == "merged-result" {
+						mergedProof = p.Evidence
+					}
+				case "rejected":
+					// The final verdict of a failed stage: the checks it ran are
+					// facts, the stage as a whole never confirms the criteria.
+					rejected := *p.Evidence
+					rejected.Status = rejectedCompletionStatus
+					proof = &rejected
 				}
 			}
 		}
 	}
-	if !bound || run.Status != domain.RunCompleted {
+	if !bound {
+		return nil, nil, bound, stageRole, nil
+	}
+	if run.Status != domain.RunCompleted && (proof == nil || proof.Status != rejectedCompletionStatus) {
 		return nil, nil, bound, stageRole, nil
 	}
 	return proof, mergedProof, true, stageRole, nil

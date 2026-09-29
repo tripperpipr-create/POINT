@@ -129,7 +129,10 @@ func TestMasterTurnCompactsHistoryForSmallWindow(t *testing.T) {
 		}
 	}}
 	// Сначала ход на просторном окне — узнать, сколько он весит целиком.
+	// Рантайм платный: там предел вывода постоянный, а у бесплатного он сам
+	// подстраивается под окно, и сжимать было бы нечего.
 	req := intakeRequest("Что дальше?")
+	req.Config.Provider, req.Config.ProviderPreset = domain.ProviderOpenAI, "openai"
 	if _, err := service.Chat(context.Background(), req); err != nil {
 		t.Fatal(err)
 	}

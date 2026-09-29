@@ -11,9 +11,18 @@
 // Здесь проходят все основные сценарии разговора: обычная реплика → создание
 // агента с подтверждением → выбор и создание отряда → предложение квеста →
 // очередь → запуск по описанию из очереди → квест и прогон Flow.
+//
+// Настоящей модели смоук не касается: Мастер смотрит в поддельный
+// OpenAI-совместимый сервер с местным пресетом llama-cpp — бесплатным, как
+// прежняя ollama, так что бюджет квеста ведёт себя так же. Раньше конфигурация называла ollama без адреса, и
+// ядро шло на 127.0.0.1:11434 — смоук зависел от того, запущена ли ollama у
+// разработчика, а с обязательным планом модели при запуске падал везде, где её
+// нет. Реплики сервер обрывает, как недоступная модель, — разговор проверяет свой
+// путь без модели; план отдаёт один, на выбранного вручную агента.
 
 const { spawn } = require('child_process')
 const fs = require('fs')
+const http = require('http')
 const net = require('net')
 const path = require('path')
 
@@ -30,6 +39,37 @@ function freePort() {
       const address = server.address()
       server.close(() => resolve(address.port))
     })
+  })
+}
+
+// Поддельная модель Мастера. plannedAgentId задаёт смоук, когда отряд выбран.
+let plannedAgentId = ''
+const modelRequests = { plans: 0, dropped: 0 }
+function startFakeModel(port) {
+  const server = http.createServer((request, response) => {
+    let raw = ''
+    request.on('data', chunk => { raw += chunk })
+    request.on('end', () => {
+      // Запрос планировщика узнаётся по схеме ответа в системном сообщении.
+      if (!raw.includes('requiresApproval') || !plannedAgentId) {
+        modelRequests.dropped += 1
+        request.socket.destroy()
+        return
+      }
+      modelRequests.plans += 1
+      const plan = JSON.stringify({
+        agentIds: [plannedAgentId], rationale: 'Стабилизировать тест оплаты силами выбранного агента',
+        stages: [{ name: 'Implement', agentId: plannedAgentId, instruction: 'Устранить нестабильность теста оплаты.', phase: 1 }],
+        requiresApproval: false,
+      })
+      const chunk = JSON.stringify({ choices: [{ delta: { content: plan } }], usage: { prompt_tokens: 10, completion_tokens: 10 } })
+      response.writeHead(200, { 'Content-Type': 'text/event-stream' })
+      response.end(`data: ${chunk}\n\ndata: [DONE]\n\n`)
+    })
+  })
+  return new Promise((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(port, '127.0.0.1', () => resolve(server))
   })
 }
 
@@ -51,6 +91,8 @@ async function main() {
   const dataDir = fs.mkdtempSync(path.join(repo, 'build', 'smoke-master-'))
   const port = await freePort()
   const base = `http://127.0.0.1:${port}`
+  const modelPort = await freePort()
+  const fakeModel = await startFakeModel(modelPort)
   const child = spawn(binary, [], {
     cwd: workspace,
     env: { ...process.env, DATA_DIR: dataDir, WORKSPACE_ROOT: workspace, HTTP_ADDR: `127.0.0.1:${port}`, REDIS_ADDR: '' },
@@ -90,7 +132,8 @@ async function main() {
     if (!workspaceId || !blueprint) throw new Error('мир или каталог чертежей не пришли — проверять нечего')
 
     const config = await call('/api/orchestrator/config', { method: 'POST', body: JSON.stringify({
-      id: 'master', workspaceId, preset: 'conductor', provider: 'ollama', model: 'qwen',
+      id: 'master', workspaceId, preset: 'conductor', provider: 'openai-compatible', providerPreset: 'llama-cpp',
+      baseUrl: `http://127.0.0.1:${modelPort}`, model: 'smoke-planner',
       planningDepth: 70, parallelism: 60, approvalStrictness: 40, teamPreference: 85,
       createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z',
     }) })
@@ -210,9 +253,11 @@ async function main() {
       body[item.resolve.field] = item.resolve.acceptValue === undefined ? item.resolve.accept : item.resolve.acceptValue
     }
     if (item.resolve.idField) body[item.resolve.idField] = item.id
+    plannedAgentId = appliedSecondAgent.payload.agent.id
     const started = await call(item.resolve.path, { method: 'POST', body: JSON.stringify(body) })
     check('запуск из очереди принят ядром', started.status === 200, JSON.stringify(started.payload))
     check('запуск создал квест', Boolean(started.payload?.quest?.id), JSON.stringify(started.payload).slice(0, 200))
+    check('план запуска построила поддельная модель, а не внешняя', modelRequests.plans >= 1, JSON.stringify(modelRequests))
     check('запуск сохранил выбранный вручную отряд',
       started.payload?.team?.agentIds?.length === 1 && started.payload.team.agentIds[0] === appliedSecondAgent.payload.agent.id,
       JSON.stringify(started.payload?.team))
@@ -235,6 +280,7 @@ async function main() {
       'из одного предложения вышло больше одного квеста')
   } finally {
     child.kill()
+    fakeModel.close()
   }
 
   if (failures.length) {

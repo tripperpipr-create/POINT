@@ -318,13 +318,7 @@ func (s ChatService) chatWithModel(ctx context.Context, req ChatRequest, world s
 	messages = append(messages, masterModelHistory(history)...)
 	messages = append(messages, masterUserMessage(req))
 
-	maxOutput := req.Config.MaxOutputTokens
-	if maxOutput < 8192 {
-		maxOutput = 8192
-	}
-	if maxOutput > 16384 {
-		maxOutput = 16384
-	}
+	maxOutput := masterOutputBudget(req.Config, intakeContextWindowTokens)
 	temperature := req.Config.Temperature
 	if temperature < 0 || temperature > 2 {
 		temperature = 0.2

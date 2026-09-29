@@ -43,16 +43,25 @@ type WriterLease struct {
 // DeliveryReceipt is the machine-verifiable proof that the checked revision
 // reached the approved target. A URL is required only for runnable apps.
 type DeliveryReceipt struct {
-	ID                string    `json:"id"`
-	QuestID           string    `json:"questId"`
-	WorkOrderDigest   string    `json:"workOrderDigest"`
-	Target            string    `json:"target"`
-	WorkspaceRevision string    `json:"workspaceRevision"`
-	CommitID          string    `json:"commitId,omitempty"`
-	URL               string    `json:"url,omitempty"`
-	ComposeFile       string    `json:"composeFile,omitempty"`
-	ServicesRunning   bool      `json:"servicesRunning"`
-	DeliveredAt       time.Time `json:"deliveredAt"`
+	ID                string `json:"id"`
+	QuestID           string `json:"questId"`
+	WorkOrderDigest   string `json:"workOrderDigest"`
+	Target            string `json:"target"`
+	WorkspaceRevision string `json:"workspaceRevision"`
+	CommitID          string `json:"commitId,omitempty"`
+	// Commits — коммит каждого репозитория доставки; "." — сама папка.
+	Commits         []RepositoryCommit `json:"commits,omitempty"`
+	URL             string             `json:"url,omitempty"`
+	ComposeFile     string             `json:"composeFile,omitempty"`
+	ServicesRunning bool               `json:"servicesRunning"`
+	DeliveredAt     time.Time          `json:"deliveredAt"`
+}
+
+// RepositoryCommit — коммит доставки в одном репозитории. Repo — путь его
+// корня относительно папки проекта через «/», "." — сама папка.
+type RepositoryCommit struct {
+	Repo     string `json:"repo"`
+	CommitID string `json:"commitId"`
 }
 
 type DeliveredApplicationControl struct {

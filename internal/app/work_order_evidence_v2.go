@@ -84,7 +84,10 @@ func (a *App) finalizeWorkOrderQuestAfterFlowV2(approval domain.WorkOrderApprova
 		}
 		applied, commits, applyErr := a.applyWorkOrderChangeSetsV2(ctx, approval.WorkOrder, quest, bundle.ID)
 		bundle.ChangedFiles = append(bundle.ChangedFiles, applied...)
-		bundle.CommitIDs = append(bundle.CommitIDs, commits...)
+		for _, commit := range commits {
+			bundle.CommitIDs = append(bundle.CommitIDs, commit.CommitID)
+		}
+		bundle.RepositoryCommits = append(bundle.RepositoryCommits, commits...)
 		bundle.ChangedFiles = uniqueSortedStringsV2(bundle.ChangedFiles)
 		if applyErr != nil {
 			bundle.DeliveryConflict = errors.Is(applyErr, errWorkOrderDeliveryConflictV2)
@@ -152,6 +155,7 @@ func (a *App) finalizeWorkOrderQuestAfterFlowV2(approval domain.WorkOrderApprova
 		if len(bundle.CommitIDs) > 0 {
 			bundle.DeliveryReceipt.CommitID = bundle.CommitIDs[len(bundle.CommitIDs)-1]
 		}
+		bundle.DeliveryReceipt.Commits = append([]domain.RepositoryCommit(nil), bundle.RepositoryCommits...)
 	}
 	status, gateErr := a.store.FinalizeWorkOrderQuestV2(ctx, quest.ID, bundle)
 	if gateErr != nil {
@@ -889,7 +893,7 @@ func workOrderVerificationKindV2(criterionID string, criteria []domain.Acceptanc
 	return "acceptance"
 }
 
-func (a *App) applyWorkOrderChangeSetsV2(ctx context.Context, order domain.WorkOrder, root domain.Quest, evidenceID string) ([]string, []string, error) {
+func (a *App) applyWorkOrderChangeSetsV2(ctx context.Context, order domain.WorkOrder, root domain.Quest, evidenceID string) ([]string, []domain.RepositoryCommit, error) {
 	if info, err := os.Stat(order.Workspace.Path); err != nil || !info.IsDir() {
 		return nil, nil, fmt.Errorf("approved delivery workspace is unavailable")
 	}
@@ -918,7 +922,7 @@ func (a *App) applyWorkOrderChangeSetsV2(ctx context.Context, order domain.WorkO
 	sort.Slice(sets, func(i, j int) bool { return sets[i].CreatedAt.Before(sets[j].CreatedAt) })
 	changed := []string{}
 	newlyApplied := []string{}
-	rollback := func(cause error) ([]string, []string, error) {
+	rollback := func(cause error) ([]string, []domain.RepositoryCommit, error) {
 		for index := len(newlyApplied) - 1; index >= 0; index-- {
 			_, _ = (changesets.Applier{Store: a.store}).Revert(ctx, order.Workspace.Path, newlyApplied[index])
 		}
@@ -948,13 +952,14 @@ func (a *App) applyWorkOrderChangeSetsV2(ctx context.Context, order domain.WorkO
 		}
 	}
 	changed = uniqueSortedStringsV2(changed)
-	commits := []string{}
+	var commits []domain.RepositoryCommit
 	if order.Delivery.CommitMode == "squash" {
-		commitID, commitErr := createWorkOrderSquashCommitV2(ctx, order.Workspace.Path, root.ID, evidenceID, changed)
+		// Один коммит в репозитории папки или по одному на вложенный (Q06).
+		created, commitErr := commitWorkOrderDeliveryV2(ctx, order.Workspace.Path, root.ID, evidenceID, changed)
 		if commitErr != nil {
 			return rollback(commitErr)
 		}
-		commits = append(commits, commitID)
+		commits = created
 	}
 	return changed, commits, nil
 }

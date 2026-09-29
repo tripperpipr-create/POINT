@@ -172,19 +172,22 @@ type EvidenceDecisionRecord struct {
 }
 
 type EvidenceBundle struct {
-	Version                  int                      `json:"version"`
-	ID                       string                   `json:"id"`
-	QuestID                  string                   `json:"questId"`
-	PointVersion             string                   `json:"pointVersion"`
-	SourceDigest             string                   `json:"sourceDigest"`
-	SourceVersions           []SourceSnapshotRef      `json:"sourceVersions"`
-	BriefDigest              string                   `json:"briefDigest"`
-	EnvironmentDigest        string                   `json:"environmentDigest"`
-	StackPreset              StackPresetRef           `json:"stackPreset"`
-	CompletionProfile        CompletionProfile        `json:"completionProfile"`
-	DockerImages             []string                 `json:"dockerImages"`
-	NetworkPolicyDigest      string                   `json:"networkPolicyDigest,omitempty"`
-	CommitIDs                []string                 `json:"commitIds,omitempty"`
+	Version             int                 `json:"version"`
+	ID                  string              `json:"id"`
+	QuestID             string              `json:"questId"`
+	PointVersion        string              `json:"pointVersion"`
+	SourceDigest        string              `json:"sourceDigest"`
+	SourceVersions      []SourceSnapshotRef `json:"sourceVersions"`
+	BriefDigest         string              `json:"briefDigest"`
+	EnvironmentDigest   string              `json:"environmentDigest"`
+	StackPreset         StackPresetRef      `json:"stackPreset"`
+	CompletionProfile   CompletionProfile   `json:"completionProfile"`
+	DockerImages        []string            `json:"dockerImages"`
+	NetworkPolicyDigest string              `json:"networkPolicyDigest,omitempty"`
+	CommitIDs           []string            `json:"commitIds,omitempty"`
+	// RepositoryCommits — какой коммит в каком репозитории: у папки с
+	// несколькими Git-проектами их по одному на проект (Q06).
+	RepositoryCommits        []RepositoryCommit       `json:"repositoryCommits,omitempty"`
 	ChangedFiles             []string                 `json:"changedFiles,omitempty"`
 	Criteria                 []CriterionEvidence      `json:"criteria"`
 	VerificationChecks       []VerificationCheck      `json:"verificationChecks"`

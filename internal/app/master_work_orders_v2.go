@@ -119,6 +119,13 @@ func (a *App) saveMasterWorkOrderV2(ctx context.Context, proposal *domain.QuestP
 	if order.Workspace.Mode == "existing" && isCleanGitWorkspace(order.Workspace.Path) {
 		order.Delivery.CommitMode = "squash"
 	}
+	// Папка с несколькими Git-проектами: каждый получит свой коммит доставки
+	// (work_order_nested_delivery_v2.go), а не молчаливое «без коммита».
+	if order.Workspace.Mode == "existing" {
+		if _, nested := cleanNestedGitRepos(order.Workspace.Path); nested {
+			order.Delivery.CommitMode = "squash"
+		}
+	}
 	if order.Workspace.Mode == "existing" {
 		order.Sandbox = environment.Analyze(order.Workspace.Path, order.WorkspaceID).Runtime
 	}

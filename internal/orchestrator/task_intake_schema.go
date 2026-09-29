@@ -72,7 +72,7 @@ func masterActionDefinitions() []domain.ToolDefinition {
 			InputSchema: schema(map[string]any{
 				"type": "object", "additionalProperties": false, "required": []string{"title", "brief"},
 				"properties": map[string]any{
-					"proposalId": map[string]any{"type": "string", "description": "Идентификатор задания из снимка проекта, если продолжаешь его; для нового задания оставь пустым."},
+					"proposalId": map[string]any{"type": "string", "description": "Идентификатор задания этого разговора из снимка (proposals), если продолжаешь его; для нового задания оставь пустым."},
 					"title":      map[string]any{"type": "string", "description": "Короткое название задания, до 72 знаков."},
 					"brief":      taskBriefJSONSchema(),
 				},

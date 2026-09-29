@@ -16,6 +16,7 @@ import (
 	"local-agent-workbench/internal/domain"
 	"local-agent-workbench/internal/flowruntime"
 	"local-agent-workbench/internal/orchestrator"
+	"local-agent-workbench/internal/storage"
 )
 
 func (a *App) startQuestFromProposal(ctx context.Context, ws domain.Workspace, proposal domain.QuestProposal, startFlow, userPickedTeam bool, orchestratorAPIKey string) (QuestProposalResult, error) {
@@ -393,10 +394,15 @@ func (a *App) startQuestFromProposalUsingQuest(ctx context.Context, ws domain.Wo
 	// Предложения, созданные до появления поля, задачи не несут: для них
 	// оставляем прежнее поведение, иначе описание у них станет пустым.
 	var quest domain.Quest
+	// Квест наряда пишется только поверх статуса, с которым его начали
+	// запускать: отмена человеком, пришедшая за минуты планирования, иначе
+	// перезаписывалась снимком в running.
+	var launchedFrom []domain.QuestStatus
 	if draftQuest != nil {
 		quest = *draftQuest
 		quest.Status = domain.QuestActive
 		if quest.Controller != nil && quest.Controller["source"] == "work_order_v2" {
+			launchedFrom = []domain.QuestStatus{draftQuest.Status, domain.QuestRunning}
 			quest.Status = domain.QuestRunning
 		}
 		quest.TeamID = team.ID
@@ -422,7 +428,12 @@ func (a *App) startQuestFromProposalUsingQuest(ctx context.Context, ws domain.Wo
 		}
 		quest.Controller["planPreview"] = planStagePreview(modelPlan.Plan.Stages)
 	}
-	if err = a.store.SaveQuest(ctx, quest); err != nil {
+	if launchedFrom != nil {
+		err = a.store.SaveQuestIfStatusV2(ctx, quest, launchedFrom...)
+	} else {
+		err = a.store.SaveQuest(ctx, quest)
+	}
+	if err != nil {
 		return QuestProposalResult{}, err
 	}
 	// Planner usage is written once by budget reconcile (outcome orchestrator_plan).
@@ -448,7 +459,9 @@ func (a *App) startQuestFromProposalUsingQuest(ctx context.Context, ws domain.Wo
 		OrchestratorModel: orchModel,
 	}
 	if startFlow {
-		a.updateWorkOrderLaunchProgressV2(ctx, &quest, "launching", "Flow готов; запускаем первого исполнителя")
+		if progressErr := a.updateWorkOrderLaunchProgressV2(ctx, &quest, "launching", "Flow готов; запускаем первого исполнителя"); errors.Is(progressErr, storage.ErrQuestStatusChanged) {
+			return result, progressErr
+		}
 		runtime := flowruntime.Runtime{Store: a.store}
 		flowRun, runErr := runtime.Start(ctx, flowruntime.StartRequest{
 			FlowID: flow.ID, WorkspaceID: ws.ID, QuestID: quest.ID,
@@ -464,7 +477,23 @@ func (a *App) startQuestFromProposalUsingQuest(ctx context.Context, ws domain.Wo
 		}
 		quest.FlowRunID = flowRun.ID
 		quest.UpdatedAt = time.Now().UTC()
-		if saveErr := a.store.SaveQuest(ctx, quest); saveErr != nil {
+		saveErr := error(nil)
+		if launchedFrom != nil {
+			saveErr = a.store.SaveQuestIfStatusV2(ctx, quest, domain.QuestRunning)
+		} else {
+			saveErr = a.store.SaveQuest(ctx, quest)
+		}
+		if saveErr != nil {
+			// Квест закрыли, пока Flow создавался: исполнителей не ставим, а сам
+			// Flow гасим — отмена его уже не увидит, ссылки на него у квеста нет.
+			if errors.Is(saveErr, storage.ErrQuestStatusChanged) {
+				finished := time.Now().UTC()
+				flowRun.Status, flowRun.Error, flowRun.FinishedAt = domain.RunCancelled, "quest changed before the Flow was linked", &finished
+				if cancelErr := a.store.SaveFlowRun(context.Background(), flowRun); cancelErr != nil {
+					slog.Warn("orphan flow run not cancelled", "flow_run_id", flowRun.ID, "error", cancelErr)
+				}
+				a.closeUnfinishedFlowChildQuests(flowRun.ID, false)
+			}
 			return result, saveErr
 		}
 		result.Quest = &quest

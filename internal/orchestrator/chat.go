@@ -134,7 +134,7 @@ func (s ChatService) Chat(ctx context.Context, req ChatRequest) (ChatResponse, e
 		// Предложения нужны модели, чтобы помнить своё же предложение: «а можно
 		// без него?» задают сразу после него, и отвечать на это счётчиком
 		// «ждут решения: 1» — не разговор.
-		proposals, proposalsErr := s.Store.ListQuestProposals(ctx, req.WorkspaceID)
+		proposals, proposalsErr := s.conversationProposals(ctx, req.WorkspaceID, "")
 		if proposalsErr != nil {
 			return ChatResponse{}, proposalsErr
 		}

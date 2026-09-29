@@ -67,13 +67,10 @@ func (a *App) startWorkOrderRepairAttemptV2(ctx context.Context, approval domain
 	if quest.Status != domain.QuestVerifying && quest.Status != domain.QuestApplying {
 		return false
 	}
-	if err := a.resetWorkOrderMilestoneForRepairV2(ctx, approval, quest); err != nil {
-		slog.Warn("repair attempt not started: milestone not reset", "quest_id", quest.ID, "error", err)
-		return false
-	}
 	failedNames := failedHostCriteriaNamesV2(repairable, order)
 	feedback := workOrderRepairFeedbackV2(order, repairable, bundle.HostDiagnostics, attempt, maxAttempts)
 	previousFlowRun := quest.FlowRunID
+	finished := quest
 	next := attempt + 1
 	if quest.Controller == nil {
 		quest.Controller = map[string]any{}
@@ -88,8 +85,16 @@ func (a *App) startWorkOrderRepairAttemptV2(ctx context.Context, approval domain
 	quest.Controller["launchPhase"] = "repair"
 	quest.FlowID, quest.FlowRunID = "", ""
 	quest.UpdatedAt = time.Now().UTC()
-	if err := a.store.SaveQuest(ctx, quest); err != nil {
+	// Снимок снят до доставки и проверок на хосте — минуты назад. Отмена,
+	// пришедшая за это время, старше: снимок её не перезаписывает.
+	if err := a.store.SaveQuestIfStatusV2(ctx, quest, quest.Status); err != nil {
 		slog.Warn("repair attempt not started: quest not saved", "quest_id", quest.ID, "error", err)
+		return false
+	}
+	// Milestone сбрасывается только после того, как квест принял попытку:
+	// отменённому квесту сброс вернул бы этап в draft.
+	if err := a.resetWorkOrderMilestoneForRepairV2(ctx, approval, finished); err != nil {
+		slog.Warn("repair attempt not started: milestone not reset", "quest_id", quest.ID, "error", err)
 		return false
 	}
 	message := fmt.Sprintf("Проверка на хосте не прошла (%s). Point исправляет — попытка %d из %d", strings.Join(failedNames, "; "), next, maxAttempts)

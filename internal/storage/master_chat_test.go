@@ -135,3 +135,33 @@ func TestMasterMessageAttachmentRoundTrip(t *testing.T) {
 		t.Fatalf("snapshot lost: %+v %v", p, err)
 	}
 }
+
+// Задания проекта общие для всех его бесед; своими беседа считает только
+// названные в ответах её Мастера (Q02).
+func TestMasterConversationProposalIDsStayInTheirConversation(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "chat.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	ctx := context.Background()
+	now := time.Now()
+	for _, m := range []domain.CompanionMessage{
+		{ID: "a1", WorkspaceID: "w", Speaker: "master", ConversationID: "legacy", Role: "master", Content: "a", ProposalID: "qp-a", CreatedAt: now},
+		{ID: "a2", WorkspaceID: "w", Speaker: "master", ConversationID: "legacy", Role: "master", Content: "a", ProposalID: "qp-a", CreatedAt: now},
+		{ID: "b1", WorkspaceID: "w", Speaker: "master", ConversationID: "chat-b", Role: "master", Content: "b", ProposalID: "qp-b", CreatedAt: now},
+		{ID: "x1", WorkspaceID: "other", Speaker: "master", ConversationID: "legacy", Role: "master", Content: "x", ProposalID: "qp-x", CreatedAt: now},
+	} {
+		if err = s.SaveCompanionMessage(ctx, m); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ids, err := s.MasterConversationProposalIDs(ctx, "w", "legacy")
+	if err != nil || len(ids) != 1 || ids[0] != "qp-a" {
+		t.Fatalf("задания первой беседы: %v err=%v", ids, err)
+	}
+	ids, err = s.MasterConversationProposalIDs(ctx, "w", "chat-b")
+	if err != nil || len(ids) != 1 || ids[0] != "qp-b" {
+		t.Fatalf("задания второй беседы: %v err=%v", ids, err)
+	}
+}

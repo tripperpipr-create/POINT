@@ -53,7 +53,7 @@ func (s ChatService) DiscussTask(ctx context.Context, req ChatRequest) (ChatResp
 	if req.Message == "" || len(req.Message) > maxChatMessage {
 		return ChatResponse{}, errors.New("сообщение должно содержать 1–32768 байт")
 	}
-	proposals, err := s.Store.ListQuestProposals(ctx, req.WorkspaceID)
+	proposals, err := s.conversationProposals(ctx, req.WorkspaceID, req.ProposalID)
 	if err != nil {
 		return ChatResponse{}, err
 	}

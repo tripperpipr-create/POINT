@@ -40,6 +40,10 @@ func (a *App) finalizeWorkOrderQuestAfterFlowV2(approval domain.WorkOrderApprova
 		}
 		return
 	}
+	if domain.IsTerminalQuestStatus(quest.Status) {
+		slog.Info("work order finalization skipped: quest is already closed", "quest_id", quest.ID, "status", quest.Status)
+		return
+	}
 	// Продолжение с живым Flow возвращает квест в `preflight`, и Flow может
 	// завершиться раньше, чем квест снова станет `running`. Такой квест тоже
 	// проверяется: иначе он оставался в `preflight` без улик навсегда. Квест

@@ -177,6 +177,27 @@ func (s *SQLite) DeleteMasterMemory(ctx context.Context, w, id string) error {
 
 const masterMessageColumns = `rowid,id,workspace_id,speaker,role,content,level,mode,provider,model,facts_used_json,questions_json,usage_record_id,proposal_id,action_proposal_id,fallback_reason,input_tokens,output_tokens,total_tokens,latency_ms,feedback,reasoning,steps_json,created_at,conversation_id,turn_id,attachments_json,memory_ids_json,clarifications_json`
 
+// MasterConversationProposalIDs — задания, о которых шла речь в одной беседе
+// Мастера: ответ, создавший или правивший задание, несёт его proposal_id.
+// Предложения хранятся на весь проект, и без этой выборки Мастер второго чата
+// видел чужие задания и мог переписать одно из них своим.
+func (s *SQLite) MasterConversationProposalIDs(ctx context.Context, workspaceID, conversationID string) ([]string, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT DISTINCT proposal_id FROM companion_messages WHERE workspace_id=? AND conversation_id=? AND speaker='master' AND proposal_id<>''`, workspaceID, conversationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	ids := []string{}
+	for rows.Next() {
+		var id string
+		if err = rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
 func (s *SQLite) MasterMessagePage(ctx context.Context, w, id string, before int64, query string, limit int) (domain.MasterMessagePage, error) {
 	if limit < 1 || limit > 200 {
 		limit = 60

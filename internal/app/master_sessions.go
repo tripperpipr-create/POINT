@@ -214,6 +214,14 @@ type masterSessionStore struct {
 	attachments []domain.MasterAttachment
 	memoryIDs   []string
 	page        func(context.Context, string, string, int64, string, int) (domain.MasterMessagePage, error)
+	proposalIDs func(context.Context, string, string) ([]string, error)
+}
+
+// ConversationProposalIDs отдаёт Мастеру задания его беседы.
+var _ orchestrator.ConversationProposalScope = masterSessionStore{}
+
+func (s masterSessionStore) ConversationProposalIDs(ctx context.Context, w string) ([]string, error) {
+	return s.proposalIDs(ctx, w, s.id)
 }
 
 func (s masterSessionStore) SaveCompanionMessage(ctx context.Context, m domain.CompanionMessage) error {
@@ -247,7 +255,7 @@ func (a *App) sessionMasterService(ctx context.Context, s orchestrator.ChatServi
 	}
 	for _, v := range sessions.Items {
 		if v.ID == id {
-			s.Store = masterSessionStore{ChatStore: s.Store, id: id, page: a.store.MasterMessagePage}
+			s.Store = masterSessionStore{ChatStore: s.Store, id: id, page: a.store.MasterMessagePage, proposalIDs: a.store.MasterConversationProposalIDs}
 			sessions.Active = id
 			sessions.Mode = v.Mode
 			sessions.WorkMode = v.WorkMode

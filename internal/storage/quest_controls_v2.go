@@ -42,6 +42,45 @@ func (s *SQLite) SetWorkOrderQuestStatusV2(ctx context.Context, quest domain.Que
 	return nil
 }
 
+// SaveQuestIfStatusV2 пишет снимок квеста наряда целиком, только если статус
+// в базе всё ещё один из expected. Запуск держит свою копию квеста минутами —
+// пока модель планирует, пока доставка и проверки на хосте, — и SaveQuest этой
+// копией возвращал отменённый квест в preflight, running или applying.
+// Вставки нет: пишется только уже существующий квест.
+func (s *SQLite) SaveQuestIfStatusV2(ctx context.Context, quest domain.Quest, expected ...domain.QuestStatus) error {
+	if len(expected) == 0 {
+		return errors.New("expected quest status is required")
+	}
+	briefJSON, err := taskBriefJSON(quest.Brief)
+	if err != nil {
+		return err
+	}
+	var finished any
+	if quest.FinishedAt != nil {
+		finished = formatTime(*quest.FinishedAt)
+	}
+	args := []any{quest.ParentID, quest.Title, quest.Description, marshalJSON(quest.Objectives), marshalJSON(quest.Constraints),
+		marshalJSON(quest.DefinitionOfDone), quest.Importance, quest.Status, quest.TeamID, quest.FlowID, quest.FlowRunID, quest.FlowNodeID,
+		quest.AssignedAgentID, quest.BudgetTokens, quest.BudgetCents, formatTime(quest.UpdatedAt), finished, briefJSON, quest.Kind,
+		quest.ControllerState, marshalJSON(quest.Controller), marshalJSON(quest.PrerequisiteIDs), quest.ID, quest.WorkspaceID}
+	placeholders := make([]string, len(expected))
+	for i, status := range expected {
+		placeholders[i] = "?"
+		args = append(args, status)
+	}
+	result, err := s.db.ExecContext(ctx, `UPDATE quests SET parent_id=?,title=?,description=?,objectives=?,constraints_json=?,definition_of_done=?,
+  importance=?,status=?,team_id=?,flow_id=?,flow_run_id=?,flow_node_id=?,assigned_agent_id=?,budget_tokens=?,budget_cents=?,updated_at=?,finished_at=?,
+  brief_json=COALESCE(?,brief_json),kind=?,controller_state=?,controller_json=?,prerequisite_ids_json=?
+WHERE id=? AND workspace_id=? AND status IN (`+strings.Join(placeholders, ",")+`)`, args...)
+	if err != nil {
+		return err
+	}
+	if affected, _ := result.RowsAffected(); affected != 1 {
+		return ErrQuestStatusChanged
+	}
+	return nil
+}
+
 // RecordWorkOrderQuestPauseV2 записывает паузу, поставленную не человеком, а
 // ядром, — например, восстановлением после рестарта. Действие своё, не
 // `pause`: починка при старте пропускает квесты, которые человек сам
@@ -148,7 +187,7 @@ WHERE writer_leases_v2.state='released' OR writer_leases_v2.quest_id=excluded.qu
 		return "", err
 	}
 	if target == domain.QuestCancelled {
-		if _, err = tx.ExecContext(ctx, `UPDATE writer_leases_v2 SET state='released',updated_at=?,released_at=? WHERE quest_id=? AND state='active'`, now, now, questID); err != nil {
+		if err = cancelWorkOrderQuestTreeV2Tx(ctx, tx, questID, now); err != nil {
 			return "", err
 		}
 	}
@@ -156,4 +195,21 @@ WHERE writer_leases_v2.state='released' OR writer_leases_v2.quest_id=excluded.qu
 		return "", err
 	}
 	return target, nil
+}
+
+// cancelWorkOrderQuestTreeV2Tx закрывает всё, что висит под отменённым
+// квестом. Этапы Flow прежде закрывал только колбэк завершения прогона, а если
+// в момент отмены ничего не исполнялось, колбэка не было: этапы навсегда
+// оставались `draft`/`active` во всех вкладках, а milestone — `running`.
+func cancelWorkOrderQuestTreeV2Tx(ctx context.Context, tx *sql.Tx, questID, now string) error {
+	if _, err := tx.ExecContext(ctx, `UPDATE quests SET controller_json=`+closedWorkOrderControllerSQL+` WHERE id=?`, "Квест отменён", questID); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE quests SET status=?,controller_state=?,updated_at=?,finished_at=? WHERE parent_id=? AND flow_node_id<>'' AND status NOT IN ('completed','needs_review','blocked','failed','cancelled')`,
+		domain.QuestCancelled, string(domain.QuestCancelled), now, now, questID); err != nil {
+		return err
+	}
+	// Тот же разбор, что восстанавливает вердикт шлюза: незавершённые milestone
+	// получают статус квеста, писательская аренда освобождается.
+	return reconcileCompletedWorkOrderGateV2Tx(ctx, tx, questID, domain.QuestCancelled, parseTime(now))
 }

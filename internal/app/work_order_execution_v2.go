@@ -338,10 +338,13 @@ func (a *App) launchApprovedWorkOrderV2(ctx context.Context, approval domain.Wor
 
 // updateWorkOrderLaunchProgressV2 persists the part of startup that precedes
 // Flow creation. Failures here must not abort the launch, but they are logged:
-// visibility is a product invariant, not authority over execution.
-func (a *App) updateWorkOrderLaunchProgressV2(ctx context.Context, quest *domain.Quest, phase, message string) {
+// visibility is a product invariant, not authority over execution. The write
+// is conditional on the snapshot's status: a quest the human cancelled or
+// paused meanwhile is not dragged back, and storage.ErrQuestStatusChanged
+// tells the launch to stop.
+func (a *App) updateWorkOrderLaunchProgressV2(ctx context.Context, quest *domain.Quest, phase, message string) error {
 	if quest == nil || quest.Controller == nil || quest.Controller["source"] != "work_order_v2" {
-		return
+		return nil
 	}
 	quest.Controller["launchPhase"] = strings.TrimSpace(phase)
 	quest.Controller["statusMessage"] = security.Redact(strings.TrimSpace(message))
@@ -349,9 +352,11 @@ func (a *App) updateWorkOrderLaunchProgressV2(ctx context.Context, quest *domain
 		quest.Controller["launchStartedAt"] = time.Now().UTC().Format(time.RFC3339Nano)
 	}
 	quest.UpdatedAt = time.Now().UTC()
-	if err := a.store.SaveQuest(ctx, *quest); err != nil {
+	err := a.store.SaveQuestIfStatusV2(ctx, *quest, quest.Status)
+	if err != nil {
 		slog.Warn("work order launch progress not persisted", "quest_id", quest.ID, "phase", phase, "error", err)
 	}
+	return err
 }
 
 func taskBriefFromWorkOrderV2(order domain.WorkOrder) (domain.TaskBrief, error) {

@@ -497,13 +497,13 @@ func (s ChatService) amendPendingProposal(
 	if modelSaid == nil || modelSaid.Proposal == nil || modelSaid.Proposal.ProposalID == "" {
 		return ChatResponse{}, false, nil
 	}
-	proposals, err := s.Store.ListQuestProposals(ctx, req.WorkspaceID)
+	proposals, err := s.conversationProposals(ctx, req.WorkspaceID, "")
 	if err != nil {
 		return ChatResponse{}, true, err
 	}
 	var target *domain.QuestProposal
 	for index := range proposals {
-		// Только ждущее решения и только своего мира: правка решённого
+		// Только ждущее решения и только своей беседы: правка решённого
 		// предложения означала бы, что человек нажал Start, а квест поменялся.
 		if proposals[index].ID == modelSaid.Proposal.ProposalID && proposals[index].Status == "pending" {
 			target = &proposals[index]

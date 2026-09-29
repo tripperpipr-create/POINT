@@ -157,6 +157,13 @@ func (a *App) finalizeQuestAfterFlow(questID string, success bool) {
 		return
 	}
 	if isWorkOrderQuestV2(quest) {
+		// Отменённый прогон присылает завершение уже после отмены. Закрытый
+		// квест вердикта больше не получает: прежде milestone становился
+		// `blocked`, а в ленту уходило «Заблокировано» вместо отмены.
+		if domain.IsTerminalQuestStatus(quest.Status) {
+			slog.Info("work order finalization skipped: quest is already closed", "quest_id", quest.ID, "status", quest.Status)
+			return
+		}
 		approval, approvalErr := a.store.WorkOrderApprovalByQuestV2(ctx, questID)
 		if approvalErr != nil {
 			a.blockWorkOrderFinalizationV2(ctx, quest, "Не удалось подтвердить утверждённый WorkOrder: "+security.Redact(approvalErr.Error()), approvalErr)
@@ -266,7 +273,9 @@ func isWorkOrderQuestV2(quest domain.Quest) bool {
 // публиковать нельзя.
 func (a *App) blockWorkOrderFinalizationV2(ctx context.Context, quest domain.Quest, message string, cause error) bool {
 	redacted := security.Redact(message)
-	if _, err := a.setWorkOrderQuestStatusV2(ctx, quest, domain.QuestBlocked, redacted); errors.Is(err, storage.ErrQuestStatusChanged) {
+	// Закрытый снимок — тот же случай: переход из него отвергается ещё до базы,
+	// но решение, закрывшее квест, всё равно новее отказа финализатора.
+	if _, err := a.setWorkOrderQuestStatusV2(ctx, quest, domain.QuestBlocked, redacted); errors.Is(err, storage.ErrQuestStatusChanged) || (err != nil && domain.IsTerminalQuestStatus(quest.Status)) {
 		// Пока финализатор проверял и доставлял, квест изменился — обычно
 		// человек отменил или приостановил его. Более позднее решение старше
 		// отказа финализатора.

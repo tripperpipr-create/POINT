@@ -162,7 +162,7 @@ export function workOrderExecutionParts(order, ui, deps = {}) {
   const plan = launchPlan(runtime, esc) || masterPlanHtml('Этапы', workOrderStageRows(order, ui, deps), esc, { limit: 12 })
   const transcript = transcriptFor(order, ui, deps)
   const provisioning = ['runtime_provisioning', 'runtime_building'].includes(runtime.launchPhase)
-    && !['completed', 'blocked', 'failed', 'cancelled'].includes(runtime.status)
+    && !['completed', 'needs_review', 'blocked', 'failed', 'cancelled'].includes(runtime.status)
     ? `<small class="work-order-exec-note">${esc(runtime.message || 'Подготавливаем инструменты sandbox')}</small>` : ''
   // Примечание планировщика: план мог собрать движок Point, а не модель. Без
   // этой строки человек читает шаблонный план как ответ модели.

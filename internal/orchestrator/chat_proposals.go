@@ -10,6 +10,47 @@ import (
 	"local-agent-workbench/internal/domain"
 )
 
+// ConversationProposalScope — хранилище одной беседы Мастера. Предложения
+// лежат на весь проект, а первый разговор каждого проекта и любой следующий
+// делят одну очередь: без области беседы Мастер второго чата видел чужие
+// задания в снимке и по их id переписывал чужое своим.
+type ConversationProposalScope interface {
+	ConversationProposalIDs(ctx context.Context, workspaceID string) ([]string, error)
+}
+
+// conversationProposals — предложения, которые Мастер этой беседы видит и
+// может менять. keep — задание, которое человек сам открыл для обсуждения
+// («Обсудить» в очереди): его выбор, а не догадка модели. Хранилище без
+// области беседы (инструменты, тесты) отдаёт очередь проекта целиком.
+func (s ChatService) conversationProposals(ctx context.Context, workspaceID, keep string) ([]domain.QuestProposal, error) {
+	proposals, err := s.Store.ListQuestProposals(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	scope, ok := s.Store.(ConversationProposalScope)
+	if !ok {
+		return proposals, nil
+	}
+	ids, err := scope.ConversationProposalIDs(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	own := make(map[string]bool, len(ids)+1)
+	for _, id := range ids {
+		own[id] = true
+	}
+	if keep = strings.TrimSpace(keep); keep != "" {
+		own[keep] = true
+	}
+	result := make([]domain.QuestProposal, 0, len(own))
+	for _, proposal := range proposals {
+		if own[proposal.ID] {
+			result = append(result, proposal)
+		}
+	}
+	return result, nil
+}
+
 // pendingOwnProposal — предложение, которое Мастер сделал в этом разговоре и
 // которое всё ещё ждёт решения.
 //

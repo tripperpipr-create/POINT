@@ -92,7 +92,7 @@ func (s *SQLite) FinalizeWorkOrderQuestV2(ctx context.Context, questID string, b
 	if domain.IsTerminalQuestStatus(status) {
 		finished = now
 	}
-	result, err := tx.ExecContext(ctx, `UPDATE quests SET status=?,controller_state=?,updated_at=?,finished_at=? WHERE id=? AND status IN ('preflight','running','verifying','applying','paused','awaiting_user')`, status, string(status), now, finished, questID)
+	result, err := tx.ExecContext(ctx, `UPDATE quests SET status=?,controller_state=?,updated_at=?,finished_at=?,controller_json=`+closedWorkOrderControllerSQL+` WHERE id=? AND status IN ('preflight','running','verifying','applying','paused','awaiting_user')`, status, string(status), now, finished, bundle.OutcomeSummary, questID)
 	if err != nil {
 		return domain.QuestBlocked, err
 	}
@@ -113,6 +113,17 @@ func (s *SQLite) FinalizeWorkOrderQuestV2(ctx context.Context, questID string, b
 	return status, nil
 }
 
+// workOrderControllerObjectSQL — controller_json квеста как JSON-объект:
+// json_set над 'null' или пустой строкой объекта не создаёт.
+const workOrderControllerObjectSQL = `(CASE WHEN json_valid(controller_json) THEN (CASE WHEN json_type(controller_json)='object' THEN controller_json ELSE '{}' END) ELSE '{}' END)`
+
+// closedWorkOrderControllerSQL закрывает контроллер вместе со статусом. В E6
+// квест уже стоял в needs_review, а карточка по-прежнему читала фазу запуска
+// `launching` и «Проверки пройдены; переносим результат в проект»: статус
+// писали одни места, контроллер — другие. Параметр — итоговое сообщение.
+// currentMilestoneId остаётся: по нему milestone и повтор находят этап.
+const closedWorkOrderControllerSQL = `json_remove(json_set(` + workOrderControllerObjectSQL + `,'$.statusMessage',?),'$.launchPhase')`
+
 // reconcileCompletedWorkOrderGateV2Tx repairs the only state allowed to lag
 // behind an immutable gate. A synchronous Flow can finish while its launch
 // goroutine still holds an older quest copy; old builds then wrote `running`
@@ -127,6 +138,13 @@ func reconcileCompletedWorkOrderGateV2Tx(ctx context.Context, tx *sql.Tx, questI
 	if _, err := tx.ExecContext(ctx, `UPDATE quests SET status=?,controller_state=?,updated_at=?,finished_at=? WHERE id=? AND status<>?`,
 		status, string(status), formatted, finished, questID, status); err != nil {
 		return err
+	}
+	// Сообщение у терминального квеста подставляет итог bundle, а фазу запуска
+	// снимать некому, кроме самого перехода.
+	if domain.IsTerminalQuestStatus(status) {
+		if _, err := tx.ExecContext(ctx, `UPDATE quests SET controller_json=json_remove(`+workOrderControllerObjectSQL+`,'$.launchPhase') WHERE id=?`, questID); err != nil {
+			return err
+		}
 	}
 	rows, err := tx.QueryContext(ctx, `SELECT work_order_id,work_order_version,milestone_id,payload_json FROM milestone_runtimes_v2 WHERE quest_id=?`, questID)
 	if err != nil {

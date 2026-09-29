@@ -1,4 +1,4 @@
-import { isRootQuest, questPhase } from './quest-status.js'
+import { isRootQuest, latestFinishedRootQuest, questPhase } from './quest-status.js'
 import { intakePanelHtml } from './intake-views.js'
 
 export function createQuestOverviewViews(dependencies) {
@@ -108,7 +108,7 @@ export function createQuestOverviewViews(dependencies) {
       intakeError: ui.intakeError || '',
       intakeURL: ui.intakeURL || '',
     })
-    const guild = `<div class="guild-ops">${questStatusStripHtml(quest)}${plannerFallbackBannerHtml(quest?.id)}${flowApprovalStripHtml()}${questOutcomeHtml(quest)}${questMidFlightHtml(quest)}${handoffsHtml(activeFlowRun?.id)}${intake}${questHtml}${secondary}${activeDetails}${inspector}${systemAgentsStripHtml()}${statisticsPanelHtml()}${sandboxBoundaryHtml()}</div>`
+    const guild = `<div class="guild-ops">${questStatusStripHtml(quest)}${plannerFallbackBannerHtml(quest?.id)}${flowApprovalStripHtml()}${questOutcomeHtml(quest || latestFinishedRootQuest(ui.state.boot?.quests))}${questMidFlightHtml(quest)}${handoffsHtml(activeFlowRun?.id)}${intake}${questHtml}${secondary}${activeDetails}${inspector}${systemAgentsStripHtml()}${statisticsPanelHtml()}${sandboxBoundaryHtml()}</div>`
     return shell(`<main class="command-center">${situationRoomHtml(situation)}<div class="command-center-grid guild-priority">${guild}</div></main>`)
   }
   

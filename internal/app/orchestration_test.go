@@ -44,7 +44,11 @@ func TestDecideQuestProposalStartCreatesQuestFlowAndSandboxes(t *testing.T) {
 	if len(boot.Blueprints) == 0 {
 		t.Fatal("expected a blueprint catalog")
 	}
-	if _, err = application.SaveProjectAgent(domain.ProjectAgentFromBlueprint(boot.CurrentWorkspace.ID, boot.Blueprints[0])); err != nil {
+	// Запуск Flow стартует прогон исполнителя: модель ему нужна своя, иначе
+	// профиль по умолчанию идёт в ollama разработчика на 11434.
+	agent := domain.ProjectAgentFromBlueprint(boot.CurrentWorkspace.ID, boot.Blueprints[0])
+	useRefusingTestModel(t, &agent)
+	if _, err = application.SaveProjectAgent(agent); err != nil {
 		t.Fatal(err)
 	}
 	boot, err = application.Bootstrap()

@@ -65,3 +65,13 @@ export function questPhase(status) {
 // интеграция, приёмка), и самостоятельной работой в списке проекта они не
 // являются: одна задача в E1 выглядела шестью квестами.
 export const isRootQuest = quest => !String(quest?.parentId || '').trim()
+
+// Последний закрытый квест человека — по времени завершения. Текущим он не
+// становится (currentHubQuest), но его итог «Обещано и получено» обзор
+// показывает, пока нового квеста нет: иначе исход виден только в развёрнутой
+// строке списка квестов.
+export function latestFinishedRootQuest(quests) {
+  const finishedAt = quest => Date.parse(quest?.finishedAt || quest?.updatedAt || '') || 0
+  return (quests || []).filter(quest => isRootQuest(quest) && questPhase(quest.status) === 'history')
+    .reduce((latest, quest) => (!latest || finishedAt(quest) > finishedAt(latest) ? quest : latest), null)
+}

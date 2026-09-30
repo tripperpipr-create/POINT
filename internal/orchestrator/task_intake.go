@@ -367,7 +367,7 @@ func (s ChatService) discussWithModel(ctx context.Context, req ChatRequest, worl
 	userIndex := len(messages) - 1
 	window := masterContextWindow(req)
 	if req.PreviousAnswerRejected {
-		messages = append(messages, providers.Message{Role: "user", Content: "Предыдущий ответ на этот вопрос человека не устроил. Предложи другой путь: другой состав отряда, другую разбивку задания или другой порядок работ. Не повторяй прежний ответ."})
+		messages = append(messages, providers.Message{Role: "user", Content: "Предыдущий ответ на этот вопрос человека не устроил. Предложи другой путь: другую разбивку задания, другие решения или другой порядок работ; исполнителей подбирает комплектовщик. Не повторяй прежний ответ."})
 	}
 	if note := revisionNotesPrompt(req.RevisionNotes); note != "" {
 		messages = append(messages, providers.Message{Role: "user", Content: note})

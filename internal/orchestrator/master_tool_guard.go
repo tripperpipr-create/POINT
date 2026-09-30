@@ -75,7 +75,7 @@ func masterExplorationEmpty(name string, result domain.ToolResult) bool {
 }
 
 func masterEmptyWorkspaceHint() string {
-	return "Рабочая область пуста или каталог пуст. Не повторяйте list_files/project_map — задайте человеку уточняющие вопросы с вариантами ответа."
+	return "Рабочая область пуста или каталог пуст: это новый проект. Не повторяйте list_files/project_map и не спрашивайте, создавать ли проект; существенные требования уточните вопросами с вариантами ответа."
 }
 
 func filterOutExplorationTools(definitions []domain.ToolDefinition) []domain.ToolDefinition {

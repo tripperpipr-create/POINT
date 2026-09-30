@@ -990,7 +990,7 @@ func compileAgentPrompt(name, personality, role, mission, instructions string, c
 	appendText("MISSION:", mission)
 	appendList("CONSTRAINTS:", constraints)
 	appendList("PROJECT RULES:", projectRules)
-	appendText("ADDITIONAL INSTRUCTIONS:", instructions)
+	appendText("ADDITIONAL INSTRUCTIONS:", distinctInstructions(mission, instructions))
 	return strings.Join(sections, "\n\n")
 }
 

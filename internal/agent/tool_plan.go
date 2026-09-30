@@ -111,7 +111,7 @@ func reasoningBudgetRecoveryFeedback(episode, maxEpisodes int) string {
 	encoded, _ := json.Marshal(evidence{
 		Code: "reasoning_budget_recovery", RecoveryEpisode: episode, MaxRecoveryEpisodes: maxEpisodes,
 	})
-	return "<point_reasoning_budget_gate>\nYour previous turn spent the entire output budget on reasoning with no tool call.\nEvidence: " + string(encoded) + "\nCall a tool immediately (propose_patch or read_file). Keep reasoning minimal; do not re-read Makefile/Dockerfile or explore vendor outside the assignment package.\n</point_reasoning_budget_gate>"
+	return "<point_reasoning_budget_gate>\nYour previous turn spent the entire output budget on reasoning with no tool call.\nEvidence: " + string(encoded) + "\nCall the next tool immediately. Keep reasoning short: decide from the evidence you already have instead of re-reading files.\n</point_reasoning_budget_gate>"
 }
 
 func emptyResponseRecoveryFeedback(episode, maxEpisodes int) string {

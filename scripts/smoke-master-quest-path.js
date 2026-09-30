@@ -257,7 +257,11 @@ async function main() {
     const started = await call(item.resolve.path, { method: 'POST', body: JSON.stringify(body) })
     check('запуск из очереди принят ядром', started.status === 200, JSON.stringify(started.payload))
     check('запуск создал квест', Boolean(started.payload?.quest?.id), JSON.stringify(started.payload).slice(0, 200))
-    check('план запуска построила поддельная модель, а не внешняя', modelRequests.plans >= 1, JSON.stringify(modelRequests))
+    // Отряд, закреплённый за одним агентом, планируется без модели
+    // (orchestrator.SingleAgentPlanModel); в любом случае не внешней.
+    check('план запуска построен без внешней модели',
+      modelRequests.plans >= 1 || started.payload?.orchestratorModel === 'point-single-agent',
+      JSON.stringify({ modelRequests, orchestratorModel: started.payload?.orchestratorModel }))
     check('запуск сохранил выбранный вручную отряд',
       started.payload?.team?.agentIds?.length === 1 && started.payload.team.agentIds[0] === appliedSecondAgent.payload.agent.id,
       JSON.stringify(started.payload?.team))

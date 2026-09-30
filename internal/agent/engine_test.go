@@ -190,7 +190,7 @@ func (r *failingPatchRepo) SavePatch(context.Context, domain.PatchProposal) erro
 func TestSystemMessageHasCapabilityAwareExecutionContract(t *testing.T) {
 	profile := domain.DefaultProfile()
 	message := SystemMessage(profile)
-	for _, expected := range []string{"<execution_contract>", "Prefer project_map and search_code", "truncated=true is incomplete", "include_related=true", "navigation evidence only", "inspect every oldText anchor through search_code", "After an accepted code change", "Never repeat an identical successful tool call", "<point_tool_plan_gate>", "Call tools by their exact names", "workspace-relative with forward slashes", "list_files with a subdirectory", "startLine and endLine"} {
+	for _, expected := range []string{"<execution_contract>", "Locate code with project_map and search_code", "truncated=true means incomplete", "include_related=true", "every oldText anchor", "After an accepted code change", "exactly as written after the change", "never repeat an identical successful call", "<point_tool_plan_gate>", "Call tools by their exact names", "workspace-relative with forward slashes", "list_files with a subdirectory", "startLine and endLine", "package manager", "Keep the brief's terms"} {
 		if !strings.Contains(message, expected) {
 			t.Fatalf("system message is missing %q:\n%s", expected, message)
 		}
@@ -200,7 +200,7 @@ func TestSystemMessageHasCapabilityAwareExecutionContract(t *testing.T) {
 	}
 	profile.AllowedTools = []string{"read_file"}
 	message = SystemMessage(profile)
-	if strings.Contains(message, "After an accepted code change") || strings.Contains(message, "Prefer project_map") || strings.Contains(message, "list_files with a subdirectory") {
+	if strings.Contains(message, "After an accepted code change") || strings.Contains(message, "Locate code with project_map") || strings.Contains(message, "list_files with a subdirectory") {
 		t.Fatalf("execution contract advertised disabled capabilities: %s", message)
 	}
 	if !strings.Contains(message, "startLine and endLine") || !strings.Contains(message, "Call tools by their exact names") {

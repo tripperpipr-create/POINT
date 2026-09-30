@@ -87,6 +87,35 @@ export function duration(seconds) {
 
 export const shortSha = sha => String(sha || '').slice(0, 8)
 
+// Инициалы вместо аватара: картинки GitLab окно не грузит (чужой адрес), а
+// лицо в строке узнаётся быстрее имени. Цвет — от имени пользователя, чтобы
+// один человек был одного цвета во всех строках.
+export function glAvatar(user, { size = 'sm', title = true } = {}) {
+  const name = String(user?.name || user?.username || '').trim()
+  if (!name) return ''
+  const letters = name.split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase()
+  let hash = 0
+  for (const char of String(user?.username || name)) hash = (hash * 31 + char.codePointAt(0)) >>> 0
+  return `<i class="gl-ava is-${size} is-c${hash % 5}"${title ? ` title="${esc(name)}${user?.username ? ` · @${esc(user.username)}` : ''}"` : ''} aria-hidden="true">${esc(letters)}</i>`
+}
+
+// «Draft:» GitLab пишет в название; черновик окно называет своим признаком.
+export const cleanTitle = title => String(title || '').replace(/^\s*(\[draft\]|\(draft\)|draft:|wip:)\s*/i, '')
+
+// Короткое время для правого края строки: «17 ч», «2 дн».
+export function timeShort(value) {
+  const at = Date.parse(String(value || ''))
+  if (!Number.isFinite(at) || at <= 0) return ''
+  const minutes = Math.round((Date.now() - at) / 60000)
+  if (minutes < 1) return 'сейчас'
+  if (minutes < 60) return `${minutes} мин`
+  const hours = Math.round(minutes / 60)
+  if (hours < 24) return `${hours} ч`
+  const days = Math.round(hours / 24)
+  if (days < 30) return `${days} дн`
+  return new Date(at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })
+}
+
 // Стабильный id поля по ключу черновика: перерисовка возвращает фокус и
 // каретку только полю с id (captureUi в main.js).
 export const draftId = key => `draft-${String(key).replace(/[^A-Za-z0-9_-]/g, '_')}`
@@ -98,7 +127,29 @@ export function problemHtml(response, { retry = '', surfaceAction = '' } = {}) {
   const button = open
     ? `<button type="button" class="gl-btn is-primary" data-action="${esc(surfaceAction || 'gitlab-open-integrations')}">Открыть интеграции</button>`
     : retry ? `<button type="button" class="gl-btn" data-action="${esc(retry)}">Повторить</button>` : ''
-  return `<div class="gl-problem is-${esc(reason || 'error')}">${glIcon('warning', 14)}<div><strong>${esc(response?.problem || 'GitLab не ответил')}</strong>${response?.fix ? `<p>${esc(response.fix)}</p>` : ''}${button}</div></div>`
+  // Отказ GitLab (токен, сеть, ответ не той формы) — красным; остальное —
+  // шаг настройки или временное состояние, жёлтым.
+  const tone = ['auth', 'unreachable', 'format'].includes(reason) ? 'bad' : 'warn'
+  return verdictHtml({ tone, title: response?.problem || 'GitLab не ответил', reasons: [response?.fix].filter(Boolean), actions: button, className: `gl-problem is-${reason || 'error'} is-stacked` })
+}
+
+// Вердикт — стиль всех экранов GitLab: одна фраза, можно ли и что дальше,
+// причины словами, действия справа. reasons: строки или {text, action,
+// data} — причина с действием становится ссылкой на свой экран.
+export function verdictHtml({ tone = 'mute', title = '', reasons = [], actions = '', glyph = '', className = '' }) {
+  const mark = glyph || { ok: 'check', bad: 'x', warn: 'warning', wait: 'pipeline', merged: 'mr' }[tone] || 'mr'
+  const reason = item => {
+    if (typeof item === 'string') return `<li>${esc(item)}</li>`
+    if (!item?.action) return `<li>${esc(item?.text || '')}</li>`
+    const data = Object.entries(item.data || {}).map(([key, value]) => ` data-${key}="${esc(value)}"`).join('')
+    return `<li><button type="button" class="gl-link" data-action="${esc(item.action)}"${data}>${esc(item.text || '')}</button></li>`
+  }
+  const list = reasons.filter(Boolean)
+  return `<section class="gl-verdict is-${esc(tone)}${className ? ` ${esc(className)}` : ''}">
+    <i class="gl-verdict-mark">${glIcon(mark, 16)}</i>
+    <div><strong>${esc(title)}</strong>${list.length ? `<ul>${list.map(reason).join('')}</ul>` : ''}</div>
+    ${actions ? `<div class="gl-verdict-actions">${actions}</div>` : ''}
+  </section>`
 }
 
 export function loadingHtml(text) {
@@ -112,24 +163,40 @@ const SCOPES = [
 ]
 
 export function createGitLabToolView({ getState, shell }) {
+  // Строка MR — название и одна фраза о том, что с ним сейчас: окно отвечает
+  // на вопрос «что мне делать», а не перечисляет поля.
   function mergeRequestRow(item) {
     const status = mergeStatus(item.mergeStatus)
-    // Флаг не повторяет состояние: черновик, конфликт и открытые обсуждения
-    // GitLab и сам называет состоянием слияния.
-    const flags = [
-      item.draft && item.mergeStatus !== 'draft_status' ? '<span class="gl-flag">черновик</span>' : '',
-      item.hasConflicts && item.mergeStatus !== 'conflict' ? '<span class="gl-flag is-bad">конфликт</span>' : '',
-      item.blockingThreads && item.mergeStatus !== 'discussions_not_resolved' ? '<span class="gl-flag is-warn">открытые обсуждения</span>' : '',
-    ].join('')
+    const why = [
+      item.hasConflicts ? 'конфликт' : '',
+      item.blockingThreads ? 'открытые обсуждения' : '',
+    ].filter(Boolean).filter(word => word !== status.label && !(word === 'открытые обсуждения' && item.mergeStatus === 'discussions_not_resolved'))
     const project = item.projectPath ? `${item.projectPath}` : ''
-    return `<button type="button" class="nc-row gl-mr-row" data-action="gitlab-open-mr" data-project="${esc(item.projectPath || '')}" data-iid="${Number(item.iid) || 0}" data-title="${esc(item.title || '')}" title="${esc(`${project}!${item.iid} · ${item.title || ''}`)}">
-      <i class="gl-mr-state is-${esc(status.tone)}" aria-hidden="true"></i>
+    return `<button type="button" class="nc-row gl-mr-row gl-mr-verdict" data-action="gitlab-open-mr" data-project="${esc(item.projectPath || '')}" data-iid="${Number(item.iid) || 0}" data-title="${esc(item.title || '')}" title="${esc(`${project}!${item.iid} · ${item.title || ''}`)}">
+      ${glAvatar(item.author, { size: 'md' })}
       <span>
-        <strong><em>!${Number(item.iid) || 0}</em> ${esc(item.title || 'Без названия')}</strong>
-        <small><span class="gl-branch">${esc(item.sourceBranch || '')} → ${esc(item.targetBranch || '')}</span><span>${esc(item.author?.name || item.author?.username || '')}</span><span>${esc(timeAgo(item.updatedAt))}</span></small>
-        <small class="gl-mr-meta"><span class="gl-status is-${esc(status.tone)}">${esc(status.label)}</span>${flags}</small>
+        <strong>${esc(cleanTitle(item.title) || 'Без названия')}</strong>
+        <small><span class="gl-status is-${esc(status.tone)}">${esc([status.label, ...why].join(' · '))}</span></small>
+        <small class="gl-mr-foot"><em>!${Number(item.iid) || 0}</em><span class="gl-branch">${esc(item.sourceBranch || '')}</span><span>${esc(timeShort(item.updatedAt))}</span></small>
       </span>
     </button>`
+  }
+
+  // Группы — по тому, чего MR ждёт: сначала то, где нужен человек.
+  const GROUPS = [
+    ['attention', 'Требуют внимания', item => ['bad', 'warn'].includes(mergeStatus(item.mergeStatus).tone) || item.hasConflicts],
+    ['ready', 'Можно слить', item => mergeStatus(item.mergeStatus).tone === 'ok'],
+    ['waiting', 'Ждут проверок', item => mergeStatus(item.mergeStatus).tone === 'wait'],
+    ['draft', 'Черновики', () => true],
+  ]
+
+  function groupedRows(items) {
+    const left = [...items]
+    return GROUPS.map(([id, label, test]) => {
+      const mine = left.filter(item => !(item.draft || item.mergeStatus === 'draft_status') || id === 'draft').filter(test)
+      mine.forEach(item => left.splice(left.indexOf(item), 1))
+      return mine.length ? `<section class="gl-group is-${id}"><h3><span>${esc(label)}</span><em>${mine.length}</em></h3>${mine.map(mergeRequestRow).join('')}</section>` : ''
+    }).join('')
   }
 
   function mergeRequestsBody(state) {
@@ -141,7 +208,7 @@ export function createGitLabToolView({ getState, shell }) {
       const empty = { mine: 'Открытых MR, созданных вами, нет.', review: 'Сейчас вас не ждёт ни один MR.', project: 'Открытых MR в проекте нет.' }[state.scope]
       return `<div class="point-tool-empty compact"><strong>Пусто</strong><p>${esc(empty)}</p></div>`
     }
-    return items.map(mergeRequestRow).join('')
+    return groupedRows(items)
   }
 
   function jobRows(state, project, pipelineId) {
@@ -207,9 +274,10 @@ export function createGitLabToolView({ getState, shell }) {
   function unlinkedHtml(state, binding) {
     const name = binding.workspace ? `Проект «${binding.workspace}»` : 'Проект'
     const actions = state.bindingOpen ? ''
-      : binding.detected ? `<div class="gl-unlinked-actions"><button type="button" class="gl-btn is-primary" data-action="gitlab-link-detected"${state.busy ? ' disabled' : ''}>Связать с ${esc(binding.detected)}</button><button type="button" class="gl-btn" data-action="gitlab-binding-toggle">Другой проект…</button></div>`
+      : binding.detected ? `<button type="button" class="gl-btn is-primary" data-action="gitlab-link-detected"${state.busy ? ' disabled' : ''}>Связать с ${esc(binding.detected)}</button><button type="button" class="gl-btn" data-action="gitlab-binding-toggle">Другой проект…</button>`
         : '<button type="button" class="gl-btn" data-action="gitlab-binding-toggle">Связать…</button>'
-    return `<div class="point-tool-empty compact gl-unlinked"><strong>${esc(name)} не связан с GitLab</strong><p>${esc(binding.note || 'Окно покажет merge requests и пайплайны, когда проект будет связан.')}</p>${actions}</div>`
+    return `<div class="gl-pad">${verdictHtml({ tone: 'mute', glyph: 'mr', title: `${name} не связан с GitLab`, className: 'is-stacked',
+      reasons: [binding.note || 'окно покажет merge requests и пайплайны, когда проект будет связан'], actions })}</div>`
   }
 
   function toolView() {
@@ -227,7 +295,7 @@ export function createGitLabToolView({ getState, shell }) {
     if (status.state !== 'ok' || status.data?.linked === false) {
       return shell(`<main class="nc-app gl-app">${head()}
         ${state.bindingOpen ? bindingEditor(state, binding) : ''}
-        <div class="nc-scroll gl-scroll">${status.state === 'ok' ? unlinkedHtml(state, binding) : problemHtml(status, { retry: 'gitlab-reload' })}</div></main>`)
+        <div class="nc-scroll gl-scroll">${status.state === 'ok' ? unlinkedHtml(state, binding) : `<div class="gl-pad">${problemHtml(status, { retry: 'gitlab-reload' })}</div>`}</div></main>`)
     }
     const tabs = `<div class="nc-tabs" role="tablist" data-keynav="row">${[['mrs', 'mr', 'Merge requests'], ['pipelines', 'pipeline', 'Пайплайны']].map(([id, glyph, label]) =>
       `<button type="button" role="tab" class="nc-tab${state.section === id ? ' is-active' : ''}" aria-selected="${state.section === id ? 'true' : 'false'}" tabindex="${state.section === id ? '0' : '-1'}" data-action="gitlab-section" data-section="${id}">${glIcon(glyph, 13)}<span>${esc(label)}</span></button>`).join('')}</div>`

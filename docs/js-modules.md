@@ -228,7 +228,9 @@ Flow (`isRootQuest`) живут в `vscode-extension/ui/client/quest-status.js`:
 - `vscode-extension/ui/client/gitlab-project-view.js` — Гильдия → «GitLab»:
   связь текущего проекта с GitLab тем же редактором, что в шапке окна;
 - `vscode-extension/ui/client/gitlab-views.js` — окно GitLab в регистре окна
-  Git (`nc-*`), а также общие для GitLab значки, статусы и время;
+  Git (`nc-*`), а также общие для GitLab значки, статусы, время, инициалы
+  (`glAvatar`) и вердикт (`verdictHtml`): каждый экран GitLab начинается с
+  фразы «можно ли и что мешает», причины — словами и ссылками на свой экран;
 - `vscode-extension/ui/client/gitlab-mr-views.js` — карточка MR вкладкой
   редактора; описание и заметки проходят `companion-markdown.js`.
 

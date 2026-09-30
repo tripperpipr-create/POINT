@@ -7,7 +7,7 @@
 // сервера плагина.
 
 import { esc } from './html-escape.js'
-import { glIcon, loadingHtml } from './gitlab-views.js'
+import { glIcon, loadingHtml, verdictHtml } from './gitlab-views.js'
 
 const MODES = { auto: 'по git remote', manual: 'выбран вручную' }
 
@@ -15,15 +15,27 @@ export function createGitLabProjectView({ getState, shell, toolPageHeading, bind
   const settingsButton = (label, primary = false) =>
     `<button type="button" class="gl-btn${primary ? ' is-primary' : ''}" data-action="tab" data-tab="integrations">${esc(label)}</button>`
 
+  // Проект, режим и ветку уже назвал вердикт; здесь — только то, из чего
+  // Point их вывел.
   function facts(data, binding) {
-    const link = binding.mode === 'all' ? 'все мои проекты — MR, где вы автор или ревьюер'
-      : data.linked ? `${binding.project} · ${MODES[binding.mode] || binding.mode}` : 'не связан'
-    return `<dl class="int-facts">
-      <dt>Проект GitLab</dt><dd>${esc(link)}</dd>
-      ${data.linked && binding.branch && binding.mode !== 'all' ? `<dt>Ветка</dt><dd><code>${esc(binding.branch)}</code></dd>` : ''}
-      ${binding.remote ? `<dt>git remote</dt><dd><code>${esc(binding.remote)}</code></dd>` : ''}
-      ${!data.linked && binding.note ? `<dt>Почему</dt><dd>${esc(binding.note)}</dd>` : ''}
-    </dl>`
+    return binding.remote ? `<dl class="int-facts"><dt>git remote</dt><dd><code>${esc(binding.remote)}</code></dd></dl>` : ''
+  }
+
+  // Вердикт вместо плашки «связан»: что сейчас со связью и что сделать.
+  function verdict(state, status, data, binding) {
+    if (status.state !== 'ok') {
+      return verdictHtml({ tone: 'bad', title: status.problem || 'GitLab не ответил', reasons: [status.fix].filter(Boolean) })
+    }
+    if (data.linked && binding.mode === 'all') {
+      return verdictHtml({ tone: 'ok', title: 'Окно GitLab показывает все ваши проекты', reasons: ['MR, где вы автор или ревьюер', 'пайплайнов ветки в этом режиме нет'],
+        actions: '<button type="button" class="gl-btn" data-action="gitlab-open-window">Окно GitLab</button>' })
+    }
+    if (data.linked) {
+      return verdictHtml({ tone: 'ok', title: `Проект связан с ${binding.project}`, reasons: [MODES[binding.mode] || binding.mode, binding.branch ? `ветка ${binding.branch}` : ''],
+        actions: '<button type="button" class="gl-btn is-primary" data-action="gitlab-open-window">Окно GitLab</button>' })
+    }
+    return verdictHtml({ tone: 'mute', glyph: 'mr', title: 'Проект не связан с GitLab', reasons: [binding.note || 'окно GitLab его не показывает, сервер плагина ради него не запускается'],
+      actions: binding.detected ? `<button type="button" class="gl-btn is-primary" data-action="gitlab-link-detected"${state.busy ? ' disabled' : ''}>Связать с ${esc(binding.detected)}</button>` : '' })
   }
 
   function card(state) {
@@ -33,18 +45,16 @@ export function createGitLabProjectView({ getState, shell, toolPageHeading, bind
     const binding = data.binding || {}
     if (!data.configured) {
       return `<article class="int-plugin">
-        <header><span class="int-plugin-mark">${glIcon('mr', 18)}</span><div><strong>GitLab не подключён</strong><small>Адрес сервера и личный токен задаются один раз для всех проектов</small></div><span class="int-state is-mute">нет подключения</span></header>
-        <footer class="int-actions">${settingsButton('Подключить в общих настройках', true)}</footer>
+        <header><span class="int-plugin-mark">${glIcon('mr', 18)}</span><div><strong>${esc(binding.workspace || 'Этот проект')}</strong><small>GitLab ещё не подключён</small></div></header>
+        ${verdictHtml({ tone: 'mute', glyph: 'settings', title: 'GitLab не подключён', reasons: ['адрес сервера и личный токен задаются один раз для всех проектов'], actions: settingsButton('Подключить в общих настройках', true) })}
       </article>`
     }
-    const failed = status.state !== 'ok'
-    const pill = failed ? ['bad', 'ошибка'] : data.linked ? ['ok', 'связан'] : ['mute', 'не связан']
     return `<article class="int-plugin">
-      <header><span class="int-plugin-mark">${glIcon('mr', 18)}</span><div><strong>${esc(binding.workspace || 'Этот проект')}</strong><small>${esc(data.url || '')}</small></div><span class="int-state is-${pill[0]}">${esc(pill[1])}</span></header>
+      <header><span class="int-plugin-mark">${glIcon('mr', 18)}</span><div><strong>${esc(binding.workspace || 'Этот проект')}</strong><small>${esc(data.url || '')}</small></div></header>
+      ${verdict(state, status, data, binding)}
       ${facts(data, binding)}
-      ${failed ? `<div class="int-problem">${glIcon('warning', 13)}<p><b>${esc(status.problem || 'GitLab не ответил')}</b>${status.fix ? `<span>${esc(status.fix)}</span>` : ''}</p></div>` : ''}
       ${bindingEditor(state, binding, { cancel: false })}
-      <footer class="int-actions">${data.linked ? '<button type="button" class="gl-btn" data-action="gitlab-open-window">Окно GitLab</button>' : ''}${!data.linked && binding.detected ? `<button type="button" class="gl-btn" data-action="gitlab-link-detected"${state.busy ? ' disabled' : ''}>Связать с ${esc(binding.detected)}</button>` : ''}<i class="nc-gap"></i>${settingsButton('Подключение GitLab')}</footer>
+      <footer class="int-actions"><i class="nc-gap"></i>${settingsButton('Подключение GitLab')}</footer>
     </article>`
   }
 

@@ -21,7 +21,7 @@
     ],
     "env": {
       "GITLAB_TOOLSETS": "merge_requests",
-      "GITLAB_TOOLS": "whoami,get_project,list_merge_requests,get_merge_request,mr_discussions,list_merge_request_changed_files,get_merge_request_file_diff,get_merge_request_diffs,get_file_contents,create_merge_request_note,create_merge_request_discussion_note,approve_merge_request,unapprove_merge_request,get_merge_request_approval_state,merge_merge_request,list_merge_request_pipelines,list_pipelines,get_pipeline,list_pipeline_jobs,get_pipeline_job_output,retry_pipeline_job",
+      "GITLAB_TOOLS": "whoami,get_project,list_merge_requests,get_merge_request,mr_discussions,list_merge_request_changed_files,get_merge_request_file_diff,get_merge_request_diffs,get_file_contents,create_merge_request_note,create_merge_request_discussion_note,approve_merge_request,unapprove_merge_request,get_merge_request_approval_state,merge_merge_request,list_merge_request_pipelines,list_pipelines,get_pipeline,list_pipeline_jobs,get_pipeline_job_output,retry_pipeline_job,list_projects,list_commits,get_commit,get_commit_diff,list_branches,get_repository_tree",
       "GITLAB_PERMISSION_MODE": "modify",
       "GITLAB_DENIED_TOOLS_REGEX": "^discover_tools$"
     },
@@ -32,7 +32,7 @@
       "GITLAB_API_URL"
     ]
   },
-  "toolsWithRecipe": 46,
+  "toolsWithRecipe": 52,
   "toolsDefault": 118,
   "captured": {
     "date": "2026-09-25",

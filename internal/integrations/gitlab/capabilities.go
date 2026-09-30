@@ -24,6 +24,11 @@ const (
 	FeatureJobs          Feature = "jobs"
 	FeatureJobLog        Feature = "jobLog"
 	FeatureRetry         Feature = "retry"
+	FeatureProjects      Feature = "projects"
+	FeatureCommits       Feature = "commits"
+	FeatureCommit        Feature = "commit"
+	FeatureBranches      Feature = "branches"
+	FeatureTree          Feature = "tree"
 )
 
 // featureTools — инструменты каждой возможности. Внутренний список —
@@ -48,6 +53,11 @@ var featureTools = map[Feature][][]string{
 	FeatureJobs:          {{"list_pipeline_jobs"}},
 	FeatureJobLog:        {{"get_pipeline_job_output"}},
 	FeatureRetry:         {{"retry_pipeline_job"}},
+	FeatureProjects:      {{"list_projects"}},
+	FeatureCommits:       {{"list_commits"}},
+	FeatureCommit:        {{"get_commit"}, {"get_commit_diff"}},
+	FeatureBranches:      {{"list_branches"}},
+	FeatureTree:          {{"get_repository_tree"}},
 }
 
 // Capability — есть ли возможность у подключённого сервера и чем она сделана.

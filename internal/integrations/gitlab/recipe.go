@@ -32,6 +32,8 @@ var Tools = []string{
 	"get_file_contents", "create_merge_request_note", "create_merge_request_discussion_note",
 	"approve_merge_request", "unapprove_merge_request", "merge_merge_request", "list_merge_request_pipelines",
 	"list_pipelines", "get_pipeline", "list_pipeline_jobs", "get_pipeline_job_output", "retry_pipeline_job",
+	// Проекты: список, коммиты, ветки, дерево файлов — только чтение.
+	"list_projects", "list_commits", "get_commit", "get_commit_diff", "list_branches", "get_repository_tree",
 }
 
 // Settings — настройки плагина, которые видит владелец. Не секреты.

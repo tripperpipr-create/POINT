@@ -41,7 +41,7 @@ npx -y @zereight/mcp-gitlab@2.1.66
 GITLAB_API_URL=https://<ваш GitLab>/api/v4
 GITLAB_PERSONAL_ACCESS_TOKEN=<секрет, из SecretStorage>
 GITLAB_TOOLSETS=merge_requests
-GITLAB_TOOLS=<21 инструмент из таблицы ниже>
+GITLAB_TOOLS=<27 инструментов из таблицы ниже>
 GITLAB_PERMISSION_MODE=modify
 GITLAB_DENIED_TOOLS_REGEX=^discover_tools$
 ```
@@ -52,10 +52,10 @@ GITLAB_DENIED_TOOLS_REGEX=^discover_tools$
 | Настройка | Инструментов | Схемы в JSON |
 | --- | --- | --- |
 | по умолчанию | 118 | 174 КБ |
-| рецепт выше | 46 | 77 КБ |
-| только нужные Point | 21 | 39 КБ |
+| рецепт выше | 52 | 88 КБ |
+| только нужные Point | 27 | 51 КБ |
 
-Сократить список до 21 средствами самого сервера нельзя. `GITLAB_TOOLS`
+Сократить список до 27 средствами самого сервера нельзя. `GITLAB_TOOLS`
 добавляет инструменты к наборам, а не сужает их, а `GITLAB_DENIED_TOOLS_REGEX`
 ограничен 200 символами. Поэтому главная граница — у Point:
 - адаптер вызывает только инструменты из таблицы;
@@ -98,6 +98,12 @@ GITLAB_DENIED_TOOLS_REGEX=^discover_tools$
 | Пайплайн и джобы | `get_pipeline`, `list_pipeline_jobs` | `project_id`, `pipeline_id` |
 | Лог джоба | `get_pipeline_job_output` | `project_id`, `job_id`, `limit`, `offset` |
 | Перезапуск джоба | `retry_pipeline_job` | `project_id`, `job_id` |
+| Проекты: мои / свои, поиск | `list_projects` | `membership` или `owned`, `search`, `search_namespaces` для пути с `/`, `order_by=last_activity_at` |
+| Карточка проекта | `get_project` | `project_id` |
+| История ветки | `list_commits` | `project_id`, `ref_name`, `page`, `per_page=30`, `with_stats` |
+| Коммит и его файлы | `get_commit`, `get_commit_diff` | `project_id`, `sha`; счётчики строк Point считает по diff, сам diff не отдаёт |
+| Ветки | `list_branches` | `project_id`, `search`, `per_page=100` |
+| Дерево файлов | `get_repository_tree` | `project_id`, `path`, `ref`, `per_page=100`; ответ — массив или `{items, next_page_token}` |
 
 Если у подключённого сервера инструмента нет, экран сообщает «сервер этого не
 умеет» и называет инструмент. Остальные экраны работают.
@@ -199,7 +205,7 @@ GITLAB_DENIED_TOOLS_REGEX=^discover_tools$
 Состояние приёмки ведётся в [TODO.md](TODO.md), Q23; ниже — процедура.
 
 1. Подключить плагин с адресом и токеном, доверить запуск, нажать «Проверить»:
-   сервер `2.1.66`, 46 инструментов, из них 21 известен Point.
+   сервер `2.1.66`, 52 инструмента, из них 27 известны Point.
 2. Открыть окно GitLab в папке с `origin` на этот GitLab. Проверить три списка
    MR и пайплайны ветки; в «Все мои проекты» — MR по всем проектам.
    В папке с `origin` на GitHub окно спокойно пишет «не связан», а в журнале
@@ -221,7 +227,9 @@ GITLAB_DENIED_TOOLS_REGEX=^discover_tools$
 
 `internal/integrations/gitlab/testdata/zereight-2.1.66/`:
 - `manifest.json` — версия, целостность, протокол, рецепт, дата;
-- `tools-list.json` — определения 21 инструмента, снятые со сборки 2.1.66;
+- `tools-list.json` — определения 27 инструментов, снятые со сборки 2.1.66
+  (шесть инструментов проектов доснятые 30 сентября тем же способом: сервер
+  с поддельным адресом и `GITLAB_TOOLS` рецепта, прежние 21 совпали байт в байт);
 - `responses/` — по файлу на инструмент: адаптер (`client_test.go`) и поддельный
   сервер в тестах ядра (`internal/app/gitlab_test.go`) проигрывают их.
 

@@ -413,13 +413,14 @@ func (m *reasoningGrowthModel) Stream(_ context.Context, request providers.Model
 	return emit(providers.ModelEvent{Kind: providers.EventTextDelta, Delta: "Completed with room to answer."})
 }
 
-// Ход, потративший вывод на размышление, повторяется с бо́льшим пределом.
+// Ход, потративший вывод на размышление, повторяется, а не роняет прогон.
 //
 // Рантайм бесплатный, поэтому размышление не гасится, а запасной модели у
-// профиля нет: место для ответа — единственное лекарство. Прежде эпизод
-// восстановления добавлял только подсказку и упирался в тот же потолок.
-// Заодно проверяется пол: профиль рождён с 4096, а размышляющая модель не
-// должна получить меньше MinThinkingOutputTokens даже на первом ходу.
+// профиля нет: место для ответа — единственное лекарство. С 30.09 это место
+// даётся сразу: профиль рождён с 4096, но думающая модель на бесплатном
+// рантайме получает на первом же ходу потолок роста, срезанный половиной
+// окна (domain.InitialOutputBudget). Прежде первый ход шёл с 8192, и живой
+// квест cba8 терял на нём по две-три минуты в трёх прогонах из четырёх.
 func TestReasoningBudgetRecoveryGrowsOutputBudget(t *testing.T) {
 	repo := newMemoryRepo()
 	engine := NewEngine(repo, nil)
@@ -463,10 +464,10 @@ func TestReasoningBudgetRecoveryGrowsOutputBudget(t *testing.T) {
 	if len(model.budgets) < 2 {
 		t.Fatalf("повтора не было: %v", model.budgets)
 	}
-	if model.budgets[0] != domain.MinThinkingOutputTokens {
-		t.Fatalf("первый ход пошёл с %d вместо пола %d", model.budgets[0], domain.MinThinkingOutputTokens)
+	if want := profile.ContextWindowTokens / 2; model.budgets[0] != want {
+		t.Fatalf("первый ход пошёл с %d вместо потолка половины окна %d", model.budgets[0], want)
 	}
-	if model.budgets[1] <= model.budgets[0] {
-		t.Fatalf("повтор пошёл под тем же потолком: %v", model.budgets)
+	if model.budgets[1] < model.budgets[0] {
+		t.Fatalf("повтор пошёл с меньшим пределом: %v", model.budgets)
 	}
 }

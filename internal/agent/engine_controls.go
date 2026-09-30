@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"local-agent-workbench/internal/attachments"
 	"local-agent-workbench/internal/domain"
@@ -30,10 +31,17 @@ func (e *Engine) Pause(runID string) error {
 }
 
 func (e *Engine) requestPause(active *activeRun, reason string) {
+	e.requestPauseFor(active, reason, 0)
+}
+
+// requestPauseFor ставит паузу, которая снимется сама через autoResume, если
+// человек не продолжит раньше. Ноль — пауза только до решения человека.
+func (e *Engine) requestPauseFor(active *activeRun, reason string, autoResume time.Duration) {
 	active.controlMu.Lock()
 	defer active.controlMu.Unlock()
 	active.pauseRequested = true
 	active.pauseReason = reason
+	active.autoResumeAfter = autoResume
 }
 
 func (e *Engine) ExtendActiveTime(runID string) error {

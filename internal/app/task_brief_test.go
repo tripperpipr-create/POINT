@@ -134,6 +134,24 @@ func TestUnknownToolOutcomeDoesNotRetryAutomatically(t *testing.T) {
 	}
 }
 
+// Предел вывода, съеденный размышлением, — сбой провайдера, а не денежный
+// бюджет: этап получает новую попытку. Небезопасный исход рядом с обрывом
+// по-прежнему не повторяется.
+func TestProviderFailureMentioningOutputBudgetRetries(t *testing.T) {
+	if !retryableFlowFailure(domain.RunFailed, "model returned no answer: the entire output budget of 8192 tokens went to reasoning (finish_reason=length)") {
+		t.Fatal("truncated reasoning must be retried")
+	}
+	if !retryableFlowFailure(domain.RunFailed, "read tcp: wsarecv: An established connection was aborted by the software in your host machine.") {
+		t.Fatal("connection abort must be retried")
+	}
+	if retryableFlowFailure(domain.RunFailed, "reserve model budget: quest budget exhausted") {
+		t.Fatal("money budget must not be retried")
+	}
+	if retryableFlowFailure(domain.RunFailed, "workspace mutation audit failed after executable tool started: connection reset") {
+		t.Fatal("unsafe outcome must not be retried even with a transient marker")
+	}
+}
+
 func TestFinishedTaskDoesNotTeachUnverifiedDefinitionOfDone(t *testing.T) {
 	a, ws := outcomeWorld(t)
 	ctx := context.Background()

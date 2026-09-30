@@ -49,10 +49,12 @@ func (e *Engine) executeWithCheckpoint(ctx context.Context, active *activeRun, p
 	// вывода, и поднятый пол у узкого окна оставил бы разговору ноль. Профиль
 	// с окном в пару тысяч токенов остаётся со своим числом: размышлять там
 	// всё равно негде, а прогон обязан начаться.
-	if floor := domain.OutputBudgetForThinking(profile.MaxOutputTokens, profile.Model, profile.ReasoningEffort); floor > profile.MaxOutputTokens {
-		if half := effectiveContextWindowTokens(profile) / 2; half <= 0 || floor <= half {
-			profile.MaxOutputTokens = floor
-		}
+	//
+	// На бесплатном рантайме думающая модель сразу получает потолок роста
+	// (domain.InitialOutputBudget): иначе первый же ход тратил минуты на
+	// размышление до 8192 и начинался заново.
+	if budget := domain.InitialOutputBudget(profile.MaxOutputTokens, profile.Model, profile.ReasoningEffort, profile.Provider, profile.ProviderPreset, effectiveContextWindowTokens(profile)); budget > profile.MaxOutputTokens {
+		profile.MaxOutputTokens = budget
 	}
 	inputBudgetTokens := ModelInputBudgetTokens(profile)
 	if active.steps == nil {
@@ -66,6 +68,7 @@ func (e *Engine) executeWithCheckpoint(ctx context.Context, active *activeRun, p
 	reasoningBudgetRecoveries := 0
 	emptyResponseRecoveries := 0
 	transientModelRetries := 0
+	toolOutputBudgetNoticed := false
 	forceDisableThinking := false
 	// «Размышление» гасится полем сверх спецификации OpenAI, и официальный
 	// endpoint отвечает на него 400. Аварийный повтор там не спасает, а вредит:
@@ -114,6 +117,12 @@ func (e *Engine) executeWithCheckpoint(ctx context.Context, active *activeRun, p
 		active.clock.restore(restored.ActiveElapsedMs, restored.ActiveTimeExtensions, restored.ActiveSecondsBudget)
 		steps.restore(restored.StepLimit, restored.StepExtensions, restored.StepWrapUp)
 		toolOutputBytes = restored.ToolOutputBytes
+		if len(restored.TeamInboxSeen) > 0 {
+			active.teamInboxSeen = make(map[string]bool, len(restored.TeamInboxSeen))
+			for _, id := range restored.TeamInboxSeen {
+				active.teamInboxSeen[id] = true
+			}
+		}
 		lastToolPlan = restored.LastToolPlan
 		identicalToolPlanCount = restored.IdenticalToolPlans
 		toolPlanRecoveries = restored.ToolPlanRecoveries
@@ -209,6 +218,9 @@ func (e *Engine) executeWithCheckpoint(ctx context.Context, active *activeRun, p
 				"reducedToolMessages": compaction.ReducedToolMessages, "memoryEntries": compaction.MemoryEntries,
 			})
 		}
+		// Провайдер один раз уже отказал «не влезло в окно»: окно профиля
+		// больше настоящего, и разговор сжимается под меньший бюджет.
+		contextOverflowRetried := false
 		var content strings.Builder
 		var calls []providers.ToolCall
 		// Блоки размышления живут ровно один ход: провайдер требует вернуть их
@@ -265,7 +277,9 @@ func (e *Engine) executeWithCheckpoint(ctx context.Context, active *activeRun, p
 						return errors.New("model response exceeds 2 MiB")
 					}
 					content.WriteString(event.Delta)
-					return e.publish(ctx, e.snapshot(active), domain.EventModelStreamed, "model", map[string]any{"delta": event.Delta})
+					// Поток ответа — показ для человека; итог хода пишет
+					// model.responded. Сбой записи дельты прогон не роняет.
+					e.publishOrLog(ctx, e.snapshot(active), domain.EventModelStreamed, "model", map[string]any{"delta": event.Delta})
 				case providers.EventToolCall:
 					if event.ToolCall != nil {
 						calls = append(calls, *event.ToolCall)
@@ -286,7 +300,13 @@ func (e *Engine) executeWithCheckpoint(ctx context.Context, active *activeRun, p
 					}
 					return e.publish(ctx, e.snapshot(active), domain.EventModelUsage, "model", map[string]any{"budgetReservationId": reservationID, "usage": map[string]int{"inputTokens": event.InputTokens, "outputTokens": event.OutputTokens}})
 				case providers.EventRetry:
-					return e.publish(ctx, e.snapshot(active), domain.EventModelRetrying, "provider", map[string]any{"attempt": event.Attempt, "delayMs": event.DelayMs, "message": event.Message, "model": currentModel})
+					// Провайдер начинает запрос заново: всё, что пришло в этой
+					// попытке, выбрасывается. Прежде текст оборванной попытки
+					// оставался в ответе, и повтор его задваивал.
+					content.Reset()
+					calls = nil
+					reasoning = nil
+					return e.publish(ctx, e.snapshot(active), domain.EventModelRetrying, "provider", map[string]any{"attempt": event.Attempt, "delayMs": event.DelayMs, "message": event.Message, "model": currentModel, "restart": true})
 				}
 				return nil
 			})
@@ -302,12 +322,33 @@ func (e *Engine) executeWithCheckpoint(ctx context.Context, active *activeRun, p
 			}
 			if err == nil {
 				log.Info("agent model responded", "run_id", run.ID, "step", step, "model", currentModel, "tool_calls", len(calls), "content_bytes", content.Len(), "tools", toolCallNames(calls))
+				// Счётчик обрывов — подряд, а не за весь прогон: три случайных
+				// обрыва за два часа работы не повод её терять.
+				transientModelRetries = 0
 				break
 			}
 			log.Warn("agent model error", "run_id", run.ID, "step", step, "model", currentModel, "error", security.Redact(err.Error()))
 			if ctx.Err() != nil {
 				e.finishContext(active, ctx.Err())
 				return
+			}
+			if providers.IsContextOverflowError(err) && !contextOverflowRetried {
+				contextOverflowRetried = true
+				reduced := inputBudgetTokens * 3 / 4
+				compactedMessages, compactedInfo, compactErr := history.Prepare(requestTools, reduced)
+				if compactErr == nil {
+					inputBudgetTokens = reduced
+					messages, compaction = compactedMessages, compactedInfo
+					e.publishOrLog(ctx, e.snapshot(active), domain.EventContextCompacted, "agent", map[string]any{
+						"reason": "provider_context_overflow", "beforeTokens": compaction.BeforeTokens, "afterTokens": compaction.AfterTokens,
+						"budgetTokens": compaction.BudgetTokens, "releasedTokens": compaction.ReleasedTokens, "removedRounds": compaction.RemovedRounds,
+					})
+					for _, key := range compaction.ReleasedReplayableKeys {
+						delete(completedToolCalls, key)
+						observations.Release(key)
+					}
+					continue
+				}
 			}
 			// Same-model retry: kill thinking before burning a declared fallback.
 			if providers.IsTruncatedReasoningError(err) && canDisableThinking && !triedDisableThinking {
@@ -368,17 +409,47 @@ func (e *Engine) executeWithCheckpoint(ctx context.Context, active *activeRun, p
 				// середине, он уже не спасает: ошибка приходит сюда, и прежде
 				// первая же такая уносила всю работу, если у профиля не было
 				// объявленной запасной модели. У большинства профилей её нет.
-				if providers.IsTransientProviderError(err) && transientModelRetries < maxTransientModelRetries {
-					transientModelRetries++
-					e.publishOrLog(ctx, e.snapshot(active), domain.EventModelRetrying, "provider", map[string]any{
-						"transientRetry": transientModelRetries, "maxTransientRetries": maxTransientModelRetries,
-						"model": currentModel, "message": err.Error(),
-					})
-					select {
-					case <-ctx.Done():
-						e.finishContext(active, ctx.Err())
+				if providers.IsTransientProviderError(err) {
+					// Размышление, съевшее предел вывода, уже прошло свои
+					// восстановления выше; долгое ожидание его не лечит.
+					truncated := providers.IsTruncatedReasoningError(err)
+					retryLimit := maxTransientModelRetries
+					if truncated {
+						retryLimit = maxTruncatedReasoningRetries
+					}
+					if transientModelRetries < retryLimit {
+						transientModelRetries++
+						delay := transientDelay(transientModelRetries)
+						e.publishOrLog(ctx, e.snapshot(active), domain.EventModelRetrying, "provider", map[string]any{
+							"transientRetry": transientModelRetries, "maxTransientRetries": maxTransientModelRetries,
+							"attempt": transientModelRetries + 1, "delayMs": delay.Milliseconds(),
+							"model": currentModel, "message": err.Error(),
+						})
+						select {
+						case <-ctx.Done():
+							e.finishContext(active, ctx.Err())
+							return
+						case <-time.After(delay):
+						}
+						continue
+					}
+					if truncated {
+						e.fail(active, err)
 						return
-					case <-time.After(time.Duration(transientModelRetries) * transientModelRetryBackoff):
+					}
+					// Провайдер молчит несколько минут подряд. Прогон не падает:
+					// работа до этого хода цела в контрольной точке, и после
+					// паузы тот же ход повторяется — сам через несколько минут
+					// или раньше, если человек нажмёт «Продолжить».
+					transientModelRetries = 0
+					e.publishOrLog(ctx, e.snapshot(active), domain.EventAgentGuardrail, "agent", map[string]any{
+						"code": "provider_unavailable", "model": currentModel, "message": err.Error(),
+						"autoResumeMs": providerUnavailableAutoResume.Milliseconds(),
+					})
+					e.requestPauseFor(active, domain.PauseReasonProviderUnavailable, providerUnavailableAutoResume)
+					if waitErr := e.waitAtCheckpoint(ctx, active); waitErr != nil {
+						e.finishContext(active, waitErr)
+						return
 					}
 					continue
 				}
@@ -589,9 +660,22 @@ func (e *Engine) executeWithCheckpoint(ctx context.Context, active *activeRun, p
 			}
 			completion.ObserveTool(execCall.Name, execCall.Arguments, result, workspaceRevision)
 			payload, _ := json.Marshal(result)
+			if toolOutputBytes+len(payload) > maxRunToolOutputBytes && len(payload) > overBudgetToolOutputBytes {
+				// Суммарный вывод за прогон исчерпан. Прежде это роняло прогон
+				// со всей сделанной работой; теперь дальнейшие выводы модели
+				// сокращаются, а она получает подсказку сузить запрос.
+				if !toolOutputBudgetNoticed {
+					toolOutputBudgetNoticed = true
+					e.publishOrLog(ctx, e.snapshot(active), domain.EventAgentGuardrail, "agent", map[string]any{
+						"code": "tool_output_budget", "toolOutputBytes": toolOutputBytes, "limitBytes": maxRunToolOutputBytes,
+					})
+				}
+				result = shrinkToolResult(result, overBudgetToolOutputBytes)
+				payload, _ = json.Marshal(result)
+			}
 			toolOutputBytes += len(payload)
-			if toolOutputBytes > maxRunToolOutputBytes {
-				e.fail(active, errors.New("cumulative tool output exceeds 4 MiB"))
+			if toolOutputBytes > hardRunToolOutputBytes {
+				e.fail(active, fmt.Errorf("cumulative tool output exceeds %d MiB", hardRunToolOutputBytes/(1024*1024)))
 				return
 			}
 			round.Tools = append(round.Tools, conversationToolTurn{Call: execCall, Result: result, Message: providers.Message{Role: "tool", ToolCallID: call.ID, Content: string(payload)}, ExecutionKey: callKey, Replayable: ownsCompletion && isReplayableReadTool(execCall.Name)})

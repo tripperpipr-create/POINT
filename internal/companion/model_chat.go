@@ -196,6 +196,11 @@ func (s Service) chatWithModel(ctx context.Context, cfg domain.CompanionConfig, 
 				calls = append(calls, *event.ToolCall)
 			}
 		case providers.EventRetry:
+			// Провайдер повторяет запрос целиком: начатое в оборванной
+			// попытке выбрасывается, иначе повтор задвоил бы ответ.
+			content.Reset()
+			lastDelta = ""
+			calls = calls[:0]
 			log.Warn("companion model retry", "attempt", event.Attempt, "delay_ms", event.DelayMs, "message", security.Redact(event.Message))
 		}
 		return nil

@@ -375,6 +375,8 @@ func (a *App) masterLearningCall(ctx context.Context, model providers.Model, cfg
 			tokens += int64(e.InputTokens + e.OutputTokens + e.CacheReadTokens + e.CacheWriteTokens)
 		case providers.EventRetry:
 			unknown = true
+			output.Reset()
+			calls = nil
 		}
 		return nil
 	})

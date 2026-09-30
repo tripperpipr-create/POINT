@@ -2,11 +2,13 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	"local-agent-workbench/internal/domain"
 	"local-agent-workbench/internal/flowruntime"
+	"local-agent-workbench/internal/providers"
 )
 
 func normalizeFailurePolicy(policy domain.FlowFailurePolicy) domain.FlowFailurePolicy {
@@ -24,12 +26,19 @@ func retryableFlowFailure(status domain.RunStatus, message string) bool {
 	if status == domain.RunCancelled || status == domain.RunInterrupted {
 		return false
 	}
+	// Сбой провайдера — обрыв, зависание, размышление, съевшее предел вывода —
+	// повторяем, хотя в тексте последнего есть слово «budget»: это предел
+	// вывода модели, а не денежный бюджет квеста.
+	providerFailure := providers.IsTransientProviderError(errors.New(message))
 	lower := strings.ToLower(strings.TrimSpace(message))
 	for _, marker := range []string{
 		"configuration", "configure", "unknown tool", "unknown agent", "unsupported provider", "readiness", "not ready",
 		"unknown_outcome", "tool_journal_integrity", "workspace mutation audit failed", "persist completion evidence",
 		"approval denied", "approval was denied", "verification failed", "budget", "pricing profile", "permission denied",
 	} {
+		if marker == "budget" && providerFailure {
+			continue
+		}
 		if strings.Contains(lower, marker) {
 			return false
 		}

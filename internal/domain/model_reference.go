@@ -129,22 +129,8 @@ const MinThinkingOutputTokens = 8192
 // считается размышляющей только когда её об этом просят (effort), потому что
 // поднимать предел всем подряд означало бы резервировать чужой бюджет впустую.
 func OutputBudgetForThinking(requested int, modelID, effort string) int {
-	thinks := false
 	known, found := LookupModel(modelID)
-	if found {
-		for _, capability := range known.Capabilities {
-			if capability == "reasoning" {
-				thinks = true
-				break
-			}
-		}
-	}
-	switch strings.ToLower(strings.TrimSpace(effort)) {
-	case "", "none", "minimal":
-	default:
-		thinks = true
-	}
-	if !thinks || requested >= MinThinkingOutputTokens {
+	if !ModelThinks(modelID, effort) || requested >= MinThinkingOutputTokens {
 		return requested
 	}
 	budget := MinThinkingOutputTokens
@@ -153,6 +139,44 @@ func OutputBudgetForThinking(requested int, modelID, effort string) int {
 	}
 	if budget < requested {
 		return requested
+	}
+	return budget
+}
+
+// ModelThinks — размышляет ли модель перед ответом: так сказано в справочнике
+// или об этом просят через effort.
+func ModelThinks(modelID, effort string) bool {
+	if known, found := LookupModel(modelID); found {
+		for _, capability := range known.Capabilities {
+			if capability == "reasoning" {
+				return true
+			}
+		}
+	}
+	switch strings.ToLower(strings.TrimSpace(effort)) {
+	case "", "none", "minimal":
+		return false
+	}
+	return true
+}
+
+// InitialOutputBudget — предел вывода первого хода.
+//
+// На бесплатном рантайме думающая модель сразу получает потолок роста, как ход
+// Мастера (masterOutputBudget): квест 30.09 на llmux в трёх прогонах из четырёх
+// потерял по две-три минуты на ходе, где 8192 токена целиком ушли в
+// размышление, и только повтор с большим пределом давал ответ. Платный рантайм
+// остаётся при полу OutputBudgetForThinking: там лишний вывод стоит денег.
+// Половина окна — граница, как и везде: остальное нужно самому разговору.
+func InitialOutputBudget(requested int, modelID, effort string, kind ProviderKind, preset string, contextWindow int) int {
+	budget := OutputBudgetForThinking(requested, modelID, effort)
+	if !RuntimeChargesForTokens(kind, preset) && ModelThinks(modelID, effort) {
+		if grown := GrowThinkingOutputBudget(budget, modelID); grown > budget {
+			budget = grown
+		}
+	}
+	if half := contextWindow / 2; half > 0 && budget > half {
+		budget = max(half, requested)
 	}
 	return budget
 }

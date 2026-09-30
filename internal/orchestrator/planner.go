@@ -300,6 +300,9 @@ func (p Planner) Plan(ctx context.Context, req PlanRequest) (PlanResult, error) 
 					reportProgress("reasoning", "Модель обдумывает структуру и распределение этапов")
 				}
 			case providers.EventRetry:
+				// Повтор начинает план заново: половина прежнего JSON склеилась бы
+				// с новым и дала бы неразборчивый ответ.
+				response.Reset()
 				reportProgress("retry", "Провайдер временно недоступен; повторяем запрос планировщика")
 			case providers.EventToolCall:
 				return errors.New("orchestrator model attempted a tool call")

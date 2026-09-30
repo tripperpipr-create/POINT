@@ -12,6 +12,10 @@ const (
 	// продвигаться. Продолжение с продлением даёт одну порцию ходов.
 	PauseReasonStepBudgetExhausted = "step_budget_exhausted"
 	PauseReasonMasterSupervision   = "master_supervision"
+	// PauseReasonProviderUnavailable — провайдер модели не отвечал несколько
+	// минут повторов подряд. Прогон не падает: он ждёт с контрольной точкой и
+	// сам пробует снова, а человек может продолжить раньше.
+	PauseReasonProviderUnavailable = "provider_unavailable"
 )
 
 // RunControllerState is the live-facing slice of autonomous-run bookkeeping.
@@ -80,6 +84,9 @@ type RunCheckpoint struct {
 	ToolPlanRecoveries  int       `json:"toolPlanRecoveries"`
 	ToolOutputBytes     int       `json:"toolOutputBytes"`
 	CompletedToolCalls  []string  `json:"completedToolCalls,omitempty"`
+	// TeamInboxSeen — события ящика команды, уже вставленные в разговор.
+	// Без них продолжение прогона вставляло бы их заново.
+	TeamInboxSeen []string `json:"teamInboxSeen,omitempty"`
 	HistoryJSON         []byte    `json:"historyJson,omitempty"`
 	CompletionJSON      []byte    `json:"completionJson,omitempty"`
 	ObservationsJSON    []byte    `json:"observationsJson,omitempty"`

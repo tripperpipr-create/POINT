@@ -2,12 +2,15 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
+	"math/rand/v2"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 
 	"local-agent-workbench/internal/domain"
 	"local-agent-workbench/internal/events"
@@ -61,15 +64,18 @@ type ModelBudgetController interface {
 }
 
 type activeRun struct {
-	taskBrief                  *domain.TaskBrief
-	mu                         sync.RWMutex
-	run                        domain.Run
-	workspaceRevision          int
-	cancel                     context.CancelFunc
-	onFinished                 func(domain.Run)
-	controlMu                  sync.Mutex
-	pauseRequested             bool
-	pauseReason                string
+	taskBrief         *domain.TaskBrief
+	mu                sync.RWMutex
+	run               domain.Run
+	workspaceRevision int
+	cancel            context.CancelFunc
+	onFinished        func(domain.Run)
+	controlMu         sync.Mutex
+	pauseRequested    bool
+	pauseReason       string
+	// autoResumeAfter — пауза снимается сама через этот срок (ноль — только
+	// человеком). Нужна паузе provider_unavailable.
+	autoResumeAfter            time.Duration
 	paused                     bool
 	resumeCh                   chan struct{}
 	amendmentsMu               sync.RWMutex
@@ -101,8 +107,12 @@ func (a *activeRun) takeInitialBudgetReservation() string {
 }
 
 const (
-	maxModelResponseBytes        = 2 * 1024 * 1024
-	maxRunToolOutputBytes        = 4 * 1024 * 1024
+	maxModelResponseBytes = 2 * 1024 * 1024
+	maxRunToolOutputBytes = 4 * 1024 * 1024
+	// После maxRunToolOutputBytes каждый вывод сокращается до этого размера,
+	// а прогон падает только на жёстком пределе.
+	overBudgetToolOutputBytes    = 8 * 1024
+	hardRunToolOutputBytes       = 16 * 1024 * 1024
 	maxToolArgumentBytes         = 1024 * 1024
 	maxIdenticalToolPlans        = 3
 	maxToolPlanRecoveries        = 1
@@ -116,7 +126,10 @@ const (
 	// модели не объявлено. Ошибка установления обращения повторяется ниже,
 	// в HTTP-слое; сюда доходит поток, умерший на середине, и его прежде
 	// никто не повторял.
-	maxTransientModelRetries     = 2
+	maxTransientModelRetries = 8
+	// Повторы хода, где весь вывод снова ушёл в размышление, после того как
+	// рост предела и гашение размышления уже не помогли.
+	maxTruncatedReasoningRetries = 2
 	maxRecordedExecutableChanges = 500
 	maxWorkspaceEventPaths       = 200
 )
@@ -136,10 +149,34 @@ const (
 // короткой реплики помощника.
 const agentProviderHeaderTimeoutSeconds = 60
 
-// Пауза перед повтором оборванного потока. Растёт с номером попытки: первый
-// повтор через секунду, второй через две. Провайдер, уронивший поток, чаще
-// всего занят, а не сломан.
-const transientModelRetryBackoff = time.Second
+// Пауза перед повтором оборванного потока растёт вдвое от двух секунд до
+// минуты: восемь повторов ждут около четырёх минут. Этого хватает, чтобы
+// llmux перезапустился или поднял модель; прежние 1 и 2 с кончались раньше,
+// чем шлюз успевал ожить. Джиттер ±20% разводит повторы параллельных этапов.
+const (
+	transientModelRetryBackoff = 2 * time.Second
+	transientModelRetryCeiling = time.Minute
+)
+
+// Переменные, а не константы, только ради тестов: минуты ожидания в них
+// заменяются миллисекундами.
+var (
+	// Через сколько прогон на паузе provider_unavailable пробует снова сам.
+	providerUnavailableAutoResume = 5 * time.Minute
+	transientDelay                = transientRetryDelay
+)
+
+func transientRetryDelay(retry int) time.Duration {
+	delay := transientModelRetryBackoff
+	for i := 1; i < retry && delay < transientModelRetryCeiling; i++ {
+		delay *= 2
+	}
+	if delay > transientModelRetryCeiling {
+		delay = transientModelRetryCeiling
+	}
+	jitter := time.Duration(rand.Int64N(int64(delay)/5+1)) * 2
+	return delay - delay/5 + jitter
+}
 
 type Engine struct {
 	repo            Repository
@@ -222,6 +259,8 @@ func (e *Engine) waitAtCheckpoint(ctx context.Context, active *activeRun) error 
 	if reason == "" {
 		reason = domain.PauseReasonUserRequested
 	}
+	autoResume := active.autoResumeAfter
+	active.autoResumeAfter = 0
 	active.pauseRequested = false
 	active.paused = true
 	active.resumeCh = make(chan struct{})
@@ -238,8 +277,15 @@ func (e *Engine) waitAtCheckpoint(ctx context.Context, active *activeRun) error 
 		return fmt.Errorf("persist paused run: %w", err)
 	}
 
+	var autoResumeCh <-chan time.Time
+	if autoResume > 0 {
+		timer := time.NewTimer(autoResume)
+		defer timer.Stop()
+		autoResumeCh = timer.C
+	}
 	select {
 	case <-resumeCh:
+	case <-autoResumeCh:
 	case <-ctx.Done():
 		return ctx.Err()
 	}
@@ -403,4 +449,30 @@ func contextAmendmentEventData(values []domain.ContextAmendment) map[string]any 
 
 func boundedLearningMessage(value string) string {
 	return textutil.Bounded(security.Redact(strings.TrimSpace(value)), 2000)
+}
+
+// shrinkToolResult сокращает вывод инструмента до limit байт, когда суммарный
+// бюджет вывода прогона исчерпан. Модель видит начало и подсказку сузить
+// запрос; ошибка инструмента сохраняется целиком.
+func shrinkToolResult(result domain.ToolResult, limit int) domain.ToolResult {
+	if len(result.Output) <= limit {
+		return result
+	}
+	text := string(result.Output)
+	var decoded string
+	if json.Unmarshal(result.Output, &decoded) == nil {
+		text = decoded
+	}
+	if len(text) > limit {
+		cut := limit
+		for cut > 0 && !utf8.RuneStart(text[cut]) {
+			cut--
+		}
+		text = text[:cut]
+	}
+	text += "\n…[output shortened: the run's total tool-output budget is spent; request narrower ranges, filters or summaries]"
+	shrunk := result
+	shrunk.Output, _ = json.Marshal(text)
+	shrunk.Truncated = true
+	return shrunk
 }

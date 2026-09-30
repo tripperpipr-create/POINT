@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"time"
 
 	"local-agent-workbench/internal/domain"
@@ -85,6 +86,11 @@ func (e *Engine) persistRoundCheckpoint(active *activeRun, history *conversation
 	for key := range completedToolCalls {
 		keys = append(keys, key)
 	}
+	inboxSeen := make([]string, 0, len(active.teamInboxSeen))
+	for id := range active.teamInboxSeen {
+		inboxSeen = append(inboxSeen, id)
+	}
+	sort.Strings(inboxSeen)
 	active.checkpointSeq++
 	checkpoint := domain.RunCheckpoint{
 		RunID: run.ID, Seq: active.checkpointSeq, CreatedAt: time.Now().UTC(),
@@ -96,7 +102,7 @@ func (e *Engine) persistRoundCheckpoint(active *activeRun, history *conversation
 		RemainingFallbacks: append([]string(nil), remainingFallbacks...), NextStep: nextStep,
 		CompletionRevisions: completionRevisions, IdenticalToolPlans: identicalToolPlans,
 		LastToolPlan: lastToolPlan, ToolPlanRecoveries: toolPlanRecoveries, ToolOutputBytes: toolOutputBytes,
-		CompletedToolCalls: keys, HistoryJSON: historyJSON, CompletionJSON: completionJSON,
+		CompletedToolCalls: keys, TeamInboxSeen: inboxSeen, HistoryJSON: historyJSON, CompletionJSON: completionJSON,
 		ObservationsJSON: observationsJSON, TaskBriefJSON: briefJSON, ContextItemsJSON: contextJSON,
 		ChangedFiles: append([]string(nil), run.ChangedFiles...), ToolsUsed: append([]string(nil), run.ToolsUsed...),
 		Step: run.Step, RequestCount: run.RequestCount,

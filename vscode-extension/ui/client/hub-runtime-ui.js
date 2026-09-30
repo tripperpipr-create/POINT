@@ -144,7 +144,12 @@ export function createHubRuntimeUi({
     const remaining = Number(controller.activeSecondsRemaining || 0)
     const budget = Number(controller.activeSecondsBudget || 0)
     const resumableNote = controller.resumable && isPaused ? ' · можно продолжить' : ''
-    const controllerNote = isPaused && stepsExhausted
+    // Провайдер модели молчал все повторы: прогон ждёт с контрольной точкой и
+    // через несколько минут сам пробует снова.
+    const providerDown = isPaused && controller.pauseReason === 'provider_unavailable'
+    const controllerNote = providerDown
+      ? '<em class="muted">Провайдер модели недоступен · повторю сам через 5 мин · можно продолжить сейчас</em>'
+      : isPaused && stepsExhausted
       ? `<em class="muted">Лимит шагов · ${Number(controller.stepLimit || 0)}${resumableNote}</em>`
       : budget > 0
         ? `<em class="muted">${isPaused && controller.pauseReason === 'active_time_exhausted' ? 'Лимит активного времени' : isPaused && controller.pauseReason ? `Пауза · ${esc(controller.pauseReason)}` : `Активное время · осталось ${remaining} с`}${resumableNote}</em>`

@@ -8,6 +8,7 @@
 // «в GitLab» открывает хост и только на свой сервер.
 
 import { esc } from './html-escape.js'
+import { projectsBody } from './gitlab-projects-list.js'
 import { cleanTitle, draftId, duration, glAvatar, glIcon, loadingHtml, mergeStatus, pipelineStatus, problemHtml, shortSha, statusMark, timeAgo, timeShort, verdictHtml } from './gitlab-common.js'
 
 const SCOPES = [
@@ -146,13 +147,20 @@ export function createGitLabToolView({ getState, shell }) {
     </header>`
     if (!status) return shell(`<main class="nc-app gl-app">${head()}${loadingHtml('Спрашиваем GitLab…')}</main>`)
     const binding = status.data?.binding || {}
-    if (status.state !== 'ok' || status.data?.linked === false) {
+    if (status.state !== 'ok') {
       return shell(`<main class="nc-app gl-app">${head()}
         ${state.bindingOpen ? bindingEditor(state, binding) : ''}
-        <div class="nc-scroll gl-scroll">${status.state === 'ok' ? unlinkedHtml(state, binding) : `<div class="gl-pad">${problemHtml(status, { retry: 'gitlab-reload' })}</div>`}</div></main>`)
+        <div class="nc-scroll gl-scroll"><div class="gl-pad">${problemHtml(status, { retry: 'gitlab-reload' })}</div></div></main>`)
     }
-    const tabs = `<div class="nc-tabs" role="tablist" data-keynav="row">${[['mrs', 'mr', 'Merge requests'], ['pipelines', 'pipeline', 'Пайплайны']].map(([id, glyph, label]) =>
-      `<button type="button" role="tab" class="nc-tab${state.section === id ? ' is-active' : ''}" aria-selected="${state.section === id ? 'true' : 'false'}" tabindex="${state.section === id ? '0' : '-1'}" data-action="gitlab-section" data-section="${id}">${glIcon(glyph, 13)}<span>${esc(label)}</span></button>`).join('')}</div>`
+    // «Проекты» не зависят от связи папки: вкладка открыта и в несвязанной.
+    const tabs = `<div class="nc-tabs" role="tablist" data-keynav="row">${[['mrs', 'mr', 'MR', 'Merge requests'], ['pipelines', 'pipeline', 'Пайплайны', 'Пайплайны ветки'], ['projects', 'folder', 'Проекты', 'Проекты GitLab: файлы, коммиты, ветки, клон']].map(([id, glyph, label, title]) =>
+      `<button type="button" role="tab" class="nc-tab${state.section === id ? ' is-active' : ''}" aria-selected="${state.section === id ? 'true' : 'false'}" tabindex="${state.section === id ? '0' : '-1'}" data-action="gitlab-section" data-section="${id}" title="${esc(title)}">${glIcon(glyph, 13)}<span>${esc(label)}</span></button>`).join('')}</div>`
+    if (state.section === 'projects') return shell(`<main class="nc-app gl-app">${head(tabs)}${projectsBody(state)}</main>`)
+    if (status.data?.linked === false) {
+      return shell(`<main class="nc-app gl-app">${head(tabs)}
+        ${state.bindingOpen ? bindingEditor(state, binding) : ''}
+        <div class="nc-scroll gl-scroll">${unlinkedHtml(state, binding)}</div></main>`)
+    }
     const where = binding.mode === 'all' ? 'Все мои проекты' : binding.project || 'Проект не выбран'
     const user = status.data?.user?.username ? `@${status.data.user.username}` : ''
     const strip = `<button type="button" class="gl-where" data-action="gitlab-binding-toggle" title="${esc(binding.note || 'Сменить проект окна')}">

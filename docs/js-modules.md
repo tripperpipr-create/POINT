@@ -70,14 +70,16 @@ webview. У них нет ни `require`, ни `vscode` — только объ�
 
 Интеграции собраны так же, фабрикой:
 `vscode-extension/integrations-controller.js` отдаёт два типа сообщений вебвью
-(`mcpAction`, `gitlabAction`) двум своим модулям и больше о предмете не знает.
+(`mcpAction`, `gitlabAction`) своим модулям и больше о предмете не знает.
 `vscode-extension/mcp-controller.js` держит секреты MCP в SecretStorage и
 передаёт их каждому новому процессу ядра, показывает окно доверия и принимает
 импорт `mcp.json`. `vscode-extension/gitlab-controller.js` отвечает окну GitLab
 и карточкам MR, открывает diff файлов MR штатным `vscode.diff` над документами
-`point-gitlab:` и подтверждает merge. Ответ уходит только той поверхности,
-которая спросила (поле `surface`: окно, карточка `mr:<проект>!<номер>` или
-Гильдия).
+`point-gitlab:` и подтверждает merge. Проекты — отдельный
+`vscode-extension/gitlab-project-controller.js`: карточка проекта, клон через
+`git.clone` и diff коммита. Ответ уходит только той поверхности,
+которая спросила (поле `surface`: окно, карточка `mr:<проект>!<номер>`,
+карточка проекта `project:<путь>` или Гильдия).
 
 Чистые помощники без состояния живут отдельно:
 `vscode-extension/extension-utils.js`, `vscode-extension/run-config-utils.js`,
@@ -234,11 +236,18 @@ Flow (`isRootQuest`) живут в `vscode-extension/ui/client/quest-status.js`:
 - `vscode-extension/ui/client/gitlab-views.js` — окно GitLab в регистре окна
   Git (`nc-*`): списки MR и пайплайнов, редактор связи;
 - `vscode-extension/ui/client/gitlab-mr-views.js` — карточка MR вкладкой
-  редактора; описание и заметки проходят `companion-markdown.js`.
+  редактора; описание и заметки проходят `companion-markdown.js`;
+- `vscode-extension/ui/client/gitlab-project-actions.js` — состояние, ответы
+  хоста и нажатия проектов: раздел «Проекты» окна и карточка проекта;
+- `vscode-extension/ui/client/gitlab-projects-list.js` — список проектов
+  окна с поиском, сгруппированный по доступу;
+- `vscode-extension/ui/client/gitlab-project-card.js` — карточка проекта
+  вкладкой редактора: вердикт о локальной копии, README, файлы, коммиты,
+  ветки.
 
 Оформление — слой `vscode-extension/ui/layers/96a-integrations.css`. Смоуки
-`scripts/smoke-mcp-integrations.js` и `scripts/smoke-gitlab-tool-window.js`
-гоняют собранный `media/main.js` через общий стенд
+`scripts/smoke-mcp-integrations.js`, `scripts/smoke-gitlab-tool-window.js` и
+`scripts/smoke-gitlab-projects.js` гоняют собранный `media/main.js` через общий стенд
 `scripts/lib/webview-harness.js`.
 
 ## Куда класть новое

@@ -2320,7 +2320,7 @@ function paint() {
     return
   }
   if (state.service?.state !== 'running') { root.innerHTML = offline(); return }
-  const dedicated = { connections: connectionsView, statistics: statisticsView, docker: dockerView, 'gitlab-mr': integrations.mrView }[document.body?.dataset?.layout]
+  const dedicated = { connections: connectionsView, statistics: statisticsView, docker: dockerView, 'gitlab-mr': integrations.mrView, 'gitlab-project': integrations.projectView }[document.body?.dataset?.layout]
   if (dedicated) { root.innerHTML = dedicated(); restoreUi(snapshot); persistDraft(); return }
   if (state.selectedTab === 'onboarding') root.innerHTML = (agentConstructorOpen && companionOnboardingFinished()) ? agentConstructor() : onboarding()
   else if (state.selectedTab === 'decisions') root.innerHTML = decisionsView()

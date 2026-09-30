@@ -105,6 +105,7 @@ const requiredFiles = [
   'vscode-extension/integrations-controller.js',
   'vscode-extension/mcp-controller.js',
   'vscode-extension/gitlab-controller.js',
+  'vscode-extension/gitlab-project-controller.js',
   'vscode-extension/ssh-utils.js',
   'vscode-extension/media/chronicle.css',
   'vscode-extension/ui/client/companion-markdown.js',
@@ -785,6 +786,7 @@ for (const [file, maximum] of Object.entries({
   'vscode-extension/integrations-controller.js': 80,
   'vscode-extension/mcp-controller.js': 300,
   'vscode-extension/gitlab-controller.js': 360,
+  'vscode-extension/gitlab-project-controller.js': 300,
   // Потолок опущен с 4400: ветки поля Мастера (очередь, «/», Enter, слот
   // уточнений) ушли в master-compose-keys.js, и отвоёванное не должно
   // зарасти обратно.
@@ -873,6 +875,10 @@ for (const [file, maximum] of Object.entries({
   'vscode-extension/ui/client/gitlab-common.js': 180,
   'vscode-extension/ui/client/gitlab-project-view.js': 90,
   'vscode-extension/ui/client/gitlab-mr-views.js': 180,
+  // Проекты: состояние и нажатия, список в окне, карточка проекта.
+  'vscode-extension/ui/client/gitlab-project-actions.js': 210,
+  'vscode-extension/ui/client/gitlab-projects-list.js': 90,
+  'vscode-extension/ui/client/gitlab-project-card.js': 240,
 })) {
   const actual = lineCount(read(file))
   if (actual > maximum) errors.push(`module boundary: ${file} has ${actual} lines (budget ${maximum})`)

@@ -591,3 +591,106 @@
 .gl-verdict.is-mute .gl-verdict-mark { background: var(--nc-row-hover); color: var(--nc-muted); }
 .gl-pad { padding: var(--s-5) var(--nc-4); }
 .int-plugin > .gl-verdict { margin-top: 0; }
+
+/* ── Проекты: список в окне и карточка проекта ──────────────────────────── */
+.gl-ava.is-square { border-radius: var(--r-2); }
+.gl-ava.is-xl { font-size: var(--t-lead); height: 40px; width: 40px; }
+.gl-projects-head { gap: var(--s-3); }
+.gl-projects-head .nc-seg { flex: 0 0 auto; }
+.gl-search { flex: 1 1 auto; min-height: var(--control-sm); min-width: 0; padding-block: 0; }
+.gl-project-row { align-items: flex-start; border-bottom: 1px solid var(--nc-line); padding-block: var(--s-5); }
+.gl-project-row > .gl-ava { margin-top: var(--s-1); }
+.gl-project-row > span { flex: 1 1 auto; gap: var(--s-2); }
+.gl-project-row strong { font-weight: var(--fw-medium); }
+.gl-project-row strong em { color: var(--nc-faint); font: var(--fw-normal) var(--t-micro)/1 var(--nc-mono); font-style: normal; margin-left: var(--s-3); }
+.gl-project-row.is-archived strong { color: var(--nc-muted); }
+.gl-project-desc { color: var(--nc-muted); display: -webkit-box; line-height: var(--lh-base); overflow: hidden; white-space: normal; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.gl-stars { align-items: center; display: inline-flex; gap: var(--s-1); }
+.gl-group.is-current h3 span,
+.gl-group.is-push h3 span { color: var(--vital); }
+
+.gl-proj-head .gl-mr-title { align-items: center; }
+.gl-proj-head .gl-mr-title h1 em { font: var(--fw-normal) var(--t-base)/1 var(--nc-mono); }
+.gl-proj-counts { align-items: center; color: var(--nc-faint); display: inline-flex; font: var(--fw-normal) var(--t-small)/1 var(--nc-mono); gap: var(--s-5); }
+.gl-proj-counts span { align-items: center; display: inline-flex; gap: var(--s-2); }
+.gl-proj-desc { color: var(--nc-text-2); font-size: var(--t-base); line-height: var(--lh-base); margin: 0; max-width: 920px; }
+.gl-topic { background: var(--mana-wash); border-radius: var(--r-1); color: var(--mana); font-size: var(--t-micro); padding: 0 var(--s-3); }
+
+.gl-ref {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--nc-accent-800);
+  border-radius: var(--r-full);
+  color: var(--nc-accent-300);
+  cursor: pointer;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font: var(--fw-normal) var(--t-small)/1 var(--nc-mono);
+  gap: var(--s-2);
+  margin-left: auto;
+  max-width: 50%;
+  padding: var(--s-2) var(--s-4);
+}
+.gl-ref span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gl-ref:hover { background: var(--nc-accent-hover); }
+.gl-files-head, .gl-readme-head { align-items: center; display: flex; gap: var(--s-4); min-width: 0; }
+.gl-readme-head { border-bottom: 1px solid var(--nc-line); color: var(--nc-muted); font: var(--fw-normal) var(--t-small)/1 var(--nc-mono); margin-bottom: var(--s-6); padding-bottom: var(--s-4); }
+.gl-readme pre { white-space: pre-wrap; }
+.gl-crumbs { align-items: center; display: flex; flex-wrap: wrap; gap: var(--s-2); min-width: 0; }
+.gl-crumbs i { color: var(--nc-faint); font-style: normal; }
+.gl-crumb { align-items: center; background: none; border: 0; border-radius: var(--r-1); color: var(--nc-text-2); cursor: pointer; display: inline-flex; font: var(--fw-normal) var(--t-small)/1 var(--nc-mono); gap: var(--s-2); padding: var(--s-2) var(--s-3); }
+.gl-crumb:hover { background: var(--nc-row-hover); }
+.gl-crumb:last-child { color: var(--nc-text); }
+
+.gl-tree, .gl-branches { border: 1px solid var(--nc-line); border-radius: var(--r-2); list-style: none; margin: 0; overflow: hidden; padding: 0; }
+.gl-tree li + li, .gl-branches li + li { border-top: 1px solid var(--nc-line); }
+.gl-tree .nc-row { align-items: center; padding-block: var(--s-3); }
+.gl-tree .nc-row .nc-icon { color: var(--nc-faint); flex: 0 0 auto; }
+.gl-tree .nc-row.is-tree .nc-icon { color: var(--mana); }
+.gl-tree .nc-row:disabled { cursor: default; opacity: 0.7; }
+
+.gl-day { color: var(--nc-faint); font: var(--fw-medium) var(--t-micro)/1 var(--font-ui); letter-spacing: var(--tracking-label); margin: var(--s-6) 0 var(--s-3); text-transform: uppercase; }
+.gl-commit { border: 1px solid var(--nc-line); border-radius: var(--r-2); }
+.gl-commit + .gl-commit { border-top-left-radius: 0; border-top-right-radius: 0; margin-top: -1px; }
+.gl-commit > .nc-row { align-items: center; padding-block: var(--s-4); }
+.gl-commit > .nc-row > span:not(.gl-lines) { flex: 1 1 auto; }
+.gl-commit > .nc-row > .nc-icon { color: var(--nc-faint); flex: 0 0 auto; }
+.gl-commit.is-open { border-color: var(--nc-line-soft); }
+.gl-commit.is-open > .nc-row { background: var(--nc-row-hover); }
+.gl-commit-body { border-top: 1px solid var(--nc-line); display: grid; gap: var(--s-4); padding: var(--s-4) var(--s-5) var(--s-5) calc(var(--s-5) + 20px + var(--nc-3)); }
+.gl-commit-msg { background: var(--nc-field); border-radius: var(--r-1); color: var(--nc-text-2); font: var(--fw-normal) var(--t-small)/var(--lh-base) var(--nc-mono); margin: 0; overflow: auto; padding: var(--s-4) var(--s-5); white-space: pre-wrap; }
+.gl-lines,
+.nc-row > .gl-lines { align-items: center; display: inline-flex; flex: 0 0 auto; font: var(--fw-normal) var(--t-micro)/1 var(--nc-mono); gap: var(--s-3); }
+.gl-lines b { color: var(--vital); font-weight: var(--fw-normal); }
+.gl-lines i { color: var(--wound); font-style: normal; }
+.gl-files .nc-row > span:not(.gl-lines) { flex: 1 1 auto; }
+.gl-more { display: flex; margin: var(--s-5) auto 0; }
+
+.gl-branches li { align-items: center; display: grid; gap: var(--s-3); grid-template-columns: minmax(0, 1fr) auto auto; padding: var(--s-4) var(--s-5); }
+.gl-branches li.is-current { box-shadow: inset var(--edge-accent) 0 0 var(--nc-accent); }
+.gl-branches li > span { display: grid; gap: var(--s-2); min-width: 0; }
+.gl-branches strong { align-items: center; color: var(--nc-text); display: flex; flex-wrap: wrap; font: var(--fw-normal) var(--t-small)/1.3 var(--nc-mono); gap: var(--s-3); }
+.gl-branches small { color: var(--nc-muted); display: flex; font-size: var(--t-micro); gap: var(--s-4); min-width: 0; overflow: hidden; white-space: nowrap; }
+.gl-branches small span { color: var(--nc-faint); }
+.gl-tag {
+  border: 1px solid color-mix(in srgb, currentColor 35%, transparent);
+  border-radius: var(--r-full);
+  color: var(--nc-faint);
+  font: var(--fw-normal) var(--t-micro)/1.5 var(--font-ui);
+  font-style: normal;
+  padding: 0 var(--s-3);
+  white-space: nowrap;
+}
+.gl-tag.is-ok { color: var(--vital); }
+.gl-tag.is-warn { color: var(--caution); }
+
+.gl-clone-urls { display: grid; gap: var(--s-3); }
+.gl-clone-urls > span { color: var(--nc-faint); font: var(--fw-normal) var(--t-micro)/1 var(--font-ui); letter-spacing: var(--tracking-label); text-transform: uppercase; }
+.gl-clone-urls p { align-items: center; display: grid; gap: var(--s-3); grid-template-columns: auto minmax(0, 1fr) auto; margin: 0; }
+.gl-clone-urls b { color: var(--nc-muted); font: var(--fw-medium) var(--t-micro)/1 var(--font-ui); }
+.gl-clone-urls code { background: var(--nc-field); border-radius: var(--r-1); color: var(--nc-text-2); font: var(--fw-normal) var(--t-micro)/1.6 var(--nc-mono); overflow: hidden; padding: var(--s-1) var(--s-3); text-overflow: ellipsis; white-space: nowrap; }
+.gl-proj .gl-rules p b { color: var(--nc-text-2); }
+/* Цели нажатия — не ниже --control-sm, как у остальных окон инструментов. */
+.gl-projects-head .nc-seg button { min-height: var(--control-sm); padding-inline: var(--s-4); }
+.gl-ref, .gl-crumb { min-height: var(--control-sm); }
+.gl-verdict .gl-link { align-items: center; display: inline-flex; min-height: var(--control-sm); }

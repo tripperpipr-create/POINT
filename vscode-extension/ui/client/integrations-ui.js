@@ -16,6 +16,8 @@ import { createGitLabMergeRequestView } from './gitlab-mr-views.js'
 import { createIntegrationsViews } from './integrations-views.js'
 import { createGitLabProjectView } from './gitlab-project-view.js'
 import { createMcpServerActions } from './mcp-server-actions.js'
+import { createGitLabProjectActions } from './gitlab-project-actions.js'
+import { createGitLabProjectCard } from './gitlab-project-card.js'
 
 const SCROLLERS = ['.gl-scroll', '.hall-body']
 
@@ -35,7 +37,7 @@ export function createIntegrationsUi({ root, vscode, render, shell, toolPageHead
     busy: '', drafts: {},
   }
   const requested = new Set()
-  const surface = () => layout === 'gitlab-mr' ? `mr:${state.project}!${state.iid}` : layout === 'tool-gitlab' ? 'tool' : 'hub'
+  const surface = () => layout === 'gitlab-mr' ? `mr:${state.project}!${state.iid}` : layout === 'gitlab-project' ? `project:${state.project}` : layout === 'tool-gitlab' ? 'tool' : 'hub'
   const mcp = (action, extra = {}) => vscode.postMessage({ type: 'mcpAction', action, ...extra })
   const gitlab = (action, extra = {}) => vscode.postMessage({ type: 'gitlabAction', action, surface: surface(), ...extra })
   // Запрос из отрисовки уходит после кадра и один раз: ответ сам вызовет
@@ -55,13 +57,17 @@ export function createIntegrationsUi({ root, vscode, render, shell, toolPageHead
   const guild = createIntegrationsViews({ getState: () => state, shell, toolPageHeading })
   const project = createGitLabProjectView({ getState: () => state, shell, toolPageHeading, bindingEditor: tool.bindingEditor })
   const servers = createMcpServerActions({ state, mcp, render })
+  const projects = createGitLabProjectActions({ state, gitlab, once, notice, layout, forgetMatching: pattern => [...requested].filter(key => pattern.test(key)).forEach(key => requested.delete(key)) })
+  const projectCard = createGitLabProjectCard({ getState: () => state, markdown })
   // Мир и ядро, чей статус лежит в state: смена проекта в Чертоге и перезапуск
   // ядра не пересоздают вебвью, и без этих меток окно показывало бы связь
   // прошлого мира или ответ ядра, которого больше нет.
   let workspacePath
   let coreRunning
 
+  // Проекты GitLab не зависят от связи папки: их список открыт и в несвязанной.
   function loadSection() {
+    if (state.status?.state === 'ok' && state.section === 'projects') return projects.loadList()
     if (state.status?.state !== 'ok' || state.status.data?.linked === false) return
     if (state.section === 'pipelines') once('pipelines', () => gitlab('pipelines'))
     else once(`list:${state.scope}`, () => gitlab('mergeRequests', { scope: state.scope }))
@@ -72,6 +78,7 @@ export function createIntegrationsUi({ root, vscode, render, shell, toolPageHead
     state.lists = {}
     state.pipelines = undefined
     state.jobs = {}
+    projects.reset()
     forget(...[...requested].filter(key => key !== 'servers'))
   }
 
@@ -104,6 +111,8 @@ export function createIntegrationsUi({ root, vscode, render, shell, toolPageHead
     return card.mrView()
   }
 
+  function projectView() { projects.loadCard(); return projectCard.projectView() }
+
   // ── Сообщения хоста ─────────────────────────────────────────────────────
   function message(msg) {
     const response = msg?.response
@@ -111,11 +120,12 @@ export function createIntegrationsUi({ root, vscode, render, shell, toolPageHead
       const path = String(msg.workspacePath || '')
       const running = msg.service?.state === 'running'
       const moved = workspacePath !== undefined && path !== workspacePath
-      if ((moved || (running && coreRunning === false)) && layout !== 'gitlab-mr') { resetGitLab(); state.bindingOpen = false; dropBindingDrafts() }
+      if ((moved || (running && coreRunning === false)) && !layout.startsWith('gitlab-')) { resetGitLab(); state.bindingOpen = false; dropBindingDrafts() }
       workspacePath = path
       coreRunning = running
       return false
     }
+    if (projects.message(msg)) { render(); return true }
     switch (msg?.type) {
       case 'mcpServers':
         state.servers = Array.isArray(msg.servers) ? msg.servers : []
@@ -221,6 +231,8 @@ export function createIntegrationsUi({ root, vscode, render, shell, toolPageHead
   // ── Нажатия ─────────────────────────────────────────────────────────────
   function click(action, target) {
     if (servers.click(action, target)) return true
+    const handled = projects.click(action, target)
+    if (handled) { if (handled !== 'sent') render(); return true }
     const data = target?.dataset || {}
     switch (action) {
       // Общая страница: журнал действий во внешних сервисах
@@ -250,7 +262,7 @@ export function createIntegrationsUi({ root, vscode, render, shell, toolPageHead
         notice('', '')
         break
       case 'gitlab-mr-reload': state.mr = state.discussions = state.changes = undefined; forget('mr', 'discussions', 'changes'); break
-      case 'gitlab-section': state.section = data.section === 'pipelines' ? 'pipelines' : 'mrs'; break
+      case 'gitlab-section': state.section = ['pipelines', 'projects'].includes(data.section) ? data.section : 'mrs'; break
       case 'gitlab-scope': state.scope = ['mine', 'review', 'project'].includes(data.scope) ? data.scope : 'mine'; break
       case 'gitlab-open-mr': gitlab('openMr', { project: String(data.project || ''), iid: Number(data.iid || 0), title: String(data.title || '') }); return true
       case 'gitlab-toggle-pipeline': {
@@ -341,5 +353,5 @@ export function createIntegrationsUi({ root, vscode, render, shell, toolPageHead
     }).observe(root, { childList: true })
   }
 
-  return { guildView, toolView, mrView, click, message, draftId }
+  return { guildView, toolView, mrView, projectView, click, message, draftId }
 }

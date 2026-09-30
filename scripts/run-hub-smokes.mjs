@@ -106,6 +106,7 @@ const checks = [
   'smoke-world-state-isolation.js',
   'smoke-mcp-integrations.js',
   'smoke-gitlab-tool-window.js',
+  'smoke-gitlab-projects.js',
 ];
 
 const failures = [];

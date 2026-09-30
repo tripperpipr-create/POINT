@@ -30,6 +30,12 @@ func (s *Server) registerGitLabRoutes() {
 	s.mux.HandleFunc("GET /api/integrations/gitlab/jobs", s.gitlabJobs)
 	s.mux.HandleFunc("GET /api/integrations/gitlab/job-log", s.gitlabJobLog)
 	s.mux.HandleFunc("POST /api/integrations/gitlab/jobs/retry", s.gitlabRetryJob)
+	s.mux.HandleFunc("GET /api/integrations/gitlab/projects", s.gitlabProjects)
+	s.mux.HandleFunc("GET /api/integrations/gitlab/project", s.gitlabProject)
+	s.mux.HandleFunc("GET /api/integrations/gitlab/commits", s.gitlabCommits)
+	s.mux.HandleFunc("GET /api/integrations/gitlab/commit", s.gitlabCommit)
+	s.mux.HandleFunc("GET /api/integrations/gitlab/branches", s.gitlabBranches)
+	s.mux.HandleFunc("GET /api/integrations/gitlab/tree", s.gitlabTree)
 	s.mux.HandleFunc("GET /api/integrations/actions", s.integrationActions)
 }
 
@@ -187,6 +193,47 @@ func (s *Server) gitlabRetryJob(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := gitlabContext(r)
 	defer cancel()
 	s.gitlabWrite(w, s.app.GitLabRetryJob(ctx, input))
+}
+
+func (s *Server) gitlabProjects(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := gitlabContext(r)
+	defer cancel()
+	query := r.URL.Query()
+	s.gitlabWrite(w, s.app.GitLabProjects(ctx, query.Get("search"), query.Get("scope")))
+}
+
+func (s *Server) gitlabProject(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := gitlabContext(r)
+	defer cancel()
+	s.gitlabWrite(w, s.app.GitLabProjectDetail(ctx, r.URL.Query().Get("project")))
+}
+
+func (s *Server) gitlabCommits(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := gitlabContext(r)
+	defer cancel()
+	query := r.URL.Query()
+	s.gitlabWrite(w, s.app.GitLabCommits(ctx, query.Get("project"), query.Get("ref"), queryInt(r, "page")))
+}
+
+func (s *Server) gitlabCommit(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := gitlabContext(r)
+	defer cancel()
+	query := r.URL.Query()
+	s.gitlabWrite(w, s.app.GitLabCommit(ctx, query.Get("project"), query.Get("sha")))
+}
+
+func (s *Server) gitlabBranches(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := gitlabContext(r)
+	defer cancel()
+	query := r.URL.Query()
+	s.gitlabWrite(w, s.app.GitLabBranches(ctx, query.Get("project"), query.Get("search")))
+}
+
+func (s *Server) gitlabTree(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := gitlabContext(r)
+	defer cancel()
+	query := r.URL.Query()
+	s.gitlabWrite(w, s.app.GitLabTree(ctx, query.Get("project"), query.Get("path"), query.Get("ref")))
 }
 
 func (s *Server) integrationActions(w http.ResponseWriter, r *http.Request) {

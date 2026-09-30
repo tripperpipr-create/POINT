@@ -23,7 +23,7 @@ const COMPANION_LAYOUTS = { companion: 'companion', 'companion-sidebar': 'compan
 // обе — иначе правка одной молча ломала бы другую.
 // Карточка MR — вкладка редактора со своей раскладкой; какой MR в ней открыт,
 // хост пишет в data-атрибуты body, стенд — тоже.
-const DEDICATED_LAYOUTS = { statistics: 'statistics', docker: 'docker', 'connections-window': 'connections', 'gitlab-mr': 'gitlab-mr' }
+const DEDICATED_LAYOUTS = { statistics: 'statistics', docker: 'docker', 'connections-window': 'connections', 'gitlab-mr': 'gitlab-mr', 'gitlab-project': 'gitlab-project' }
 // Окна инструментов правой панели — терминал, базы, SSH, Git, логи. Разметку им
 // выбирает не вкладка, а `data-layout` вебвью: `tool-<вид>`. Пять поверхностей
 // живут в окне IDE постоянно и до цикла 34 не рисовались стендом вовсе.
@@ -92,7 +92,7 @@ const context = {
   }),
   document: {
     getElementById: id => (id === 'root' ? root : undefined),
-    body: { dataset: { layout: requestedLayout, ...(requestedSurface === 'gitlab-mr' ? { gitlabProject: 'billing/payments', gitlabIid: '12' } : {}) } },
+    body: { dataset: { layout: requestedLayout, ...(requestedSurface === 'gitlab-mr' ? { gitlabProject: 'billing/payments', gitlabIid: '12' } : {}), ...(requestedSurface === 'gitlab-project' ? { gitlabProject: 'billing/payments' } : {}) } },
   },
   window: { addEventListener(type, callback) { listeners[`window:${type}`] = callback } },
   console, Date, Map, Set, CSS: { escape(value) { return String(value) } },
@@ -1337,7 +1337,7 @@ if (pick(COMPANION_LAYOUTS, requestedSurface) && seedStep === 'markdown') {
 // Интеграции: ответы ядра в форме GitLabResponse {state, reason, problem, fix,
 // data}. MR, обсуждение и пайплайн — те же, что в фикстурах адаптера
 // (internal/integrations/gitlab/testdata/zereight-2.1.66/responses).
-if (['tool-gitlab', 'gitlab-mr', 'integrations', 'project-gitlab'].includes(requestedSurface)) {
+if (['tool-gitlab', 'gitlab-mr', 'gitlab-project', 'integrations', 'project-gitlab'].includes(requestedSurface)) {
   const send = data => listeners['window:message']({ data })
   const ok = data => ({ state: 'ok', data })
   const anna = { id: 7, username: 'anna', name: 'Анна Петрова' }
@@ -1376,6 +1376,16 @@ if (['tool-gitlab', 'gitlab-mr', 'integrations', 'project-gitlab'].includes(requ
     { id: 77002, name: 'go-test', stage: 'test', status: 'failed', duration: 301.2, failureReason: 'script_failure', startedAt: yesterday(17, 33) },
     { id: 77003, name: 'lint', stage: 'test', status: 'success', duration: 41, startedAt: yesterday(17, 33) },
   ]
+  const gitlabProject = (id, path, name, description, lastActivityAt, extra = {}) => ({ id, path, name, namespace: path.split('/').slice(0, -1).join('/'), description,
+    visibility: 'internal', defaultBranch: 'main', webUrl: `https://gitlab.example.test/${path}`, httpUrl: `https://gitlab.example.test/${path}.git`,
+    sshUrl: `git@gitlab.example.test:${path}.git`, lastActivityAt, accessLevel: 30, ...extra })
+  const gitlabProjects = [
+    gitlabProject(42, 'billing/payments', 'payments', 'Платежи: вебхуки, идемпотентность, ретраи.', today(9, 30), { stars: 12, forks: 2, openIssues: 4, topics: ['go', 'payments'] }),
+    gitlabProject(51, 'billing/invoices', 'invoices', 'Счета и акты в PDF для бухгалтерии партнёров, генерация по расписанию.', yesterday(10, 2), { stars: 3, accessLevel: 40 }),
+    gitlabProject(64, 'platform/deploy-bot', 'deploy-bot', '', atMidnight(-6, 12, 0), { accessLevel: 50 }),
+    gitlabProject(77, 'platform/ci-templates', 'ci-templates', 'Общие шаблоны CI для всех сервисов.', atMidnight(-20, 8, 0), { accessLevel: 20, sshUrl: '' }),
+    gitlabProject(80, 'legacy/old-billing', 'old-billing', 'Старый биллинг, только чтение.', atMidnight(-300, 12, 0), { archived: true, accessLevel: 10 }),
+  ]
   if (requestedSurface === 'tool-gitlab') {
     send({ type: 'gitlabStatus', response: status })
     if (variant !== 'problem' && !unlinked) send({ type: 'gitlabMergeRequests', scope: 'mine', response: ok({ scope: 'mine', project: 'billing/payments', items: mergeRequests }) })
@@ -1386,6 +1396,13 @@ if (['tool-gitlab', 'gitlab-mr', 'integrations', 'project-gitlab'].includes(requ
       send({ type: 'gitlabJobs', pipeline: 3301, response: ok({ project: 'billing/payments', pipelineId: 3301, jobs }) })
     }
     if (variant === 'binding') click({ action: 'gitlab-binding-toggle' })
+    // Проекты: список по активности, папка связана с billing/payments.
+    if (variant === 'projects' || variant === 'unlinked-projects') {
+      if (variant === 'unlinked-projects') send({ type: 'gitlabStatus', response: ok({ serverId: 'mcp-gitlab', configured: true, url: 'https://gitlab.example.test', linked: false,
+        binding: { mode: 'off', remote: 'github.com/anna/dotfiles', workspace: 'dotfiles', note: 'origin ведёт на github.com, а плагин подключён к gitlab.example.test' } }) })
+      click({ action: 'gitlab-section', section: 'projects' })
+      send({ type: 'gitlabProjects', scope: 'member', search: '', response: ok({ scope: 'member', current: variant === 'projects' ? 'billing/payments' : '', items: gitlabProjects }) })
+    }
   }
   if (requestedSurface === 'gitlab-mr') {
     send({ type: 'gitlabMr', response: ok({
@@ -1414,6 +1431,57 @@ if (['tool-gitlab', 'gitlab-mr', 'integrations', 'project-gitlab'].includes(requ
       click({ action: 'gitlab-toggle-pipeline', project: 'billing/payments', pipeline: '3301' })
       send({ type: 'gitlabJobs', pipeline: 3301, response: ok({ project: 'billing/payments', pipelineId: 3301, jobs }) })
     }
+  }
+  // Карточка проекта: вкладки обзор, файлы, коммиты, ветки; копия — нет,
+  // склонирован, эта папка, клон идёт.
+  if (requestedSurface === 'gitlab-project') {
+    const tab = ['files', 'files-sub', 'commits', 'branches'].includes(variant) ? variant.replace('-sub', '') : 'overview'
+    send({ type: 'gitlabProject', response: ok({ project: gitlabProjects[0], current: variant === 'current' }),
+      clone: variant === 'cloned' ? { exists: true, path: 'C:\\work\\payments' } : { exists: false } })
+    send({ type: 'gitlabTree', path: '', ref: 'main', response: ok({ project: 'billing/payments', tree: { path: '', ref: 'main', entries: [
+      { name: 'docs', path: 'docs', type: 'tree' }, { name: 'internal', path: 'internal', type: 'tree' }, { name: 'vendor-sdk', path: 'vendor-sdk', type: 'commit' },
+      { name: '.gitlab-ci.yml', path: '.gitlab-ci.yml', type: 'blob' }, { name: 'go.mod', path: 'go.mod', type: 'blob' }, { name: 'README.md', path: 'README.md', type: 'blob' },
+    ] } }) })
+    send({ type: 'gitlabReadme', path: 'README.md', response: ok({ path: 'README.md', ref: 'main', content: [
+      '# payments', '', 'Приём платежей и вебхуков партнёров. Повторная доставка вебхука не создаёт второй платёж.', '',
+      '## Запуск', '', '```sh', 'make dev', 'go test ./...', '```', '', '## Устройство', '', '- `internal/billing` — идемпотентность и ретраи', '- `docs/webhooks.md` — формат вебхуков',
+    ].join('\n') }) })
+    if (tab !== 'overview') click({ action: 'gitlab-project-tab', tab })
+    if (variant === 'files-sub') {
+      click({ action: 'gitlab-tree-open', type: 'tree', path: 'internal/billing' })
+      send({ type: 'gitlabTree', path: 'internal/billing', ref: 'main', response: ok({ project: 'billing/payments', tree: { path: 'internal/billing', ref: 'main', entries: [
+        { name: 'idempotency.go', path: 'internal/billing/idempotency.go', type: 'blob' }, { name: 'retry.go', path: 'internal/billing/retry.go', type: 'blob' },
+        { name: 'retry_test.go', path: 'internal/billing/retry_test.go', type: 'blob' },
+      ] } }) })
+    }
+    const commit = (id, title, author, at, parents, additions, deletions) => ({ id, shortId: id.slice(0, 8), title, authorName: author, authoredAt: at, committedAt: at, parentIds: parents,
+      stats: { additions, deletions } })
+    const history = [
+      commit(head, 'Таймаут ретрая вебхука', 'Анна Петрова', today(9, 30), ['9'.repeat(40)], 24, 3),
+      commit('9'.repeat(40), 'Ключ идемпотентности для вебхука', 'Анна Петрова', yesterday(17, 0), ['8'.repeat(40)], 118, 12),
+      commit('8'.repeat(40), "Merge branch 'feat/backoff' into 'main'", 'Борис', yesterday(11, 15), ['7'.repeat(40), '6'.repeat(40)], 0, 0),
+      commit('7'.repeat(40), 'Ретраи с экспоненциальной паузой', 'Борис', atMidnight(-3, 16, 40), ['5'.repeat(40)], 64, 20),
+      commit('5'.repeat(40), 'Документация формата вебхуков', 'Анна Петрова', atMidnight(-3, 10, 5), ['4'.repeat(40)], 40, 2),
+    ]
+    if (tab === 'commits') {
+      send({ type: 'gitlabCommits', ref: 'main', page: 1, response: ok({ project: 'billing/payments', ref: 'main', page: 1, more: true, items: history }) })
+      click({ action: 'gitlab-commit-toggle', sha: head })
+      send({ type: 'gitlabCommit', sha: head, response: ok({ project: 'billing/payments', commit: { ...history[0],
+        message: 'Таймаут ретрая вебхука\n\nБез него ретрай зависал на медленном партнёре.', files: [
+          { oldPath: 'internal/billing/retry.go', newPath: 'internal/billing/retry.go', additions: 3, deletions: 1 },
+          { oldPath: 'internal/billing/retry_test.go', newPath: 'internal/billing/retry_test.go', new: true, additions: 21, deletions: 0 },
+          { oldPath: 'docs/hooks.md', newPath: 'docs/webhooks.md', renamed: true, additions: 0, deletions: 2 },
+        ] } }) })
+    }
+    if (tab === 'commits' || tab === 'branches') {
+      send({ type: 'gitlabBranches', response: ok({ project: 'billing/payments', items: [
+        { name: 'main', default: true, protected: true, commit: history[1] },
+        { name: 'fix/webhook-retry', canPush: true, commit: history[0] },
+        { name: 'feat/orders-partitioning', canPush: true, commit: { ...history[3], title: 'Draft: миграция заказов на новую схему', committedAt: atMidnight(-2, 10, 0) } },
+        { name: 'feat/backoff', merged: true, commit: history[3] },
+      ] }) })
+    }
+    if (variant === 'cloning') send({ type: 'gitlabClone', state: 'running', url: 'git@gitlab.example.test:billing/payments.git' })
   }
   // Гильдия → «GitLab»: связь проекта; варианты — связан, не связан, без подключения.
   if (requestedSurface === 'project-gitlab') {

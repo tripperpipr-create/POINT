@@ -10,7 +10,7 @@
 
 import { esc } from './html-escape.js'
 import { countOf } from './format-units.js'
-import { draftId, glIcon, timeAgo } from './gitlab-views.js'
+import { draftId, glIcon, timeAgo } from './gitlab-common.js'
 
 const RISKS = [['LOW', 'Н', 'низкий'], ['MEDIUM', 'С', 'средний'], ['HIGH', 'В', 'высокий'], ['CRITICAL', 'К', 'критический']]
 const TOOL_STATE = { new: ['new', 'новый'], changed: ['warn', 'изменился — посмотрите'], missing: ['mute', 'пропал'], ok: ['', ''] }

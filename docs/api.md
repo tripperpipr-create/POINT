@@ -253,6 +253,12 @@ is checked against every `HandleFunc` registration by `node scripts/check-docs.m
 | `GET` | `/api/integrations/gitlab/jobs` | Jobs of a `pipeline` |
 | `GET` | `/api/integrations/gitlab/job-log` | Tail of a `job` log: server headers and terminal codes stripped, secrets redacted, at most 256 KiB |
 | `POST` | `/api/integrations/gitlab/jobs/retry` | Retry a job; journaled |
+| `GET` | `/api/integrations/gitlab/projects` | The owner's projects, freshest first: `scope` `member` (default) or `owned`, optional `search` (a `/` searches namespaces too); `current` names the project the open folder is linked to. Clone URLs are kept only when they point to the plugin's GitLab (HTTPS: same origin; SSH: same host, a subdomain or a sibling under the same parent domain) |
+| `GET` | `/api/integrations/gitlab/project` | Project card by `project` path; `current` is true when the open folder is linked to it |
+| `GET` | `/api/integrations/gitlab/commits` | History of `ref` (default branch when empty), `page` of 30 with line stats; `more` when the page is full |
+| `GET` | `/api/integrations/gitlab/commit` | One commit by `sha`: message, parents and changed files with added/removed line counts (the diff itself opens as an IDE comparison of parent and commit) |
+| `GET` | `/api/integrations/gitlab/branches` | Branches of a `project` (optional `search`): default first, then by latest commit; protected and merged flags |
+| `GET` | `/api/integrations/gitlab/tree` | One folder of the repository at `path` and `ref`: folders, submodules, then files; `trimmed` past 100 entries; an empty repository answers an empty tree |
 | `GET` | `/api/integrations/actions` | Journal of actions in external services (who, tool, target, outcome), newest first |
 | `GET` | `/api/events` | SSE stream (`workbench` events) |
 

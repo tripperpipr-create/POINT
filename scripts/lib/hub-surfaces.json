@@ -727,6 +727,137 @@
       ]
     },
     {
+      "page": "tool-gitlab-projects",
+      "surface": "tool-gitlab",
+      "args": [
+        "projects"
+      ],
+      "root": ".point-tool-app",
+      "sizes": [
+        [
+          420,
+          900
+        ],
+        [
+          300,
+          840
+        ],
+        [
+          255,
+          700
+        ]
+      ]
+    },
+    {
+      "page": "tool-gitlab-projects-unlinked",
+      "surface": "tool-gitlab",
+      "args": [
+        "unlinked-projects"
+      ],
+      "root": ".point-tool-app",
+      "sizes": [
+        [
+          420,
+          900
+        ],
+        [
+          255,
+          700
+        ]
+      ]
+    },
+    {
+      "page": "gitlab-project",
+      "surface": "gitlab-project",
+      "root": ".gl-proj",
+      "sizes": [
+        [
+          1280,
+          800
+        ],
+        [
+          900,
+          800
+        ],
+        [
+          600,
+          800
+        ]
+      ]
+    },
+    {
+      "page": "gitlab-project-files",
+      "surface": "gitlab-project",
+      "args": [
+        "files-sub"
+      ],
+      "root": ".gl-proj",
+      "sizes": [
+        [
+          1280,
+          800
+        ],
+        [
+          600,
+          800
+        ]
+      ]
+    },
+    {
+      "page": "gitlab-project-commits",
+      "surface": "gitlab-project",
+      "args": [
+        "commits"
+      ],
+      "root": ".gl-proj",
+      "sizes": [
+        [
+          1280,
+          800
+        ],
+        [
+          600,
+          800
+        ]
+      ]
+    },
+    {
+      "page": "gitlab-project-branches",
+      "surface": "gitlab-project",
+      "args": [
+        "branches"
+      ],
+      "root": ".gl-proj",
+      "sizes": [
+        [
+          1280,
+          800
+        ],
+        [
+          600,
+          800
+        ]
+      ]
+    },
+    {
+      "page": "gitlab-project-cloned",
+      "surface": "gitlab-project",
+      "args": [
+        "cloned"
+      ],
+      "root": ".gl-proj",
+      "sizes": [
+        [
+          1280,
+          800
+        ],
+        [
+          600,
+          800
+        ]
+      ]
+    },
+    {
       "page": "tool-logs",
       "surface": "tool-logs",
       "root": ".point-tool-app",

@@ -5,6 +5,7 @@
 const vscode = require('vscode')
 const { createMcpController } = require('./mcp-controller')
 const { createGitLabController } = require('./gitlab-controller')
+const { createGitLabProjectController } = require('./gitlab-project-controller')
 
 function createIntegrationsController(provider) {
   const request = (route, init = {}) => provider.service.request(route, init)
@@ -21,15 +22,17 @@ function createIntegrationsController(provider) {
     unlock: () => mcp.ensureUnlocked(),
     publishServers: extra => mcp.publish(extra),
   })
+  const projects = createGitLabProjectController({ vscode, provider, request, unlock: () => mcp.ensureUnlocked() })
 
   async function handle(message) {
     if (message?.type === 'mcpAction') {
       await mcp.handle(message)
       // Доверие, проверка и удаление меняют и то, что видит окно GitLab.
-      if (['trust', 'probe', 'delete', 'secret', 'stop'].includes(String(message.action || ''))) gitlab.announceChange()
+      if (['trust', 'probe', 'delete', 'secret', 'stop'].includes(String(message.action || ''))) { gitlab.announceChange(); projects.announceChange() }
       return
     }
-    if (message?.type === 'gitlabAction') await gitlab.handle(message)
+    // Проекты — свой модуль; остальное GitLab — окно, MR и пайплайны.
+    if (message?.type === 'gitlabAction' && !(await projects.handle(message))) await gitlab.handle(message)
   }
 
   function register(context) {

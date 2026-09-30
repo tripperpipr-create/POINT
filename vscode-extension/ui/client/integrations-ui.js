@@ -10,7 +10,8 @@
 // Хосту уходят ровно два типа сообщений — mcpAction и gitlabAction; какая
 // поверхность спросила, говорит поле surface, и ответ приходит только ей.
 
-import { createGitLabToolView, draftId } from './gitlab-views.js'
+import { createGitLabToolView } from './gitlab-views.js'
+import { draftId } from './gitlab-common.js'
 import { createGitLabMergeRequestView } from './gitlab-mr-views.js'
 import { createIntegrationsViews } from './integrations-views.js'
 import { createGitLabProjectView } from './gitlab-project-view.js'

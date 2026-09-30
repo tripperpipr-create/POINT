@@ -7,7 +7,7 @@
 // не рисует: строка файла открывает штатное сравнение IDE.
 
 import { esc } from './html-escape.js'
-import { cleanTitle, draftId, glAvatar, glIcon, mergeStatus, pipelineStatus, problemHtml, loadingHtml, shortSha, timeAgo, verdictHtml } from './gitlab-views.js'
+import { cleanTitle, draftId, glAvatar, glIcon, mergeStatus, pipelineStatus, problemHtml, loadingHtml, shortSha, timeAgo, verdictHtml } from './gitlab-common.js'
 
 const TABS = [['overview', 'Обзор'], ['discussion', 'Обсуждение'], ['changes', 'Изменения'], ['pipeline', 'Пайплайн']]
 

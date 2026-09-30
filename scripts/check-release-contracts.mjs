@@ -869,6 +869,8 @@ for (const [file, maximum] of Object.entries({
   'vscode-extension/ui/client/mcp-server-actions.js': 130,
   'vscode-extension/ui/client/integrations-views.js': 260,
   'vscode-extension/ui/client/gitlab-views.js': 260,
+  // Значки, статусы, время, инициалы и вердикт — общие для всех экранов GitLab.
+  'vscode-extension/ui/client/gitlab-common.js': 180,
   'vscode-extension/ui/client/gitlab-project-view.js': 90,
   'vscode-extension/ui/client/gitlab-mr-views.js': 180,
 })) {

@@ -7,7 +7,7 @@
 // сервера плагина.
 
 import { esc } from './html-escape.js'
-import { glIcon, loadingHtml, verdictHtml } from './gitlab-views.js'
+import { glIcon, loadingHtml, verdictHtml } from './gitlab-common.js'
 
 const MODES = { auto: 'по git remote', manual: 'выбран вручную' }
 

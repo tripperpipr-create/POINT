@@ -249,3 +249,42 @@ func TestTextToolCallIsExecuted(t *testing.T) {
 		t.Fatal("recovered text call must be journaled")
 	}
 }
+
+// Поток из сотен мелких дельт пишется в журнал немногими записями, а текст
+// в них тот же, что в ответе.
+type chattyModel struct{}
+
+func (chattyModel) Stream(_ context.Context, _ providers.ModelRequest, emit func(providers.ModelEvent) error) error {
+	for i := 0; i < 500; i++ {
+		if err := emit(providers.ModelEvent{Kind: providers.EventTextDelta, Delta: "ab"}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func TestStreamedDeltasAreCoalesced(t *testing.T) {
+	repo := newMemoryRepo()
+	run := startResilienceRun(t, repo, chattyModel{})
+	finished := waitForTerminalRun(t, repo, run.ID)
+	if finished.Status != domain.RunCompleted {
+		t.Fatalf("run=%#v", finished)
+	}
+	eventsList, _ := repo.ListByRun(context.Background(), run.ID)
+	var streamed strings.Builder
+	count := 0
+	for _, event := range eventsList {
+		if event.Type != domain.EventModelStreamed {
+			continue
+		}
+		count++
+		var payload struct {
+			Delta string `json:"delta"`
+		}
+		_ = json.Unmarshal(event.Data, &payload)
+		streamed.WriteString(payload.Delta)
+	}
+	if streamed.String() != strings.Repeat("ab", 500) || count > 10 {
+		t.Fatalf("streamed events=%d text=%d bytes", count, streamed.Len())
+	}
+}

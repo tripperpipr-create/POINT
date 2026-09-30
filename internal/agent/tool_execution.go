@@ -210,7 +210,9 @@ func (e *Engine) executeTool(ctx context.Context, active *activeRun, profile dom
 	if auditedExecutable {
 		var snapshotErr error
 		snapshotStarted := time.Now()
-		before, snapshotErr = patches.FS.CaptureTextSnapshot(ctx)
+		// Снимок после прошлой команды служит основой: неизменённые файлы
+		// не перечитываются (workspace.CaptureTextSnapshotFrom).
+		before, snapshotErr = patches.FS.CaptureTextSnapshotFrom(ctx, active.lastSnapshot)
 		beforeTook = time.Since(snapshotStarted)
 		if snapshotErr != nil {
 			result := workbenchtools.Fail("workspace_audit_failed", "could not capture the workspace before executing the approved tool: "+snapshotErr.Error())
@@ -241,7 +243,13 @@ func (e *Engine) executeTool(ctx context.Context, active *activeRun, profile dom
 	)
 	var integrityErr error
 	if auditedExecutable {
-		after, auditErr := captureAfterExecutable(patches.FS.CaptureTextSnapshot, postToolAuditTimeout(beforeTook))
+		after, auditErr := captureAfterExecutable(func(ctx context.Context) (workspace.TextSnapshot, error) {
+			return patches.FS.CaptureTextSnapshotFrom(ctx, &before)
+		}, postToolAuditTimeout(beforeTook))
+		active.lastSnapshot = nil
+		if auditErr == nil && after.Complete {
+			active.lastSnapshot = &after
+		}
 		if auditErr != nil {
 			summary := workspaceAuditSummary{Tool: call.Name, ApprovalID: approvalID, SnapshotComplete: false}
 			e.publishOrLog(context.Background(), e.snapshot(active), domain.EventWorkspaceChanged, "agent", summary)

@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 	"unicode/utf8"
 )
 
@@ -34,9 +35,16 @@ type SnapshotEntry struct {
 	Fingerprint string
 	Content     string
 	Revertible  bool
+	// Size и ModTimeNano — метаданные файла на момент чтения. По ним
+	// следующий снимок узнаёт неизменённый файл, не читая его заново.
+	Size        int64
+	ModTimeNano int64
 }
 
 type TextSnapshot struct {
+	// StartedAt — когда начался обход. Файл, изменённый позже или почти
+	// одновременно, следующий снимок перечитывает (правило «racy git»).
+	StartedAt     time.Time
 	Files         map[string]SnapshotEntry
 	ScannedFiles  int
 	CapturedBytes int64
@@ -59,7 +67,22 @@ type SnapshotChange struct {
 // for rollback. Other files retain a metadata fingerprint so mutations remain
 // visible without placing binary or unbounded data into the audit database.
 func (f *FS) CaptureTextSnapshot(ctx context.Context) (TextSnapshot, error) {
-	snapshot := TextSnapshot{Files: make(map[string]SnapshotEntry), Complete: true, SkippedPaths: []string{}}
+	return f.CaptureTextSnapshotFrom(ctx, nil)
+}
+
+// snapshotRacyWindow — насколько раньше начала прежнего снимка должен быть
+// изменён файл, чтобы его содержимое можно было взять из прежнего снимка.
+// Запись в ту же секунду, что и прежний обход, могла не сдвинуть mtime на
+// файловой системе с грубым временем, поэтому такие файлы перечитываются.
+const snapshotRacyWindow = 2 * time.Second
+
+// CaptureTextSnapshotFrom — тот же снимок, но текстовый файл, у которого
+// размер и mtime совпали с прежним снимком, не перечитывается: его
+// содержимое берётся из prev. Движок снимает рабочую область до и после
+// каждой команды, и прежде каждый снимок читал до 32 МиБ заново —
+// по полторы секунды на команду в квесте 30.09.
+func (f *FS) CaptureTextSnapshotFrom(ctx context.Context, prev *TextSnapshot) (TextSnapshot, error) {
+	snapshot := TextSnapshot{StartedAt: time.Now(), Files: make(map[string]SnapshotEntry), Complete: true, SkippedPaths: []string{}}
 	err := filepath.WalkDir(f.root, func(path string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			snapshot.Complete = false
@@ -89,6 +112,13 @@ func (f *FS) CaptureTextSnapshot(ctx context.Context) (TextSnapshot, error) {
 		}
 		snapshot.ScannedFiles++
 		relative := relativeSnapshotPath(f.root, path)
+		if prev != nil {
+			if old, ok := prev.Files[relative]; ok && old.unchangedSince(info, prev.StartedAt) && snapshot.CapturedBytes+info.Size() <= maxSnapshotContentBytes {
+				snapshot.CapturedBytes += int64(len(old.Content))
+				snapshot.Files[relative] = old
+				return nil
+			}
+		}
 		if IsSensitive(relative) {
 			snapshot.Files[relative] = SnapshotEntry{Fingerprint: opaqueFingerprint(path, info, &snapshot)}
 			appendSkippedPath(&snapshot, relative)
@@ -121,10 +151,20 @@ func (f *FS) CaptureTextSnapshot(ctx context.Context) (TextSnapshot, error) {
 			appendSkippedPath(&snapshot, relative)
 			return nil
 		}
-		snapshot.Files[relative] = SnapshotEntry{Fingerprint: fingerprint, Content: string(data), Revertible: true}
+		snapshot.Files[relative] = SnapshotEntry{Fingerprint: fingerprint, Content: string(data), Revertible: true, Size: info.Size(), ModTimeNano: info.ModTime().UnixNano()}
 		return nil
 	})
 	return snapshot, err
+}
+
+// unchangedSince — текстовый файл из прежнего снимка можно взять как есть:
+// размер и mtime те же, а изменён он заведомо раньше начала того снимка.
+func (e SnapshotEntry) unchangedSince(info os.FileInfo, started time.Time) bool {
+	if !e.Revertible || e.ModTimeNano == 0 || started.IsZero() {
+		return false
+	}
+	modified := info.ModTime()
+	return e.Size == info.Size() && e.ModTimeNano == modified.UnixNano() && modified.Before(started.Add(-snapshotRacyWindow))
 }
 
 func opaqueFingerprint(path string, info os.FileInfo, snapshot *TextSnapshot) string {

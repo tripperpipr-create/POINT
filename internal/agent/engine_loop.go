@@ -266,6 +266,19 @@ func (e *Engine) executeWithCheckpoint(ctx context.Context, active *activeRun, p
 			)
 			var usageInput, usageOutput int64
 			usageReported := false
+			// Дельты потока копятся и пишутся не чаще раза в streamFlushInterval
+			// или по streamFlushBytes: прежде каждый токен был отдельной записью в
+			// SQLite с одним соединением, общим для всех прогонов и интерфейса.
+			var streamed strings.Builder
+			lastStreamFlush := time.Now()
+			flushStream := func() {
+				if streamed.Len() == 0 {
+					return
+				}
+				e.publishOrLog(ctx, e.snapshot(active), domain.EventModelStreamed, "model", map[string]any{"delta": streamed.String()})
+				streamed.Reset()
+				lastStreamFlush = time.Now()
+			}
 			effort := profile.ReasoningEffort
 			if disableThinking {
 				effort = ""
@@ -279,7 +292,10 @@ func (e *Engine) executeWithCheckpoint(ctx context.Context, active *activeRun, p
 					content.WriteString(event.Delta)
 					// Поток ответа — показ для человека; итог хода пишет
 					// model.responded. Сбой записи дельты прогон не роняет.
-					e.publishOrLog(ctx, e.snapshot(active), domain.EventModelStreamed, "model", map[string]any{"delta": event.Delta})
+					streamed.WriteString(event.Delta)
+					if streamed.Len() >= streamFlushBytes || time.Since(lastStreamFlush) >= streamFlushInterval {
+						flushStream()
+					}
 				case providers.EventToolCall:
 					if event.ToolCall != nil {
 						calls = append(calls, *event.ToolCall)
@@ -306,10 +322,12 @@ func (e *Engine) executeWithCheckpoint(ctx context.Context, active *activeRun, p
 					content.Reset()
 					calls = nil
 					reasoning = nil
+					streamed.Reset()
 					return e.publish(ctx, e.snapshot(active), domain.EventModelRetrying, "provider", map[string]any{"attempt": event.Attempt, "delayMs": event.DelayMs, "message": event.Message, "model": currentModel, "restart": true})
 				}
 				return nil
 			})
+			flushStream()
 			if reservationID != "" {
 				reconcileErr := e.budgets.ReconcileModelBudget(context.Background(), ModelBudgetSettlement{
 					ReservationID: reservationID, WorkspaceID: run.WorkspaceID, Provider: profile.Provider, Model: currentModel,

@@ -21,6 +21,7 @@ import (
 	"local-agent-workbench/internal/security"
 	"local-agent-workbench/internal/textutil"
 	workbenchtools "local-agent-workbench/internal/tools"
+	"local-agent-workbench/internal/workspace"
 )
 
 type Repository interface {
@@ -96,6 +97,9 @@ type activeRun struct {
 	// Широковещательное событие хранилище доставленным не отмечает (у него
 	// нет одного адресата), и без этой памяти оно приходило на каждом шаге.
 	teamInboxSeen map[string]bool
+	// lastSnapshot — снимок рабочей области после последней команды. Следующий
+	// снимок берёт из него неизменённые файлы, а не читает их заново.
+	lastSnapshot *workspace.TextSnapshot
 }
 
 func (a *activeRun) takeInitialBudgetReservation() string {
@@ -153,6 +157,12 @@ const agentProviderHeaderTimeoutSeconds = 60
 // минуты: восемь повторов ждут около четырёх минут. Этого хватает, чтобы
 // llmux перезапустился или поднял модель; прежние 1 и 2 с кончались раньше,
 // чем шлюз успевал ожить. Джиттер ±20% разводит повторы параллельных этапов.
+// Как часто поток ответа модели пишется в журнал событий.
+const (
+	streamFlushInterval = 100 * time.Millisecond
+	streamFlushBytes    = 1024
+)
+
 const (
 	transientModelRetryBackoff = 2 * time.Second
 	transientModelRetryCeiling = time.Minute

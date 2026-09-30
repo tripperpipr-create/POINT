@@ -1,7 +1,9 @@
 package orchestrator
 
 import (
+	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -247,6 +249,18 @@ func ensureProjectStages(flow domain.FlowGraph, agentIDs []string) domain.FlowGr
 		}
 	}
 	labelConcurrentWriterRoots(&flow)
+	// Один этап-писатель — сводить нечего. Integrate прежде шёл и здесь и
+	// стоил 2–3 минуты модели (квест 26.09), а review при унаследованной
+	// песочнице закрывался пустым проходом без модели. Писатель получает
+	// права интеграции на общие манифесты, чтобы создать go.mod или
+	// lock-файл самому, а приёмка и проверки Point остаются.
+	if writers := projectWriterIndexes(flow); len(writers) == 1 {
+		if !hasIntegrate {
+			grantIntegrateOwnership(&flow.Nodes[writers[0]])
+			hasIntegrate = true
+		}
+		hasReview = true
+	}
 	if hasIntegrate && hasReview && hasAcceptAgent {
 		return flow
 	}
@@ -411,4 +425,52 @@ func ConcurrentWriterGroups(flow domain.FlowGraph) [][]string {
 		}
 	}
 	return groups
+}
+
+// projectWriterIndexes — агентные этапы, которые пишут файлы проекта, кроме
+// интеграции: именно их результаты пришлось бы сводить.
+func projectWriterIndexes(flow domain.FlowGraph) []int {
+	var writers []int
+	for index, node := range flow.Nodes {
+		if domain.FlowNodeWriteFiles(node) && domain.FlowNodeStageRole(node) != domain.StageRoleIntegrate {
+			writers = append(writers, index)
+		}
+	}
+	return writers
+}
+
+// grantIntegrateOwnership расширяет договор единственного писателя правами,
+// которые иначе были бы у Integrate: общие манифесты, lock-файлы и
+// scaffolding — в корне и в каждом вложенном проекте, который он затрагивает.
+// Запрет на них снимается: он разводил параллельных писателей, а писатель
+// один. Пустой список владения и так ничего не ограничивает.
+func grantIntegrateOwnership(node *domain.FlowNode) {
+	if node.Config == nil || node.Config["workContract"] == nil {
+		return
+	}
+	raw, err := json.Marshal(node.Config["workContract"])
+	if err != nil {
+		return
+	}
+	var contract domain.WorkContract
+	if json.Unmarshal(raw, &contract) != nil || len(contract.OwnedPaths) == 0 {
+		return
+	}
+	granted := domain.IntegrateOwnedPaths()
+	for _, path := range contract.OwnedPaths {
+		if dir, _, nested := strings.Cut(strings.Trim(strings.ReplaceAll(path, "\\", "/"), "/"), "/"); nested && dir != "" {
+			for _, shared := range domain.IntegrateOwnedPaths() {
+				granted = append(granted, dir+"/"+shared)
+			}
+		}
+	}
+	for _, path := range granted {
+		if !slices.Contains(contract.OwnedPaths, path) {
+			contract.OwnedPaths = append(contract.OwnedPaths, path)
+		}
+	}
+	contract.ForbiddenPaths = slices.DeleteFunc(contract.ForbiddenPaths, func(path string) bool {
+		return slices.Contains(granted, strings.Trim(path, "/"))
+	})
+	node.Config["workContract"] = contract
 }

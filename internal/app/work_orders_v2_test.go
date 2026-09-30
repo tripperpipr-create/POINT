@@ -117,8 +117,9 @@ func TestMasterProposalBecomesSingleApprovableWorkOrderV2(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Утверждение только начинает запуск: планировщик milestone идёт к модели и
-	// переживает свой HTTP-запрос. Исход читается после фоновой работы.
+	// Утверждение только начинает запуск. Отряд из одного агента планируется
+	// без модели (orchestrator.SingleAgentPlanModel): Flow из одного этапа и
+	// приёмки, без Integrate. Исход читается после фоновой работы.
 	application.waitWorkOrderLaunches()
 	approval, err = application.store.WorkOrderApprovalByQuestV2(context.Background(), approval.QuestID)
 	if err != nil {
@@ -129,11 +130,17 @@ func TestMasterProposalBecomesSingleApprovableWorkOrderV2(t *testing.T) {
 		t.Fatal(err)
 	}
 	approval.Status, approval.FlowID, approval.FlowRunID = string(quest.Status), quest.FlowID, quest.FlowRunID
-	if approval.Status != string(domain.QuestBlocked) || len(approval.AgentIDs) != 1 || approval.FlowID != "" || approval.FlowRunID != "" {
-		t.Fatalf("planner failure must keep the approved v2 quest blocked without a fallback Flow: %#v", approval)
+	if len(approval.AgentIDs) != 1 || approval.FlowID == "" {
+		t.Fatalf("single-agent work order must start a Flow without the planner model: %#v", approval)
 	}
-	if message, _ := quest.Controller["statusMessage"].(string); !strings.Contains(message, "после двух попыток") {
-		t.Fatalf("planner failure reason was not shown on the quest: %q", message)
+	flow, err := application.store.GetFlow(context.Background(), approval.FlowID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, node := range flow.Nodes {
+		if role := domain.FlowNodeStageRole(node); role == domain.StageRoleIntegrate || role == domain.StageRoleImplReview {
+			t.Fatalf("single writer got a %s stage: %#v", role, flow.Nodes)
+		}
 	}
 	reloaded, err := application.WorkOrderV2(context.Background(), order.ID)
 	if err != nil || reloaded.Runtime == nil || reloaded.Runtime.QuestID != approval.QuestID || reloaded.Runtime.Status != domain.QuestBlocked {

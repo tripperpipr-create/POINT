@@ -175,6 +175,10 @@ func (p Planner) Plan(ctx context.Context, req PlanRequest) (PlanResult, error) 
 	if len(req.APIKey) > 64*1024 {
 		return PlanResult{}, errors.New("orchestrator API key exceeds 64 KiB")
 	}
+	if plan, ok := singleAgentPlan(req); ok {
+		reportPlanProgress(req, "output", "Один исполнитель: план из одного этапа без обращения к модели")
+		return PlanResult{Plan: plan, Provider: req.Config.Provider, Model: SingleAgentPlanModel}, nil
+	}
 
 	available := req.Agents
 	if len(available) > maxPlannerAgents {

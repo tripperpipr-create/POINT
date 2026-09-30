@@ -126,16 +126,28 @@ type masterObservedModel struct {
 
 func (m masterObservedModel) Stream(ctx context.Context, req providers.ModelRequest, emit func(providers.ModelEvent) error) error {
 	if len(req.Messages) > 0 && strings.Contains(req.Messages[0].Content, "<master_skill") {
-		req.Messages = append([]providers.Message(nil), req.Messages...)
+		// Навык, включённый посреди хода, идёт отдельным сообщением в конце
+		// запроса, а не дописывается в системное. Системное сообщение за ход
+		// не меняется, и локальный рантайм переиспользует уже посчитанный
+		// префикс разговора: прежде каждый такой навык заставлял модель заново
+		// читать весь контекст, а это минуты prefill на длинном ходе.
+		var loaded []domain.SkillRuntime
 		for _, skill := range m.session.dynamic {
-			if !strings.Contains(req.Messages[0].Content, `<master_skill id="`+skill.ID+`"`) {
-				req.Messages[0].Content += masterskills.Prompt([]domain.SkillRuntime{skill})
-				if !m.session.used[skill.ID] && m.session.progress != nil {
-					detail, _ := json.Marshal(domain.SkillRuntimeAttribution(skill))
-					m.session.progress("skill", "Загружен навык: "+skill.Name, string(detail))
-				}
-				m.session.use(skill)
+			if strings.Contains(req.Messages[0].Content, `<master_skill id="`+skill.ID+`"`) {
+				continue
 			}
+			loaded = append(loaded, skill)
+			if !m.session.used[skill.ID] && m.session.progress != nil {
+				detail, _ := json.Marshal(domain.SkillRuntimeAttribution(skill))
+				m.session.progress("skill", "Загружен навык: "+skill.Name, string(detail))
+			}
+			m.session.use(skill)
+		}
+		if len(loaded) > 0 {
+			req.Messages = append(append([]providers.Message(nil), req.Messages...), providers.Message{
+				Role:    "user",
+				Content: "Навыки Мастера, подключённые по ходу разговора (действуют как системные):" + masterskills.Prompt(loaded),
+			})
 		}
 	}
 	// Реплей снимается с круга, где модель отвечала, а не читала проект: вызовы

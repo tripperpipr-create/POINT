@@ -316,6 +316,18 @@ const (
 	masterBriefAttempts = 3
 )
 
+// Пауза перед повтором круга, оборванного провайдером.
+var masterRoundRetryDelay = 3 * time.Second
+
+// masterHeaderTimeoutSeconds — сколько ждать заголовков ответа. Локальный
+// рантайм перед заголовками может загружать модель, поэтому ему больше.
+func masterHeaderTimeoutSeconds(cfg domain.OrchestratorConfig) int {
+	if domain.RuntimeChargesForTokens(cfg.Provider, cfg.ProviderPreset) {
+		return 45
+	}
+	return 120
+}
+
 func (s ChatService) discussWithModel(ctx context.Context, req ChatRequest, world []byte, history []domain.CompanionMessage) (taskIntakeEnvelope, masterTurnUsage, error) {
 	if !UsesModelPlanner(req.Config) {
 		return taskIntakeEnvelope{}, masterTurnUsage{}, errors.New("модель Мастера не настроена")
@@ -327,7 +339,10 @@ func (s ChatService) discussWithModel(ctx context.Context, req ChatRequest, worl
 	// Local CPU models need time for cold loading as well as generation. Keep
 	// one bounded discussion deadline across tool rounds.
 	timeoutSeconds := masterTurnTimeoutSeconds(req.Config)
-	model, err := factory(providers.Config{Kind: req.Config.Provider, Preset: req.Config.ProviderPreset, BaseURL: req.Config.BaseURL, APIVersion: req.Config.APIVersion, APIKey: req.APIKey, TimeoutSeconds: timeoutSeconds})
+	// Срок заголовков отдельно от срока хода: молчащий шлюз прежде держал ход
+	// все 900 с. Поток после заголовков ограничен только сроком хода и
+	// сторожем тишины провайдера.
+	model, err := factory(providers.Config{Kind: req.Config.Provider, Preset: req.Config.ProviderPreset, BaseURL: req.Config.BaseURL, APIVersion: req.Config.APIVersion, APIKey: req.APIKey, TimeoutSeconds: timeoutSeconds, HeaderTimeoutSeconds: masterHeaderTimeoutSeconds(req.Config)})
 	if err != nil {
 		return taskIntakeEnvelope{}, masterTurnUsage{}, err
 	}
@@ -439,8 +454,16 @@ func (s ChatService) discussWithModel(ctx context.Context, req ChatRequest, worl
 		var loopGuard reasoningLoopGuard
 		finishReason := ""
 		roundStarted := time.Now()
-		err = streamMasterModel(ctx, model, request, domain.ShouldSuppressThinking(req.Config.Provider, req.Config.ProviderPreset), trace, func(event providers.ModelEvent) error {
+		onEvent := func(event providers.ModelEvent) error {
 			switch event.Kind {
+			case providers.EventRetry:
+				// Провайдер начал запрос заново: начатое в оборванной попытке
+				// выбрасывается, а поток ответа человеку возвращается к
+				// сказанному в прежних кругах. Прежде текст задваивался.
+				raw.Reset()
+				calls, reasoning, loopGuard = nil, nil, reasoningLoopGuard{}
+				s.emit("reply", joinMasterReply(spoken, ""))
+				trace.retry("повтор запроса к модели", map[string]any{"reason": "provider_retry", "attempt": event.Attempt, "delayMs": event.DelayMs})
 			case providers.EventTextDelta:
 				if raw.Len()+len(event.Delta) > maxMasterIntakeText {
 					return errors.New("ответ Мастера слишком велик")
@@ -475,7 +498,24 @@ func (s ChatService) discussWithModel(ctx context.Context, req ChatRequest, worl
 				finishReason = event.FinishReason
 			}
 			return nil
-		})
+		}
+		for attempt := 0; ; attempt++ {
+			err = streamMasterModel(ctx, model, request, domain.ShouldSuppressThinking(req.Config.Provider, req.Config.ProviderPreset), trace, onEvent)
+			// Обрыв, который не спас HTTP-слой, стоит кругу одного повтора,
+			// если до конца хода хватит времени. Прежде он кончал весь ход
+			// «Модель Мастера не ответила», и человек терял прочитанное.
+			if err == nil || attempt > 0 || ctx.Err() != nil || !providers.IsTransientProviderError(err) || providers.IsTruncatedReasoningError(err) || masterTimeRunsShort(ctx, max(longestRound, time.Since(roundStarted))) {
+				break
+			}
+			trace.retry("повтор круга после обрыва связи с моделью", map[string]any{"reason": "transient_provider_error"})
+			raw.Reset()
+			calls, reasoning, loopGuard, finishReason = nil, nil, reasoningLoopGuard{}, ""
+			s.emit("reply", joinMasterReply(spoken, ""))
+			select {
+			case <-ctx.Done():
+			case <-time.After(masterRoundRetryDelay):
+			}
+		}
 		usage.LatencyMs = time.Since(startedAt).Milliseconds()
 		longestRound = max(longestRound, time.Since(roundStarted))
 		looped := errors.Is(err, errMasterReasoningLoop)

@@ -116,3 +116,32 @@ func TestMasterBuiltinsHaveNoPermissionOrToolDelta(t *testing.T) {
 		}
 	}
 }
+
+// Навык, включённый чтением проекта, не переписывает системное сообщение:
+// оно одно на весь ход, и локальный рантайм не пересчитывает префикс.
+func TestDynamicMasterSkillKeepsSystemMessageStable(t *testing.T) {
+	s := NewMasterSkillSession("intake", nil)
+	system := s.Prompt(nil, true)
+	var got providers.ModelRequest
+	factory := s.Factory(func(providers.Config) (providers.Model, error) { return masterSkillTestModel{&got}, nil })
+	model, err := factory(providers.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tools := masterSkillTools{session: s, base: readingToolsStub{}}
+	tools.Execute(context.Background(), "read_file", json.RawMessage(`{"path":"a.go"}`))
+	request := providers.ModelRequest{Messages: []providers.Message{{Role: "system", Content: system}, {Role: "user", Content: "hi"}}}
+	if err = model.Stream(context.Background(), request, func(providers.ModelEvent) error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if got.Messages[0].Content != system {
+		t.Fatal("system message changed mid-turn")
+	}
+	last := got.Messages[len(got.Messages)-1]
+	if last.Role != "user" || !strings.Contains(last.Content, `<master_skill id="master-context"`) {
+		t.Fatalf("dynamic skill missing from the tail: %+v", last)
+	}
+	if len(request.Messages) != 2 {
+		t.Fatal("caller's messages were mutated")
+	}
+}

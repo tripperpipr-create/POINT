@@ -90,6 +90,7 @@ func BuiltInToolCatalog() []ToolCatalogItem {
 		{Name: "search_code", DisplayName: "Умный поиск кода", Description: "Возвращает только релевантные фрагменты из локального индекса с лимитом контекста.", Category: "index", Risk: "LOW", Replayable: true, WorkspaceWide: true},
 		{Name: "read_file", DisplayName: "Чтение файлов", Description: "Читает текстовые файлы с номерами строк, исключая секреты.", Category: "read", Risk: "LOW", Replayable: true},
 		{Name: "search_text", DisplayName: "Поиск по проекту", Description: "Ищет текст только внутри безопасных файлов workspace.", Category: "read", Risk: "LOW", Replayable: true, WorkspaceWide: true},
+		{Name: "validate_syntax", DisplayName: "Проверка синтаксиса", Description: "Проверяет, что JSON или YAML разбирается, без запуска команд и сети.", Category: "read", Risk: "LOW", Replayable: true},
 		{Name: "git_diff", DisplayName: "Просмотр Git diff", Description: "Показывает status и diff относительно HEAD (staged и unstaged) без записи файлов.", Category: "git", Risk: "LOW", Replayable: true, WorkspaceWide: true},
 		{Name: "git_branches", DisplayName: "Git: ветки", Description: "Показывает текущую ветку, локальные и удалённые ветки с upstream и расхождением. Только чтение.", Category: "git", Risk: "LOW", Replayable: true},
 		{Name: "git_log", DisplayName: "Git: история", Description: "Показывает последние коммиты: хеш, автор, дату, ссылки и заголовок. Только чтение.", Category: "git", Risk: "LOW", Replayable: true, WorkspaceWide: true},

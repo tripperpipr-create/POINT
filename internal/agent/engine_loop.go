@@ -6,7 +6,6 @@ package agent
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -680,7 +679,7 @@ func (e *Engine) executeWithCheckpoint(ctx context.Context, active *activeRun, p
 				observations.Observe(execCall, result, workspaceRevision, step, callKey)
 			}
 			completion.ObserveTool(execCall.Name, execCall.Arguments, result, workspaceRevision)
-			payload, _ := json.Marshal(result)
+			payload := []byte(workbenchtools.EncodeResult(modelFacingResult(execCall.Name, result)))
 			if toolOutputBytes+len(payload) > maxRunToolOutputBytes && len(payload) > overBudgetToolOutputBytes {
 				// Суммарный вывод за прогон исчерпан. Прежде это роняло прогон
 				// со всей сделанной работой; теперь дальнейшие выводы модели
@@ -692,7 +691,7 @@ func (e *Engine) executeWithCheckpoint(ctx context.Context, active *activeRun, p
 					})
 				}
 				result = shrinkToolResult(result, overBudgetToolOutputBytes)
-				payload, _ = json.Marshal(result)
+				payload = []byte(workbenchtools.EncodeResult(result))
 			}
 			toolOutputBytes += len(payload)
 			if toolOutputBytes > hardRunToolOutputBytes {

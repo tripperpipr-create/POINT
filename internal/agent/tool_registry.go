@@ -61,7 +61,7 @@ func buildToolRegistryWithExecution(fs *workspace.FS, customTools []domain.Custo
 	}
 	toolItems := []workbenchtools.Tool{
 		workbenchtools.ProjectMap{FS: fs}, workbenchtools.SearchCode{FS: fs}, workbenchtools.ListFiles{FS: fs},
-		workbenchtools.ReadFile{FS: fs}, workbenchtools.SearchText{FS: fs}, patches,
+		workbenchtools.ReadFile{FS: fs}, workbenchtools.SearchText{FS: fs}, workbenchtools.ValidateSyntax{FS: fs}, patches,
 		runCommand,
 		workbenchtools.GitDiff{FS: fs}, workbenchtools.GitBranches{FS: fs},
 		workbenchtools.GitLog{FS: fs}, workbenchtools.GitTags{FS: fs},

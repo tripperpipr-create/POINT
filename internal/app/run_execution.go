@@ -299,6 +299,11 @@ func (a *App) StartRun(request StartRunRequest) (domain.Run, error) {
 	if hasTool(prepared.profile.AllowedTools, "propose_patch") {
 		prepared.profile.AllowedTools = appendUniqueStrings(prepared.profile.AllowedTools, "list_files")
 	}
+	// Проверка синтаксиса читает файл, как read_file, и ничего не меняет.
+	// Агенты, собранные до её появления, получают её вместе с чтением.
+	if hasTool(prepared.profile.AllowedTools, "read_file") {
+		prepared.profile.AllowedTools = appendUniqueStrings(prepared.profile.AllowedTools, "validate_syntax")
+	}
 	slog.Info("agent start progress", "execution_id", request.ExecutionID, "phase", "model_binding")
 	if err = a.applyModelBinding(&prepared.profile, request.ModelBinding); err != nil {
 		return domain.Run{}, fmt.Errorf("apply stage model binding: %w", err)

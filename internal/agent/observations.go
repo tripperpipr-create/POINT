@@ -78,12 +78,28 @@ func (t *observationTracker) Observe(call providers.ToolCall, result domain.Tool
 			Path      string `json:"path"`
 			SHA256    string `json:"sha256"`
 			Truncated bool   `json:"truncated"`
+			Partial   bool   `json:"partial"`
+			Content   string `json:"content"`
 		}
-		if json.Unmarshal(result.Output, &output) != nil || output.Truncated || !validSHA256(output.SHA256) {
+		if json.Unmarshal(result.Output, &output) != nil || !validSHA256(output.SHA256) {
 			return
 		}
 		path := normalizeObservationPath(output.Path)
 		if path == "" {
+			return
+		}
+		// Прочитанные строки — такой же осмотр фрагмента, как чанк
+		// search_code: точечная правка внутри них разрешена. Прежде
+		// частичное чтение не засчитывалось вовсе, хотя контракт сам
+		// советовал его для больших файлов, и квест cba8 после пятнадцати
+		// таких чтений получил два отказа патча и прочёл lock целиком.
+		if output.Partial {
+			if fragment := stripLineNumbers(output.Content); fragment != "" {
+				t.files[path] = append(t.files[path], fileObservation{Key: executionKey, Revision: revision, AvailableAtStep: step + 1, SHA256: strings.ToLower(output.SHA256), Fragment: fragment})
+			}
+			return
+		}
+		if output.Truncated {
 			return
 		}
 		t.files[path] = append(t.files[path], fileObservation{Key: executionKey, Revision: revision, AvailableAtStep: step + 1, SHA256: strings.ToLower(output.SHA256), Complete: true})
@@ -384,4 +400,18 @@ func validSHA256(value string) bool {
 	}
 	_, err := hex.DecodeString(value)
 	return err == nil
+}
+
+// stripLineNumbers снимает с вывода read_file нумерацию «%6d | » и
+// возвращает исходный текст строк.
+func stripLineNumbers(numbered string) string {
+	lines := strings.Split(strings.TrimSuffix(numbered, "\n"), "\n")
+	for index, line := range lines {
+		if separator := strings.Index(line, " | "); separator >= 0 && strings.TrimSpace(line[:separator]) != "" && strings.Trim(line[:separator], " 0123456789") == "" {
+			lines[index] = line[separator+3:]
+			continue
+		}
+		return ""
+	}
+	return strings.Join(lines, "\n") + "\n"
 }

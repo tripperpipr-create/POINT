@@ -64,6 +64,16 @@ func TestGitDiffIncludesStagedAndStatus(t *testing.T) {
 	if !strings.Contains(text, "fresh.txt") {
 		t.Fatalf("expected untracked file in status: %s", text)
 	}
+	// Новый файл виден содержимым, а не только строкой «??» в статусе.
+	var output struct {
+		Untracked []struct {
+			Path    string `json:"path"`
+			Preview string `json:"preview"`
+		} `json:"untracked"`
+	}
+	if err := json.Unmarshal(result.Output, &output); err != nil || len(output.Untracked) != 1 || output.Untracked[0].Path != "fresh.txt" || output.Untracked[0].Preview != "new\n" {
+		t.Fatalf("untracked preview=%+v err=%v", output.Untracked, err)
+	}
 }
 
 func TestGitDiffFailsClearlyWithoutGitMetadata(t *testing.T) {

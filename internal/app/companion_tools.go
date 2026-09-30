@@ -40,6 +40,7 @@ func newCompanionReadTools(fs *workspace.FS, skills []domain.SkillRuntime) *comp
 		workbenchtools.ListFiles{FS: fs},
 		workbenchtools.ReadFile{FS: fs},
 		workbenchtools.SearchText{FS: fs},
+		workbenchtools.ValidateSyntax{FS: fs},
 		workbenchtools.GitDiff{FS: fs},
 		workbenchtools.GitBranches{FS: fs},
 		workbenchtools.GitLog{FS: fs},

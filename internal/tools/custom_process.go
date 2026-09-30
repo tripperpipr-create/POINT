@@ -122,7 +122,7 @@ func (t CustomProcess) Execute(ctx context.Context, raw json.RawMessage) domain.
 			return FailWithHint("sandbox_denied", prepareErr.Error(), "use a local verifier that fits the configured sandbox network and resource policy")
 		}
 		if prepared.Command == nil {
-			return Fail("sandbox_unavailable", "sandbox backend returned no process")
+			return FailWithHint("sandbox_unavailable", "sandbox backend returned no process", "the sandbox is not ready; do not repeat the call, report the blocker in your final answer")
 		}
 		cmd = prepared.Command
 		if prepared.Cleanup != nil {

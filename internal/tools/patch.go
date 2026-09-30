@@ -164,7 +164,7 @@ func (m *PatchManager) Execute(_ context.Context, raw json.RawMessage) domain.To
 		sort.Slice(resolved, func(i, j int) bool { return resolved[i].Start < resolved[j].Start })
 		for index := 1; index < len(resolved); index++ {
 			if resolved[index].Start < resolved[index-1].End {
-				return Fail("overlapping_edits", "exact edit anchors must not overlap; combine the overlapping changes into one unique replacement")
+				return FailWithHint("overlapping_edits", "exact edit anchors must not overlap", "combine the overlapping changes into one edit whose oldText covers both regions")
 			}
 		}
 		var builder strings.Builder
@@ -185,13 +185,13 @@ func (m *PatchManager) Execute(_ context.Context, raw json.RawMessage) domain.To
 		builder.WriteString(original[cursor:])
 		proposed = builder.String()
 		if proposed == original {
-			return Fail("no_changes", "the proposed exact edits do not change the file")
+			return FailWithHint("no_changes", "the proposed exact edits do not change the file", "the file already has this content; move on or re-read the file if you expected a difference")
 		}
 		proposal := m.storeProposal(input.Path, original, proposed, originalExisted, unifiedDiffFromEdits(input.Path, original, proposed, resolved))
 		return OK(proposal)
 	}
 	if proposed == original && originalExisted {
-		return Fail("no_changes", "the proposed patch does not change the file")
+		return FailWithHint("no_changes", "the proposed patch does not change the file", "the file already has this content; move on or re-read the file if you expected a difference")
 	}
 	diff := unifiedDiff(input.Path, original, proposed)
 	if !originalExisted {
@@ -247,7 +247,7 @@ func decodePatchInput(raw json.RawMessage) (patchInput, *domain.ToolResult) {
 		return patchInput{}, &result
 	}
 	if len(input.Edits) > maxPatchEdits {
-		result := Fail("too_many_edits", "a patch may contain at most 64 exact edits")
+		result := FailWithHint("too_many_edits", "a patch may contain at most 64 exact edits", "split the change into several propose_patch calls, or send the complete new file content")
 		return patchInput{}, &result
 	}
 	totalBytes := 0

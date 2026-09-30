@@ -31,7 +31,7 @@ func (t ProjectMap) Execute(ctx context.Context, raw json.RawMessage) domain.Too
 	}
 	result, err := t.FS.ProjectMap(ctx, input.MaxSymbols)
 	if err != nil {
-		return logExecute(ctx, "project_map", started, Fail("index_failed", err.Error()))
+		return logExecute(ctx, "project_map", started, FailWithHint("index_failed", err.Error(), "the local index is unavailable right now; use list_files and search_text instead"))
 	}
 	return logExecute(ctx, "project_map", started, OK(result), "files", result.Status.Files, "symbols", result.Status.Symbols)
 }
@@ -66,7 +66,7 @@ func (t SearchCode) Execute(ctx context.Context, raw json.RawMessage) domain.Too
 	}
 	result, err := t.FS.SearchContextWithRelations(ctx, input.Query, input.MaxChunks, input.MaxChars, input.IncludeRelated)
 	if err != nil {
-		return logExecute(ctx, "search_code", started, Fail("index_search_failed", err.Error()), "query", observability.Snippet(input.Query, 80))
+		return logExecute(ctx, "search_code", started, FailWithHint("index_search_failed", err.Error(), "use search_text with a literal symbol or path fragment instead"), "query", observability.Snippet(input.Query, 80))
 	}
 	return logExecute(ctx, "search_code", started, OK(map[string]any{
 		"query": input.Query, "chunks": result.Chunks, "count": result.ReturnedChunks,

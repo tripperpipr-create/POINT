@@ -167,7 +167,7 @@ func (e *Engine) executeTool(ctx context.Context, active *activeRun, profile dom
 		}
 		applied, err := patches.Apply(proposal.ID)
 		if err != nil {
-			return workbenchtools.Fail("patch_conflict", err.Error()), nil
+			return workbenchtools.FailWithHint("patch_conflict", err.Error(), "the file changed after the patch was prepared; read the current file (or the affected lines) and propose the edit again"), nil
 		}
 		e.update(active, func(r *domain.Run) {
 			if !slices.Contains(r.ChangedFiles, applied.Path) {

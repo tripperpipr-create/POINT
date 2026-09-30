@@ -70,7 +70,7 @@ func (t RunCommand) Execute(ctx context.Context, raw json.RawMessage) domain.Too
 		return finish(Fail("invalid_input", "command or reason exceeds its size limit"))
 	}
 	if isBackgroundShellCommand(input.Command) {
-		return finish(Fail("background_process_unsupported", "interactive and background commands are not supported"))
+		return finish(FailWithHint("background_process_unsupported", "interactive and background commands are not supported", "run the command in the foreground so it exits by itself (drop &, nohup, disown, start); servers are started by Point's host checks after delivery"))
 	}
 	if denied := deniedCommandReason(input.Command); denied != "" {
 		return finish(FailWithHint("command_denied", denied, "use a non-interactive local test, build, lint, or inspection command that does not require elevated or destructive privileges"))
@@ -161,7 +161,7 @@ func (t RunCommand) Execute(ctx context.Context, raw json.RawMessage) domain.Too
 			return finish(FailWithHint("sandbox_denied", prepareErr.Error(), "use a local verifier that fits the configured sandbox network and resource policy"))
 		}
 		if prepared.Command == nil {
-			return finish(Fail("sandbox_unavailable", "sandbox backend returned no process"))
+			return finish(FailWithHint("sandbox_unavailable", "sandbox backend returned no process", "the sandbox is not ready; do not repeat the call, report the blocker in your final answer"))
 		}
 		cmd = prepared.Command
 		readEgressDecisions = prepared.EgressDecisions
@@ -216,7 +216,28 @@ func (t RunCommand) Execute(ctx context.Context, raw json.RawMessage) domain.Too
 			exitCode = -1
 		}
 	}
-	result := OK(map[string]any{"stdout": security.Redact(stdout.String()), "stderr": security.Redact(stderr.String()), "exitCode": exitCode, "durationMs": duration.Milliseconds(), "timedOut": commandCtx.Err() == context.DeadlineExceeded, "networkPolicyDigest": policy.Digest, "networkTargets": targets, "networkGrantScope": grantScope, "networkGatewayStatus": gatewayStatus, "networkGatewayDecisions": gatewayDecisions})
+	timedOut := commandCtx.Err() == context.DeadlineExceeded
+	output := map[string]any{"stdout": security.Redact(stdout.String()), "stderr": security.Redact(stderr.String()), "exitCode": exitCode, "durationMs": duration.Milliseconds(), "timedOut": timedOut}
+	// Сетевая атрибуция — доказательство для команды, которая ходила в сеть.
+	// Для `ls` она была пятью пустыми полями в каждом выводе, который читает
+	// модель.
+	if len(targets) > 0 || len(gatewayDecisions) > 0 {
+		output["networkPolicyDigest"] = policy.Digest
+		output["networkTargets"] = targets
+		output["networkGrantScope"] = grantScope
+		output["networkGatewayStatus"] = gatewayStatus
+		output["networkGatewayDecisions"] = gatewayDecisions
+	}
+	switch {
+	case timedOut:
+		output["hint"] = fmt.Sprintf("the command was stopped after %s; raise timeoutSeconds (up to 600) for a slow build, or run a narrower command", timeout)
+	case exitCode == -1 && runErr != nil:
+		// Команда не запустилась вовсе: прежде причина терялась, и модель
+		// видела только exitCode -1.
+		output["error"] = security.Redact(runErr.Error())
+		output["hint"] = "the shell could not start the command; check the program name and the cwd, then retry"
+	}
+	result := OK(output)
 	result.Truncated = truncated
 	return logExecute(ctx, "run_command", started, result,
 		"command", observability.Snippet(security.Redact(input.Command), 180),

@@ -341,6 +341,9 @@ func IsSensitive(path string) bool {
 	return strings.Contains(base, "id_rsa") || strings.Contains(base, "id_ed25519")
 }
 
+// MaxListedNodes — сколько записей дерева отдаёт ListPath.
+const MaxListedNodes = 5000
+
 func (f *FS) List(ctx context.Context, maxDepth int) ([]domain.FileNode, error) {
 	return f.ListPath(ctx, "", maxDepth)
 }
@@ -394,7 +397,7 @@ func (f *FS) listDir(ctx context.Context, absolute, relative string, depth, maxD
 	})
 	result := make([]domain.FileNode, 0, len(entries))
 	for _, entry := range entries {
-		if *count >= 5000 {
+		if *count >= MaxListedNodes {
 			return result, nil
 		}
 		if err := ctx.Err(); err != nil {
@@ -529,11 +532,11 @@ func readOpenedContent(file *os.File, info os.FileInfo, displayPath string, maxR
 		return result, nil
 	}
 	var builder strings.Builder
-	scanner := bufio.NewScanner(strings.NewReader(content))
-	line := 1
-	for scanner.Scan() {
-		fmt.Fprintf(&builder, "%6d | %s\n", line, scanner.Text())
-		line++
+	// Строки режутся вручную: bufio.Scanner молча обрывал вывод на строке
+	// длиннее 64 КиБ (минифицированный JS, lock-файл в одну строку), и
+	// модель видела файл короче, чем он есть, без пометки об обрезке.
+	for index, text := range splitContentLines(content) {
+		fmt.Fprintf(&builder, "%6d | %s\n", index+1, text)
 	}
 	result.Numbered = builder.String()
 	return result, nil
@@ -697,6 +700,19 @@ func (f *FS) Search(ctx context.Context, query string, maxResults int) ([]Match,
 }
 
 var errLimitReached = errors.New("result limit reached")
+
+// splitContentLines делит текст на строки так же, как bufio.ScanLines
+// (без завершающей пустой строки и с отрезанным \r), но без предела длины.
+func splitContentLines(content string) []string {
+	if content == "" {
+		return nil
+	}
+	lines := strings.Split(strings.TrimSuffix(content, "\n"), "\n")
+	for index, line := range lines {
+		lines[index] = strings.TrimSuffix(line, "\r")
+	}
+	return lines
+}
 
 func pathJoin(directory, name string) string { return filepath.Join(directory, name) }
 

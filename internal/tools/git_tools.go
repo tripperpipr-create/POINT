@@ -6,12 +6,16 @@ package tools
 // где имена ссылок.
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"local-agent-workbench/internal/domain"
 	"local-agent-workbench/internal/osproc"
@@ -94,7 +98,7 @@ func (t GitDiff) Execute(ctx context.Context, raw json.RawMessage) domain.ToolRe
 	}
 	statusTruncated := len(statusText) > statusBudget
 	if statusTruncated {
-		statusText = statusText[:statusBudget]
+		statusText = cutUTF8(statusText, statusBudget)
 	}
 	diffBudget := max - len(statusText)
 	if diffBudget < 8*1024 {
@@ -103,17 +107,83 @@ func (t GitDiff) Execute(ctx context.Context, raw json.RawMessage) domain.ToolRe
 	diffText := string(diffOut)
 	diffTruncated := len(diffText) > diffBudget
 	if diffTruncated {
-		diffText = diffText[:diffBudget]
+		diffText = cutUTF8(diffText, diffBudget)
 	}
-	result := OK(map[string]any{
+	payload := map[string]any{
 		"scope":  "worktree",
 		"repo":   repo,
 		"status": statusText,
 		"diff":   diffText,
 		"base":   "HEAD",
-	})
-	result.Truncated = statusTruncated || diffTruncated
+	}
+	// `git diff HEAD` не показывает новые файлы, которых ещё нет в индексе:
+	// созданное агентом виднелось только строкой «??» в статусе.
+	untracked, untrackedTruncated := t.untrackedPreviews(ctx, root, pathFilter, max-len(statusText)-len(diffText))
+	if len(untracked) > 0 {
+		payload["untracked"] = untracked
+	}
+	result := OK(payload)
+	result.Truncated = statusTruncated || diffTruncated || untrackedTruncated
 	return result
+}
+
+type untrackedPreview struct {
+	Path      string `json:"path"`
+	Preview   string `json:"preview,omitempty"`
+	Truncated bool   `json:"truncated,omitempty"`
+}
+
+const (
+	maxUntrackedPreviews     = 20
+	maxUntrackedPreviewBytes = 8 * 1024
+)
+
+// untrackedPreviews — новые файлы рабочего дерева с началом содержимого в
+// пределах budget байт. Секреты и двоичные файлы только называются.
+func (t GitDiff) untrackedPreviews(ctx context.Context, root, pathFilter string, budget int) ([]untrackedPreview, bool) {
+	args := []string{"ls-files", "--others", "--exclude-standard", "-z", "--"}
+	if pathFilter != "" {
+		args = append(args, pathFilter)
+	}
+	out, err := runGitDiff(ctx, root, args)
+	if err != nil {
+		return nil, false
+	}
+	var previews []untrackedPreview
+	truncated := false
+	for _, name := range strings.Split(string(out), "\x00") {
+		if name == "" {
+			continue
+		}
+		if len(previews) >= maxUntrackedPreviews {
+			truncated = true
+			break
+		}
+		item := untrackedPreview{Path: name}
+		if !workspace.IsSensitive(name) && budget > 0 {
+			if data, readErr := os.ReadFile(filepath.Join(root, filepath.FromSlash(name))); readErr == nil && utf8.Valid(data) && bytes.IndexByte(data, 0) < 0 {
+				limit := min(maxUntrackedPreviewBytes, budget)
+				item.Preview = string(data)
+				if len(item.Preview) > limit {
+					item.Preview, item.Truncated, truncated = cutUTF8(item.Preview, limit), true, true
+				}
+				budget -= len(item.Preview)
+			}
+		}
+		previews = append(previews, item)
+	}
+	return previews, truncated
+}
+
+// cutUTF8 режет строку не длиннее limit байт, не разрывая символ.
+func cutUTF8(text string, limit int) string {
+	if len(text) <= limit {
+		return text
+	}
+	for limit > 0 && !utf8.RuneStart(text[limit]) {
+		limit--
+	}
+	return text[:limit]
 }
 
 // Содержимое одного коммита. История приходит из git_log одними заголовками, и

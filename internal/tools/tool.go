@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -75,11 +76,36 @@ func (r *Registry) Definitions(allowed []string) []domain.ToolDefinition {
 }
 
 func OK(value any) domain.ToolResult {
-	data, err := json.Marshal(value)
+	data, err := marshalPlain(value)
 	if err != nil {
 		return Fail("encode_error", err.Error())
 	}
 	return domain.ToolResult{OK: true, Output: data}
+}
+
+// marshalPlain кодирует JSON без HTML-экранирования. json.Marshal превращал
+// каждый `<`, `>` и `&` в коде в `\u003c`, `\u003e`, `\u0026`: модель
+// платила за это токенами и копировала экранированный вид в oldText, после
+// чего якорь патча не находился.
+func marshalPlain(value any) ([]byte, error) {
+	var buffer bytes.Buffer
+	encoder := json.NewEncoder(&buffer)
+	encoder.SetEscapeHTML(false)
+	if err := encoder.Encode(value); err != nil {
+		return nil, err
+	}
+	return bytes.TrimSuffix(buffer.Bytes(), []byte("\n")), nil
+}
+
+// EncodeResult — результат инструмента в том виде, в каком его читает
+// модель: JSON без HTML-экранирования, в том числе внутри Output.
+func EncodeResult(result domain.ToolResult) string {
+	data, err := marshalPlain(result)
+	if err != nil {
+		fallback, _ := json.Marshal(result)
+		return string(fallback)
+	}
+	return string(data)
 }
 
 func Fail(code, message string) domain.ToolResult {

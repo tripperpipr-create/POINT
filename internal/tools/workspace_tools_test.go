@@ -29,6 +29,7 @@ func TestReadFileLineRangeAndPartialDigest(t *testing.T) {
 		Content   string `json:"content"`
 		SHA256    string `json:"sha256"`
 		Truncated bool   `json:"truncated"`
+		Partial   bool   `json:"partial"`
 		StartLine int    `json:"startLine"`
 		EndLine   int    `json:"endLine"`
 		Hint      string `json:"hint"`
@@ -36,13 +37,15 @@ func TestReadFileLineRangeAndPartialDigest(t *testing.T) {
 	if err = json.Unmarshal(result.Output, &output); err != nil {
 		t.Fatal(err)
 	}
-	if output.Path != "main.go" || output.StartLine != 3 || output.EndLine != 4 || output.SHA256 != "" || !output.Truncated {
+	// sha256 — всего файла: по нему осмотр фрагмента сверяется с текущим
+	// файлом перед точечной правкой.
+	if output.Path != "main.go" || output.StartLine != 3 || output.EndLine != 4 || len(output.SHA256) != 64 || !output.Truncated || !output.Partial {
 		t.Fatalf("partial read=%#v", output)
 	}
 	if !strings.Contains(output.Content, "func One") || !strings.Contains(output.Content, "func Two") || strings.Contains(output.Content, "func Three") {
 		t.Fatalf("line slice=%q", output.Content)
 	}
-	if !strings.Contains(output.Hint, "not a complete-file inspection") {
+	if !strings.Contains(output.Hint, "complete-content rewrite needs a full read_file") {
 		t.Fatalf("missing partial hint: %q", output.Hint)
 	}
 }

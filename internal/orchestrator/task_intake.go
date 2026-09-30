@@ -634,7 +634,7 @@ func (s ChatService) discussWithModel(ctx context.Context, req ChatRequest, worl
 				Result:   masterStepResult(result),
 				Failed:   !result.OK, Truncated: result.Truncated,
 			})
-			payload, _ := json.Marshal(result)
+			payload := []byte(workbenchtools.EncodeResult(result))
 			content := string(payload)
 			if masterExplorationEmpty(call.Name, result) {
 				emptyWorkspace = true

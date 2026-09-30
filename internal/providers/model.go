@@ -13,6 +13,10 @@ type ToolCall struct {
 	Name          string          `json:"name"`
 	Arguments     json.RawMessage `json:"arguments"`
 	ArgumentError string          `json:"argumentError,omitempty"`
+	// Repaired — аргументы пришли испорченными и были починены
+	// (modeljson.RepairToolArguments), либо сам вызов извлечён из текста.
+	// Нужен журналу: так видно, как часто модель или шлюз ломают протокол.
+	Repaired bool `json:"repaired,omitempty"`
 }
 
 type ImageContent struct {

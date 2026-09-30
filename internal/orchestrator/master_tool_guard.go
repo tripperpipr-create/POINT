@@ -2,9 +2,12 @@ package orchestrator
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"local-agent-workbench/internal/domain"
+	"local-agent-workbench/internal/modeljson"
+	"local-agent-workbench/internal/providers"
 )
 
 // masterToolCallKey — семантический отпечаток вызова: имя + канонические аргументы.
@@ -89,4 +92,22 @@ func filterOutExplorationTools(definitions []domain.ToolDefinition) []domain.Too
 		}
 	}
 	return out
+}
+
+// recoverMasterTextToolCalls достаёт из текста круга вызовы предложенных в нём
+// инструментов (modeljson.ExtractTextToolCalls).
+func recoverMasterTextToolCalls(text string, offered []domain.ToolDefinition, round int) ([]providers.ToolCall, string) {
+	names := make(map[string]bool, len(offered))
+	for _, definition := range offered {
+		names[definition.Name] = true
+	}
+	extracted, rest := modeljson.ExtractTextToolCalls(text, func(name string) bool { return names[name] })
+	if len(extracted) == 0 {
+		return nil, text
+	}
+	calls := make([]providers.ToolCall, 0, len(extracted))
+	for index, call := range extracted {
+		calls = append(calls, providers.ToolCall{ID: fmt.Sprintf("text_call_%d_%d", round, index), Name: call.Name, Arguments: call.Arguments, Repaired: true})
+	}
+	return calls, rest
 }

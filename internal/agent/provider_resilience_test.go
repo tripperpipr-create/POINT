@@ -196,3 +196,56 @@ func TestTransientRetryDelayGrowsToCeilingWithJitter(t *testing.T) {
 		t.Fatalf("ceiling delay=%s", got)
 	}
 }
+
+// Qwen через шлюз без парсера вызовов пишет вызов текстом. Движок его
+// исполняет, а не принимает за финал без доказательств.
+type textToolCallModel struct {
+	mu    sync.Mutex
+	calls int
+}
+
+func (m *textToolCallModel) Stream(_ context.Context, request providers.ModelRequest, emit func(providers.ModelEvent) error) error {
+	m.mu.Lock()
+	m.calls++
+	first := m.calls == 1
+	m.mu.Unlock()
+	if first {
+		return emit(providers.ModelEvent{Kind: providers.EventTextDelta, Delta: "Посмотрю файлы.\n<tool_call>\n{\"name\": \"list_files\", \"arguments\": {\"maxDepth\": 1}}\n</tool_call>"})
+	}
+	for _, message := range request.Messages {
+		if message.Role == "tool" {
+			return emit(providers.ModelEvent{Kind: providers.EventTextDelta, Delta: "Listed."})
+		}
+	}
+	return emit(providers.ModelEvent{Kind: providers.EventTextDelta, Delta: "no tool result seen"})
+}
+
+func TestTextToolCallIsExecuted(t *testing.T) {
+	repo := newMemoryRepo()
+	engine := NewEngine(repo, nil)
+	engine.SetModelFactory(func(providers.Config) (providers.Model, error) { return &textToolCallModel{}, nil })
+	profile := domain.DefaultProfile()
+	profile.MaxDurationSeconds = 10
+	profile.AllowedTools = []string{"list_files"}
+	run, err := engine.Start(StartInput{
+		Configuration: domain.NewRunConfigurationSnapshot("test", profile, nil, time.Now().UTC()),
+		Workspace:     domain.Workspace{ID: "ws", Path: t.TempDir()},
+		Task:          "list files",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	finished := waitForTerminalRun(t, repo, run.ID)
+	if finished.Status != domain.RunCompleted || finished.Result != "Listed." {
+		t.Fatalf("run=%#v", finished)
+	}
+	found := false
+	for _, code := range guardrailCodes(t, repo, run.ID) {
+		if code == "tool_call_recovered" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("recovered text call must be journaled")
+	}
+}

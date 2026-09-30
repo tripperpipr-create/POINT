@@ -10,6 +10,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"syscall"
+
+	"local-agent-workbench/internal/modeljson"
 	"time"
 )
 
@@ -135,16 +137,15 @@ const maxUndecodableStreamLines = 5
 
 // normalizeToolArguments возвращает аргументы вызова как JSON-объект или nil,
 // если их не удалось прочесть. Пустая строка — законные аргументы инструмента
-// без параметров: llama.cpp и часть парсеров vLLM шлют именно её.
-func normalizeToolArguments(raw string) json.RawMessage {
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
-		return json.RawMessage(`{}`)
+// без параметров: llama.cpp и часть парсеров vLLM шлют именно её. Типичную
+// порчу (ограда кода, хвост после объекта, объект строкой) чинит
+// modeljson.RepairToolArguments; repaired говорит, что чинить пришлось.
+func normalizeToolArguments(raw string) (args json.RawMessage, repaired bool) {
+	args, repaired, ok := modeljson.RepairToolArguments(raw)
+	if !ok {
+		return nil, false
 	}
-	if json.Valid([]byte(trimmed)) {
-		return json.RawMessage(trimmed)
-	}
-	return nil
+	return args, repaired
 }
 
 // toolArgumentError объясняет, почему аргументы не прочитаны. Обрезанный

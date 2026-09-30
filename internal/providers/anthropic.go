@@ -418,7 +418,8 @@ func streamAnthropicResponse(ctx context.Context, body io.Reader, onEvent func(M
 		if block == nil || !block.isTool {
 			continue
 		}
-		call := ToolCall{ID: block.ID, Name: block.Name, Arguments: normalizeToolArguments(block.Arguments)}
+		args, repaired := normalizeToolArguments(block.Arguments)
+		call := ToolCall{ID: block.ID, Name: block.Name, Arguments: args, Repaired: repaired}
 		if call.Arguments == nil {
 			call.Arguments = json.RawMessage(`{}`)
 			call.ArgumentError = toolArgumentError(position, finishReason)

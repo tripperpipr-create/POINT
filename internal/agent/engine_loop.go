@@ -480,6 +480,9 @@ func (e *Engine) executeWithCheckpoint(ctx context.Context, active *activeRun, p
 			continue
 		}
 		assistantText := content.String()
+		if !wrapUp {
+			calls, assistantText = e.recoverToolCalls(ctx, active, step, requestTools, calls, assistantText)
+		}
 		if wrapUp {
 			// Инструментов в этом ходе нет; случайный вызов не исполняется, а
 			// пустой ответ не повод для нового круга — ход последний.

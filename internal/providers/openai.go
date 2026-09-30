@@ -391,7 +391,8 @@ func streamOpenAIResponse(ctx context.Context, body io.Reader, onEvent func(Mode
 		return truncatedReasoningError(completionTokens)
 	}
 	for index, call := range calls {
-		normalized := ToolCall{ID: call.ID, Name: call.Name, Arguments: normalizeToolArguments(call.Arguments)}
+		args, repaired := normalizeToolArguments(call.Arguments)
+		normalized := ToolCall{ID: call.ID, Name: call.Name, Arguments: args, Repaired: repaired}
 		if normalized.Arguments == nil {
 			normalized.Arguments = json.RawMessage(`{}`)
 			normalized.ArgumentError = toolArgumentError(index, finishReason)

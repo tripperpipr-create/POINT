@@ -496,6 +496,18 @@ func (s ChatService) discussWithModel(ctx context.Context, req ChatRequest, worl
 			}
 			return taskIntakeEnvelope{}, usage, err
 		}
+		// Вызов, написанный текстом (`<tool_call>{…}</tool_call>`), — тот же
+		// вызов: парсер шлюза его не узнал. Человек видел блок в потоке, поэтому
+		// поток перерисовывается без него.
+		if len(calls) == 0 {
+			if recovered, rest := recoverMasterTextToolCalls(raw.String(), tools, round); len(recovered) > 0 {
+				calls = recovered
+				raw.Reset()
+				raw.WriteString(rest)
+				s.emit("reply", joinMasterReply(spoken, rest))
+				trace.retry("вызов инструмента прочитан из текста ответа", map[string]any{"reason": "tool_call_recovered", "count": len(recovered)})
+			}
+		}
 		// Тот же текст в соседнем круге — повтор, а не продолжение: модель,
 		// которой вернули замечание, нередко пишет прежнюю фразу слово в слово.
 		if text := strings.TrimSpace(raw.String()); text != "" && (len(spoken) == 0 || spoken[len(spoken)-1] != text) {

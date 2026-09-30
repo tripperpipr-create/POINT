@@ -222,7 +222,7 @@ func (a *App) askAgentSelector(ctx context.Context, cfg domain.OrchestratorConfi
 		return selectorDecision{}, errors.New("модель комплектовщика не настроена")
 	}
 	model, err := a.budgetedModelFactory(modelBudgetScope{WorkspaceID: workspaceID, ProjectAgentID: "agent-selector", Outcome: "agent_creator_selection"})(providers.Config{
-		Kind: cfg.Provider, Preset: cfg.ProviderPreset, BaseURL: cfg.BaseURL, APIVersion: cfg.APIVersion, APIKey: apiKey, TimeoutSeconds: 90,
+		Kind: cfg.Provider, Preset: cfg.ProviderPreset, BaseURL: cfg.BaseURL, APIVersion: cfg.APIVersion, APIKey: apiKey, HeaderTimeoutSeconds: backgroundModelHeaderTimeoutSeconds,
 	})
 	if err != nil {
 		return selectorDecision{}, err

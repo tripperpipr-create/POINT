@@ -24,7 +24,7 @@ func unavailableLearningProvider(t *testing.T) string {
 		if request.URL.Path != "/api/chat" {
 			t.Errorf("unexpected learning provider request: %s %s", request.Method, request.URL.Path)
 		}
-		http.Error(w, "controlled reviewer outage", http.StatusServiceUnavailable)
+		http.Error(w, "controlled reviewer outage", http.StatusBadGateway)
 	}))
 	t.Cleanup(server.Close)
 	return server.URL

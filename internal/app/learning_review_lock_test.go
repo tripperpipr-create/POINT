@@ -37,7 +37,7 @@ func TestAgentRunReviewReleasesLockAndSkipsWhenStateChanged(t *testing.T) {
 				_ = application.store.SaveProjectAgent(context.Background(), agent)
 			}
 		}
-		http.Error(w, "controlled reviewer outage", http.StatusServiceUnavailable)
+		http.Error(w, "controlled reviewer outage", http.StatusBadGateway)
 	}))
 	t.Cleanup(server.Close)
 	agent, err := application.SaveProjectAgent(domain.ProjectAgent{
@@ -80,7 +80,7 @@ func TestReviewerSeesRunLearningSignals(t *testing.T) {
 		if body.Load() == nil {
 			body.Store(string(raw))
 		}
-		http.Error(w, "controlled reviewer outage", http.StatusServiceUnavailable)
+		http.Error(w, "controlled reviewer outage", http.StatusBadGateway)
 	}))
 	t.Cleanup(server.Close)
 	agent, err := application.SaveProjectAgent(domain.ProjectAgent{

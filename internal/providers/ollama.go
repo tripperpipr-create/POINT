@@ -32,7 +32,12 @@ type wireMessage struct {
 	Images     []string       `json:"images,omitempty"`
 	ToolCalls  []wireToolCall `json:"tool_calls,omitempty"`
 	ToolCallID string         `json:"tool_call_id,omitempty"`
+	// Thinking — рассуждение думающей модели в ответе; в запрос не уходит.
+	Thinking string `json:"thinking,omitempty"`
 }
+
+const ollamaKeepAlive = "30m"
+
 type wireToolCall struct {
 	ID       string `json:"id,omitempty"`
 	Function struct {
@@ -96,7 +101,14 @@ func (o *Ollama) Stream(ctx context.Context, request ModelRequest, onEvent func(
 	if request.DisableThinking {
 		body["think"] = false
 	}
-	options := map[string]any{"temperature": request.Temperature, "num_predict": request.MaxOutputTokens}
+	// Модель не выгружается между шагами агента: по умолчанию Ollama держит
+	// её пять минут, а долгая команда или проверка между ходами длиннее, и
+	// следующий ход начинался с холодной загрузки десятков гигабайт.
+	body["keep_alive"] = ollamaKeepAlive
+	options := map[string]any{"temperature": request.Temperature}
+	if request.MaxOutputTokens > 0 {
+		options["num_predict"] = request.MaxOutputTokens
+	}
 	if request.ContextWindowTokens > 0 {
 		options["num_ctx"] = request.ContextWindowTokens
 	}
@@ -145,7 +157,7 @@ func (o *Ollama) Stream(ctx context.Context, request ModelRequest, onEvent func(
 				"body", observability.Snippet(security.Redact(string(snippet)), 800),
 				"duration_ms", time.Since(started).Milliseconds(),
 			)
-			delay := retryDelay(response.Header.Get("Retry-After"), attempt, time.Now())
+			delay := statusRetryDelay(response.StatusCode, response.Header.Get("Retry-After"), attempt, time.Now())
 			if retryableStatus(response.StatusCode) && shouldRetry(ctx, attempt, delay) {
 				if retryErr := announceRetry(ctx, onEvent, attempt, delay, "Ollama returned "+response.Status); retryErr != nil {
 					return retryErr
@@ -161,8 +173,9 @@ func (o *Ollama) Stream(ctx context.Context, request ModelRequest, onEvent func(
 			"attempt", attempt,
 			"duration_ms", time.Since(started).Milliseconds(),
 		)
-		streamErr := streamOllamaResponse(ctx, response.Body, onEvent)
-		_ = response.Body.Close()
+		body := newIdleReader(response.Body, o.config.streamIdle())
+		streamErr := streamOllamaResponse(ctx, body, onEvent)
+		_ = body.Close()
 		if streamErr != nil {
 			log.Error("provider ollama stream failed",
 				"host", observability.HostOnly(o.config.BaseURL),
@@ -170,6 +183,15 @@ func (o *Ollama) Stream(ctx context.Context, request ModelRequest, onEvent func(
 				"error", security.Redact(streamErr.Error()),
 				"duration_ms", time.Since(started).Milliseconds(),
 			)
+			if isTransientStreamError(streamErr) {
+				delay := retryDelay("", attempt, time.Now())
+				if shouldRetry(ctx, attempt, delay) {
+					if retryErr := announceRetry(ctx, onEvent, attempt, delay, "temporary Ollama stream interrupt"); retryErr != nil {
+						return retryErr
+					}
+					continue
+				}
+			}
 		} else {
 			log.Info("provider ollama stream done",
 				"host", observability.HostOnly(o.config.BaseURL),
@@ -203,6 +225,11 @@ func streamOllamaResponse(ctx context.Context, body io.Reader, onEvent func(Mode
 		}
 		if chunk.Error != "" {
 			return errors.New(chunk.Error)
+		}
+		if chunk.Message.Thinking != "" {
+			if err = onEvent(ModelEvent{Kind: EventReasoning, Delta: chunk.Message.Thinking, Reasoning: &ReasoningBlock{Type: "text", Text: chunk.Message.Thinking}}); err != nil {
+				return err
+			}
 		}
 		if chunk.Message.Content != "" {
 			if err = onEvent(ModelEvent{Kind: EventTextDelta, Delta: chunk.Message.Content}); err != nil {

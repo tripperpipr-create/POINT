@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"local-agent-workbench/internal/domain"
@@ -60,9 +61,27 @@ func streamingClient(config Config) *http.Client {
 	if config.HeaderTimeoutSeconds <= 0 {
 		return client(config.TimeoutSeconds)
 	}
+	return &http.Client{Transport: sharedStreamingTransport(time.Duration(config.HeaderTimeoutSeconds) * time.Second)}
+}
+
+// Транспорт с его пулом соединений один на срок заголовков, а не свой у
+// каждого клиента: Мастер строит провайдера на каждый ход, и прежде каждый ход
+// заново открывал TCP и TLS до шлюза, а старые пулы так и висели.
+var (
+	streamingTransportsMu sync.Mutex
+	streamingTransports   = map[time.Duration]*http.Transport{}
+)
+
+func sharedStreamingTransport(headerTimeout time.Duration) *http.Transport {
+	streamingTransportsMu.Lock()
+	defer streamingTransportsMu.Unlock()
+	if transport := streamingTransports[headerTimeout]; transport != nil {
+		return transport
+	}
 	transport := http.DefaultTransport.(*http.Transport).Clone()
-	transport.ResponseHeaderTimeout = time.Duration(config.HeaderTimeoutSeconds) * time.Second
-	return &http.Client{Transport: transport}
+	transport.ResponseHeaderTimeout = headerTimeout
+	streamingTransports[headerTimeout] = transport
+	return transport
 }
 
 func endpoint(base, path string) string { return strings.TrimRight(base, "/") + path }

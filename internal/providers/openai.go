@@ -179,7 +179,7 @@ func (o *OpenAICompatible) Stream(ctx context.Context, request ModelRequest, onE
 				"body", observability.Snippet(security.Redact(string(snippet)), 800),
 				"duration_ms", time.Since(started).Milliseconds(),
 			)
-			delay := retryDelay(response.Header.Get("Retry-After"), attempt, time.Now())
+			delay := statusRetryDelay(response.StatusCode, response.Header.Get("Retry-After"), attempt, time.Now())
 			if retryableStatus(response.StatusCode) && shouldRetry(ctx, attempt, delay) {
 				if retryErr := announceRetry(ctx, onEvent, attempt, delay, "provider returned "+response.Status); retryErr != nil {
 					return retryErr
@@ -195,8 +195,9 @@ func (o *OpenAICompatible) Stream(ctx context.Context, request ModelRequest, onE
 			"attempt", attempt,
 			"duration_ms", time.Since(started).Milliseconds(),
 		)
-		streamErr := streamOpenAIResponse(ctx, response.Body, onEvent)
-		_ = response.Body.Close()
+		body := newIdleReader(response.Body, o.config.streamIdle())
+		streamErr := streamOpenAIResponse(ctx, body, onEvent)
+		_ = body.Close()
 		if streamErr != nil {
 			log.Error("provider openai stream failed",
 				"host", observability.HostOnly(o.config.BaseURL),
@@ -204,7 +205,7 @@ func (o *OpenAICompatible) Stream(ctx context.Context, request ModelRequest, onE
 				"error", security.Redact(streamErr.Error()),
 				"duration_ms", time.Since(started).Milliseconds(),
 			)
-			if isTransientEmptyStreamError(streamErr) {
+			if isTransientStreamError(streamErr) {
 				delay := retryDelay("", attempt, time.Now())
 				if shouldRetry(ctx, attempt, delay) {
 					if retryErr := announceRetry(ctx, onEvent, attempt, delay, "temporary provider stream interrupt"); retryErr != nil {
@@ -225,32 +226,11 @@ func (o *OpenAICompatible) Stream(ctx context.Context, request ModelRequest, onE
 	return errors.New("provider retry limit reached")
 }
 
-// IsTransientProviderError reports empty/interrupted upstream streams that are
-// safe to retry or fall back from without treating them as assignment failures.
+// IsTransientProviderError reports empty/interrupted/stalled upstream streams
+// that are safe to retry or fall back from without treating them as
+// assignment failures.
 func IsTransientProviderError(err error) bool {
-	return isTransientEmptyStreamError(err) || IsTruncatedReasoningError(err)
-}
-
-// Empty upstream closes from LLMux/vLLM with no answer are transient and safe to
-// retry at the HTTP layer when the stream delivered nothing usable yet.
-func isTransientEmptyStreamError(err error) bool {
-	if err == nil {
-		return false
-	}
-	msg := strings.ToLower(err.Error())
-	markers := []string{
-		"upstream closed the stream without sending any content",
-		"stream closed without sending any content",
-		"connection reset",
-		"unexpected eof",
-		"http2: server sent goaway",
-	}
-	for _, marker := range markers {
-		if strings.Contains(msg, marker) {
-			return true
-		}
-	}
-	return false
+	return isTransientStreamError(err) || IsTruncatedReasoningError(err)
 }
 
 // Ответ, которого не было: весь лимит вывода ушёл в размышление. Сообщение
@@ -276,14 +256,22 @@ func IsTruncatedReasoningError(err error) bool {
 
 func streamOpenAIResponse(ctx context.Context, body io.Reader, onEvent func(ModelEvent) error) error {
 	var err error
+	// Вызовы собираются в порядке появления, а не по номеру index: шлюзы
+	// нумеруют их по-разному — с единицы, с дырами, а параллельные вызовы
+	// некоторые llama.cpp и vLLM шлют все под index 0 с разными id. Прежний
+	// обход «0…len-1» терял первые и склеивал вторые.
 	type partial struct{ ID, Name, Arguments string }
-	calls := map[int]*partial{}
+	var calls []*partial
+	byIndex := map[int]*partial{}
 	// Чем кончился поток и было ли в нём хоть слово ответа. По этой паре
 	// отличается «модель промолчала, потому что упёрлась в лимит» от настоящей
 	// ошибки провайдера — снаружи они выглядели одинаково.
 	var sawContent bool
 	var finishReason string
 	var completionTokens int
+	// Строка data:, которую не удалось разобрать, — чаще мусор шлюза, чем
+	// конец потока. Одна такая строка поток не рвёт; серия — рвёт.
+	undecodable := 0
 	scanner := bufio.NewScanner(body)
 	scanner.Buffer(make([]byte, 64*1024), 4*1024*1024)
 	for scanner.Scan() {
@@ -297,6 +285,9 @@ func streamOpenAIResponse(ctx context.Context, body io.Reader, onEvent func(Mode
 		payload := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
 		if payload == "[DONE]" {
 			break
+		}
+		if payload == "" {
+			continue
 		}
 		var chunk struct {
 			Choices []struct {
@@ -327,8 +318,12 @@ func streamOpenAIResponse(ctx context.Context, body io.Reader, onEvent func(Mode
 				Message string `json:"message"`
 			} `json:"error"`
 		}
-		if err = json.Unmarshal([]byte(payload), &chunk); err != nil {
-			return fmt.Errorf("decode provider stream: %w", err)
+		if decodeErr := json.Unmarshal([]byte(payload), &chunk); decodeErr != nil {
+			undecodable++
+			if undecodable >= maxUndecodableStreamLines {
+				return fmt.Errorf("decode provider stream: %w", decodeErr)
+			}
+			continue
 		}
 		if chunk.Error != nil {
 			// Ошибку шлюза перебивает свой разбор, если он точнее: llmux
@@ -356,13 +351,25 @@ func streamOpenAIResponse(ctx context.Context, body io.Reader, onEvent func(Mode
 				}
 			}
 			for _, part := range choice.Delta.ToolCalls {
-				call := calls[part.Index]
+				call := byIndex[part.Index]
+				// Новый id под уже занятым index — это новый вызов, а не
+				// продолжение прежнего.
+				if call != nil && part.ID != "" && call.ID != "" && part.ID != call.ID {
+					call = nil
+				}
 				if call == nil {
 					call = &partial{}
-					calls[part.Index] = call
+					byIndex[part.Index] = call
+					calls = append(calls, call)
 				}
-				call.ID += part.ID
-				call.Name += part.Function.Name
+				if call.ID == "" {
+					call.ID = part.ID
+				}
+				// Имя приходит один раз, но часть шлюзов повторяет его в каждом
+				// куске: повтор не дописывается, иначе получается read_fileread_file.
+				if name := part.Function.Name; name != "" && name != call.Name {
+					call.Name += name
+				}
 				call.Arguments += part.Function.Arguments
 			}
 		}
@@ -380,19 +387,14 @@ func streamOpenAIResponse(ctx context.Context, body io.Reader, onEvent func(Mode
 	// лимиту. Молча вернуть «успех» здесь нельзя: наверху пустой ответ станет
 	// откатом с причиной «модель вернула пустое», а причина другая и чинится
 	// иначе — лимитом или гашением размышления.
-	if !sawContent && finishReason == "length" {
+	if !sawContent && len(calls) == 0 && finishReason == "length" {
 		return truncatedReasoningError(completionTokens)
 	}
-	for index := 0; index < len(calls); index++ {
-		call := calls[index]
-		if call == nil {
-			continue
-		}
-		args := json.RawMessage(call.Arguments)
-		normalized := ToolCall{ID: call.ID, Name: call.Name, Arguments: args}
-		if !json.Valid(args) {
+	for index, call := range calls {
+		normalized := ToolCall{ID: call.ID, Name: call.Name, Arguments: normalizeToolArguments(call.Arguments)}
+		if normalized.Arguments == nil {
 			normalized.Arguments = json.RawMessage(`{}`)
-			normalized.ArgumentError = "tool call " + strconv.Itoa(index) + " returned arguments that are not valid JSON"
+			normalized.ArgumentError = toolArgumentError(index, finishReason)
 		}
 		if normalized.ID == "" {
 			normalized.ID = "call_" + strconv.Itoa(index)

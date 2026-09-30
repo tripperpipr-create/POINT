@@ -200,7 +200,7 @@ func (a *Anthropic) Stream(ctx context.Context, request ModelRequest, onEvent fu
 				"body", observability.Snippet(security.Redact(string(snippet)), 800),
 				"duration_ms", time.Since(started).Milliseconds(),
 			)
-			delay := retryDelay(response.Header.Get("Retry-After"), attempt, time.Now())
+			delay := statusRetryDelay(response.StatusCode, response.Header.Get("Retry-After"), attempt, time.Now())
 			if retryableStatus(response.StatusCode) && shouldRetry(ctx, attempt, delay) {
 				if retryErr := announceRetry(ctx, onEvent, attempt, delay, "provider returned "+response.Status); retryErr != nil {
 					return retryErr
@@ -209,8 +209,9 @@ func (a *Anthropic) Stream(ctx context.Context, request ModelRequest, onEvent fu
 			}
 			return fmt.Errorf("provider returned %s: %s", response.Status, strings.TrimSpace(string(snippet)))
 		}
-		streamErr := streamAnthropicResponse(ctx, response.Body, onEvent)
-		_ = response.Body.Close()
+		body := newIdleReader(response.Body, a.config.streamIdle())
+		streamErr := streamAnthropicResponse(ctx, body, onEvent)
+		_ = body.Close()
 		if streamErr != nil {
 			log.Error("provider anthropic stream failed",
 				"host", observability.HostOnly(a.config.BaseURL),
@@ -218,6 +219,18 @@ func (a *Anthropic) Stream(ctx context.Context, request ModelRequest, onEvent fu
 				"error", security.Redact(streamErr.Error()),
 				"duration_ms", time.Since(started).Milliseconds(),
 			)
+			// Поток, оборванный на середине или прерванный overloaded_error,
+			// повторяется так же, как у OpenAI-совместимых: прежде Anthropic
+			// отдавал такую ошибку наверх с первого раза.
+			if isTransientStreamError(streamErr) {
+				delay := retryDelay("", attempt, time.Now())
+				if shouldRetry(ctx, attempt, delay) {
+					if retryErr := announceRetry(ctx, onEvent, attempt, delay, "temporary provider stream interrupt"); retryErr != nil {
+						return retryErr
+					}
+					continue
+				}
+			}
 		} else {
 			log.Info("provider anthropic stream done",
 				"host", observability.HostOnly(a.config.BaseURL),
@@ -266,6 +279,12 @@ func streamAnthropicResponse(ctx context.Context, body io.Reader, onEvent func(M
 	}
 	blocks := map[int]*partial{}
 	order := make([]int, 0, 4)
+	// stop_reason и признак ответа нужны тем же, чем у OpenAI: пустой ответ
+	// по пределу вывода — это размышление, съевшее лимит, а обрезанный вызов
+	// инструмента надо разбить, а не чинить JSON.
+	var stopReason string
+	var sawContent bool
+	var outputTokens int
 	scanner := bufio.NewScanner(body)
 	scanner.Buffer(make([]byte, 64*1024), 4*1024*1024)
 	for scanner.Scan() {
@@ -295,6 +314,7 @@ func streamAnthropicResponse(ctx context.Context, body io.Reader, onEvent func(M
 				PartialJSON string `json:"partial_json"`
 				Thinking    string `json:"thinking"`
 				Signature   string `json:"signature"`
+				StopReason  string `json:"stop_reason"`
 			} `json:"delta"`
 			Message struct {
 				Usage struct {
@@ -316,7 +336,7 @@ func streamAnthropicResponse(ctx context.Context, body io.Reader, onEvent func(M
 		}
 		switch {
 		case chunk.Error != nil:
-			return fmt.Errorf("provider error: %s", chunk.Error.Message)
+			return fmt.Errorf("provider error (%s): %s", chunk.Error.Type, chunk.Error.Message)
 		case chunk.Type == "content_block_start":
 			isThought := chunk.ContentBlock.Type == "thinking" || chunk.ContentBlock.Type == "redacted_thinking"
 			block := &partial{
@@ -330,6 +350,7 @@ func streamAnthropicResponse(ctx context.Context, body io.Reader, onEvent func(M
 			order = append(order, chunk.Index)
 		case chunk.Type == "content_block_delta" && chunk.Delta.Type == "text_delta":
 			if chunk.Delta.Text != "" {
+				sawContent = true
 				if err := onEvent(ModelEvent{Kind: EventTextDelta, Delta: chunk.Delta.Text}); err != nil {
 					return err
 				}
@@ -352,14 +373,30 @@ func streamAnthropicResponse(ctx context.Context, body io.Reader, onEvent func(M
 			if err := onEvent(ModelEvent{Kind: EventUsage, InputTokens: chunk.Message.Usage.Input, OutputTokens: chunk.Message.Usage.Output}); err != nil {
 				return err
 			}
-		case chunk.Type == "message_delta" && (chunk.Usage.Input > 0 || chunk.Usage.Output > 0):
-			if err := onEvent(ModelEvent{Kind: EventUsage, InputTokens: chunk.Usage.Input, OutputTokens: chunk.Usage.Output}); err != nil {
-				return err
+		case chunk.Type == "message_delta":
+			if chunk.Delta.StopReason != "" {
+				stopReason = chunk.Delta.StopReason
+			}
+			if chunk.Usage.Input > 0 || chunk.Usage.Output > 0 {
+				outputTokens = chunk.Usage.Output
+				if err := onEvent(ModelEvent{Kind: EventUsage, InputTokens: chunk.Usage.Input, OutputTokens: chunk.Usage.Output}); err != nil {
+					return err
+				}
 			}
 		}
 	}
 	if err := scanner.Err(); err != nil {
 		return err
+	}
+	finishReason := anthropicFinishReason(stopReason)
+	hasTool := false
+	for _, block := range blocks {
+		if block != nil && block.isTool {
+			hasTool = true
+		}
+	}
+	if !sawContent && !hasTool && finishReason == "length" {
+		return truncatedReasoningError(outputTokens)
 	}
 	// Блоки размышления отдаём раньше вызовов и в том порядке, в каком они
 	// пришли: движок кладёт их в ход целиком, чтобы вернуть следующим запросом.
@@ -381,13 +418,10 @@ func streamAnthropicResponse(ctx context.Context, body io.Reader, onEvent func(M
 		if block == nil || !block.isTool {
 			continue
 		}
-		args := json.RawMessage(strings.TrimSpace(block.Arguments))
-		call := ToolCall{ID: block.ID, Name: block.Name, Arguments: args}
-		if len(args) == 0 {
+		call := ToolCall{ID: block.ID, Name: block.Name, Arguments: normalizeToolArguments(block.Arguments)}
+		if call.Arguments == nil {
 			call.Arguments = json.RawMessage(`{}`)
-		} else if !json.Valid(args) {
-			call.Arguments = json.RawMessage(`{}`)
-			call.ArgumentError = "tool call " + strconv.Itoa(position) + " returned arguments that are not valid JSON"
+			call.ArgumentError = toolArgumentError(position, finishReason)
 		}
 		if call.ID == "" {
 			call.ID = "call_" + strconv.Itoa(position)
@@ -396,5 +430,25 @@ func streamAnthropicResponse(ctx context.Context, body io.Reader, onEvent func(M
 			return err
 		}
 	}
+	if finishReason != "" {
+		return onEvent(ModelEvent{Kind: EventFinish, FinishReason: finishReason})
+	}
 	return nil
+}
+
+// anthropicFinishReason переводит stop_reason в словарь OpenAI, который читают
+// движок и Мастер: «length» у них значит «упёрлись в предел вывода».
+func anthropicFinishReason(stopReason string) string {
+	switch stopReason {
+	case "":
+		return ""
+	case "max_tokens":
+		return "length"
+	case "end_turn", "stop_sequence":
+		return "stop"
+	case "tool_use":
+		return "tool_calls"
+	default:
+		return stopReason
+	}
 }

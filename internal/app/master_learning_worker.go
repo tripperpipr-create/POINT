@@ -125,7 +125,7 @@ func (a *App) evaluateMasterJob(ctx context.Context, job *domain.MasterLearningJ
 		deferJob(errors.New("недостаточно сохранённых завершённых примеров"))
 		return
 	}
-	model, err := providers.New(providers.Config{Kind: cfg.Provider, Preset: cfg.ProviderPreset, BaseURL: cfg.BaseURL, APIVersion: cfg.APIVersion, APIKey: key, TimeoutSeconds: 90})
+	model, err := providers.New(providers.Config{Kind: cfg.Provider, Preset: cfg.ProviderPreset, BaseURL: cfg.BaseURL, APIVersion: cfg.APIVersion, APIKey: key, HeaderTimeoutSeconds: backgroundModelHeaderTimeoutSeconds})
 	if err != nil {
 		deferJob(err)
 		return

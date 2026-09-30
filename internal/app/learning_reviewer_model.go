@@ -81,7 +81,7 @@ func (a *App) generateLearningReview(ctx context.Context, run domain.Run, agent 
 	if profile.Provider == "" {
 		profile = domain.AgentProfile{Provider: agent.Provider, BaseURL: agent.BaseURL, Model: agent.PrimaryModel, ReasoningEffort: agent.ReasoningEffort}
 	}
-	model, err := providers.New(providers.Config{Kind: profile.Provider, Preset: profile.ProviderPreset, BaseURL: profile.BaseURL, APIKey: apiKey, TimeoutSeconds: 90})
+	model, err := providers.New(providers.Config{Kind: profile.Provider, Preset: profile.ProviderPreset, BaseURL: profile.BaseURL, APIKey: apiKey, HeaderTimeoutSeconds: backgroundModelHeaderTimeoutSeconds})
 	if err != nil {
 		return fallback, "deterministic", err.Error()
 	}
@@ -154,7 +154,7 @@ func (a *App) generateLearningReview(ctx context.Context, run domain.Run, agent 
 		},
 	}
 	criticSystem := `You are the critic pass for Agent Hub learning. Review the candidate JSON for portability and safety contradictions. Return exactly one JSON object and no markdown with the same schema as the candidate. If unsafe or non-portable, set decision/memoryDecision/instructionDecision to skip as needed. Prefer tightening instructions over inventing new capability. Never copy secrets, paths, file names, or stack traces.`
-	criticCtx, criticCancel := context.WithTimeout(ctx, 45*time.Second)
+	criticCtx, criticCancel := context.WithTimeout(ctx, learningCriticTimeout(profile))
 	defer criticCancel()
 	criticRaw, criticErr := a.streamLearningJSON(criticCtx, model, profile, criticSystem, criticPayload)
 	if criticErr != nil {
@@ -287,4 +287,22 @@ func deterministicLearningReview(agent domain.ProjectAgent, tools []string, prev
 		name = previous.Name
 	}
 	return learningReview{Decision: decision, Name: name, Description: "Процедура, выделенная системой из успешно завершённых и проверенных запусков.", Instructions: instructions}
+}
+
+// Фоновые вызовы модели (комплектовщик, обучение Мастера, рецензент) прежде
+// шли с общим сроком тела ответа в 90 с. Думающая модель на llmux за это время
+// не успевает даже закончить размышление: квест cba8 видел их обрывы на 45-й и
+// 90-й секунде, а GPU всё это время работал впустую рядом с исполнителем.
+// Теперь ограничено только молчание до заголовков, поток сторожит тишину, а
+// общий срок задаёт контекст вызова.
+const backgroundModelHeaderTimeoutSeconds = 90
+
+// learningCriticTimeout — срок второго прохода рецензента. 45 с хватает
+// платному API; бесплатный рантайм с думающей моделью в него не укладывался
+// никогда, и проход только занимал GPU.
+func learningCriticTimeout(profile domain.AgentProfile) time.Duration {
+	if domain.RuntimeChargesForTokens(profile.Provider, profile.ProviderPreset) {
+		return 45 * time.Second
+	}
+	return 4 * time.Minute
 }

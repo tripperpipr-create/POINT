@@ -18,6 +18,27 @@ func retryableStatus(status int) bool {
 	return status == http.StatusRequestTimeout || status == http.StatusConflict || status == http.StatusTooManyRequests || status >= 500
 }
 
+// Шлюз, который грузит модель или перегружен (429, 503, 529), без Retry-After
+// получает паузу в секундах, а не в четверть секунды: llmux отвечает 503, пока
+// поднимает модель, и три попытки за 750 мс сгорали раньше, чем она вставала.
+const busyRetryDelay = 2 * time.Second
+
+func busyStatus(status int) bool {
+	return status == http.StatusTooManyRequests || status == http.StatusServiceUnavailable || status == 529
+}
+
+// statusRetryDelay — пауза перед повтором ответа с кодом ошибки.
+func statusRetryDelay(status int, retryAfter string, failedAttempt int, now time.Time) time.Duration {
+	if strings.TrimSpace(retryAfter) == "" && busyStatus(status) {
+		delay := busyRetryDelay
+		for attempt := 1; attempt < failedAttempt; attempt++ {
+			delay *= 2
+		}
+		return minDuration(delay, maxRetryDelay)
+	}
+	return retryDelay(retryAfter, failedAttempt, now)
+}
+
 func retryDelay(retryAfter string, failedAttempt int, now time.Time) time.Duration {
 	retryAfter = strings.TrimSpace(retryAfter)
 	if seconds, err := strconv.Atoi(retryAfter); err == nil && seconds >= 0 {

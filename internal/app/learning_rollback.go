@@ -48,16 +48,20 @@ func (a *App) restoreImprovementBindings(ctx context.Context, item domain.AgentI
 		}
 	}
 	now := time.Now().UTC()
+	// Откат снимает только своё изменение: то, что улучшение добавило,
+	// уходит из текущего состояния, то, что оно вытеснило, возвращается.
+	// Снимок «до» целиком не пишется — он затёр бы всё, что появилось позже.
+	skillDelta := improvementSkillDelta(item)
 	if (item.PromotionStatus == "promoted" || item.InstructionStatus == "promoted") && item.BlueprintID != "" {
 		blueprint, err := a.store.GetBlueprint(ctx, item.BlueprintID)
 		if err != nil {
 			return err
 		}
 		if item.PromotionStatus == "promoted" {
-			blueprint.SkillIDs = append([]string(nil), item.BeforeBlueprintSkillIDs...)
+			blueprint.SkillIDs = revertListDelta(blueprint.SkillIDs, skillDelta(item.BeforeBlueprintSkillIDs, item.AfterBlueprintSkillIDs))
 		}
 		if item.InstructionStatus == "promoted" {
-			blueprint.Rules = append([]string(nil), item.BeforeBlueprintRules...)
+			blueprint.Rules = revertListDelta(blueprint.Rules, improvementRuleDelta(item, item.BeforeBlueprintRules, item.AfterBlueprintRules))
 		}
 		blueprint.UpdatedAt = now
 		if err = a.store.SaveBlueprint(ctx, blueprint); err != nil {
@@ -65,9 +69,10 @@ func (a *App) restoreImprovementBindings(ctx context.Context, item domain.AgentI
 		}
 	}
 
-	beforeSkills := item.BeforeAgentSkillIDs
+	beforeSkills, afterSkills := item.BeforeAgentSkillIDs, item.AfterAgentSkillIDs
 	if len(beforeSkills) == 0 && item.ProjectAgentID != "" {
 		beforeSkills = map[string][]string{item.ProjectAgentID: append([]string(nil), item.BeforeSkillIDs...)}
+		afterSkills = map[string][]string{item.ProjectAgentID: append([]string(nil), item.AfterSkillIDs...)}
 	}
 	agentIDs := map[string]bool{}
 	for agentID := range beforeSkills {
@@ -84,11 +89,11 @@ func (a *App) restoreImprovementBindings(ctx context.Context, item domain.AgentI
 		if err != nil {
 			return err
 		}
-		if skillIDs, ok := beforeSkills[agentID]; ok {
-			agent.SkillIDs = append([]string(nil), skillIDs...)
+		if before, ok := beforeSkills[agentID]; ok {
+			agent.SkillIDs = revertListDelta(agent.SkillIDs, skillDelta(before, afterSkills[agentID]))
 		}
-		if rules, ok := item.BeforeAgentRules[agentID]; ok {
-			agent.Rules = append([]string(nil), rules...)
+		if before, ok := item.BeforeAgentRules[agentID]; ok {
+			agent.Rules = revertListDelta(agent.Rules, improvementRuleDelta(item, before, item.AfterAgentRules[agentID]))
 		}
 		agent.UpdatedAt = now
 		if err = a.store.SaveProjectAgent(ctx, agent); err != nil {
@@ -163,6 +168,85 @@ func (a *App) disableUnusedManagedSkillInstances(ctx context.Context, item domai
 		}
 	}
 	return nil
+}
+
+// listDelta — что изменение добавило в список и что из него убрало, с
+// прежними позициями убранного.
+type listDelta struct {
+	added   []string
+	removed []string
+	index   map[string]int
+}
+
+func diffLists(before, after []string) listDelta {
+	delta := listDelta{index: map[string]int{}}
+	for _, value := range after {
+		if !slices.Contains(before, value) && !slices.Contains(delta.added, value) {
+			delta.added = append(delta.added, value)
+		}
+	}
+	for position, value := range before {
+		if !slices.Contains(after, value) && !slices.Contains(delta.removed, value) {
+			delta.removed = append(delta.removed, value)
+			delta.index[value] = position
+		}
+	}
+	return delta
+}
+
+// improvementSkillDelta: снимок «после» есть — дельта по снимкам. Записи,
+// сохранённые до полного UPSERT, потеряли снимки; их изменение известно по
+// самому улучшению: добавлен SkillID, вытеснена ревизия supersedesSkillId.
+func improvementSkillDelta(item domain.AgentImprovement) func(before, after []string) listDelta {
+	return func(before, after []string) listDelta {
+		if len(after) > 0 {
+			return diffLists(before, after)
+		}
+		delta := listDelta{index: map[string]int{}}
+		if item.SkillID != "" {
+			delta.added = []string{item.SkillID}
+		}
+		if item.AfterSkill != nil {
+			if superseded := skillFamilyField(item.AfterSkill.Configuration, "supersedesSkillId"); superseded != "" {
+				delta.removed = []string{superseded}
+				delta.index[superseded] = len(before)
+			}
+		}
+		return delta
+	}
+}
+
+func improvementRuleDelta(item domain.AgentImprovement, before, after []string) listDelta {
+	if len(after) > 0 {
+		return diffLists(before, after)
+	}
+	delta := listDelta{index: map[string]int{}}
+	if strings.TrimSpace(item.Instruction) != "" {
+		delta.added = []string{item.Instruction}
+	}
+	return delta
+}
+
+// revertListDelta применяет обратную дельту к текущему списку: добавленное
+// снимается, убранное возвращается на прежнее место, если его там нет.
+func revertListDelta(current []string, delta listDelta) []string {
+	result := make([]string, 0, len(current)+len(delta.removed))
+	for _, value := range current {
+		if !slices.Contains(delta.added, value) {
+			result = append(result, value)
+		}
+	}
+	for _, value := range delta.removed {
+		if slices.Contains(result, value) {
+			continue
+		}
+		position := delta.index[value]
+		if position > len(result) {
+			position = len(result)
+		}
+		result = slices.Insert(result, position, value)
+	}
+	return result
 }
 
 func withoutString(values []string, remove string) []string {
@@ -266,7 +350,7 @@ func (a *App) rollbackAgentImprovementLocked(ctx context.Context, item domain.Ag
 		sameMemory := item.MemoryID != "" && newer.MemoryID == item.MemoryID
 		sameInstruction := item.InstructionSignature != "" && newer.InstructionSignature == item.InstructionSignature
 		if newer.ID != item.ID && (sameSkill || sameMemory || sameInstruction) && improvementIsApplied(newer.Status) && newer.CreatedAt.After(item.CreatedAt) {
-			return domain.AgentImprovement{}, errors.New("a newer autonomous improvement must be rolled back first")
+			return domain.AgentImprovement{}, errNewerImprovementFirst
 		}
 	}
 	if err = a.restoreImprovementBindings(ctx, item); err != nil {
@@ -290,6 +374,8 @@ func (a *App) rollbackAgentImprovementLocked(ctx context.Context, item domain.Ag
 	return item, nil
 }
 
+var errNewerImprovementFirst = errors.New("a newer autonomous improvement must be rolled back first")
+
 func skillImprovementFamily(item domain.AgentImprovement) string {
 	for _, skill := range []*domain.SkillDefinition{item.AfterSkill, item.BeforeSkill} {
 		if skill == nil {
@@ -311,12 +397,19 @@ func skillImprovementFamily(item domain.AgentImprovement) string {
 // regressed one, and the canary stayed wedged on every run.
 func skillFamilyID(skill domain.SkillDefinition) string {
 	for _, key := range []string{"familyId", "supersedesSkillId"} {
-		// Revisions saved while the bug was live carry the literal "<nil>";
-		// their predecessor link still names the lineage.
-		value, _ := skill.Configuration[key].(string)
-		if value = strings.TrimSpace(value); value != "" && value != "<nil>" {
+		if value := skillFamilyField(skill.Configuration, key); value != "" {
 			return value
 		}
+	}
+	return ""
+}
+
+// skillFamilyField читает строковое поле родословной навыка. Ревизии,
+// сохранённые во время бага, несут литерал "<nil>" — это пустое значение.
+func skillFamilyField(configuration map[string]any, key string) string {
+	value, _ := configuration[key].(string)
+	if value = strings.TrimSpace(value); value != "<nil>" {
+		return value
 	}
 	return ""
 }

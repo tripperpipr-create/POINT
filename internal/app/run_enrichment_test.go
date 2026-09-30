@@ -40,3 +40,27 @@ func TestResolveEquippedSkillsPreservesManagedRevisionUnderProjectOverrides(t *t
 		t.Fatalf("merged configuration=%#v", configuration)
 	}
 }
+
+func TestResolveEquippedSkillsDropsRolledBackAndDeprecatedSkills(t *testing.T) {
+	store := attributionSkillStore{skills: []domain.SkillDefinition{
+		{ID: "skill-live", Name: "Live", Instructions: "Do live", Configuration: map[string]any{"promotionStatus": "candidate"}},
+		{ID: "skill-rolled", Name: "Rolled", Instructions: "Do rolled", Configuration: map[string]any{"promotionStatus": "rolled_back"}},
+		{ID: "skill-old", Name: "Old", Instructions: "Do old", Configuration: map[string]any{"lifecycleStatus": "deprecated"}},
+	}}
+	agent := domain.ProjectAgent{SkillIDs: []string{"skill-live", "skill-rolled", "skill-old"}}
+	resolved, err := resolveEquippedSkills(store, "workspace-a", agent, domain.AgentProfile{})
+	if err != nil || len(resolved) != 1 || resolved[0].ID != "skill-live" {
+		t.Fatalf("retired skills reached the prompt: %#v err=%v", resolved, err)
+	}
+}
+
+func TestPrioritizedMemoriesPutsPinnedAndConfidentFirst(t *testing.T) {
+	got := prioritizedMemories([]domain.MemoryRecord{
+		{ID: "low", Confidence: 0.2},
+		{ID: "pinned", Pinned: true, Confidence: 0.1},
+		{ID: "high", Confidence: 0.9},
+	})
+	if got[0].ID != "pinned" || got[1].ID != "high" || got[2].ID != "low" {
+		t.Fatalf("order=%s,%s,%s", got[0].ID, got[1].ID, got[2].ID)
+	}
+}

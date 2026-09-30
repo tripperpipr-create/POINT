@@ -43,7 +43,7 @@ expect(running.includes('composer create-project symfony/skeleton .') && running
 expect(running.includes('навык не выдан этому агенту'), 'skill_not_equipped is not named in Russian')
 expect(!running.includes('skill is not equipped'), 'core English failure text leaked into the journal')
 expect(running.includes('сначала «') && !/\bsearch_code\b/.test(running), 'guardrail still names the raw tool id')
-expect(runningHtml.includes('quest-diff-line is-add') && runningHtml.includes('>+11<'), 'patch lost its coloured diff or its line count')
+expect(runningHtml.includes('diff is-whole is-new') && runningHtml.includes('Новый файл') && runningHtml.includes('class="diff-n">11<'), 'new file lost its badge or its numbered code')
 expect(running.includes('создан в песочнице'), 'patch row does not say what happened to the file')
 expect((runningHtml.match(/<span class="quest-track"[\s\S]*?<\/span>/)?.[0].match(/<i class="is-/g) || []).length === 6, 'stage track does not draw one segment per stage')
 expect(running.includes('Этап 2 из 6') && running.includes('Разработчик проекта · Qwen3.8-27B'), 'now line lost stage position, agent or model')

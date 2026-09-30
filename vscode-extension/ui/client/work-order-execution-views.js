@@ -157,7 +157,7 @@ export function workOrderExecutionParts(order, ui, deps = {}) {
       <b>${esc(stallTitle)}</b>
       ${stall.nodeName || stall.nodeId ? `<small>Этап «${esc(stallName || stall.nodeName || stall.nodeId)}»</small>` : ''}
       ${stall.error ? `<p>${esc(stall.error)}</p>` : ''}
-      ${stall.waitReason === 'stage_failed' ? `<div><button type="button" class="hall-btn" data-action="revise-master-work-order-v2" data-id="${esc(order.id)}">Обсудить новую версию</button></div>` : ''}
+      ${stall.waitReason === 'stage_failed' ? `<div>${runtime.status === 'awaiting_user' ? ['retry:Повторить этап:hall-btn is-primary', 'finalize:Завершить квест:hall-btn'].map(item => item.split(':')).map(([control, label, cls]) => `<button type="button" class="${cls}" data-action="control-master-work-order-v2" data-control="${control}" data-id="${esc(order.id)}" data-quest-id="${esc(runtime.questId || '')}">${label}</button>`).join('') : ''}<button type="button" class="hall-btn" data-action="revise-master-work-order-v2" data-id="${esc(order.id)}">Обсудить новую версию</button></div>` : ''}
     </div>` : ''
   const plan = launchPlan(runtime, esc) || masterPlanHtml('Этапы', workOrderStageRows(order, ui, deps), esc, { limit: 12 })
   const transcript = transcriptFor(order, ui, deps)

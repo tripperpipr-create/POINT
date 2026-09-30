@@ -226,8 +226,12 @@ async function handleMasterMessage(message) {
           const known=this.knownProject(message.path)
           if(!known) throw new Error('Проект не найден в списке Point. Откройте папку заново.')
           if(!(await this.confirmLeavingBusyWorld())) break
-          this.pendingMasterConversation={path:known,id:String(message.conversationId || ''),create:message.newChat===true}
+          // Переключились ради настроек проекта — открывается вкладка, а не чат:
+          // ожидающего разговора нет, и после смены мира выбирается она.
+          const tab=['overview'].includes(String(message.tab || '')) ? String(message.tab) : ''
+          if(!tab) this.pendingMasterConversation={path:known,id:String(message.conversationId || ''),create:message.newChat===true}
           await this.switchToProject?.(known)
+          if(tab){this.focusTab(tab);this.postState(true)}
           break
         }
         case 'loadMaster': {
@@ -390,7 +394,7 @@ async function handleMasterMessage(message) {
           const workOrderId=String(message.workOrderId || '')
           const action=String(message.action || '')
 		  let apiKey=''
-		  if(action==='resume'){
+		  if(action==='resume'||action==='retry'){
 			const reviewed=await this.service.request('/api/v2/work-orders/'+encodeURIComponent(workOrderId))
 			const routing=reviewed?.routing || {}
 			const connectionId=routing.mode==='auto' ? routing.routerConnectionId : routing.fixedConnectionId

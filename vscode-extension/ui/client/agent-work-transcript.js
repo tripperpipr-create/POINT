@@ -5,6 +5,7 @@
 // (quest-journal-views.js) с теми же зависимостями: заводить ему второй канал
 // через main.js значило бы расти файлу, который стоит у своего потолка.
 import { createQuestJournal } from './quest-journal-views.js'
+import { diffHtml } from './diff-view.js'
 
 const SKIP_TOOL_FAIL = new Set([
   'inspection_required',
@@ -49,7 +50,7 @@ export function createAgentWorkTranscript(dependencies) {
     const pending = approval?.status === 'pending'
     const diff = String(patch.diff || '').trim()
     const diffBlock = diff
-      ? `<details class="agent-work-diff" ${pending ? 'open' : ''}><summary>Показать diff</summary><pre>${esc(diff)}</pre></details>`
+      ? `<details class="agent-work-diff" ${pending ? 'open' : ''}><summary>Показать diff</summary>${diffHtml(diff, esc)}</details>`
       : ''
     const path = sandboxOnly
       ? `<span>${esc(patch.path)}</span>`

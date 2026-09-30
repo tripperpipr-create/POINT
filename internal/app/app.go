@@ -69,6 +69,9 @@ type App struct {
 	learningCtx             context.Context
 	learningCancel          context.CancelFunc
 	learningStopping        bool
+	// subagentEvaluationAttempts — когда последний раз ставилась оценка
+	// временного специалиста (agentID → time.Time); держит повторы редкими.
+	subagentEvaluationAttempts sync.Map
 	// mcpSessions — доступ сущностей для исполнителей, принимающих инструменты
 	// только по MCP. Реестр живёт столько же, сколько ядро: сессии в нём
 	// открываются и закрываются вокруг конкретной работы.

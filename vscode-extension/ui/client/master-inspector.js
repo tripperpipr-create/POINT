@@ -133,7 +133,7 @@ export function masterContextPanelHtml({ attachments = [], memory = '', usedMemo
     </section>`)
   const used = list(usedMemory)
   sections.push(`<section class="hall-insp-group">
-      <h3>Память разговора</h3>
+      <h3>Память проекта</h3>
       ${String(memory || '').trim() ? `<p class="hall-insp-note">${esc(memory)}</p>` : '<p class="hall-insp-empty">Постоянных указаний нет. Их задают в действиях с разговором (⋯ в шапке).</p>'}
       ${used.length ? `<div class="hall-insp-rubric">Использовано в последнем ответе · ${used.length}</div><ul class="hall-insp-list">${used.map(text => `<li>${icon('memory')}<span>${esc(text)}</span></li>`).join('')}</ul>` : ''}
     </section>`)

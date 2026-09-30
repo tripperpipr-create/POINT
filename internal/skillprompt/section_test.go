@@ -24,3 +24,11 @@ func TestEquippedSkillsSectionInlinesShortAndGatesLong(t *testing.T) {
 		t.Fatalf("long skill should ask for read_skill: %s", message)
 	}
 }
+
+func TestSectionOmitsLearningBookkeeping(t *testing.T) {
+	section := Section([]domain.SkillRuntime{{ID: "skill-learned-x", Name: "Learned", Instructions: "Do it.",
+		Configuration: map[string]any{"sourceWorkspaces": []string{"ws_foreign"}, "evalGate": map[string]any{"passed": true}, "localOption": "on"}}})
+	if strings.Contains(section, "ws_foreign") || strings.Contains(section, "evalGate") || !strings.Contains(section, "localOption") {
+		t.Fatalf("section=%s", section)
+	}
+}

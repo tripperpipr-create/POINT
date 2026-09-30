@@ -151,7 +151,6 @@ func (a *App) loadHubBootstrap(ctx context.Context, workspaceID string) (HubBoot
 		return hub, err
 	}
 	hub.SkillCuration = buildSkillCuration(hub.Skills, hub.ProjectAgents, hub.Blueprints, hub.ProjectSkills, allSkillOutcomes, time.Now().UTC())
-	_ = a.queueCuratorMergeProposals(ctx, workspaceID)
 	hub.CompanionMessages, err = a.store.ListCompanionMessages(ctx, workspaceID, 80)
 	if err != nil {
 		return hub, err

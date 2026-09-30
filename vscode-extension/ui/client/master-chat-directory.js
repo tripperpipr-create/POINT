@@ -121,13 +121,18 @@ export function createMasterChatDirectory(dependencies) {
           ${archived.length ? `<details class="hall-chats-archive"><summary>${esc(countOf(archived.length, 'разговор в архиве', 'разговора в архиве', 'разговоров в архиве'))}</summary>${archived.map(chat => rowHtml(chat, world)).join('')}</details>` : ''}
         </div>`
       : ''
+    // Шестерёнка — вход в настройки именно этого проекта. У чужого мира он
+    // сначала переключает мир (openProjectChat c tab), у своего — просто вкладка.
+    const settings = world.own
+      ? `<button type="button" class="hall-chats-gear" data-action="tab" data-tab="overview" aria-label="Настройки проекта «${esc(world.name)}»" title="Настройки проекта">${icon('settings')}</button>`
+      : `<button type="button" class="hall-chats-gear" data-action="chat-settings" data-path="${esc(world.path || '')}" aria-label="Настройки проекта «${esc(world.name)}»" title="Настройки проекта">${icon('settings')}</button>`
     const unreachable = !world.own && !world.path
     return `<section class="hall-chats-group${expanded ? ' is-open' : ''}${world.own ? ' is-own' : ''}">
       <h3 class="hall-chats-world">
         <button type="button" data-action="chat-group" data-world="${esc(world.workspaceId)}" aria-expanded="${expanded ? 'true' : 'false'}">
           <em class="hall-chats-caret" aria-hidden="true">${icon('chevron-right')}</em><span>${esc(world.name)}</span><b>${world.chats.filter(chat => !chat.archived && !chat.temporary).length}</b>
         </button>
-        ${unreachable ? '' : add}
+        ${unreachable ? '' : settings + add}
       </h3>
       ${unreachable && expanded ? '<p class="hall-chats-blank">Мира нет в списке Point — откройте папку заново.</p>' : body}
     </section>`
@@ -167,10 +172,10 @@ export function createMasterChatDirectory(dependencies) {
     requestChatDirectory()
     const list = worlds()
     const groups = list.map(groupHtml).join('')
-    // «Временный чат» — строка сразу под проектами, а не подвал панели: внизу
-    // пустой рейки он висел отдельно от всего, что с ним связано (выбор
-    // владельца по снимкам, сентябрь 2026).
-    const temporary = `<button type="button" class="hall-chats-temporary" data-action="master-session-temporary"${ui.state.workspace ? '' : ' disabled'}>${icon('plus')}<span>Временный чат</span></button>`
+    // «Временный чат» — рядом с «Новым чатом» и поиском, а не под проектами:
+    // это способ начать разговор, и под списком миров его приходилось искать
+    // (замечание владельца по живой IDE, 29 сентября 2026).
+    const temporary = `<button type="button" class="hall-chats-temporary" data-action="master-session-temporary"${ui.state.workspace ? '' : ' disabled'}>${icon('chat-temp')}<span>Временный чат</span></button>`
     const empty = !list.length
       ? '<div class="hall-chats-empty"><strong>Миров пока нет</strong><p>Откройте папку — она станет миром для мастера и гильдии.</p><button type="button" class="hall-chats-new" data-action="gallery-open-folder">Открыть папку</button></div>'
       : ''
@@ -180,7 +185,8 @@ export function createMasterChatDirectory(dependencies) {
         <button type="button" class="hall-chats-world-new" data-action="gallery-toggle" aria-label="Все проекты" title="Все проекты">${icon('folder')}</button>
       </header>
       <input type="search" id="chat-directory-search" data-master-sidebar-search placeholder="Поиск по всем чатам" aria-label="Поиск по чатам всех проектов" value="${esc(query)}">
-      <div class="hall-chats-groups">${groups || empty}${groups && query.trim() && !list.some(world => world.chats.some(chat => matches(chat.title))) ? `<p class="hall-chats-blank">Ничего не нашлось по запросу «${esc(query.trim())}»</p>` : ''}${groups ? temporary : ''}</div>
+      ${groups ? temporary : ''}
+      <div class="hall-chats-groups">${groups || empty}${groups && query.trim() && !list.some(world => world.chats.some(chat => matches(chat.title))) ? `<p class="hall-chats-blank">Ничего не нашлось по запросу «${esc(query.trim())}»</p>` : ''}</div>
       <footer class="hall-chats-footer"><button type="button" class="hall-chats-settings" data-action="tab" data-tab="general">${icon('settings')}<span>Общие настройки</span></button></footer>
     </aside>`
   }
@@ -242,6 +248,12 @@ export function createMasterChatDirectory(dependencies) {
       if (!path) return true
       openingChat = chat
       vscode.postMessage({ type: 'openProjectChat', path, conversationId: chat })
+      return true
+    }
+    if (action === 'chat-settings') {
+      const path = target?.dataset?.path || ''
+      if (!path) return true
+      vscode.postMessage({ type: 'openProjectChat', path, tab: 'overview' })
       return true
     }
     if (action === 'chat-new') {

@@ -139,6 +139,21 @@ func (s *SQLite) SaveMasterLearningJob(ctx context.Context, v domain.MasterLearn
 	return err
 }
 
+const (
+	// MasterLearningExamples is the number of recorded turns replayed per job.
+	MasterLearningExamples = 3
+	// MasterLearningCleanWindow is how many defect-free turns open a
+	// token-saving job when no turn gave the methodology anything to fix.
+	MasterLearningCleanWindow = 10
+)
+
+func firstN(values []string, n int) []string {
+	if len(values) > n {
+		return append([]string(nil), values[:n]...)
+	}
+	return append([]string(nil), values...)
+}
+
 // Queue and claim are transactions: concurrent turns cannot consume the same
 // evidence twice or start two evaluations. No model calls inside transactions.
 func (s *SQLite) QueueMasterLearning(ctx context.Context, ws, phase, skillID, baselineID string, candidates ...string) error {
@@ -154,35 +169,60 @@ func (s *SQLite) QueueMasterLearning(ctx context.Context, ws, phase, skillID, ba
 	if active > 0 {
 		return nil
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT id FROM master_operations o WHERE workspace_id=? AND phase=? AND eligible=1 AND EXISTS(SELECT 1 FROM json_each(o.payload,'$.skills') sk WHERE json_extract(sk.value,'$.skillId')=?) AND NOT EXISTS(SELECT 1 FROM master_learning_samples s WHERE s.operation_id=o.id AND s.skill_id=?) ORDER BY created_at LIMIT 3`, ws, phase, skillID, skillID)
+	rows, err := tx.QueryContext(ctx, `SELECT id, coalesce(json_extract(payload,'$.contractError'),0), coalesce(json_extract(payload,'$.repairs'),0), coalesce(json_extract(payload,'$.feedback'),'') FROM master_operations o WHERE workspace_id=? AND phase=? AND eligible=1 AND EXISTS(SELECT 1 FROM json_each(o.payload,'$.skills') sk WHERE json_extract(sk.value,'$.skillId')=?) AND NOT EXISTS(SELECT 1 FROM master_learning_samples s WHERE s.operation_id=o.id AND s.skill_id=?) ORDER BY created_at LIMIT ?`, ws, phase, skillID, skillID, MasterLearningCleanWindow)
 	if err != nil {
 		return err
 	}
-	var ids []string
+	var all, defective, clean []string
 	for rows.Next() {
-		var id string
-		if err = rows.Scan(&id); err != nil {
+		var id, feedback string
+		var contractError bool
+		var repairs int
+		if err = rows.Scan(&id, &contractError, &repairs, &feedback); err != nil {
 			rows.Close()
 			return err
 		}
-		ids = append(ids, id)
+		all = append(all, id)
+		if contractError || repairs > 0 || feedback == "down" {
+			defective = append(defective, id)
+		} else {
+			clean = append(clean, id)
+		}
 	}
 	err = rows.Err()
 	rows.Close()
 	if err != nil {
 		return err
 	}
-	if len(ids) < 3 {
+	// Examples go to the replay; consumed operations are marked as used.
+	// Verifying another project's revision needs examples, not a defect. A new
+	// candidate is generated only when a defect gives it something to fix;
+	// three ordinary turns used to start a job and spend the budget on a
+	// rewrite with nothing to measure against. Clean turns still feed the
+	// token-saving path, but only a whole window of them, consumed at once.
+	var examples, consumed []string
+	switch {
+	case len(candidates) > 0:
+		examples = firstN(all, MasterLearningExamples)
+		consumed = examples
+	case len(defective) > 0:
+		examples = firstN(append(append([]string(nil), defective...), clean...), MasterLearningExamples)
+		consumed = examples
+	case len(clean) >= MasterLearningCleanWindow:
+		examples = firstN(clean, MasterLearningExamples)
+		consumed = clean
+	}
+	if len(examples) < MasterLearningExamples {
 		return nil
 	}
-	v := domain.MasterLearningJob{ID: domain.NewID("master-learning"), WorkspaceID: ws, Phase: phase, SkillID: skillID, BaselineID: baselineID, ExampleIDs: ids, Status: "queued", UpdatedAt: time.Now().UTC()}
+	v := domain.MasterLearningJob{ID: domain.NewID("master-learning"), WorkspaceID: ws, Phase: phase, SkillID: skillID, BaselineID: baselineID, ExampleIDs: examples, Status: "queued", UpdatedAt: time.Now().UTC()}
 	if len(candidates) > 0 {
 		v.CandidateID = candidates[0]
 	}
 	if _, err = tx.ExecContext(ctx, `INSERT INTO master_learning_jobs VALUES(?,?,?,?)`, v.ID, ws, v.Status, marshalJSON(v)); err != nil {
 		return err
 	}
-	for _, id := range ids {
+	for _, id := range consumed {
 		if _, err = tx.ExecContext(ctx, `INSERT INTO master_learning_samples VALUES(?,?,?)`, id, skillID, v.ID); err != nil {
 			return err
 		}
@@ -312,8 +352,14 @@ func (s *SQLite) MasterSkillTrials(ctx context.Context, ws string) (map[string]s
 	return result, rows.Err()
 }
 func (s *SQLite) MasterSkillConfirmations(ctx context.Context, id string) (int, error) {
+	return s.MasterSkillTrialWorlds(ctx, id, "passed")
+}
+
+// MasterSkillTrialWorlds counts worlds whose trial of a revision ended with
+// the given status.
+func (s *SQLite) MasterSkillTrialWorlds(ctx context.Context, id, status string) (int, error) {
 	var n int
-	err := s.db.QueryRowContext(ctx, `SELECT COUNT(DISTINCT workspace_id) FROM master_skill_trials WHERE revision_id=? AND status='passed'`, id).Scan(&n)
+	err := s.db.QueryRowContext(ctx, `SELECT COUNT(DISTINCT workspace_id) FROM master_skill_trials WHERE revision_id=? AND status=?`, id, status).Scan(&n)
 	return n, err
 }
 

@@ -42,6 +42,9 @@ func (a *App) ReviewManualCriterionV2(ctx context.Context, questID, criterionID 
 	}
 	if approval, approvalErr := a.store.WorkOrderApprovalByQuestV2(ctx, questID); approvalErr == nil {
 		a.publishManualReviewV2(ctx, approval, criterionID, decision, status, bundle)
+		// Решение человека по критерию — оценка самого критерия, который
+		// сформулировал Мастер; заметка объясняет, что в нём было не так.
+		a.recordMasterEvidenceDetail(ctx, approval.WorkOrder, questID, "manual_review", decision, criterionID, criterionID+": "+note)
 	}
 	return bundle, nil
 }

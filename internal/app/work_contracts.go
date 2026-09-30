@@ -25,6 +25,44 @@ func workContractFromNode(node domain.FlowNode) (domain.WorkContract, error) {
 	return contract, err
 }
 
+// integrateStageContract даёт этапу интеграции право править то, что он
+// сводит. Его список владения — корневые общие манифесты (`package.json`,
+// `src`, `Dockerfile`…): у папки с вложенными проектами ни один из них не
+// совпадает с `cf-vue-apps/…`, а файлы этапов-писателей в список не входили
+// вовсе. 30.09 интеграция нашла в `.gitlab-ci.yml` невалидный YAML
+// (`- *.tgz`), исправила его — и правку отвергли как «вне владения этапа»,
+// дважды. Теперь интеграции принадлежат пути писателей этого Flow и общие
+// манифесты каждого вложенного проекта, который они затрагивают.
+func integrateStageContract(flow domain.FlowGraph, node domain.FlowNode, contract domain.WorkContract) domain.WorkContract {
+	if domain.FlowNodeStageRole(node) != domain.StageRoleIntegrate || len(contract.OwnedPaths) == 0 {
+		return contract
+	}
+	owned := append([]string(nil), contract.OwnedPaths...)
+	projects := []string{}
+	for _, other := range flow.Nodes {
+		if other.ID == node.ID || !domain.FlowNodeWriteFiles(other) {
+			continue
+		}
+		writer, err := workContractFromNode(other)
+		if err != nil {
+			continue
+		}
+		for _, path := range writer.OwnedPaths {
+			owned = appendUniqueString(owned, path)
+			if dir, _, nested := strings.Cut(normalizeContractPath(path), "/"); nested && dir != "" {
+				projects = appendUniqueString(projects, dir)
+			}
+		}
+	}
+	for _, project := range projects {
+		for _, shared := range domain.IntegrateOwnedPaths() {
+			owned = appendUniqueString(owned, project+"/"+shared)
+		}
+	}
+	contract.OwnedPaths = owned
+	return contract
+}
+
 func workContractInstructions(contract domain.WorkContract) string {
 	if len(contract.OwnedPaths) == 0 && len(contract.ForbiddenPaths) == 0 && len(contract.InterfaceContracts) == 0 {
 		return ""

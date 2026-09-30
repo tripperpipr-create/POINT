@@ -130,7 +130,10 @@ export function createMasterTrail({ esc, countOf, ui }) {
   function masterStepRowHtml(model, step, index) {
     const key = `${model.id}:${index}`
     const expanded = ui.masterExpandedSteps.has(key)
-    const name = masterToolName(step.tool)
+    // Имя шага — начало строки, как у живого следа («Читаю файл»): после
+    // ответа та же строка не должна менять регистр.
+    const toolName = masterToolName(step.tool)
+    const name = toolName.charAt(0).toUpperCase() + toolName.slice(1)
     const fullArg = String(step.argument || '').trim()
     const fullResult = String(step.result || '').trim()
     const clippedArg = masterStepClip(fullArg, 64)

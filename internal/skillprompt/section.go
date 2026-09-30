@@ -55,8 +55,8 @@ func Section(items []domain.SkillRuntime) string {
 		for _, script := range skill.Scripts {
 			fmt.Fprintf(&builder, "  Script: %s\n", script)
 		}
-		if len(skill.Configuration) > 0 {
-			encoded, err := json.Marshal(skill.Configuration)
+		if configuration := PromptConfiguration(skill.Configuration); len(configuration) > 0 {
+			encoded, err := json.Marshal(configuration)
 			if err == nil {
 				fmt.Fprintf(&builder, "  Configuration: %s\n", encoded)
 			}
@@ -64,4 +64,27 @@ func Section(items []domain.SkillRuntime) string {
 	}
 	builder.WriteString("</equipped_skills>")
 	return strings.TrimSpace(builder.String())
+}
+
+// serviceConfigurationKeys — учёт самообучения, а не практика навыка.
+// В промпте они занимали место и несли идентификаторы прогонов и чужих
+// проектов, из которых навык когда-то выучен.
+var serviceConfigurationKeys = map[string]bool{
+	"managedBy": true, "ownerId": true, "ownerKind": true, "signature": true, "revision": true,
+	"sourceRuns": true, "sourceWorkspaces": true, "sourceAgents": true,
+	"promotionStatus": true, "promotionReason": true, "rolloutStatus": true, "lifecycleStatus": true,
+	"familyId": true, "supersedesSkillId": true, "evalGate": true, "workflowDigest": true,
+	"failureCategory": true, "parentAgentId": true, "blueprintId": true,
+}
+
+// PromptConfiguration оставляет из конфигурации навыка то, что относится к
+// самой практике.
+func PromptConfiguration(configuration map[string]any) map[string]any {
+	result := make(map[string]any, len(configuration))
+	for key, value := range configuration {
+		if !serviceConfigurationKeys[key] {
+			result[key] = value
+		}
+	}
+	return result
 }

@@ -53,3 +53,8 @@ func (s *Server) questEvidenceBundle(w http.ResponseWriter, r *http.Request) {
 	value, err := s.app.EvidenceBundle(r.Context(), r.PathValue("id"))
 	s.result(w, value, err)
 }
+
+func (s *Server) questRetrospective(w http.ResponseWriter, r *http.Request) {
+	value, err := s.app.QuestRetrospective(r.Context(), r.PathValue("id"))
+	s.result(w, value, err)
+}

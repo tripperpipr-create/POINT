@@ -1225,8 +1225,16 @@ const TYPE_SCALE = new Set(
     if (!chat.includes('hallAlarmHtml(') || !chat.includes('hallChangesAlarmHtml(')) {
       fail('с экрана чата пропал значок срочного — очередь решений или непроверенные изменения будут молчать')
     }
-    const settingsEntries = [...chat.matchAll(/data-tab="overview"/g)].length
-    if (settingsEntries !== 1) fail(`входов в настройки проекта ${settingsEntries} вместо одного`)
+    // Вход в настройки проекта переехал из шапки в сам разговор — кнопкой
+    // справа снизу (выбор владельца, 30.09.2026) — и к проекту в рейке.
+    // Шапка остаётся без него, а в разговоре он ровно один.
+    const headerEntries = [...chat.matchAll(/data-tab="overview"/g)].length
+    if (headerEntries !== 0) fail(`в шапке чата снова ${headerEntries} вход(а) в настройки проекта — он живёт кнопкой в разговоре`)
+    const fabEntries = [...js.matchAll(/class="hall-project-fab" data-action="tab" data-tab="overview"/g)].length
+    if (fabEntries !== 1) fail(`кнопок настроек проекта в разговоре ${fabEntries} вместо одной`)
+    if (!js.includes('class="hall-chats-gear"') || !js.includes("action === 'chat-settings'")) {
+      fail('у проекта в рейке чатов пропал вход в его настройки')
+    }
   }
   // Мастер больше не раздел настроек: два входа в чат разошлись бы подсветкой.
   if (/\{ id: 'master', icon:/.test(js)) fail('Мастер вернулся в HALL_SECTIONS — в чат появился второй вход')

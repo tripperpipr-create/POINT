@@ -11,125 +11,51 @@ import (
 	"strings"
 	"time"
 
+	"local-agent-workbench/internal/diagnostics"
 	"local-agent-workbench/internal/domain"
 	"local-agent-workbench/internal/security"
 )
 
 // reviewAgentRun turns one verified complex trajectory into a project-scoped,
-// versioned skill. Calls are serialized because two runs may finish together
-// and target the same learned procedure.
+// versioned skill. Two runs may finish together and target the same learned
+// procedure, so preparation and application are serialized. The reviewer
+// model runs between them without the lock: it takes minutes, and run
+// finalization, canary evaluation and rollback wait on the same mutex.
 func (a *App) reviewAgentRun(ctx context.Context, run domain.Run, projectAgentID, apiKey string) (domain.AgentImprovement, error) {
 	a.learningReviewMu.Lock()
+	prepared, existing, err := a.prepareAgentRunReview(ctx, run, projectAgentID)
+	a.learningReviewMu.Unlock()
+	if err != nil || existing != nil {
+		return derefImprovement(existing), err
+	}
+	review, mode, modelFailure := a.generateLearningReview(ctx, run, prepared.agent, prepared.trajectory, prepared.previous, prepared.trigger, apiKey)
+
+	a.learningReviewMu.Lock()
 	defer a.learningReviewMu.Unlock()
-	if existing, err := a.store.FindAgentImprovementByRun(ctx, run.ID); err == nil {
-		return existing, nil
-	} else if !errors.Is(err, sql.ErrNoRows) {
-		return domain.AgentImprovement{}, err
+	current, existing, err := a.prepareAgentRunReview(ctx, run, projectAgentID)
+	if err != nil || existing != nil {
+		return derefImprovement(existing), err
 	}
-	if run.WorkspaceID == "" || strings.TrimSpace(projectAgentID) == "" {
-		return domain.AgentImprovement{}, errors.New("project-agent runs require workspace and agent identity")
-	}
-	switch run.Status {
-	case domain.RunCompleted, domain.RunFailed, domain.RunInterrupted:
-	default:
-		return domain.AgentImprovement{}, errors.New("only terminal project-agent runs can be reviewed")
-	}
-	agent, err := a.store.GetProjectAgent(ctx, projectAgentID)
-	if err != nil {
-		return domain.AgentImprovement{}, err
-	}
-	// Direct review callers (manual retry and compatibility paths) may not have
-	// passed through queueAgentImprovement. The evaluation lifecycle still has
-	// to make a temporary specialist non-runnable before a proposal is exposed.
-	if agent.Temporary && strings.TrimSpace(agent.ParentAgentID) != "" && agent.Status == domain.ProjectAgentActive {
-		if err = a.store.SetProjectAgentStatus(ctx, agent.ID, domain.ProjectAgentActive, domain.ProjectAgentEvaluationPending); err != nil {
+	if current.fingerprint() != prepared.fingerprint() {
+		// The review was written against a state that no longer exists.
+		// Applying it would overwrite what another review, a rollback or the
+		// user changed meanwhile; the next run of this agent learns afresh.
+		now := time.Now().UTC()
+		item := domain.AgentImprovement{
+			ID: domain.NewID("improvement"), WorkspaceID: run.WorkspaceID, ProjectAgentID: projectAgentID,
+			BlueprintID: current.agent.BlueprintID, SourceRunID: run.ID, Status: "skipped", Trigger: current.trigger,
+			Evidence: current.trajectory.Evidence, ReviewMode: mode, Model: run.Model,
+			Failure: "agent, skill or blueprint changed while the reviewer was running", CreatedAt: now, UpdatedAt: now,
+		}
+		if err = a.store.SaveAgentImprovement(ctx, item); err != nil {
 			return domain.AgentImprovement{}, err
 		}
-		agent.Status = domain.ProjectAgentEvaluationPending
+		_ = a.markRunLearningSignals(ctx, run.ID, "reviewed")
+		return item, nil
 	}
-	if agent.WorkspaceID != run.WorkspaceID {
-		return domain.AgentImprovement{}, errors.New("run and project agent belong to different workspaces")
-	}
-	report, err := a.runDiagnostics(ctx, run)
-	if err != nil {
-		return domain.AgentImprovement{}, err
-	}
-	trajectory, err := a.learningTrajectory(ctx, run, report)
-	if err != nil {
-		return domain.AgentImprovement{}, err
-	}
-	trigger := learningReviewTrigger(report, trajectory)
-	if trigger == "" {
-		return domain.AgentImprovement{}, fmt.Errorf("%w: health=%s tools=%d verification=%t", errAgentLearningIneligible, report.Health, trajectory.ToolCalls, report.Verification.Recorded)
-	}
-	trajectory.Tools = allowedLearningTools(trajectory.Tools, agent.AllowedTools)
-	if len(trajectory.Tools) == 0 {
-		return domain.AgentImprovement{}, fmt.Errorf("%w: verified trajectory has no currently allowed reusable tools", errAgentLearningIneligible)
-	}
-
-	var blueprint *domain.AgentBlueprint
-	ownerID := projectAgentID
-	ownerKind := "project_agent"
-	if strings.TrimSpace(agent.BlueprintID) != "" {
-		stored, blueprintErr := a.store.GetBlueprint(ctx, agent.BlueprintID)
-		if blueprintErr != nil && !errors.Is(blueprintErr, sql.ErrNoRows) {
-			return domain.AgentImprovement{}, blueprintErr
-		}
-		if blueprintErr == nil {
-			blueprint = &stored
-			ownerID = stored.ID
-			ownerKind = "blueprint"
-		}
-	}
-	signature := workflowDigest(ownerID, agent.RoleDescription, trajectory.Tools, report.Verification.Required || trajectory.VerificationRequired)
-	skills, err := a.store.ListSkills(ctx)
-	if err != nil {
-		return domain.AgentImprovement{}, err
-	}
-	var previous *domain.SkillDefinition
-	for index := range skills {
-		if managedSkillMatches(skills[index], ownerID, signature) {
-			copy := skills[index]
-			previous = &copy
-			break
-		}
-	}
-	// Skills created by the first implementation were owned by a project-agent.
-	// Let that same agent migrate its history to blueprint ownership lazily.
-	if previous == nil && blueprint != nil {
-		legacySignature := workflowDigest(projectAgentID, agent.RoleDescription, trajectory.Tools, report.Verification.Required || trajectory.VerificationRequired)
-		for index := range skills {
-			if managedSkillMatches(skills[index], projectAgentID, legacySignature) {
-				copy := skills[index]
-				previous = &copy
-				break
-			}
-		}
-	}
-	// Also match legacy tool-order signatures so old skills remain patchable.
-	if previous == nil {
-		legacyToolSignature := learningSignature(ownerID, trajectory.Tools)
-		for index := range skills {
-			if managedSkillMatches(skills[index], ownerID, legacyToolSignature) {
-				copy := skills[index]
-				previous = &copy
-				signature = legacyToolSignature
-				break
-			}
-		}
-	}
-	// A failure used to mint a new Skill whenever the tool set differed a
-	// little: the developer agent ended with 18 near-identical «record
-	// verification evidence» Skills eating half its context. One failure
-	// category keeps one recovery Skill per agent, and the reviewer revises it
-	// with the previous text in view.
-	failureCategory := learningFailureCategory(report)
-	if previous == nil && trigger == learningTriggerFailure {
-		previous = equippedRecoverySkill(skills, agent, failureCategory)
-	}
-	skillLocked := previous != nil && trigger != learningTriggerFeedback && trigger != learningTriggerFailure && runLoadedExactSkillRevision(run, *previous)
-
-	review, mode, modelFailure := a.generateLearningReview(ctx, run, agent, trajectory, previous, trigger, apiKey)
+	agent, report, trajectory, trigger := current.agent, current.report, current.trajectory, current.trigger
+	blueprint, ownerID, ownerKind, signature := current.blueprint, current.ownerID, current.ownerKind, current.signature
+	previous, failureCategory, skillLocked := current.previous, current.failureCategory, current.skillLocked
 	if agent.Temporary && strings.TrimSpace(agent.ParentAgentID) != "" && strings.TrimSpace(modelFailure) != "" {
 		// A deterministic learning fallback is useful for permanent agents, but
 		// it must never authorize a reusable Blueprint. Keep the temporary agent
@@ -177,7 +103,10 @@ func (a *App) reviewAgentRun(ctx context.Context, run domain.Run, projectAgentID
 		_ = a.markRunLearningSignals(ctx, run.ID, "reviewed")
 		return item, nil
 	}
-	if !skillLocked && previous != nil && fmt.Sprint(previous.Configuration["promotionStatus"]) == "candidate" {
+	// Проверенный успешный прогон лишь присоединяет свой проект к канарейке
+	// кандидата. Провал и поправка человека несут исправление: оно становится
+	// новой ревизией, а не теряется при расширении канарейки.
+	if !skillLocked && trigger == learningTriggerSuccess && previous != nil && fmt.Sprint(previous.Configuration["promotionStatus"]) == "candidate" {
 		return a.extendExistingSkillCanaryLocked(ctx, *previous, agent, run, review, blueprint, evaluation)
 	}
 
@@ -227,7 +156,10 @@ func (a *App) reviewAgentRun(ctx context.Context, run domain.Run, projectAgentID
 	}
 	var bindings []domain.ProjectAgent
 	var beforeBindings, beforeRules map[string][]string
-	if review.Decision != "skip" {
+	// Инструкция без навыка тоже меняет агентов: продвинутое правило
+	// Blueprint обязано дойти до его существующих экземпляров, иначе
+	// в промпт оно попадёт только агентам, созданным позже.
+	if review.Decision != "skip" || item.InstructionStatus == "promoted" {
 		bindings, beforeBindings, beforeRules, err = a.learningBindings(ctx, agent, learned, promotionStatus, item.Instruction, item.InstructionStatus)
 		if err != nil {
 			return domain.AgentImprovement{}, err
@@ -245,6 +177,8 @@ func (a *App) reviewAgentRun(ctx context.Context, run domain.Run, projectAgentID
 			}
 			item.AfterBlueprintSkillIDs = append([]string(nil), blueprint.SkillIDs...)
 		}
+	}
+	if review.Decision != "skip" {
 		item.Evidence = append(item.Evidence, learningPromotionEvidence(promotionStatus, fmt.Sprint(learned.Configuration["promotionReason"]), len(sourceWorkspaces)))
 		shadow := a.evaluateLearningShadowBenchmark(ctx, agent, previous, &learned, true)
 		item.ShadowEvaluation = &shadow
@@ -267,9 +201,11 @@ func (a *App) reviewAgentRun(ctx context.Context, run domain.Run, projectAgentID
 		if err = a.store.SaveSkill(ctx, learned); err != nil {
 			return a.failAgentImprovement(ctx, item, err)
 		}
+	}
+	{
 		configuredWorkspaces := map[string]bool{}
 		for _, boundAgent := range bindings {
-			if slices.Contains(boundAgent.SkillIDs, learned.ID) && !configuredWorkspaces[boundAgent.WorkspaceID] {
+			if learned.ID != "" && slices.Contains(boundAgent.SkillIDs, learned.ID) && !configuredWorkspaces[boundAgent.WorkspaceID] {
 				if err = a.ensureLearnedProjectSkill(ctx, boundAgent.WorkspaceID, learned.ID, ownerID, ownerKind, promotionStatus, now); err != nil {
 					return a.failAgentImprovement(ctx, item, err)
 				}
@@ -426,4 +362,157 @@ func skillLearningRevisionNumber(value any) int {
 	default:
 		return 0
 	}
+}
+
+// agentRunReview — всё, что разбор прогона читает из базы до вызова модели.
+type agentRunReview struct {
+	agent           domain.ProjectAgent
+	report          diagnostics.RunDiagnostics
+	trajectory      learningTrajectory
+	trigger         string
+	blueprint       *domain.AgentBlueprint
+	ownerID         string
+	ownerKind       string
+	signature       string
+	previous        *domain.SkillDefinition
+	failureCategory string
+	skillLocked     bool
+}
+
+// fingerprint называет состояние, против которого писался отзыв рецензента:
+// навыки и правила агента, предыдущая ревизия навыка, навыки и правила Blueprint.
+func (review agentRunReview) fingerprint() string {
+	parts := []string{strings.Join(review.agent.SkillIDs, ","), strings.Join(review.agent.Rules, "\x00"), review.signature}
+	if review.previous != nil {
+		parts = append(parts, review.previous.ID, review.previous.UpdatedAt.UTC().Format(time.RFC3339Nano))
+	}
+	if review.blueprint != nil {
+		parts = append(parts, strings.Join(review.blueprint.SkillIDs, ","), strings.Join(review.blueprint.Rules, "\x00"))
+	}
+	return strings.Join(parts, "\x01")
+}
+
+func derefImprovement(item *domain.AgentImprovement) domain.AgentImprovement {
+	if item == nil {
+		return domain.AgentImprovement{}
+	}
+	return *item
+}
+
+// prepareAgentRunReview must be called under learningReviewMu. A run that
+// already has an improvement returns it as existing.
+func (a *App) prepareAgentRunReview(ctx context.Context, run domain.Run, projectAgentID string) (agentRunReview, *domain.AgentImprovement, error) {
+	if existing, err := a.store.FindAgentImprovementByRun(ctx, run.ID); err == nil {
+		return agentRunReview{}, &existing, nil
+	} else if !errors.Is(err, sql.ErrNoRows) {
+		return agentRunReview{}, nil, err
+	}
+	if run.WorkspaceID == "" || strings.TrimSpace(projectAgentID) == "" {
+		return agentRunReview{}, nil, errors.New("project-agent runs require workspace and agent identity")
+	}
+	switch run.Status {
+	case domain.RunCompleted, domain.RunFailed, domain.RunInterrupted:
+	default:
+		return agentRunReview{}, nil, errors.New("only terminal project-agent runs can be reviewed")
+	}
+	agent, err := a.store.GetProjectAgent(ctx, projectAgentID)
+	if err != nil {
+		return agentRunReview{}, nil, err
+	}
+	// Direct review callers (manual retry and compatibility paths) may not have
+	// passed through queueAgentImprovement. The evaluation lifecycle still has
+	// to make a temporary specialist non-runnable before a proposal is exposed.
+	if agent.Temporary && strings.TrimSpace(agent.ParentAgentID) != "" && agent.Status == domain.ProjectAgentActive {
+		if err = a.store.SetProjectAgentStatus(ctx, agent.ID, domain.ProjectAgentActive, domain.ProjectAgentEvaluationPending); err != nil {
+			return agentRunReview{}, nil, err
+		}
+		agent.Status = domain.ProjectAgentEvaluationPending
+	}
+	if agent.WorkspaceID != run.WorkspaceID {
+		return agentRunReview{}, nil, errors.New("run and project agent belong to different workspaces")
+	}
+	report, err := a.runDiagnostics(ctx, run)
+	if err != nil {
+		return agentRunReview{}, nil, err
+	}
+	trajectory, err := a.learningTrajectory(ctx, run, report)
+	if err != nil {
+		return agentRunReview{}, nil, err
+	}
+	trigger := learningReviewTrigger(report, trajectory)
+	if trigger == "" {
+		return agentRunReview{}, nil, fmt.Errorf("%w: health=%s tools=%d verification=%t", errAgentLearningIneligible, report.Health, trajectory.ToolCalls, report.Verification.Recorded)
+	}
+	trajectory.Tools = allowedLearningTools(trajectory.Tools, agent.AllowedTools)
+	if len(trajectory.Tools) == 0 {
+		return agentRunReview{}, nil, fmt.Errorf("%w: verified trajectory has no currently allowed reusable tools", errAgentLearningIneligible)
+	}
+
+	var blueprint *domain.AgentBlueprint
+	ownerID := projectAgentID
+	ownerKind := "project_agent"
+	if strings.TrimSpace(agent.BlueprintID) != "" {
+		stored, blueprintErr := a.store.GetBlueprint(ctx, agent.BlueprintID)
+		if blueprintErr != nil && !errors.Is(blueprintErr, sql.ErrNoRows) {
+			return agentRunReview{}, nil, blueprintErr
+		}
+		if blueprintErr == nil {
+			blueprint = &stored
+			ownerID = stored.ID
+			ownerKind = "blueprint"
+		}
+	}
+	signature := workflowDigest(ownerID, agent.RoleDescription, trajectory.Tools, report.Verification.Required || trajectory.VerificationRequired)
+	skills, err := a.store.ListSkills(ctx)
+	if err != nil {
+		return agentRunReview{}, nil, err
+	}
+	var previous *domain.SkillDefinition
+	for index := range skills {
+		if managedSkillMatches(skills[index], ownerID, signature) {
+			copy := skills[index]
+			previous = &copy
+			break
+		}
+	}
+	// Skills created by the first implementation were owned by a project-agent.
+	// Let that same agent migrate its history to blueprint ownership lazily.
+	if previous == nil && blueprint != nil {
+		legacySignature := workflowDigest(projectAgentID, agent.RoleDescription, trajectory.Tools, report.Verification.Required || trajectory.VerificationRequired)
+		for index := range skills {
+			if managedSkillMatches(skills[index], projectAgentID, legacySignature) {
+				copy := skills[index]
+				previous = &copy
+				break
+			}
+		}
+	}
+	// Also match legacy tool-order signatures so old skills remain patchable.
+	if previous == nil {
+		legacyToolSignature := learningSignature(ownerID, trajectory.Tools)
+		for index := range skills {
+			if managedSkillMatches(skills[index], ownerID, legacyToolSignature) {
+				copy := skills[index]
+				previous = &copy
+				signature = legacyToolSignature
+				break
+			}
+		}
+	}
+	// A failure used to mint a new Skill whenever the tool set differed a
+	// little: the developer agent ended with 18 near-identical «record
+	// verification evidence» Skills eating half its context. One failure
+	// category keeps one recovery Skill per agent, and the reviewer revises it
+	// with the previous text in view.
+	failureCategory := learningFailureCategory(report)
+	if previous == nil && trigger == learningTriggerFailure {
+		previous = equippedRecoverySkill(skills, agent, failureCategory)
+	}
+	skillLocked := previous != nil && trigger != learningTriggerFeedback && trigger != learningTriggerFailure && runLoadedExactSkillRevision(run, *previous)
+
+	return agentRunReview{
+		agent: agent, report: report, trajectory: trajectory, trigger: trigger, blueprint: blueprint,
+		ownerID: ownerID, ownerKind: ownerKind, signature: signature, previous: previous,
+		failureCategory: failureCategory, skillLocked: skillLocked,
+	}, nil, nil
 }

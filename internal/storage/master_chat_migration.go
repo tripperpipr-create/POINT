@@ -6,6 +6,14 @@ import (
 	"strings"
 )
 
+// migrationMasterMemoryDeclinedV1 keeps signatures of memories the human
+// refused. Deleting the proposal left no trace, and the Master proposed the
+// same rule again on the next correction.
+func migrationMasterMemoryDeclinedV1(ctx context.Context, tx *sql.Tx) error {
+	_, err := tx.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS master_memory_declined(workspace_id TEXT NOT NULL, signature TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(workspace_id,signature))`)
+	return err
+}
+
 func migrationMasterConversationsV1(ctx context.Context, tx *sql.Tx) error {
 	_, err := tx.ExecContext(ctx, `
 CREATE TABLE master_conversations (

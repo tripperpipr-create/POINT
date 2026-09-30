@@ -108,8 +108,14 @@ check('рейки разделов нет', !html().includes('hall-nav'), 'на 
 check('список чатов на месте', html().includes('hall-chats'), 'левой панели чатов нет')
 check('общие настройки под списком', /hall-chats-groups[\s\S]*<footer class="hall-chats-footer"><button[^>]*data-tab="general"/.test(aside()), 'кнопка общих настроек не стоит внизу панели чатов')
 check('панель целиком скрывается', /\.is-chat\.is-chats-hidden \.hall-chats\s*\{\s*display:\s*none/.test(fs.readFileSync(path.join(repo, 'vscode-extension/media/style.css'), 'utf8')), 'скрытие списка не охватывает его нижнюю кнопку')
-check('вход в настройки один', (html().match(/data-tab="overview"/g) || []).length === 1,
-  `входов в настройки ${(html().match(/data-tab="overview"/g) || []).length}, а должен быть один`)
+// Настройки проекта — кнопка справа снизу в разговоре (одна) и шестерёнка у
+// каждого проекта в рейке; в шапке их больше нет (30.09.2026).
+const fabs = (html().match(/class="hall-project-fab"[^>]*data-tab="overview"/g) || []).length
+check('кнопка настроек проекта в разговоре одна', fabs === 1, `кнопок настроек проекта ${fabs}, а должна быть одна`)
+const chatHeader = (html().match(/<header class="hall-head hall-head-chat">[\s\S]*?<\/header>/) || [''])[0]
+check('шапка чата нашлась', Boolean(chatHeader), 'проверка шапки смотрит не туда')
+check('в шапке нет входа в настройки', !chatHeader.includes('data-tab="overview"'), 'шапка чата снова держит вход в настройки проекта')
+check('у проекта в рейке есть шестерёнка', /class="hall-chats-gear"/.test(aside()), 'у проекта в списке чатов нет входа в его настройки')
 check('имя мира в шапке', /hall-chat-heading[\s\S]{0,200}ai-ide/.test(html()), 'шапка не называет мир — в кросс-проектном списке это обязательно')
 
 // Группы: свой мир раскрыт, чужие свёрнуты и названы числом.

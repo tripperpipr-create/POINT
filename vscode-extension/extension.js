@@ -1735,6 +1735,7 @@ class AgentViewProvider {
   async showCompanionSidebar() { return hubSurfaces.showCompanionSidebar(this) }
   closeCompanionPopup() { return hubSurfaces.closeCompanionPopup(this) }
   companionDocument(title, subtitle, messages, details = '') { return companionDocumentHtml(title, subtitle, messages, details, escapeHtml) }
+  get chatDocuments() { return hubSurfaces.chatDocuments(this) }
   showCompanionMessageDetails(item, request) { return this.chatDocuments.showCompanionMessageDetails(item, request) }
   showCompanionArchives() { return this.chatDocuments.showCompanionArchives() }
 
@@ -3060,6 +3061,7 @@ function activate(context) {
   // Сначала кадр, потом мир. Список чатов — домашний экран, и он обязан
   // появиться раньше, чем поднимется ядро последнего мира.
   if (isPointHubWindow()) {
+    void hubSurfaces.fitHubEditorToWindow(context).catch(error => service.hostLog('warn', `[hub] настройки редакторов окна Хаба не записаны: ${error?.message || error}`))
     const resumeWorld = setTimeout(() => {
       void resumeLastPointWorld(service, context, {
         registry: projects,

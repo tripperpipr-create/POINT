@@ -126,7 +126,14 @@ export function createMasterInbox({
         // Ход кончился в другом разговоре: его очередь ждёт человека, а не уходит
         // сама — он её сейчас не видит.
         if(message.turnFinished && incomingConversation && incomingConversation!==masterClient.active) {masterQueuePause(masterClient,incomingConversation,'elsewhere');persistDraft();return}
-        if(message.sessionChanged || message.loaded){masterClient.restoreScroll=masterClient.scroll[incomingConversation] ?? Infinity;masterClient.query='';ui.masterFindQuery=''}
+        // Сохранённую прокрутку берёт только полная отрисовка ниже — смена
+        // разговора или первое открытие ленты. Обновление той же беседы
+        // (итог квеста, перечитанная история) меняет ленту точечно, и
+        // запомненная позиция дожидалась бы чужой отрисовки: во время работы
+        // агентов лента прыгала на место, где человек был минуты назад.
+        const reopening = message.sessionChanged || (message.loaded && !root.querySelector('#master-thread'))
+        if(reopening) masterClient.restoreScroll=masterClient.scroll[incomingConversation] ?? Infinity
+        if(message.sessionChanged || (message.loaded && !message.completionRefresh)){masterClient.query='';ui.masterFindQuery=''}
         masterClient.active=incomingConversation || masterClient.active
         if (message.turnFinished) {
           masterClient.settle(incomingConversation || masterClient.active)

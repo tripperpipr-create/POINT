@@ -255,7 +255,7 @@ type AgentImprovement struct {
 	BlueprintID                 string                    `json:"blueprintId,omitempty"`
 	SourceRunID                 string                    `json:"sourceRunId"`
 	SkillID                     string                    `json:"skillId,omitempty"`
-	Kind                        string                    `json:"kind"`                      // skill_created | skill_updated | skill_recovery | curation_merge_proposed
+	Kind                        string                    `json:"kind"`                      // skill_created | skill_updated | skill_recovery | memory_learned | instruction_learned | subagent_specialization; curation_merge_proposed only in old rows
 	Status                      string                    `json:"status"`                    // applying | applied | applied_unproven | applied_proven | skipped | failed | rolled_back
 	PromotionStatus             string                    `json:"promotionStatus,omitempty"` // candidate | promoted | rejected | project_only
 	Effect                      string                    `json:"effect,omitempty"`          // improved | neutral | regressed | insufficient_sample

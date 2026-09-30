@@ -127,5 +127,6 @@ func hubMigrations() []migration {
 		{72, "work_order_hires_v2", migrationWorkOrderHiresV2},
 		{73, "master_chat_branch_v1", migrationMasterChatBranchV1},
 		{74, "orchestrator_project_model_override_v1", migrationOrchestratorProjectModelOverrideV1},
+		{75, "master_memory_declined_v1", migrationMasterMemoryDeclinedV1},
 	}
 }

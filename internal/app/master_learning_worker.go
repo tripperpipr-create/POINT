@@ -153,9 +153,13 @@ func (a *App) evaluateMasterJob(ctx context.Context, job *domain.MasterLearningJ
 			}
 			outcomes := make([]map[string]string, 0, len(signals))
 			for _, signal := range signals {
-				outcomes = append(outcomes, map[string]string{"kind": signal.Kind, "outcome": signal.Outcome})
+				outcome := map[string]string{"kind": signal.Kind, "outcome": signal.Outcome}
+				if signal.Detail != "" {
+					outcome["detail"] = signal.Detail
+				}
+				outcomes = append(outcomes, outcome)
 			}
-			evidence = append(evidence, map[string]any{"phase": op.Phase, "contractError": op.ContractError, "repairs": op.Repairs, "feedback": op.Feedback, "inputTokens": op.InputTokens, "outputTokens": op.OutputTokens, "subsequentEvidence": outcomes})
+			evidence = append(evidence, map[string]any{"phase": op.Phase, "contractError": op.ContractError, "repairs": op.Repairs, "feedback": op.Feedback, "defects": op.Defects, "inputTokens": op.InputTokens, "outputTokens": op.OutputTokens, "subsequentEvidence": outcomes})
 		}
 		encoded, _ := json.Marshal(map[string]any{"skill": baseline.Skill.Instructions, "evidence": evidence})
 		raw, _, err := a.masterLearningCall(ctx, model, cfg, job.WorkspaceID, providers.ModelRequest{Messages: []providers.Message{
@@ -429,6 +433,8 @@ func replaceMasterSkill(req providers.ModelRequest, id string, skill domain.Skil
 	if !found {
 		req.Messages = append([]providers.Message{{Role: "system", Content: replacement}}, req.Messages...)
 	}
-	req.Tools = nil
+	// Инструменты разговора остаются: без propose_brief реплей приёма не может
+	// оформить задание, и оценка сравнивала бы только текст, не проверяя
+	// контракт брифа. Проектные инструменты срезает masterLearningCall.
 	return req
 }

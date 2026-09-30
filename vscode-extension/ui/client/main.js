@@ -2329,7 +2329,7 @@ function paint() {
   else if (state.selectedTab === 'agents') root.innerHTML = settings()
   else if (state.selectedTab === 'general') {
     if (statisticsStatus === 'idle') { statisticsStatus = 'loading'; setTimeout(() => vscode.postMessage({ type: 'loadStatistics' }), 0) }
-    root.innerHTML = generalSettingsView({ shell, profiles: hubAgents().length ? hubAgents() : (state.boot?.profiles || []), quickChatSettingsHtml, stats: statisticsData, status: statisticsStatus })
+    root.innerHTML = generalSettingsView({ shell, profiles: hubAgents().length ? hubAgents() : (state.boot?.profiles || []), quickChatSettingsHtml, stats: statisticsData, status: statisticsStatus, connections: state.boot?.connections || [] })
   }
   else if (state.selectedTab === 'model-connections') {
     if (!globalModelDefaults && !globalModelsLoading) {

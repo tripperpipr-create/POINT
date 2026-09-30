@@ -100,7 +100,7 @@ func (s *SQLite) ControlWorkOrderQuestV2(ctx context.Context, questID, action, m
 	if questID == "" {
 		return "", errors.New("quest id is required")
 	}
-	if action != "pause" && action != "resume" && action != "cancel" && action != "message" {
+	if action != "pause" && action != "resume" && action != "cancel" && action != "message" && action != "retry" {
 		return "", errors.New("unsupported quest control action")
 	}
 	if action == "message" && (message == "" || len(message) > 32768) {
@@ -149,6 +149,13 @@ func (s *SQLite) ControlWorkOrderQuestV2(ctx context.Context, questID, action, m
 			return "", err
 		}
 		target = prior
+	case "retry":
+		// Повтор проваленного этапа: исполнитель есть — Flow продолжает с того
+		// же места, поэтому квест возвращается прямо в работу, а не в preflight.
+		if current != domain.QuestAwaitingUser {
+			return "", errors.New("quest state does not allow this action")
+		}
+		target = domain.QuestRunning
 	case "message":
 		// A message is queued for the checkpoint coordinator; it does not
 		// silently grant permissions or resume execution.
@@ -157,7 +164,7 @@ func (s *SQLite) ControlWorkOrderQuestV2(ctx context.Context, questID, action, m
 		return "", errors.New("quest state does not allow this action")
 	}
 	now := formatTime(time.Now().UTC())
-	if action == "resume" && (current == domain.QuestBlocked || current == domain.QuestAwaitingUser) {
+	if (action == "resume" && (current == domain.QuestBlocked || current == domain.QuestAwaitingUser)) || action == "retry" {
 		result, leaseErr := tx.ExecContext(ctx, `INSERT INTO writer_leases_v2(workspace_id,quest_id,token,state,acquired_at,updated_at,released_at)
 VALUES(?,?,?,'active',?,?,NULL)
 ON CONFLICT(workspace_id) DO UPDATE SET quest_id=excluded.quest_id,token=excluded.token,state='active',acquired_at=excluded.acquired_at,updated_at=excluded.updated_at,released_at=NULL

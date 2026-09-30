@@ -304,7 +304,23 @@ func (a *App) RejectChangeSet(changeSetID string) (domain.ChangeSet, error) {
 		return domain.ChangeSet{}, err
 	}
 	applier := changesets.Applier{Store: a.store}
-	return applier.Reject(context.Background(), changeSetID)
+	rejected, err := applier.Reject(context.Background(), changeSetID)
+	if err == nil {
+		a.recordChangeSetEvidence(set, "rejected")
+	}
+	return rejected, err
+}
+
+// recordChangeSetEvidence связывает решение человека по набору правок с
+// нарядом квеста: отказ от результата — наблюдение для разбора квеста.
+func (a *App) recordChangeSetEvidence(set domain.ChangeSet, outcome string) {
+	if strings.TrimSpace(set.QuestID) == "" {
+		return
+	}
+	ctx := context.Background()
+	if approval, err := a.store.WorkOrderApprovalByQuestV2(ctx, set.QuestID); err == nil {
+		a.recordMasterEvidenceDetail(ctx, approval.WorkOrder, set.QuestID, "changeset", outcome, set.ID, "")
+	}
 }
 
 func (a *App) RevertChangeSet(changeSetID string) (changesets.ApplyResult, error) {
@@ -327,6 +343,7 @@ func (a *App) RevertChangeSet(changeSetID string) (changesets.ApplyResult, error
 	if err != nil {
 		return changesets.ApplyResult{}, err
 	}
+	a.recordChangeSetEvidence(set, "reverted")
 	if len(result.Applied) > 0 {
 		a.InvalidateProjectIndex()
 		_ = a.cache.DeletePrefix(context.Background(), a.cachePrefix())

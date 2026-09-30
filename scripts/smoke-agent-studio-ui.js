@@ -1241,7 +1241,7 @@ listeners['window:message']({
 // Граф зависимостей перестал быть самостоятельной секцией с заголовком того же
 // уровня, что и карточки наборов: он описывает цепочку набора над ним и теперь
 // оформлен как её продолжение. Проверяем сам блок и его подпись.
-for (const required of ['<h1>Ревью перед применением</h1>', 'hall-panel is-graph is-continuation', 'порядок применения · откат в обратном порядке', 'Применить цепочку · 2', 'auth/callback.go · правка']) {
+for (const required of ['<h1>Ревью перед применением</h1>', 'hall-panel is-graph is-continuation', 'порядок применения · откат в обратном порядке', 'Применить цепочку · 2', 'title="auth/callback.go"><span class="diff-dir">auth/</span>callback.go', 'diff-badge is-new']) {
   if (!root.innerHTML.includes(required)) throw new Error(`Change Set review module is missing: ${required}`)
 }
 click('apply-changeset-chain', { id: 'cs-next' })

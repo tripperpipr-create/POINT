@@ -56,6 +56,16 @@ func (a *App) ControlWorkOrderQuestV2(ctx context.Context, questID, action strin
 	if err = validateWorkOrderRuntimeControl(quest.Status, action); err != nil {
 		return result, err
 	}
+	// Решение по проваленному этапу: повторить с места сбоя или вынести вердикт.
+	if action == "retry" {
+		a.cancelWorkOrderLaunchV2(questID)
+		result.Status, err = a.retryFailedWorkOrderStageV2(ctx, quest, request.APIKey)
+		return result, err
+	}
+	if action == "finalize" {
+		result.Status, err = a.settleFailedWorkOrderStageV2(ctx, quest)
+		return result, err
+	}
 	// Проверка до управления Flow: иначе прогон прежней версии успевал
 	// вернуться в `running` раньше, чем хранилище отказало в продолжении.
 	if action == "resume" && quest.ControllerState == storage.WorkOrderScopeRevisionState {
@@ -109,6 +119,11 @@ func (a *App) ControlWorkOrderQuestV2(ctx context.Context, questID, action strin
 		return result, errors.New("нет активного запуска агента, которому можно доставить сообщение")
 	}
 	result.Status, err = a.store.ControlWorkOrderQuestV2(ctx, questID, action, request.Message)
+	if err == nil && action == "cancel" {
+		if approval, approvalErr := a.store.WorkOrderApprovalByQuestV2(ctx, questID); approvalErr == nil {
+			a.recordMasterEvidence(ctx, approval.WorkOrder, questID, "quest", "cancelled_by_human")
+		}
+	}
 	if err != nil || action != "resume" {
 		return result, err
 	}
@@ -173,6 +188,10 @@ func validateWorkOrderRuntimeControl(status domain.QuestStatus, action string) e
 	switch action {
 	case "message":
 		return nil
+	case "retry", "finalize":
+		if status == domain.QuestAwaitingUser {
+			return nil
+		}
 	case "pause":
 		if domain.CanTransitionWorkOrderQuest(status, domain.QuestPaused) {
 			return nil

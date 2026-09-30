@@ -65,6 +65,10 @@ func proofStatusFromCanary(item *domain.AgentImprovement) {
 			// rollback path owns status
 			return
 		}
+		if item.Status == "applied_proven" && item.CanaryEvaluation.Status == "pending" {
+			// Сигнал наблюдения не отменяет уже полученное доказательство.
+			return
+		}
 	}
 	item.Status = learningProofStatus(item.ShadowEvaluation, item.CanaryEvaluation)
 }

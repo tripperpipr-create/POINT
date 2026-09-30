@@ -162,7 +162,6 @@
   font-size: var(--t-body);
 }
 
-.agent-work-diff pre,
 .patch.agent-work-card pre,
 .approval.agent-work-card pre {
   max-height: 14rem;

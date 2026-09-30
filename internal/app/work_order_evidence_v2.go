@@ -167,6 +167,7 @@ func (a *App) finalizeWorkOrderQuestAfterFlowV2(approval domain.WorkOrderApprova
 		}
 		bundle.Assurance = domain.WorkOrderAssuranceFailed
 		bundle.OutcomeSummary = "Финализация заблокирована: " + security.Redact(gateErr.Error())
+		a.recordMasterEvidenceDetail(ctx, approval.WorkOrder, quest.ID, "evidence_gate", "finalization_blocked", "", gateErr.Error())
 		a.publishWorkOrderOutcomeV2(ctx, approval, quest, domain.QuestBlocked, bundle)
 		if isFastAgentQuestV2(quest) {
 			_ = a.markFastAgentMilestoneV2(ctx, approval, domain.QuestBlocked)

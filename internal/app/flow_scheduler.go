@@ -250,6 +250,7 @@ func (a *App) scheduleWaitingAgentNodes(quest domain.Quest, flow domain.FlowGrap
 		if contractErr != nil {
 			return fmt.Errorf("flow node %s work contract: %w", node.ID, contractErr)
 		}
+		contract = integrateStageContract(flow, node, contract)
 		task += workContractInstructions(contract)
 		projectAgent, agentErr := a.store.GetProjectAgent(context.Background(), effectiveAgentID)
 		if agentErr != nil {

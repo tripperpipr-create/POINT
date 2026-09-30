@@ -355,6 +355,7 @@ function createHubMessageRouter({ openWorkspaceFile }) {
       case 'rollbackAgentImprovement':
       case 'promoteAgentImprovement':
       case 'rejectAgentImprovement':
+      case 'loadQuestRetrospective':
       case 'saveBudget':
       case 'saveGlobalBudget':
         await handleLearningMessage.call(this, message)

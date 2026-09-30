@@ -125,8 +125,10 @@ for (const [name, source] of [['webview', main], ['transport', transport], ['ext
   if (!source.includes('controlMasterApplicationV2')) throw new Error(`${name} does not route delivered application controls`)
 	if (!source.includes('reviseMasterWorkOrderV2')) throw new Error(`${name} does not route deterministic WorkOrder revision`)
 }
-if (!transport.includes("if(action==='resume')") || !transport.includes("this.credentialFor({connectionId},'утверждённого маршрута WorkOrder')")) {
-  throw new Error('resume does not obtain the approved route credential from SecretStorage')
+// Повтор этапа продолжает тот же Flow и запускает исполнителя — ключ
+// маршрута ему нужен так же, как продолжению.
+if (!transport.includes("if(action==='resume'||action==='retry')") || !transport.includes("this.credentialFor({connectionId},'утверждённого маршрута WorkOrder')")) {
+  throw new Error('resume or stage retry does not obtain the approved route credential from SecretStorage')
 }
 if (!host.includes("workOrderId: String(message?.workOrderId || '')") || !host.includes("message, request, ...detail")) {
   throw new Error('extension host loses the failed WorkOrder id while reporting an error')

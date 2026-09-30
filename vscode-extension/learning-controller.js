@@ -121,6 +121,18 @@ async function handleLearningMessage(message) {
       this.post({ type: 'statistics', statistics })
       break
     }
+    case 'loadQuestRetrospective': {
+      // Разбор квеста для блока «Что Point вынес». Отказ ядра отвечает своим
+      // сообщением: общий `error` не знает этот блок и не снял бы «Собираем…».
+      const questId = String(message.questId || '')
+      try {
+        const retrospective = await this.service.request('/api/v2/master/quests/' + encodeURIComponent(questId) + '/retrospective')
+        this.post({ type: 'questRetrospective', questId, retrospective })
+      } catch (error) {
+        this.post({ type: 'questRetrospectiveError', questId, error: String(error?.message || error) })
+      }
+      break
+    }
     case 'saveGlobalBudget': {
       await this.service.request('/api/budget/global', {
         method: 'POST', body: JSON.stringify(message.budget || {}),

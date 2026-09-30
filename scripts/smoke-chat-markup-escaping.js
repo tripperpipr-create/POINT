@@ -107,6 +107,13 @@ for (const [name, input, expect] of [
   check(name + ': работает', expect.test(render(input)), render(input))
 }
 
+// Поток закрывает нечётную кавычку в последней строке. Забор закрытого блока
+// считался такой кавычкой, и под кодом оставался одинокий «`».
+if (render.streaming) {
+  const settled = render.streaming('Готово:\n\n```go\nif seen(key) { return nil }\n```', { caret: false })
+  check('закрытый блок в потоке не оставляет «`»', !/<p>`<\/p>/.test(settled) && settled === render('Готово:\n\n```go\nif seen(key) { return nil }\n```'), settled)
+}
+
 // Пустая рамка вместо написанного — отдельная проверка: блока здесь быть не должно.
 check('однострочная кавычка не даёт пустой блок',
   !/companion-code-wrap/.test(render('Почини ```go build ./...``` в CI')),

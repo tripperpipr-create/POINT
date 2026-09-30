@@ -51,8 +51,16 @@ func evaluateLearningCandidate(review learningReview, previous *domain.SkillDefi
 		}
 	} else {
 		add("verified_source", report.Health == diagnostics.HealthHealthy && (!report.Verification.Required || report.Verification.Recorded), "source Run is healthy and required verification is recorded")
-		add("bounded_definition", strings.TrimSpace(review.Name) != "" && strings.TrimSpace(review.Instructions) != "" && len([]rune(review.Instructions)) <= 4000, "Skill name and bounded instructions are present")
-		add("portable_content", learningSkillPortable(review.Instructions), "instructions contain no secrets, absolute repository paths, or access-expansion language")
+		if review.Decision != "skip" {
+			add("bounded_definition", strings.TrimSpace(review.Name) != "" && strings.TrimSpace(review.Instructions) != "" && len([]rune(review.Instructions)) <= 4000, "Skill name and bounded instructions are present")
+			add("portable_content", learningSkillPortable(review.Instructions), "instructions contain no secrets, absolute repository paths, or access-expansion language")
+		} else {
+			// Без навыка учатся только память и правило; у них свои проверки
+			// переносимости, а имени и текста навыка в отзыве быть не должно.
+			add("portable_content", (review.MemoryDecision != "learn" || safePortableMemory(review.Memory)) &&
+				(review.InstructionDecision != "learn" || safePortableInstruction(review.Instruction)),
+				"learned memory and instruction contain no secrets, paths, or access expansion")
+		}
 	}
 	allowed := true
 	for _, tool := range trajectory.Tools {

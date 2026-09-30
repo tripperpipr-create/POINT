@@ -2,7 +2,9 @@ package app
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"local-agent-workbench/internal/domain"
@@ -63,15 +65,55 @@ func (a *App) MasterSessions(ctx context.Context) (MasterSessions, error) {
 	if err != nil {
 		return result, err
 	}
-	for _, entry := range result.MemoryEntries {
-		if entry.Status == "accepted" {
-			if result.Memory != "" {
-				result.Memory += "\n"
-			}
-			result.Memory += entry.Content
+	for _, entry := range masterMemoryInContext(result.MemoryEntries) {
+		if result.Memory != "" {
+			result.Memory += "\n"
 		}
+		result.Memory += entry.Content
 	}
 	return result, nil
+}
+
+// masterMemoryProposalTTL — сколько живёт неразобранное предложение памяти.
+const masterMemoryProposalTTL = 14 * 24 * time.Hour
+
+// masterMemoryPromptRunes — потолок памяти проекта в промпте Мастера. Память
+// одна на все беседы проекта и растёт без предела; в контекст идут свежие
+// принятые записи, пока помещаются.
+const masterMemoryPromptRunes = 6000
+
+// masterMemoryInContext выбирает принятые записи, которые войдут в промпт,
+// в прежнем порядке. Этот же список ход записывает как memoryIDs.
+func masterMemoryInContext(entries []domain.MasterMemoryEntry) []domain.MasterMemoryEntry {
+	budget := masterMemoryPromptRunes
+	keep := map[int]bool{}
+	for i := len(entries) - 1; i >= 0; i-- {
+		if entries[i].Status != "accepted" {
+			continue
+		}
+		size := len([]rune(entries[i].Content)) + 1
+		if size > budget {
+			continue
+		}
+		budget -= size
+		keep[i] = true
+	}
+	result := make([]domain.MasterMemoryEntry, 0, len(keep))
+	for i, entry := range entries {
+		if keep[i] {
+			result = append(result, entry)
+		}
+	}
+	return result
+}
+
+// masterMemorySignature сравнивает записи памяти без регистра, пробелов и
+// конечной пунктуации: «Пиши тесты.» и «пиши  тесты» — одно правило.
+func masterMemorySignature(content string) string {
+	normalized := strings.ToLower(strings.Join(strings.Fields(content), " "))
+	normalized = strings.TrimRight(normalized, ".!;:… ")
+	sum := sha256.Sum256([]byte(normalized))
+	return hex.EncodeToString(sum[:16])
 }
 func (a *App) UpdateMasterSession(ctx context.Context, req MasterSessionUpdate) (MasterSessions, error) {
 	masterSessionsMu.Lock()
@@ -165,6 +207,15 @@ func (a *App) UpdateMasterSession(ctx context.Context, req MasterSessionUpdate) 
 			return value, errors.New("память: не более 4000 символов")
 		}
 		if req.Action == "memory-delete" {
+			// Отказ оставляет подпись: иначе Мастер предложит то же правило
+			// при следующей поправке, и человек отказывает по кругу.
+			for _, v := range value.MemoryEntries {
+				if v.ID == req.ID && strings.TrimSpace(v.Content) != "" {
+					if err = a.store.DeclineMasterMemory(ctx, w, masterMemorySignature(v.Content)); err != nil {
+						return value, err
+					}
+				}
+			}
 			err = a.store.DeleteMasterMemory(ctx, w, req.ID)
 			break
 		}

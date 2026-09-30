@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"strings"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"local-agent-workbench/internal/changesets"
 	"local-agent-workbench/internal/domain"
 	"local-agent-workbench/internal/sandbox"
+	"local-agent-workbench/internal/security"
 	"local-agent-workbench/internal/storage"
 )
 
@@ -232,7 +234,7 @@ func (a *App) ResumeRun(runID string, request ...ResumeRunRequest) (domain.Run, 
 			}
 		}
 		if learningErr := a.recordRunLearningEvidence(context.Background(), finished, projectAgentID); learningErr != nil {
-			_ = learningErr
+			slog.Warn("run learning evidence unavailable", "run_id", finished.ID, "agent_id", projectAgentID, "error", security.Redact(learningErr.Error()))
 		}
 		a.queueAgentImprovement(finished, projectAgentID, req.APIKey)
 		if sandboxRecord.ID == "" || (finished.Status != domain.RunCompleted && finished.Status != domain.RunFailed && finished.Status != domain.RunCancelled && finished.Status != domain.RunInterrupted) {

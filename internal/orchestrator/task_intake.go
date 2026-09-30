@@ -86,6 +86,7 @@ func (s ChatService) DiscussTask(ctx context.Context, req ChatRequest) (ChatResp
 	}
 	if envelope.degraded {
 		s.Skills.Operation.ContractError = true
+		s.Skills.Operation.AddDefect("no_brief", "every proposed brief was rejected; the turn ended without a task")
 		// Ход состоялся, задания в нём нет. Молчать об этом нельзя: карточка
 		// не появится, и без объяснения это выглядит как потерянный ответ.
 		response.Reasoning = strings.TrimSpace(response.Reasoning + "\n\nЗадание не оформлено: предложенное задание так и не прошло проверку сервера. Обсуждение сохранено, карточки квеста в этом ходе не будет.")
@@ -140,6 +141,9 @@ func (s ChatService) DiscussTask(ctx context.Context, req ChatRequest) (ChatResp
 	}
 	if issues := domain.ValidateTaskBriefIssues(brief); len(issues) > 0 {
 		s.Skills.Operation.Repairs++
+		for _, issue := range issues {
+			s.Skills.Operation.AddDefect("brief_invalid", issue.Path+": "+issue.Message)
+		}
 		firstReply := response.Reply
 		repaired, repairUsage, repairErr := s.repairTaskBrief(ctx, req, brief, issues)
 		response.Usage = mergeMasterTurnUsage(response.Usage, repairUsage)
@@ -150,6 +154,7 @@ func (s ChatService) DiscussTask(ctx context.Context, req ChatRequest) (ChatResp
 			response.Reasoning = appendRepairTrace(response.Reasoning, firstReply, issues)
 		} else {
 			s.Skills.Operation.ContractError = true
+			s.Skills.Operation.AddDefect("brief_repair_failed", repairErr.Error())
 			response.Reasoning = appendRepairTrace(response.Reasoning, firstReply, issues)
 			response.Reply = "Мастер вернул некорректное задание: " + repairErr.Error() + ". Предыдущее задание сохранено без изменений. Продолжите обсуждение."
 			return response, s.persistReply(ctx, req, response, req.ProposalID)
@@ -349,6 +354,9 @@ func (s ChatService) discussWithModel(ctx context.Context, req ChatRequest, worl
 	if req.PreviousAnswerRejected {
 		messages = append(messages, providers.Message{Role: "user", Content: "Предыдущий ответ на этот вопрос человека не устроил. Предложи другой путь: другой состав отряда, другую разбивку задания или другой порядок работ. Не повторяй прежний ответ."})
 	}
+	if note := revisionNotesPrompt(req.RevisionNotes); note != "" {
+		messages = append(messages, providers.Message{Role: "user", Content: note})
+	}
 	var readDefinitions []domain.ToolDefinition
 	if s.ReadTools != nil {
 		readDefinitions = s.ReadTools.Definitions()
@@ -391,6 +399,7 @@ func (s ChatService) discussWithModel(ctx context.Context, req ChatRequest, worl
 			if exploreEnd < masterExploreRounds {
 				reason = "turn_deadline"
 			}
+			s.Skills.Operation.AddDefect(reason, "exploration did not converge before the round limit")
 			trace.retry("ответ по собранному", map[string]any{"reason": reason, "rounds": exploreEnd})
 			messages = append(messages, providers.Message{Role: "user", Content: "Предел исследования на эту реплику исчерпан. Ответь человеку по уже собранному; задание или уточнения при необходимости оформи инструментами разговора."})
 		case round > exploreEnd:
@@ -501,6 +510,7 @@ func (s ChatService) discussWithModel(ctx context.Context, req ChatRequest, worl
 				if !recoveryUsed {
 					recoveryUsed, pendingRecovery = true, true
 					s.Skills.Operation.Repairs++
+					s.Skills.Operation.AddDefect(fmt.Sprint(detail["reason"]), "a round produced no answer and no tool call")
 					trace.retry("ответ по собранному", detail)
 					continue
 				}
@@ -614,6 +624,9 @@ func (s ChatService) finishMasterTurn(actions *masterActions, spoken []string, u
 		s.Skills.Operation.ContractError = true
 	}
 	s.Skills.Operation.Repairs += actions.rejectedBriefs
+	for _, reason := range actions.rejectReasons {
+		s.Skills.Operation.AddDefect("brief_rejected", reason)
+	}
 	if reply == "" {
 		return taskIntakeEnvelope{}, usage, errors.New("Мастер не сформулировал ответ в пределах одной реплики")
 	}
@@ -787,4 +800,21 @@ func appendRepairTrace(reasoning, reply string, issues []domain.TaskBriefValidat
 func masterTimeRunsShort(ctx context.Context, longestRound time.Duration) bool {
 	deadline, ok := ctx.Deadline()
 	return ok && longestRound > 0 && time.Until(deadline) < longestRound
+}
+
+// revisionNotesPrompt говорит Мастеру, что человек сам переписал его наряд.
+// Правка — повод для правила памяти, если она выражает устойчивое
+// предпочтение проекта; частность одной задачи правилом не становится.
+func revisionNotesPrompt(notes []string) string {
+	var lines []string
+	for _, note := range notes {
+		if note = strings.TrimSpace(note); note != "" {
+			lines = append(lines, "- "+note)
+		}
+	}
+	if len(lines) == 0 {
+		return ""
+	}
+	return "После твоего предложения человек сам переписал наряд этой беседы:\n" + strings.Join(lines, "\n") +
+		"\nЕсли правка выражает устойчивое предпочтение для этого проекта, предложи общее правило через suggest_memory, не пересказывая случай. Если это частность одной задачи, ничего не предлагай. Отвечай на реплику человека как обычно."
 }

@@ -1,4 +1,6 @@
 import { formatDateTime } from './format-units.js'
+import { diffCountHtml, diffHtml, diffPathHtml, diffStats } from './diff-view.js'
+import { icon } from './ui-icons.js'
 // Ревью sandbox-изменений и журнал откатов — одна Git-adjacent поверхность.
 // Renderer получает состояние и словари явно; действий с файлами здесь нет.
 export function createChangeSetViews({
@@ -35,24 +37,24 @@ export function createChangeSetViews({
     return CHANGE_KIND_LABELS[key] || key || 'правка'
   }
 
-  // Сколько строк прибавилось и убыло. Числа приходят с каждым файлом набора и
-  // не показывались никогда: правка на три строки и правка на триста выглядели
-  // одинаково, и решать «применить или посмотреть» приходилось вслепую.
-  function changeSetCountsHtml(item) {
-    const additions = Number(item.additions || 0)
-    const deletions = Number(item.deletions || 0)
-    if (!additions && !deletions) return ''
-    return `<em class="changeset-counts"><b>+${additions}</b><i>−${deletions}</i></em>`
-  }
 
+  // Строка файла — та же, что у файла в карточке квеста: значок, путь с тихой
+  // папкой, «Новый файл» или счёт с полоской, раскрытие с diff. Открыть файл —
+  // отдельная кнопка: путь внутри <summary> раскрывал бы и открывал сразу.
   function changeSetFileHtml(item, compact) {
     const diff = String(item.diff || '').trim()
-    const label = `${esc(item.path)} · ${esc(changeKindLabel(item.kind))}`
-    const open = `<button type="button" data-action="open-file" data-path="${esc(item.path)}">${label}</button>`
-    const counts = changeSetCountsHtml(item)
-    if (!diff) return `<li>${open}${counts}</li>`
-    return `<li class="changeset-file"><details ${compact ? '' : 'open'}><summary>${open}${counts}</summary><pre class="changeset-diff">${esc(diff)}</pre></details></li>`
+    const kind = String(item.kind || '').trim().toLowerCase()
+    const stats = diff
+      ? diffStats(diff)
+      : { known: Boolean(item.additions || item.deletions || kind === 'add' || kind === 'delete'), additions: Number(item.additions || 0), deletions: Number(item.deletions || 0), created: kind === 'add', deleted: kind === 'delete' }
+    if (kind === 'add') stats.created = true
+    if (kind === 'delete') stats.deleted = true
+    const label = stats.created || stats.deleted ? '' : changeKindLabel(item.kind)
+    const head = `<span class="diff-file-icon${stats.created ? ' is-new' : ''}">${icon(stats.created ? 'file-plus' : 'file-edit')}</span><span class="diff-file-path" title="${esc(item.path)}">${diffPathHtml(item.path, esc)}</span>${diffCountHtml(stats)}${label && label !== 'правка' ? `<small>${esc(label)}</small>` : '<small></small>'}<button type="button" class="diff-file-open" data-action="open-file" data-path="${esc(item.path)}" aria-label="Открыть ${esc(item.path)}" title="Открыть в редакторе">${icon('file')}</button>`
+    if (!diff) return `<li class="diff-file"><div class="diff-file-head">${head}<span></span></div></li>`
+    return `<li class="diff-file"><details ${compact ? '' : 'open'}><summary class="diff-file-head">${head}<span class="diff-file-chevron">${icon('chevron-right')}</span></summary>${diffHtml(diff, esc)}</details></li>`
   }
+
 
   // Перечень файлов набора. Раскрывашка над ним убрана: число файлов уже стоит
   // строкой выше, в подписи карточки, и второе «2 файла» прятало за собой сами
@@ -63,7 +65,7 @@ export function createChangeSetViews({
     if (!items.length) return ''
     const shown = compact ? items.slice(0, 3) : items.slice(0, 24)
     const more = compact && items.length > 3 ? `<li class="muted">ещё ${items.length - 3} · откройте все наборы</li>` : ''
-    return `<div class="changeset-files"><ul>${shown.map(item => changeSetFileHtml(item, compact)).join('')}${more}</ul></div>`
+    return `<ul class="diff-files">${shown.map(item => changeSetFileHtml(item, compact)).join('')}${more}</ul>`
   }
 
   function changeSetDependencyChain(set) {
@@ -145,7 +147,7 @@ export function createChangeSetViews({
       ? `<button type="button" class="danger-button" data-action="revert-patch" data-id="${esc(change.id)}">Откатить действие</button>`
       : ''
     const diff = String(change.diff || '').trim()
-    const preview = diff ? `<details class="changeset-files"><summary>Посмотреть diff</summary><pre class="changeset-diff">${esc(diff)}</pre></details>` : ''
+    const preview = diff ? `<details class="changeset-files"><summary>Посмотреть diff</summary>${diffHtml(diff, esc)}</details>` : ''
     return `<article class="journal-action status-${esc(change.status || '')}"><div><button type="button" data-action="open-file" data-path="${esc(change.path)}">${esc(change.path)}</button><small>${esc(change.sourceTool && change.sourceTool !== 'propose_patch' ? toolName(change.sourceTool) : 'diff агента')} · ${esc(change.status || '')}</small>${preview}</div>${revert}</article>`
   }
 

@@ -48,6 +48,8 @@ type masterActions struct {
 	proposalID     string
 	brief          *domain.TaskBrief
 	rejectedBriefs int
+	// rejectReasons — почему сервер отверг бриф; уходят в дефекты операции.
+	rejectReasons  []string
 	clarifications []domain.MasterQuestion
 	memory         []string
 	undecodable    bool
@@ -81,6 +83,7 @@ func (a *masterActions) proposeBrief(arguments json.RawMessage) domain.ToolResul
 	var brief domain.TaskBrief
 	if err := json.Unmarshal(unwrapJSONString(input.Brief), &brief); err != nil || len(input.Brief) == 0 {
 		a.rejectedBriefs++
+		a.rejectReasons = append(a.rejectReasons, "brief is not a task object")
 		return workbenchtools.FailWithHint("invalid_brief", "brief должен быть объектом задания по схеме инструмента", "передай brief объектом, а не строкой, и вызови propose_brief снова")
 	}
 	brief = domain.NormalizeTaskBrief(brief)
@@ -94,6 +97,7 @@ func (a *masterActions) proposeBrief(arguments json.RawMessage) domain.ToolResul
 	if issues := domain.ValidateTaskBriefIssues(brief); len(issues) > 0 {
 		a.rejectedBriefs++
 		lines := make([]string, 0, len(issues))
+		defer func() { a.rejectReasons = append(a.rejectReasons, strings.Join(lines, "; ")) }()
 		hints := []string{"исправь перечисленные поля и вызови propose_brief снова с полным заданием"}
 		for _, issue := range issues {
 			lines = append(lines, issue.Path+": "+issue.Message)
@@ -105,6 +109,11 @@ func (a *masterActions) proposeBrief(arguments json.RawMessage) domain.ToolResul
 	}
 	if failure := maskedCriterionCommands(brief); failure != nil {
 		a.rejectedBriefs++
+		reason := "criterion command masks its exit status"
+		if failure.Error != nil {
+			reason = failure.Error.Message
+		}
+		a.rejectReasons = append(a.rejectReasons, reason)
 		return *failure
 	}
 	a.brief = &brief

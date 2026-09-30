@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"sort"
@@ -193,6 +194,18 @@ func (a *App) evaluateAppliedSkillCanary(ctx context.Context, skillID string) er
 		baselineAttribution = &attribution
 	}
 	evaluation := evaluateSkillCanary(candidateAttribution, baselineAttribution, outcomes, time.Now().UTC())
+	if evaluation.Status == "regressed" && item.Status == "applied_proven" &&
+		(evaluation.BaselineMetrics == nil || evaluation.BaselineMetrics.Runs < minimumCanaryRuns) {
+		// Без базы сравнения «2 тяжёлых из 3» говорит о задачах не меньше,
+		// чем о навыке. Доказанный навык снимается, только когда провалились
+		// все последние прогоны; до того это сигнал наблюдения.
+		recent := matchingSkillOutcomes(outcomes, candidateAttribution, maximumCanaryRuns)
+		if severe := severeCanaryOutcomes(recent); severe < len(recent) {
+			evaluation.Status = "pending"
+			evaluation.Reasons = append(evaluation.Reasons, fmt.Sprintf(
+				"proven skill without a baseline: %d of %d recent runs failed; rollback needs every recent run to fail", severe, len(recent)))
+		}
+	}
 	evaluation.Effect = canaryEffect(evaluation)
 	if item.PromotionStatus == "project_only" && evaluation.Status == "healthy" && evaluation.Baseline == nil {
 		// A brand-new project Skill has no "before" to compare with, so the
@@ -231,6 +244,9 @@ func (a *App) evaluateAppliedSkillCanary(ctx context.Context, skillID string) er
 		return a.store.SaveAgentImprovement(ctx, *item)
 	}
 	rolledBack, err := a.rollbackAgentImprovementLocked(ctx, *item)
+	if errors.Is(err, errNewerImprovementFirst) {
+		return a.unequipRegressedRevisionLocked(ctx, *item)
+	}
 	if err != nil {
 		return err
 	}
@@ -238,6 +254,45 @@ func (a *App) evaluateAppliedSkillCanary(ctx context.Context, skillID string) er
 	rolledBack.CanaryEvaluation.Reasons = append(rolledBack.CanaryEvaluation.Reasons, "latest applied Skill revision was automatically rolled back")
 	rolledBack.UpdatedAt = time.Now().UTC()
 	return a.store.SaveAgentImprovement(ctx, rolledBack)
+}
+
+// unequipRegressedRevisionLocked снимает деградировавшую ревизию, у семьи
+// которой уже есть более новая. Откат линейки здесь запрещён, и раньше каждый
+// прогон с этой ревизией кончался той же ошибкой — канарейка заклинивала.
+// Ревизия уходит с агентов и из промпта; более новая остаётся как есть.
+func (a *App) unequipRegressedRevisionLocked(ctx context.Context, item domain.AgentImprovement) error {
+	now := time.Now().UTC()
+	agents, err := a.store.ListAllProjectAgents(ctx)
+	if err != nil {
+		return err
+	}
+	for index := range agents {
+		if !slices.Contains(agents[index].SkillIDs, item.SkillID) {
+			continue
+		}
+		agents[index].SkillIDs = withoutString(agents[index].SkillIDs, item.SkillID)
+		agents[index].UpdatedAt = now
+		if err = a.store.SaveProjectAgent(ctx, agents[index]); err != nil {
+			return err
+		}
+	}
+	if err = a.disableUnusedManagedSkillInstances(ctx, item, agents, now); err != nil {
+		return err
+	}
+	retired := *item.AfterSkill
+	retired.Configuration = cloneAnyMap(retired.Configuration)
+	retired.Configuration["promotionStatus"] = "rolled_back"
+	retired.Configuration["rolloutStatus"] = "rolled_back"
+	retired.UpdatedAt = now
+	if err = a.store.SaveSkill(ctx, retired); err != nil {
+		return err
+	}
+	item.Status = "rolled_back"
+	item.CanaryEvaluation.AutomaticRollback = true
+	item.CanaryEvaluation.Reasons = append(item.CanaryEvaluation.Reasons,
+		"a newer revision of this lineage exists; the regressed revision was unequipped instead of rolling back the lineage")
+	item.UpdatedAt = now
+	return a.store.SaveAgentImprovement(ctx, item)
 }
 
 func distinctCanaryWorkspaces(outcomes []domain.SkillOutcome) int {
@@ -436,6 +491,7 @@ func (a *App) promoteSkillCandidateLocked(ctx context.Context, item *domain.Agen
 		if !slices.Contains(agent.SkillIDs, candidate.ID) {
 			agent.SkillIDs = append(agent.SkillIDs, candidate.ID)
 		}
+		agent.SkillIDs = capLearnedSkillIDs(agent.SkillIDs, candidate.ID, maxLearnedSkillsPerAgent)
 		agent.UpdatedAt = candidate.UpdatedAt
 		if err = a.ensureLearnedProjectSkill(ctx, agent.WorkspaceID, candidate.ID, fmt.Sprint(candidate.Configuration["ownerId"]), fmt.Sprint(candidate.Configuration["ownerKind"]), "promoted", candidate.UpdatedAt); err != nil {
 			return err

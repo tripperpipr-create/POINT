@@ -170,6 +170,40 @@ func (s *SQLite) SaveMasterMemory(ctx context.Context, w string, v domain.Master
 	_, err := s.db.ExecContext(ctx, `INSERT INTO master_memory(workspace_id,id,content,source_id,status,updated_at) VALUES(?,?,?,?,?,?) ON CONFLICT(workspace_id,id) DO UPDATE SET content=excluded.content,status=excluded.status,updated_at=excluded.updated_at`, w, v.ID, v.Content, v.SourceID, v.Status, time.Now().UTC().Format(time.RFC3339Nano))
 	return err
 }
+// DeleteStaleMasterMemoryProposals removes proposals nobody decided on
+// before the cutoff. Accepted memory is never touched.
+func (s *SQLite) DeleteStaleMasterMemoryProposals(ctx context.Context, w string, cutoff time.Time) (int64, error) {
+	result, err := s.db.ExecContext(ctx, `DELETE FROM master_memory WHERE workspace_id=? AND status='proposed' AND updated_at<?`, w, cutoff.UTC().Format(time.RFC3339Nano))
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+// DeclineMasterMemory remembers that the human refused a memory, by its
+// normalized signature only: the refused text itself is not kept.
+func (s *SQLite) DeclineMasterMemory(ctx context.Context, w, signature string) error {
+	_, err := s.db.ExecContext(ctx, `INSERT OR IGNORE INTO master_memory_declined(workspace_id,signature,created_at) VALUES(?,?,?)`, w, signature, time.Now().UTC().Format(time.RFC3339Nano))
+	return err
+}
+
+func (s *SQLite) MasterMemoryDeclined(ctx context.Context, w string) (map[string]bool, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT signature FROM master_memory_declined WHERE workspace_id=?`, w)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := map[string]bool{}
+	for rows.Next() {
+		var signature string
+		if err = rows.Scan(&signature); err != nil {
+			return nil, err
+		}
+		result[signature] = true
+	}
+	return result, rows.Err()
+}
+
 func (s *SQLite) DeleteMasterMemory(ctx context.Context, w, id string) error {
 	_, err := s.db.ExecContext(ctx, `DELETE FROM master_memory WHERE workspace_id=? AND id=?`, w, id)
 	return err

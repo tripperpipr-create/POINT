@@ -1,4 +1,53 @@
-export { masterSessionHtml, masterComposerHtml } from './master-session-views.js'
+import { masterSessionHtml as masterSessionViewHtml } from './master-session-views.js'
+export { masterComposerHtml } from './master-session-views.js'
+
+// Какое меню разговора открыто. Полная отрисовка Чертога (опрос состояния
+// во время работы агентов) пересобирает шапку, и меню, открытое только
+// в DOM, закрывалось бы под рукой посреди выбора.
+let openSessionPanel = ''
+export function masterSessionHtml(sessions, esc, developmentHtml = '') {
+  return masterSessionViewHtml(sessions, esc, openSessionPanel, developmentHtml)
+}
+
+// Поповер встаёт под кнопкой «•••»: её место в шапке зависит от жетонов
+// справа, поэтому отступ меряется при открытии и отдаётся переменной через
+// CSSOM (атрибут style вырезает CSP вебвью).
+function placeSessionPanel(root, panel) {
+  const dialogue = root.querySelector('.hall-dialogue')
+  const button = root.querySelector('[data-action="master-session-toggle"][data-panel="history"]')
+  if (!dialogue || !button || typeof button.getBoundingClientRect !== 'function') return
+  const right = Math.round(dialogue.getBoundingClientRect().right - button.getBoundingClientRect().right)
+  panel.style?.setProperty?.('--hall-pop-right', Math.max(8, right) + 'px')
+}
+
+function closeSessionPanels(root) {
+  openSessionPanel = ''
+  root.querySelectorAll('[data-session-panel]').forEach(panel => { panel.hidden = true })
+  root.querySelector('[data-action="master-session-toggle"][data-panel="history"]')?.setAttribute('aria-expanded', 'false')
+}
+
+// Меню закрывается как меню: щелчок мимо него и Esc. Enter в поле названия
+// сохраняет название — кнопка-карандаш остаётся для мыши.
+let dismissBound = false
+function bindSessionDismiss(root) {
+  if (dismissBound || typeof document === 'undefined') return
+  dismissBound = true
+  document.addEventListener('pointerdown', event => {
+    if (!openSessionPanel) return
+    const inside = event.target?.closest?.('[data-session-panel], [data-action="master-session-toggle"]')
+    if (!inside) closeSessionPanels(root)
+  }, true)
+  document.addEventListener('keydown', event => {
+    if (!openSessionPanel) return
+    if (event.key === 'Escape') {
+      closeSessionPanels(root)
+      root.querySelector('[data-action="master-session-toggle"][data-panel="history"]')?.focus?.()
+    } else if (event.key === 'Enter' && event.target?.matches?.('[data-master-session-title]')) {
+      event.preventDefault()
+      root.querySelector('[data-action="master-session-rename"]')?.click?.()
+    }
+  }, true)
+}
 import { masterAnswerNote, masterAnswerProgress } from './master-questions-views.js'
 
 function flushMasterQuestionDraft(question, drafts) {
@@ -113,6 +162,10 @@ export function handleMasterSessionAction({action, target, root, vscode, sending
   // пункта: хуже и запрета, и разрешения.
   if (sending && !['master-session-select','master-session-new','master-session-toggle','master-session-sidebar','master-session-workMode','master-session-mode'].includes(action)) return true
   const kind = action.slice('master-session-'.length)
+  // Действие из меню его закрывает: переименование, закрепление, экспорт
+  // отвечают новым состоянием, и открытое меню поверх него только мешает.
+  // Подробность ответа, автозапуск и память меняют само меню — оно остаётся.
+  if (kind !== 'toggle' && !['mode', 'auto-read-only', 'memory-save', 'memory-delete', 'memory-replace'].includes(kind)) closeSessionPanels(root)
   if(kind==='memory-replace'){vscode.postMessage({type:'masterSession',action:kind,id:target.dataset.id,value:target.closest('.hall-memory-entry').querySelector('select').value});return true}
   if(kind==='branch'){vscode.postMessage({type:'offerMasterChatBranch',conversationId:target.dataset.id});return true}
   if(kind==='sidebar'){const screen=root.querySelector('.is-chat');if(!screen)return true;screen.classList.toggle('is-chats-hidden');screen.classList.toggle('is-chats-open');vscode.postMessage({type:'masterViewPreferences',hidden:screen.classList.contains('is-chats-hidden'),open:screen.classList.contains('is-chats-open')});return true}
@@ -121,15 +174,19 @@ export function handleMasterSessionAction({action, target, root, vscode, sending
 
   if (kind === 'toggle') {
     const panel = root.querySelector(`[data-session-panel="${target.dataset.panel}"]`)
-    // Панели больше не открываются вдвоём. «Память» переехала внутрь меню «•••»,
-    // и без этого при нажатии на неё под списком действий разворачивался ещё и
-    // редактор памяти — две открытые панели подряд уводили ленту за край экрана.
-    if (panel.hidden) root.querySelectorAll('[data-session-panel]').forEach(other => { if (other !== panel) other.hidden = true })
-    panel.hidden = !panel.hidden
-    target.setAttribute('aria-expanded', String(!panel.hidden))
-    if (!panel.hidden) panel.querySelector('input,textarea')?.focus()
-    const search = panel.querySelector('[data-master-history-search]')
-    if (search) search.oninput = () => panel.querySelectorAll('[data-action="master-session-select"]').forEach(button => { button.hidden = !button.textContent.toLowerCase().includes(search.value.toLowerCase()) })
+    if (!panel) return true
+    // Панели больше не открываются вдвоём: «Память» открывается из меню «•••»
+    // на его месте, а «назад» возвращает к меню.
+    const opening = panel.hidden
+    root.querySelectorAll('[data-session-panel]').forEach(other => { other.hidden = true })
+    panel.hidden = !opening
+    openSessionPanel = opening ? target.dataset.panel : ''
+    root.querySelector('[data-action="master-session-toggle"][data-panel="history"]')?.setAttribute('aria-expanded', String(Boolean(openSessionPanel)))
+    if (opening) {
+      placeSessionPanel(root, panel)
+      bindSessionDismiss(root)
+      panel.querySelector(target.dataset.panel === 'memory' ? 'textarea' : 'input')?.focus?.()
+    }
     return true
   }
   const value = kind === 'memory' ? root.querySelector('[data-master-memory]').value : kind === 'rename' ? root.querySelector('[data-master-session-title]').value : target.dataset.value

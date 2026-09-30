@@ -212,7 +212,8 @@ func (a *App) ReviseWorkOrderV2(ctx context.Context, id string, request ReviseWo
 	if err = a.store.SaveWorkOrderRevisionReplayV2(ctx, request.IdempotencyKey, request.ExpectedVersion, request.ExpectedDigest, saved); err != nil {
 		return domain.WorkOrder{}, err
 	}
-	a.recordMasterEvidence(ctx, saved, "", "revision", "user_revised")
+	changed := domain.DiffWorkOrders(current, saved).ChangedFields
+	a.saveMasterEvidenceSignal(ctx, saved, "", "revision", "user_revised", "", "человек изменил поля наряда: "+strings.Join(changed, ", "), saved.ConversationID)
 	return saved, nil
 }
 

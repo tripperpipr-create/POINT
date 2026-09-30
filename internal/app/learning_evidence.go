@@ -4,9 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
@@ -18,8 +15,6 @@ import (
 const (
 	learningEvidenceErrorRunes  = 240
 	learningEvidenceMaxSteps    = 80
-	learningEvidenceMaxPerAgent = 200
-	learningEvidencePackDirName = "learning_evidence"
 	learningTriggerFailure      = "failed_or_regressed_run"
 	learningMinFailureToolCalls = 5
 )
@@ -96,7 +91,6 @@ func (a *App) learningTrajectory(ctx context.Context, run domain.Run, report dia
 	if questID := a.learningQuestIDFromEvents(events); questID != "" {
 		pack.QuestID = questID
 	}
-	_ = a.persistLearningEvidencePack(pack, run.ProfileID)
 	return trajectoryFromEvidencePack(pack), nil
 }
 
@@ -207,68 +201,6 @@ func trajectoryFromEvidencePack(pack learningEvidencePack) learningTrajectory {
 		ChangedFileCount: pack.ChangedFileCount, Health: pack.Health, RunStatus: pack.RunStatus,
 		StopReason: pack.StopReason, QuestID: pack.QuestID,
 	}
-}
-
-func (a *App) persistLearningEvidencePack(pack learningEvidencePack, projectAgentID string) error {
-	if a == nil || strings.TrimSpace(a.dataDir) == "" || strings.TrimSpace(pack.RunID) == "" {
-		return nil
-	}
-	agentID := strings.TrimSpace(projectAgentID)
-	if agentID == "" {
-		agentID = strings.TrimSpace(pack.ProjectAgentID)
-	}
-	if agentID == "" {
-		agentID = "unknown-agent"
-	}
-	dir := filepath.Join(a.dataDir, learningEvidencePackDirName, sanitizeEvidencePath(agentID))
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return err
-	}
-	payload, err := json.MarshalIndent(pack, "", "  ")
-	if err != nil {
-		return err
-	}
-	path := filepath.Join(dir, sanitizeEvidencePath(pack.RunID)+".json")
-	if err = os.WriteFile(path, payload, 0o600); err != nil {
-		return err
-	}
-	return rotateLearningEvidencePacks(dir, learningEvidenceMaxPerAgent)
-}
-
-func sanitizeEvidencePath(value string) string {
-	value = strings.TrimSpace(value)
-	replacer := strings.NewReplacer(`/`, "_", `\`, "_", `:`, "_", `..`, "_")
-	return replacer.Replace(value)
-}
-
-func rotateLearningEvidencePacks(dir string, keep int) error {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return err
-	}
-	type dated struct {
-		name    string
-		modTime time.Time
-	}
-	files := make([]dated, 0, len(entries))
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
-			continue
-		}
-		info, infoErr := entry.Info()
-		if infoErr != nil {
-			continue
-		}
-		files = append(files, dated{name: entry.Name(), modTime: info.ModTime()})
-	}
-	if len(files) <= keep {
-		return nil
-	}
-	sort.Slice(files, func(i, j int) bool { return files[i].modTime.After(files[j].modTime) })
-	for _, item := range files[keep:] {
-		_ = os.Remove(filepath.Join(dir, item.name))
-	}
-	return nil
 }
 
 func stripPathLikeFragments(content string) string {

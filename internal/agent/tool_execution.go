@@ -206,9 +206,12 @@ func (e *Engine) executeTool(ctx context.Context, active *activeRun, profile dom
 	}
 	auditedExecutable := call.Name == "run_command" || strings.HasPrefix(call.Name, "customtool_")
 	var before workspace.TextSnapshot
+	var beforeTook time.Duration
 	if auditedExecutable {
 		var snapshotErr error
+		snapshotStarted := time.Now()
 		before, snapshotErr = patches.FS.CaptureTextSnapshot(ctx)
+		beforeTook = time.Since(snapshotStarted)
 		if snapshotErr != nil {
 			result := workbenchtools.Fail("workspace_audit_failed", "could not capture the workspace before executing the approved tool: "+snapshotErr.Error())
 			e.publishOrLog(context.Background(), e.snapshot(active), domain.EventToolFinished, "agent", map[string]any{"tool": call.Name, "durationMs": 0, "result": result})
@@ -238,13 +241,15 @@ func (e *Engine) executeTool(ctx context.Context, active *activeRun, profile dom
 	)
 	var integrityErr error
 	if auditedExecutable {
-		auditCtx, cancelAudit := context.WithTimeout(context.Background(), 15*time.Second)
-		after, auditErr := patches.FS.CaptureTextSnapshot(auditCtx)
-		cancelAudit()
+		after, auditErr := captureAfterExecutable(patches.FS.CaptureTextSnapshot, postToolAuditTimeout(beforeTook))
 		if auditErr != nil {
 			summary := workspaceAuditSummary{Tool: call.Name, ApprovalID: approvalID, SnapshotComplete: false}
 			e.publishOrLog(context.Background(), e.snapshot(active), domain.EventWorkspaceChanged, "agent", summary)
-			result = attachWorkspaceAudit(workbenchtools.Fail("workspace_audit_failed", "the tool ran, but Point could not capture the resulting workspace safely: "+auditErr.Error()), summary)
+			failed := workbenchtools.Fail("workspace_audit_failed", "the tool ran, but Point could not capture the resulting workspace safely: "+auditErr.Error())
+			// Вывод команды остаётся в результате: сама команда могла
+			// пройти, и без её вывода нечем разбирать, что она сделала.
+			failed.Output = result.Output
+			result = attachWorkspaceAudit(failed, summary)
 			integrityErr = fmt.Errorf("%w: could not capture the resulting workspace: %v", errWorkspaceAuditIntegrity, auditErr)
 		} else {
 			summary, recordErr := e.recordExecutableChanges(active, patches, call.Name, approvalID, before, after)

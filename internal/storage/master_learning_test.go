@@ -2,6 +2,7 @@ package storage_test
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
@@ -63,6 +64,9 @@ func TestMasterLearningQueueIdempotentAndProjectScoped(t *testing.T) {
 	ctx := context.Background()
 	for i := 0; i < 3; i++ {
 		op := domain.MasterOperation{ID: domain.NewID("op"), WorkspaceID: "a", Phase: "intake", Skills: []domain.SkillAttribution{{SkillID: masterskills.Intake}}, Replay: `{"format":2,"request":{}}`, CreatedAt: time.Now().UTC()}
+		if i == 0 {
+			op.Repairs = 1
+		}
 		if err := s.SaveMasterOperation(ctx, op); err != nil {
 			t.Fatal(err)
 		}
@@ -179,5 +183,58 @@ func TestMasterLearningSkipsLegacyReplayFormat(t *testing.T) {
 	}
 	if _, err := s.ClaimMasterLearning(ctx, "a"); err == nil {
 		t.Fatal("задача обучения собрана из реплеев прежнего формата")
+	}
+}
+
+// Три обычных хода методику не переписывают: кандидату нечего исправлять.
+// Дефектный ход открывает задание и идёт в примеры первым; без дефектов
+// задание экономии токенов открывает только целое окно чистых ходов.
+func TestMasterLearningQueueOpensOnDefectOrCleanWindow(t *testing.T) {
+	s := masterLearningStore(t)
+	ctx := context.Background()
+	start := time.Now().UTC()
+	save := func(ws string, index int, mutate func(*domain.MasterOperation)) string {
+		t.Helper()
+		op := domain.MasterOperation{ID: fmt.Sprintf("%s-op-%02d", ws, index), WorkspaceID: ws, Phase: "intake", Skills: []domain.SkillAttribution{{SkillID: masterskills.Intake}},
+			Replay: `{"format":2,"request":{}}`, CreatedAt: start.Add(time.Duration(index) * time.Second)}
+		if mutate != nil {
+			mutate(&op)
+		}
+		if err := s.SaveMasterOperation(ctx, op); err != nil {
+			t.Fatal(err)
+		}
+		return op.ID
+	}
+	jobs := func(ws string) []domain.MasterLearningJob {
+		t.Helper()
+		if err := s.QueueMasterLearning(ctx, ws, "intake", masterskills.Intake, "base"); err != nil {
+			t.Fatal(err)
+		}
+		list, err := s.MasterLearningJobs(ctx, ws)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return list
+	}
+	for i := 0; i < 3; i++ {
+		save("clean", i, nil)
+	}
+	if got := jobs("clean"); len(got) != 0 {
+		t.Fatalf("three ordinary turns opened a job: %#v", got)
+	}
+	for i := 3; i < storage.MasterLearningCleanWindow; i++ {
+		save("clean", i, nil)
+	}
+	got := jobs("clean")
+	if len(got) != 1 || len(got[0].ExampleIDs) != storage.MasterLearningExamples {
+		t.Fatalf("a full clean window did not open one job: %#v", got)
+	}
+
+	save("defect", 0, nil)
+	save("defect", 1, nil)
+	failed := save("defect", 2, func(op *domain.MasterOperation) { op.Feedback = "down" })
+	got = jobs("defect")
+	if len(got) != 1 || got[0].ExampleIDs[0] != failed {
+		t.Fatalf("defective turn did not lead the examples: %#v", got)
 	}
 }

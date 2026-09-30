@@ -146,14 +146,52 @@ func (a *App) questIsTerminal(ctx context.Context, workspaceID, questID string) 
 // active, so evaluation is scheduled only after the quest becomes terminal.
 func (a *App) queueQuestSubagentEvaluations(questID string) {
 	ws, err := a.requireWorkspace()
-	if err != nil || !a.questIsTerminal(context.Background(), ws.ID, questID) {
-		return
-	}
-	agents, err := a.store.ListProjectAgents(context.Background(), ws.ID)
 	if err != nil {
 		return
 	}
-	executions, err := a.store.ListExecutions(context.Background(), ws.ID, 0)
+	a.queueQuestSubagentEvaluationsWithKey(ws.ID, questID, "", false)
+}
+
+// subagentEvaluationRetryInterval — как часто ход Мастера повторяет оценку
+// субагента, застрявшую без ответа рецензента.
+const subagentEvaluationRetryInterval = 10 * time.Minute
+
+// retryPendingSubagentEvaluations повторяет оценки временных специалистов,
+// которые ждут рецензента. Квест кончается без ключа API: ядро ключей не
+// хранит, и на платном провайдере оценка падала и оставалась «ожидает»
+// навсегда. Ход Мастера ключ несёт — он и продолжает отложенное, как
+// продолжает отложенное обучение методик.
+func (a *App) retryPendingSubagentEvaluations(workspaceID, apiKey string) {
+	agents, err := a.store.ListProjectAgents(context.Background(), workspaceID)
+	if err != nil {
+		return
+	}
+	now := time.Now()
+	quests := map[string]bool{}
+	for _, agent := range agents {
+		if !agent.Temporary || agent.Status != domain.ProjectAgentEvaluationPending || quests[agent.OwnerQuestID] {
+			continue
+		}
+		if last, ok := a.subagentEvaluationAttempts.Load(agent.ID); ok && now.Sub(last.(time.Time)) < subagentEvaluationRetryInterval {
+			continue
+		}
+		quests[agent.OwnerQuestID] = true
+		a.queueQuestSubagentEvaluationsWithKey(workspaceID, agent.OwnerQuestID, apiKey, true)
+	}
+}
+
+// retry отмечает время попытки: частоту ограничивают только повторы, иначе
+// первая попытка без ключа отложила бы ход Мастера с ключом.
+func (a *App) queueQuestSubagentEvaluationsWithKey(workspaceID, questID, apiKey string, retry bool) {
+	if !a.questIsTerminal(context.Background(), workspaceID, questID) {
+		return
+	}
+	now := time.Now()
+	agents, err := a.store.ListProjectAgents(context.Background(), workspaceID)
+	if err != nil {
+		return
+	}
+	executions, err := a.store.ListExecutions(context.Background(), workspaceID, 0)
 	if err != nil {
 		return
 	}
@@ -176,7 +214,10 @@ func (a *App) queueQuestSubagentEvaluations(questID string) {
 			}
 		}
 		if latest != nil {
-			a.queueAgentImprovement(*latest, candidate.ID, "")
+			if retry {
+				a.subagentEvaluationAttempts.Store(candidate.ID, now)
+			}
+			a.queueAgentImprovement(*latest, candidate.ID, apiKey)
 			continue
 		}
 		if setErr := a.store.SetProjectAgentStatus(context.Background(), candidate.ID, domain.ProjectAgentActive, domain.ProjectAgentEvaluationPending); setErr == nil {

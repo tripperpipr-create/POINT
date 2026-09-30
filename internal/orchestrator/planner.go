@@ -323,10 +323,12 @@ func (p Planner) Plan(ctx context.Context, req PlanRequest) (PlanResult, error) 
 	plan, err := decodeModelPlan(response.String())
 	if err != nil {
 		req.Skills.Operation.ContractError = true
+		req.Skills.Operation.AddDefect("plan_undecodable", err.Error())
 		return result, err
 	}
 	if err = validateModelPlan(plan, req, available); err != nil {
 		req.Skills.Operation.ContractError = true
+		req.Skills.Operation.AddDefect("plan_rejected", err.Error())
 		return result, err
 	}
 	result.Plan = plan

@@ -28,6 +28,7 @@ import { activeStage, requireEsc, stageSpan, workOrderExecutionParts } from './w
 import { diffCountHtml, diffStats } from './diff-view.js'
 import { questApplicationHtml, questReportHtml } from './quest-app-views.js'
 import { preparedFilesHtml } from './quest-prepared-views.js'
+import { questRetrospectiveHtml } from './quest-retrospective-views.js'
 
 const LIVE = new Set(['preflight', 'running', 'verifying', 'applying'])
 // Работающий или остановленный квест остаётся частью ленты разговора: этапы,
@@ -354,6 +355,7 @@ export function questRunHtml(order, ui, deps = {}) {
         ${questReportHtml(order, esc)}
         ${finishedActionsHtml(order, controls, esc)}
         ${deps.manualReviewHtml || ''}
+        ${questRetrospectiveHtml(order, ui, esc)}
         ${checklist}
         ${completionChecksHtml(order, esc)}
         ${changesHtml(order, ui, esc)}
@@ -366,6 +368,7 @@ export function questRunHtml(order, ui, deps = {}) {
         ${parts.stall || ''}
         ${hasEvidence ? verdictHtml(order, criteria, tone, esc) : (!runtime.stall && !live && runtime.message ? `<div class="quest-verdict ${esc(tone)}"><p>${esc(runtime.message)}</p></div>` : '')}
         ${checklist}
+        ${questRetrospectiveHtml(order, ui, esc)}
         ${deps.createdHtml || ''}
         ${parts.provisioning || ''}
         ${/* Остановленный вердиктом квест журнала не ждёт: «Загружаем журнал…»

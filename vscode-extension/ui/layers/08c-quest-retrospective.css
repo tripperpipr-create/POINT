@@ -1,0 +1,12 @@
+/* «Что Point вынес из квеста» — разбор завершённого квеста в его карточке
+   (ui/client/quest-retrospective-views.js). Та же рамка и шкала, что у
+   соседнего блока ручной приёмки: это ещё один итог квеста, а не отдельная
+   карточка. Тихий регистр разговора: без цвета, кроме регрессии. */
+.quest-retrospective { display: grid; gap: var(--s-3); margin-top: var(--s-4); padding: var(--s-3) var(--s-5); border: 1px solid var(--hub-border); border-radius: 8px; font: var(--fw-normal) var(--t-small) / 1.5 var(--font-ui); }
+.quest-retrospective ul { display: grid; gap: var(--s-2); margin: var(--s-2) 0 0; padding: 0; list-style: none; }
+.quest-retrospective li { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s-2) var(--s-3); overflow-wrap: anywhere; }
+.quest-retrospective li > small { flex: 1 0 100%; color: var(--hub-text-2); }
+.quest-retrospective .quest-retro-rubric { color: var(--hub-text-2); }
+.quest-retrospective .quest-retro-source { color: var(--hub-text-2); }
+.quest-retrospective .quest-retro-status { color: var(--hub-text-2); }
+.quest-retrospective > .hall-chip { justify-self: start; }

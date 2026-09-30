@@ -169,6 +169,11 @@ func (a *App) finalizeQuestAfterFlow(questID string, success bool) {
 			a.blockWorkOrderFinalizationV2(ctx, quest, "Не удалось подтвердить утверждённый WorkOrder: "+security.Redact(approvalErr.Error()), approvalErr)
 			return
 		}
+		// Провал этапа — ещё не вердикт: человек решает, повторить этап или
+		// завершить квест (work_order_stage_retry_v2.go).
+		if !success && a.holdWorkOrderQuestForStageDecisionV2(ctx, quest, approval) {
+			return
+		}
 		advanced, milestoneErr := a.advanceWorkOrderMilestoneV2(approval, success)
 		if milestoneErr != nil {
 			a.blockWorkOrderFinalizationV2(ctx, quest, "Не удалось завершить milestone WorkOrder: "+security.Redact(milestoneErr.Error()), milestoneErr)

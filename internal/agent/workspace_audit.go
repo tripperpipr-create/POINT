@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"slices"
+	"time"
 
 	"local-agent-workbench/internal/domain"
 	"local-agent-workbench/internal/security"
@@ -171,6 +172,44 @@ func firstPaths(paths []string) ([]string, int) {
 // attachWorkspaceAudit подшивает к выводу инструмента сжатую сводку аудита.
 // Команда, которая ничего не изменила при полном снимке, выходит без неё:
 // то же правило, по которому не публикуется событие workspace.changed.
+const (
+	minPostToolAudit = 90 * time.Second
+	maxPostToolAudit = 10 * time.Minute
+)
+
+// postToolAuditTimeout — срок снимка рабочей области после команды. Снимок до
+// команды идёт по тёплому кэшу, а после неё — по файлам, которые контейнер
+// только что записал через примонтированную папку: на Windows с Docker и
+// антивирусом тот же обход читается в десятки раз медленнее (22 с против
+// 0,6 с на одной и той же копии). Прежние жёсткие 15 с роняли этап, хотя
+// команда прошла.
+func postToolAuditTimeout(before time.Duration) time.Duration {
+	timeout := before * 20
+	if timeout < minPostToolAudit {
+		timeout = minPostToolAudit
+	}
+	if timeout > maxPostToolAudit {
+		timeout = maxPostToolAudit
+	}
+	return timeout
+}
+
+// captureAfterExecutable снимает рабочую область после команды и при обрыве
+// по сроку пробует ещё раз: вторая попытка идёт по уже прогретому кэшу.
+func captureAfterExecutable(capture func(context.Context) (workspace.TextSnapshot, error), timeout time.Duration) (workspace.TextSnapshot, error) {
+	var snapshot workspace.TextSnapshot
+	var err error
+	for attempt := 0; attempt < 2; attempt++ {
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		snapshot, err = capture(ctx)
+		cancel()
+		if err == nil || !errors.Is(err, context.DeadlineExceeded) {
+			return snapshot, err
+		}
+	}
+	return snapshot, err
+}
+
 func attachWorkspaceAudit(result domain.ToolResult, summary workspaceAuditSummary) domain.ToolResult {
 	if summary.TotalChanges == 0 && summary.SnapshotComplete {
 		return result

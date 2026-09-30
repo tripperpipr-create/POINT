@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -55,15 +53,6 @@ func TestLearningEvidencePackCapturesToolOutcomesWithoutFileBodies(t *testing.T)
 	trigger := learningReviewTrigger(report, traj)
 	if trigger != learningTriggerFailure {
 		t.Fatalf("trigger=%q", trigger)
-	}
-	dir := t.TempDir()
-	application := &App{dataDir: dir}
-	if err := application.persistLearningEvidencePack(pack, "agent-1"); err != nil {
-		t.Fatal(err)
-	}
-	entries, err := os.ReadDir(filepath.Join(dir, learningEvidencePackDirName, "agent-1"))
-	if err != nil || len(entries) != 1 {
-		t.Fatalf("persisted=%v err=%v", entries, err)
 	}
 	_ = now
 }

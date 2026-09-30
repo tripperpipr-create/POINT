@@ -345,3 +345,39 @@ func TestWorkContractSeparatesHiddenAndPlainDirectories(t *testing.T) {
 		t.Fatal("запрет на .env обязан сработать на самом .env")
 	}
 }
+
+// Интеграция нашла невалидный YAML в `.gitlab-ci.yml`, который написал этап
+// реализации, и её правку отвергли как «вне владения этапа». Интеграции
+// принадлежат пути писателей Flow и манифесты вложенных проектов.
+func TestIntegrateStageOwnsWriterPathsAndNestedManifests(t *testing.T) {
+	writer := domain.FlowNode{ID: "implement", Kind: domain.FlowNodeAgent, Config: map[string]any{
+		"writeFiles":   true,
+		"workContract": domain.WorkContract{OwnedPaths: []string{"cf-vue-apps/.gitlab-ci.yml", "cf-vue-apps/scripts/deploy.mjs"}},
+	}}
+	integrate := domain.FlowNode{ID: "integrate", Kind: domain.FlowNodeAgent, Config: map[string]any{
+		"stageRole": domain.StageRoleIntegrate, "writeFiles": true,
+		"workContract": domain.WorkContract{OwnedPaths: domain.IntegrateOwnedPaths()},
+	}}
+	review := domain.FlowNode{ID: "review", Kind: domain.FlowNodeAgent, Config: map[string]any{"writeFiles": false,
+		"workContract": domain.WorkContract{OwnedPaths: []string{"secret-review-scope"}}}}
+	flow := domain.FlowGraph{Nodes: []domain.FlowNode{writer, integrate, review}}
+	base, err := workContractFromNode(integrate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	contract := integrateStageContract(flow, integrate, base)
+	set := domain.ChangeSet{Items: []domain.ChangeItem{{Path: "cf-vue-apps/.gitlab-ci.yml"}, {Path: "cf-vue-apps/package-lock.json"}}}
+	if err = validateWorkContractChanges(contract, set); err != nil {
+		t.Fatalf("integration could not fix writer and nested manifest files: %v", err)
+	}
+	if err = validateWorkContractChanges(contract, domain.ChangeSet{Items: []domain.ChangeItem{{Path: "cf-pages/.gitlab-ci.yml"}}}); err == nil {
+		t.Fatal("integration gained a path no writer owned")
+	}
+	if err = validateWorkContractChanges(contract, domain.ChangeSet{Items: []domain.ChangeItem{{Path: "secret-review-scope"}}}); err == nil {
+		t.Fatal("a read-only stage's scope leaked into integration")
+	}
+	writerContract, _ := workContractFromNode(writer)
+	if got := integrateStageContract(flow, writer, writerContract); len(got.OwnedPaths) != 2 {
+		t.Fatalf("a writer's own contract changed: %v", got.OwnedPaths)
+	}
+}

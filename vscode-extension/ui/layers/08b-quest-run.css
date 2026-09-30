@@ -257,6 +257,7 @@
 .hall-dialogue div.quest-file { grid-template-columns: 16px minmax(0, 1fr) auto auto; cursor: default; }
 .hall-body .hall-dialogue .master-v2-run .quest-journal .quest-file > summary:hover { background: var(--hub-raised); color: var(--hub-text); }
 .hall-dialogue .quest-file .hall-step-icon { display: inline-flex; color: var(--hub-muted); }
+.hall-dialogue .quest-file .hall-step-icon.is-new { color: var(--vital); }
 .hall-dialogue .quest-file .hall-icon { width: 14px; height: 14px; }
 .hall-dialogue .quest-file-path {
   min-width: 0;
@@ -273,28 +274,7 @@
 .hall-dialogue .quest-diff-count .is-add { color: var(--vital); font-weight: var(--fw-normal); }
 .hall-dialogue .quest-diff-count .is-del { color: var(--wound); font-weight: var(--fw-normal); }
 
-/* Тело diff: строка — тоном своей правки, переносится, а не уводит ленту в
-   горизонтальную прокрутку. */
-.hall-dialogue .quest-diff {
-  display: grid;
-  max-height: 20rem;
-  overflow: auto;
-  padding: var(--s-2) 0;
-  border-top: 1px solid var(--hub-border-soft);
-  background: color-mix(in srgb, var(--hub-void) 60%, transparent);
-  font: var(--fw-normal) var(--t-small) / 1.5 var(--font-mono);
-}
-.hall-dialogue .quest-diff-line {
-  display: block;
-  padding: 0 var(--s-4);
-  color: var(--hub-text-3);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.hall-dialogue .quest-diff-line.is-add { background: var(--vital-wash); color: var(--vital); }
-.hall-dialogue .quest-diff-line.is-del { background: var(--wound-wash); color: var(--wound); }
-.hall-dialogue .quest-diff-line.is-hunk { color: var(--mana); }
-.hall-dialogue .quest-diff-line.is-meta { color: var(--hub-faint); }
+/* Тело diff — общий слой 12-diff.css. */
 
 /* Что агент делает сейчас — последняя строка журнала. */
 .hall-dialogue .quest-now {

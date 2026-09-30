@@ -35,43 +35,12 @@
   border-bottom: 1px solid var(--border);
 }
 .changeset-files { margin: var(--s-4) 0 0; }
-/* Счётчики правок — «+52 −0» у эталона. Прибавление и убыль различает тон, а
-   не цвет: зелёное и красное рядом с путём кричат громче самого пути, а решает
-   человек по пути и объёму, а не по знаку. */
-.changeset-counts {
-  display: inline-flex;
-  align-items: baseline;
-  gap: var(--s-3);
-  margin-left: var(--s-3);
-  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui);
-  font-style: normal;
-}
-.changeset-counts > b {
-  font-weight: var(--fw-normal);
-  color: var(--hub-text-3);
-}
-.changeset-counts > i {
-  font-style: normal;
-  color: var(--hub-muted);
-}
 
 .changeset-files ul { display: grid; gap: var(--s-3); margin: var(--s-3) 0 0; padding: 0; list-style: none; }
 /* Путь файла — ссылка по виду, но кнопка по делу: по ней открывают файл.
    Высота была 20px при пороге цели указателя 24 — промахнуться легко, а список
    правок как раз то место, где по нему кликают многократно. */
 .changeset-files button { display: inline-flex; align-items: center; min-height: var(--hit); padding: 0; color: var(--mana); background: transparent; border: 0; text-align: left; }
-.changeset-diff {
-  max-height: 220px;
-  margin: var(--s-3) 0 0;
-  padding: var(--s-4);
-  overflow: auto;
-  white-space: pre-wrap;
-  word-break: break-word;
-  color: var(--primary);
-  background: var(--void);
-  border: 1px solid var(--border);
-  font: var(--t-small)/1.45 "JetBrains Mono", Consolas, monospace;
-}
 .companion-review-cue {
   display: grid;
   gap: var(--s-2);

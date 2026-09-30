@@ -25,6 +25,8 @@ const root = path.resolve(import.meta.dirname, '..');
 // поэтому раннер обязан идти после `npm run build`.
 const checks = [
 	'smoke-master-development.mjs',
+	'smoke-quest-retrospective.mjs',
+	'smoke-quest-stage-retry.mjs',
   'smoke-chat-directory.js',
   'smoke-point-project-gallery.js',
   'smoke-task-brief.js',

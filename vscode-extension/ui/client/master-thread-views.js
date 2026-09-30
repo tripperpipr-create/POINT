@@ -1,6 +1,7 @@
 import { masterProposedMemoryHtml, masterUsedMemoryHtml } from './master-memory-ui.js'
 import { masterContextAddHtml, masterContextHtml, masterMessageAttachmentsHtml } from './master-context-ui.js'
 import { masterSessionHtml, masterComposerHtml } from './master-session-ui.js'
+import { masterDevelopmentHtml } from './master-development.js'
 import { masterDayKey, masterDayLabel, masterTimeLabel } from './master-feed.js'
 import { masterComposeActionsHtml, masterComposeCountHtml, masterComposeFormClass, masterComposeMetaHtml, masterComposeRows, masterWaitSuffix } from './master-compose.js'
 import { createMasterQuestionsViews, masterParseAnswers } from './master-questions-views.js'
@@ -805,7 +806,7 @@ export function createMasterThreadViews(dependencies) {
 
     return shell(`<div class="hall-dialogue${briefPanel && ui.masterBriefPanelOpen ? ' is-brief-open' : ''}">
       ${plannerFallbackBannerHtml()}
-      ${masterSessionHtml(ui.masterData?.sessions, esc)}
+      ${masterSessionHtml(ui.masterData?.sessions, esc, masterDevelopmentHtml(ui, esc))}
       ${masterFindHtml()}
       ${/* Лента — область, а не живой журнал: её разметка пересобирается на
            каждое событие хода, и `aria-live` зачитывал бы её заново каждый раз.
@@ -822,6 +823,10 @@ export function createMasterThreadViews(dependencies) {
            скрытой: полная отрисовка (ответ ядра, чужое состояние) иначе
            прятала его у человека, который как раз читает выше. */''}
       <button type="button" class="hall-thread-cue${ui.masterAutoFollow ? ' is-hidden' : ''}" id="master-scroll-cue" data-action="master-scroll-latest" aria-label="К новым сообщениям">К новым${icon('chevron-down')}</button>
+      ${/* Настройки проекта — своя кнопка справа снизу, а не слово в шапке:
+           в шапке она терялась среди жетонов тревог (выбор владельца по снимкам
+           стенда, 30.09.2026, вариант A). Тот же вход есть у проекта в рейке. */''}
+      ${ui.state.workspace ? `<button type="button" class="hall-project-fab" data-action="tab" data-tab="overview" aria-label="Настройки проекта ${esc(ui.state.workspace)}" title="Обзор, квесты, агенты и связи проекта">${icon('settings')}<span><b>${esc(ui.state.workspace)}</b><small>Настройки проекта</small></span></button>` : ''}
       ${ui.masterData?.configured===false ? `<div class="hall-compose"><p>История доступна. Чтобы продолжить разговор, настройте модель мастера.</p><button type="button" class="hall-btn" data-action="open-orchestrator-setup">Настроить модель</button></div>` : `<form class="${masterComposeFormClass(ui.masterDraft)}">
         ${/* Неотвеченные уточнения спрашивают здесь, а не в ленте: там они
              уезжали вверх с каждым следующим ходом, и человек отвечал не на то,

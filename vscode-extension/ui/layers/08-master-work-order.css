@@ -44,20 +44,21 @@
    вес, тон и отступ; разрядка на строчных буквах их только расплывает, а
    прописные в 10px читаются хуже строчных в 11px. */
 .master-v2-order b,
+.master-v2-composition b,
 .master-v2-editor label > span {
   color: var(--hub-muted);
   font: var(--fw-semibold) var(--t-small) / var(--lh-base) var(--font-ui);
   letter-spacing: normal;
   text-transform: none;
 }
-.master-v2-order ul { display: grid; gap: var(--s-2); margin: 0; padding: 0; color: var(--hub-text-2); font-size: var(--t-body); line-height: var(--lh-base); list-style: none; }
+:is(.master-v2-order, .master-v2-composition) ul { display: grid; gap: var(--s-2); margin: 0; padding: 0; color: var(--hub-text-2); font-size: var(--t-body); line-height: var(--lh-base); list-style: none; }
 /* Пункт держится висячим тире: маркер браузера уводил текст вправо на разную
    величину в зависимости от шрифта, и колонки переставали стоять в одной сетке. */
-.master-v2-order li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--s-3); }
-.master-v2-order li::before { content: "—"; color: var(--hub-faint); }
-.master-v2-order li i { grid-column: 1; margin: 0; color: var(--hub-faint); font: var(--fw-normal) var(--t-micro) / var(--lh-base) var(--font-mono); font-style: normal; }
-.master-v2-order li i + * { grid-column: 2; }
-.master-v2-order li:has(i)::before { content: none; }
+:is(.master-v2-order, .master-v2-composition) li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--s-3); min-width: 0; overflow-wrap: anywhere; }
+:is(.master-v2-order, .master-v2-composition) li::before { content: "—"; color: var(--hub-faint); }
+:is(.master-v2-order, .master-v2-composition) li i { grid-column: 1; margin: 0; color: var(--hub-faint); font: var(--fw-normal) var(--t-micro) / var(--lh-base) var(--font-mono); font-style: normal; }
+:is(.master-v2-order, .master-v2-composition) li i + * { grid-column: 2; }
+:is(.master-v2-order, .master-v2-composition) li:has(i)::before { content: none; }
 /* Вопрос Мастера — не тревога: тонкая линия слева вместо рамки во всю ширину.
    Красная коробка внутри красной рамки читалась как отказ, хотя это приглашение
    ответить. */
@@ -78,6 +79,18 @@
 /* Код — это значение, а не полоса: без inline-block фон растягивался на всю
    колонку сетки и читался как заливка яруса. */
 .master-v2-grid code { display: inline-block; width: max-content; max-width: 100%; padding: 0 var(--s-1); background: var(--hall-slot-fill); color: var(--hub-text-2); font-family: var(--font-mono); }
+/* Путь, адрес и команда бывают длиннее колонки и пробелов не имеют: без
+   переноса по любому знаку они уходили за край карточки и налезали на
+   соседний раздел («Рабочая папка» поверх «Стека»). В запущенном квесте
+   «Состав задания» стоит не в .master-v2-order, поэтому правила списков и
+   подписей выше названы и для него (замечание владельца, 30.09.2026). */
+.master-v2-grid code { white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-all; box-sizing: border-box; }
+.master-v2-composition { min-width: 0; }
+/* Неявная колонка раздела мерится по содержимому, и max-width: 100% у кода
+   считался от самого кода. Колонка с нулевым минимумом держит его в ширине. */
+.master-v2-summary section, .master-v2-grid section { grid-template-columns: minmax(0, 1fr); }
+.master-v2-composition .master-v2-summary,
+.master-v2-composition .master-v2-grid { margin-top: var(--s-4); }
 .master-v2-empty { color: var(--hub-faint); font-size: var(--t-small); }
 .master-v2-editor-simple, .master-v2-editor-advanced { display: grid; gap: var(--s-3); }
 .master-v2-editor label { display: grid; gap: var(--s-2); min-width: 0; }

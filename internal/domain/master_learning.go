@@ -2,6 +2,7 @@ package domain
 
 import (
 	"encoding/json"
+	"strings"
 	"time"
 )
 
@@ -31,13 +32,19 @@ type MasterLearningConfig struct {
 }
 
 type MasterEvidenceSignal struct {
-	ID          string    `json:"id"`
-	WorkspaceID string    `json:"workspaceId"`
-	ProposalID  string    `json:"proposalId,omitempty"`
-	QuestID     string    `json:"questId,omitempty"`
-	Kind        string    `json:"kind"`
-	Outcome     string    `json:"outcome"`
-	CreatedAt   time.Time `json:"createdAt"`
+	ID          string `json:"id"`
+	WorkspaceID string `json:"workspaceId"`
+	ProposalID  string `json:"proposalId,omitempty"`
+	QuestID     string `json:"questId,omitempty"`
+	Kind        string `json:"kind"`
+	Outcome     string `json:"outcome"`
+	// Detail carries the human's or the gate's own words: which criterion
+	// was rejected and why, why finalization was refused.
+	Detail string `json:"detail,omitempty"`
+	// ConversationID ties a human revision to the chat whose next Master turn
+	// is told about it.
+	ConversationID string    `json:"conversationId,omitempty"`
+	CreatedAt      time.Time `json:"createdAt"`
 }
 
 // MasterOperation is not an executor Run. Only attributed completed operations
@@ -57,9 +64,37 @@ type MasterOperation struct {
 	ContractError bool               `json:"contractError,omitempty"`
 	Repairs       int                `json:"repairs,omitempty"`
 	Feedback      string             `json:"feedback,omitempty"`
+	// Defects name what went wrong: the counters above only say that it did.
+	Defects []MasterDefect `json:"defects,omitempty"`
 	// Replay is sanitized, project-local and never included in a library API.
 	Replay    string    `json:"replay,omitempty"`
 	CreatedAt time.Time `json:"createdAt"`
+}
+
+// MasterDefect is one concrete reason an operation needed a repair or broke
+// its contract. A candidate revision can address a reason; it cannot address
+// a bare counter.
+type MasterDefect struct {
+	Kind   string `json:"kind"`
+	Reason string `json:"reason,omitempty"`
+}
+
+const (
+	maxMasterDefects      = 8
+	maxMasterDefectReason = 300
+)
+
+// AddDefect records one reason, bounded in count and length: the operation is
+// replay evidence and must stay small.
+func (o *MasterOperation) AddDefect(kind, reason string) {
+	if o == nil || len(o.Defects) >= maxMasterDefects {
+		return
+	}
+	reason = strings.TrimSpace(reason)
+	if runes := []rune(reason); len(runes) > maxMasterDefectReason {
+		reason = string(runes[:maxMasterDefectReason]) + "…"
+	}
+	o.Defects = append(o.Defects, MasterDefect{Kind: kind, Reason: reason})
 }
 
 type MasterSkillRevision struct {

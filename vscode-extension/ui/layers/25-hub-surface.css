@@ -60,72 +60,6 @@ body[data-layout="wide"] .agent-studio form > .profile-config-block { grid-colum
 .guild-heading h1 { margin: 0 0 var(--s-2); color: var(--hub-text); font: var(--fw-semibold) var(--t-title)/1.2 var(--font-ui); }
 .guild-heading p { margin: 0; max-width: var(--measure-narrow); color: var(--hub-muted); font-size: var(--t-body); line-height: var(--lh-base); }
 .guild-heading > div:last-child { display: flex; flex: none; flex-wrap: wrap; justify-content: flex-end; gap: var(--s-4); }
-.quick-chat-hub {
-  max-width: 1480px;
-  margin: 0 auto 14px;
-  padding: var(--s-5) 14px;
-  border: 1px solid var(--point-border);
-  border-radius: var(--r-1);
-  background: var(--point-panel);
-}
-.quick-chat-hub > header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--s-5);
-  margin-bottom: var(--s-4h);
-}
-.quick-chat-hub .quest-label {
-  display: block;
-  margin-bottom: 4px;
-  color: var(--point-ember);
-  font: 650 var(--t-small)/1 var(--font-ui);
-}
-.quick-chat-hub strong { display: block; font: 600 var(--t-lead)/1.2 var(--font-ui); }
-/* Абзац шёл в 107 знаков: читаемо примерно до 75, дальше глаз теряет начало
-   следующей строки. Ограничение по мере, а не по пикселям, — оно держится при
-   любом кегле. */
-.quick-chat-hub p { max-width: var(--measure); }
-.quick-chat-hub p { margin: var(--s-2) 0 0; color: var(--point-muted); font-size: var(--t-body); }
-.quick-chat-hub kbd {
-  padding: 1px var(--s-3);
-  border: 1px solid var(--point-border);
-  border-radius: var(--r-1);
-  background: var(--point-void);
-  font: 600 var(--t-tiny)/1.4 "JetBrains Mono", Consolas, monospace;
-}
-.quick-chat-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto;
-  gap: var(--s-4h);
-  align-items: end;
-}
-.quick-chat-grid label { display: grid; gap: var(--s-2); color: var(--point-muted); font-size: var(--t-small); }
-.quick-chat-grid select {
-  min-height: 32px;
-  padding: var(--s-3) var(--s-4);
-  color: var(--point-primary);
-  background: var(--point-void);
-  border: 1px solid var(--point-border);
-  border-radius: var(--r-1);
-}
-.quick-chat-toggle {
-  grid-template-columns: auto 1fr;
-  align-items: start;
-  column-gap: var(--s-4);
-}
-.quick-chat-toggle input { margin-top: var(--s-2); }
-.quick-chat-toggle span { color: var(--point-primary); font-weight: 600; }
-.quick-chat-toggle small { grid-column: 2; color: var(--point-muted); }
-.quick-chat-grid > .primary {
-  min-height: 32px;
-  padding: 0 14px;
-  border-radius: var(--r-1);
-  font: 650 var(--t-small)/1 var(--font-ui);
-}
-@media (max-width: 900px) {
-  .quick-chat-grid { grid-template-columns: 1fr; }
-}
 /* ── Гильдия: ростер и лист агента ────────────────────────────────────────────
    Две колонки вместо трёх: слева карточки агентов, справа лист выбранного.
    Прогрессия жила третьей колонкой и повторяла уровень и опыт из листа; теперь
@@ -252,13 +186,77 @@ body[data-layout="wide"] .agent-studio form > .profile-config-block { grid-colum
 @media (max-width: 760px) {
   body[data-layout="wide"] .app { min-width: 520px; }
 }
-.general-settings-page { display: grid; align-content: start; gap: var(--s-5); }
-.general-settings-links { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--s-3); }
-.general-settings-link { display: grid; grid-template-columns: 1fr auto; gap: var(--s-2); width: 100%; padding: var(--s-5); border: 1px solid var(--hub-border); border-radius: var(--r-2); background: var(--hub-raised); color: var(--hub-text); text-align: left; cursor: pointer; }
-.general-settings-link strong { font-size: var(--t-lead); }
-.general-settings-link span { grid-column: 1; color: var(--hub-muted); line-height: 1.4; }
-.general-settings-link i { grid-column: 2; grid-row: 1 / 3; align-self: center; font-style: normal; font-size: var(--t-title); }
-.general-settings-link:hover, .general-settings-link:focus-visible { border-color: var(--ui-focus); }
-.general-settings-project-note { padding: var(--s-5); border: 1px solid var(--hub-border); border-radius: var(--r-2); background: var(--hub-raised); }
-.general-settings-project-note h2 { margin: 0 0 var(--s-2); font-size: var(--t-lead); }
-.general-settings-project-note p { margin: 0 0 var(--s-4); color: var(--hub-muted); }
+/* ── Общие настройки: список, как в JetBrains ─────────────────────────────────
+   Вариант A по снимкам стенда 30 сентября 2026. Разделы подписаны обычным
+   регистром; строка — значок, подпись с пояснением и управление справа;
+   между строками тонкая линия. Поля — канонические, их вид задаёт 99-hall-canon. */
+.general-settings-page.gs { display: block; max-width: 800px; font: var(--fw-normal) var(--t-base) / 1.45 var(--font-ui); color: var(--hub-text-2); }
+.gs .hall-icon { width: 16px; height: 16px; flex: 0 0 auto; color: var(--hub-muted); }
+.gs-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s-6); margin-bottom: var(--s-7); }
+.gs-head h1 { margin: 0 0 var(--s-2); color: var(--hub-text); font: var(--fw-semibold) var(--t-title) / 1.3 var(--font-ui); letter-spacing: normal; text-transform: none; }
+.gs-head p { margin: 0; color: var(--hub-muted); }
+.gs-count { color: var(--hub-muted); font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui); font-style: normal; white-space: nowrap; }
+.gs-section { margin-bottom: var(--s-7); }
+.gs-section > h2 { display: flex; align-items: center; gap: var(--s-4); margin: 0 0 var(--s-3); color: var(--hub-text); font: var(--fw-semibold) var(--t-base) / 1.4 var(--font-ui); letter-spacing: normal; text-transform: none; }
+.gs kbd { padding: 0 var(--s-2); border: 1px solid var(--hub-border); border-radius: var(--r-1); color: var(--hub-muted); font: var(--fw-normal) var(--t-small) / 1.5 var(--font-mono); }
+.gs-row {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s-5);
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 52px;
+  margin: 0;
+  padding: var(--s-4) var(--s-5);
+  border: 0;
+  border-top: 1px solid var(--hub-border-soft);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+.gs-section > .gs-row:last-of-type,
+.gs-form > .gs-row:last-of-type { border-bottom: 1px solid var(--hub-border-soft); }
+.gs-row > span:nth-child(2) { display: grid; gap: var(--s-1); min-width: 0; }
+.gs-row b { color: var(--hub-text); font-weight: var(--fw-medium); }
+/* Строка бюджета — <label>: канон полей уменьшает у него кегль и красит в тон
+   подписи. Строка остаётся строкой списка, как соседние. */
+.gs .gs-form label.gs-row { gap: var(--s-5); column-gap: var(--s-5); padding: var(--s-4) var(--s-5); color: var(--hub-text-2); font: var(--fw-normal) var(--t-base) / 1.45 var(--font-ui); letter-spacing: normal; text-transform: none; }
+.gs label.gs-row b { font-size: var(--t-base); }
+.gs-row small { color: var(--hub-muted); font-size: var(--t-small); }
+.gs-row.is-link { cursor: pointer; }
+.gs-row.is-link:hover,
+.gs-row.is-link:focus-visible { background: var(--hub-raised); outline: none; }
+.gs-row > em { display: inline-flex; align-items: center; gap: var(--s-2); color: var(--hub-muted); font-size: var(--t-small); font-style: normal; }
+.gs-row > em .hall-icon { width: 14px; height: 14px; }
+.gs-pair { display: inline-flex; align-items: center; gap: var(--s-3); }
+.gs-pair select { min-width: 200px; max-width: 260px; }
+.gs-pair input { width: 180px; }
+.gs-money { display: inline-flex; align-items: center; gap: var(--s-2); width: 150px; }
+.gs-money input { width: 100%; text-align: right; }
+.gs-money > i { color: var(--hub-muted); font-style: normal; }
+.gs-switch { position: relative; display: inline-block; width: 28px; height: 16px; flex: 0 0 auto; }
+.gs-switch > input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+.gs-switch > span { position: absolute; inset: 0; border-radius: var(--r-full); background: var(--hub-border-strong); pointer-events: none; transition: background-color var(--motion-fast) var(--ease); }
+.gs-switch > span::after { content: ''; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--hub-text-2); transition: transform var(--motion-fast) var(--ease); }
+.gs-switch > input:checked + span { background: var(--ember); }
+.gs-switch > input:checked + span::after { transform: translateX(12px); background: var(--hub-void); }
+.gs-switch > input:focus-visible + span { box-shadow: var(--e-focus); }
+.gs-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--s-5); padding: var(--s-4) var(--s-5) 0 calc(16px + var(--s-5) * 2); }
+.gs-foot small { color: var(--hub-muted); font-size: var(--t-small); }
+.gs-button {
+  flex: 0 0 auto;
+  min-height: var(--control-md);
+  padding: 0 var(--s-5);
+  border: 1px solid var(--hub-border-strong);
+  border-radius: var(--r-2);
+  background: transparent;
+  color: var(--hub-text);
+  font: var(--fw-medium) var(--t-small) / 1 var(--font-ui);
+  cursor: pointer;
+}
+.gs-button:hover,
+.gs-button:focus-visible { background: var(--hub-selected); outline: none; }
+.gs-button:disabled { opacity: var(--disabled-opacity); cursor: default; }
+.gs-alert { margin: 0 0 var(--s-4); color: var(--caution); font-size: var(--t-small); }

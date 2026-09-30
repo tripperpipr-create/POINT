@@ -259,6 +259,48 @@ function createHubSurfaces({ collectExtensionGarbage, createChatDocuments, curso
   function showCompanionPopup(provider) {
     return provider.showCompanionPeek()
   }
+  // Страница диалога, окно сведений и архив (chat-documents.js) собираются по
+  // первому обращению, а не в конструкторе: смоуки зовут методы через
+  // prototype на подставном объекте. Контекст читается замыканием — при
+  // перезапуске панели он подменяется. При выносе поверхностей сюда геттер
+  // потерялся, и «Сведения об ответе» падали на undefined.
+  function chatDocuments(provider) {
+    if (!provider.chatDocumentsCache) {
+      provider.chatDocumentsCache = createChatDocuments({
+        escapeHtml, extensionUri: provider.context?.extensionUri, readContext: () => provider.context,
+      })
+    }
+    return provider.chatDocumentsCache
+  }
+  // Редакторы окна Хаба. Обе настройки пишутся в рабочую область Чертога
+  // (agent-sessions.code-workspace): обычные окна IDE их не видят.
+  //
+  // Вкладки. Полосу вкладок прячет лист оболочки (point-agents-window.css), но
+  // Code-OSS по-прежнему вычитает её высоту из высоты редактора
+  // (editorGroupView.layout): вебвью Хаба получал на полосу меньше, и внизу
+  // окна стояла пустая строка. Выключенные настройкой, вкладки места не берут.
+  //
+  // Модальные окна. Всё, что открывается поверх Хаба — сведения об ответе,
+  // изменённые файлы, архив, — должно вставать модальным окном с «×» и Esc:
+  // вкладок здесь нет, и документ, открытый в группе Хаба, закрыть нечем.
+  // Умолчание окна агентов — `useModal: all`, но кнопка «Open in Editor Area»
+  // модального окна пишет в настройки пользователя `some`, и один щелчок по
+  // ней навсегда запирал человека в открытом документе. Значение рабочей
+  // области перекрывает пользовательское, а подписка возвращает его, если ту
+  // же кнопку нажмут снова.
+  const HUB_EDITOR_SETTINGS = [['showTabs', 'none'], ['useModal', 'all']]
+  async function applyHubEditorSettings() {
+    const editor = vscode.workspace.getConfiguration('workbench.editor')
+    for (const [key, value] of HUB_EDITOR_SETTINGS) {
+      if (editor.inspect(key)?.workspaceValue !== value) await editor.update(key, value, vscode.ConfigurationTarget.Workspace)
+    }
+  }
+  async function fitHubEditorToWindow(context) {
+    context?.subscriptions?.push(vscode.workspace.onDidChangeConfiguration(event => {
+      if (HUB_EDITOR_SETTINGS.some(([key]) => event.affectsConfiguration(`workbench.editor.${key}`))) void applyHubEditorSettings().catch(() => {})
+    }))
+    await applyHubEditorSettings()
+  }
   function showConnections(provider) {
     if (provider.connectionsPanel) {
       provider.connectionsPanel.reveal(vscode.ViewColumn.Active, false)
@@ -340,7 +382,7 @@ function createHubSurfaces({ collectExtensionGarbage, createChatDocuments, curso
     openProjectGallery, enterAgentsWindow, focusTab, showWideHere,
     showStatistics, scheduleHubGarbageCollection, collectWebviewGarbage, showDocker,
     showCompanionPeek, showCompanionPopup, showConnections, waitForCompanionSurface,
-    showCompanionDock, showCompanionSidebar, closeCompanionPopup,
+    showCompanionDock, showCompanionSidebar, closeCompanionPopup, chatDocuments, fitHubEditorToWindow,
   }
 }
 

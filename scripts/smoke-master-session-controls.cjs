@@ -97,37 +97,49 @@ async function bundleSessionUi() {
     // список стал кросс-проектным, уехал в свой модуль и больше не прячет
     // строки в готовом дереве, а отсеивает их при отрисовке. Здесь остались
     // только панели разговора, которые живут внутри чата.
-    await page.getByRole('button',{name:'Действия с разговором'}).click()
+    // Меню «•••» — поповер (вариант C по снимкам стенда, 29.09.2026): название
+    // полем с карандашом, частые действия плитками, подробность сегментами.
+    // Действие вроде переименования меню закрывает, поэтому дальше оно
+    // открывается заново.
+    const menu = page.getByRole('button', { name: 'Действия с разговором' })
+    await menu.click()
+    assert.equal(await menu.getAttribute('aria-expanded'), 'true')
     await page.locator('[data-master-session-title]').fill('Новый заголовок')
     await page.getByRole('button', { name: 'Переименовать', exact: true }).click()
     assert.equal((await page.evaluate(() => window.posted.at(-1))).value, 'Новый заголовок')
-    await page.getByRole('button', { name: 'Память', exact: false }).click()
+    assert.equal(await page.locator('[data-session-panel="history"]').isHidden(), true, 'меню не закрылось после действия')
+    // Enter в поле названия сохраняет его так же, как карандаш.
+    await menu.click()
+    await page.locator('[data-master-session-title]').fill('Заголовок по Enter')
+    await page.locator('[data-master-session-title]').press('Enter')
+    assert.equal((await page.evaluate(() => window.posted.at(-1))).value, 'Заголовок по Enter')
+    await menu.click()
+    await page.getByRole('button', { name: 'Память проекта', exact: false }).click()
     await page.locator('[data-master-memory]').fill('Примеры на Go')
     await page.getByRole('button', { name: 'Сохранить память' }).click()
     assert.equal((await page.evaluate(() => window.posted.at(-1))).value, 'Примеры на Go')
-    // Подробность ответа переехала из ряда управления в меню «•••»: её меняют
-    // раз в месяц, а место в ряду она занимала всегда. «Память» это меню
-    // закрывает — панели не открываются вдвоём, — поэтому открываем заново.
-    await page.getByRole('button', { name: 'Действия с разговором' }).click()
-    // Форма ответа читается из сессии честно: в снимке стоит «questions», и до
-    // правки меню показывало «Авто», потому что знало только три формы из пяти.
-    assert.equal(await page.locator('.hall-answer-style summary').innerText(), 'Ответ: Сначала вопросы')
-    await page.locator('.hall-answer-style summary').click()
+    // «Назад» из памяти возвращает к меню, а не закрывает его.
+    await page.getByRole('button', { name: 'Назад к действиям с разговором' }).click()
+    assert.equal(await page.locator('[data-session-panel="history"]').isVisible(), true)
+    // Форма ответа читается из сессии честно: в снимке стоит «questions».
+    assert.equal(await page.locator('[data-action="master-session-mode"][aria-pressed="true"]').getAttribute('title'), 'Сначала вопросы')
     await page.getByRole('button', { name: 'Подробно', exact: true }).click()
     assert.equal((await page.evaluate(() => window.posted.at(-1))).value, 'detailed')
+    // Esc закрывает меню.
+    await page.keyboard.press('Escape')
+    assert.equal(await page.locator('[data-session-panel="history"]').isHidden(), true, 'Esc не закрыл меню')
     await page.locator('.hall-question .hall-question-extra').fill('Разработка Go-сервисов')
-    await page.getByRole('button', { name: 'Продолжить', exact: true }).click()
+    await page.getByRole('button', { name: /^Отправить ответы?$/ }).click()
     assert.match(await page.evaluate(() => window.answers[0]), /Мой ответ: Разработка Go-сервисов/)
-    // «Новый чат» живёт в том же меню «•••», что и подробность ответа, и оно
-    // уже открыто предыдущим шагом. Нажать «•••» ещё раз значило бы его
-    // закрыть: панели переключаются, а не копятся.
-    await page.locator('[data-session-panel="history"]').getByRole('button', { name: 'Новый чат', exact: false }).click()
-    assert.equal((await page.evaluate(() => window.posted.at(-1))).action, 'new')
+    // Щелчок мимо открытого меню закрывает его.
+    await menu.click()
+    await page.mouse.click(700, 500)
+    assert.equal(await page.locator('[data-session-panel="history"]').isHidden(), true, 'щелчок мимо не закрыл меню')
     for (const width of [390, 800, 1280, 1920]) {
       await page.setViewportSize({ width, height: 900 })
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false)
       await page.screenshot({path:'build/master-v2-'+width+'.png'})
     }
-    console.log('Master chat controls: history search, switching, rename, memory, modes, question answers, responsive layout: PASS')
+    console.log('Master chat controls: menu popover, rename, memory, modes, dismiss, question answers, responsive layout: PASS')
   } finally { await browser.close() }
 })().catch(error => { console.error(error); process.exitCode = 1 })

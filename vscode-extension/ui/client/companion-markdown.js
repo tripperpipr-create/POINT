@@ -270,7 +270,9 @@ export function createCompanionMarkdownFormatter(escapeHtml) {
     const fenceOpen = (source.match(/(^|\n)```/g) || []).length % 2 === 1
     if (!fenceOpen) {
       for (const mark of ['**', '~~']) if ((tail.split(mark).length - 1) % 2 === 1) source += mark
-      if ((tail.split('`').length - 1) % 2 === 1) source += '`'
+      // Забор закрытого блока — не строчный код: «```» в последней строке
+      // иначе считался нечётной кавычкой, и под блоком оставался лишний «`».
+      if ((tail.replace(/```+/g, '').split('`').length - 1) % 2 === 1) source += '`'
       // Голый маркер в последней строке — начало блока, которому ещё нечего
       // показать: «- » или «## » без текста не выводятся пустым пунктом.
       source = source.replace(/(^|\n) *(?:[-*+]|\d{1,3}[.)]|#{1,4}|>) *$/, '$1')

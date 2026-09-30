@@ -1,0 +1,128 @@
+/* Diff правки — один облик на весь Хаб (ui/client/diff-view.js).
+   ==========================================================================
+   Вариант A по снимкам стенда 30 сентября 2026, как в GitHub: две колонки
+   номеров «было / стало», знак отдельной колонкой, тон строки заливкой,
+   фрагмент — тихой строкой с номерами и подписью функции. Новый и удалённый
+   файл — код с одной колонкой номеров и цветной кромкой слева; что файл новый,
+   говорит бейдж в заголовке, а не стена плюсов.
+
+   Слой общий: diff рисуют лента Мастера, карточка квеста, наборы изменений,
+   карточка подтверждения правки и история изменений. */
+
+.diff {
+  max-height: 22rem;
+  overflow: auto;
+  border-top: 1px solid var(--hub-border-soft);
+  background: var(--hub-void);
+  font: var(--fw-normal) var(--t-small) / 1.6 var(--font-mono);
+  color: var(--hub-text-2);
+  tab-size: 4;
+}
+.diff-row {
+  display: grid;
+  grid-template-columns: 40px 40px 16px minmax(0, 1fr);
+  align-items: start;
+}
+.diff-row > code,
+.diff-hunk > code {
+  min-width: 0;
+  padding: 0 var(--s-5) 0 var(--s-2);
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.diff-n {
+  padding: 0 var(--s-3);
+  color: var(--hub-faint);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+.diff-s { text-align: center; color: var(--hub-muted); user-select: none; }
+.diff-row.is-add { background: color-mix(in srgb, var(--vital) 12%, transparent); }
+.diff-row.is-del { background: color-mix(in srgb, var(--wound) 12%, transparent); }
+.diff-row.is-add > .diff-n { background: color-mix(in srgb, var(--vital) 18%, transparent); color: var(--hub-text-3); }
+.diff-row.is-del > .diff-n { background: color-mix(in srgb, var(--wound) 18%, transparent); color: var(--hub-text-3); }
+.diff-row.is-add > .diff-s { color: var(--vital); }
+.diff-row.is-del > .diff-s { color: var(--wound); }
+.diff-hunk {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-4);
+  padding: var(--s-1) var(--s-5);
+  background: color-mix(in srgb, var(--hub-text) 4%, transparent);
+  color: var(--hub-muted);
+  font-family: var(--font-ui);
+}
+.diff-hunk > span { flex: 0 0 auto; }
+.diff-hunk > code { padding: 0; color: var(--hub-faint); font-family: var(--font-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.diff-more { padding: var(--s-2) var(--s-5); color: var(--hub-faint); font-family: var(--font-ui); }
+
+/* Новый и удалённый файл: одна колонка номеров, кромка тоном файла. */
+.diff.is-whole .diff-row { grid-template-columns: 44px minmax(0, 1fr); }
+.diff.is-new { box-shadow: inset var(--edge-accent) 0 0 var(--vital); }
+.diff.is-gone { box-shadow: inset var(--edge-accent) 0 0 var(--wound); color: var(--hub-muted); }
+
+/* Заголовок файла: папка тише имени, бейдж нового файла, полоска объёма. */
+.diff-dir { color: var(--hub-faint); }
+.diff-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--s-3);
+  border-radius: var(--r-full);
+  font: var(--fw-medium) var(--t-small) / 1.6 var(--font-ui);
+  white-space: nowrap;
+}
+.diff-badge.is-new { background: var(--vital-wash); color: var(--vital); }
+.diff-badge.is-gone { background: var(--wound-wash); color: var(--wound); }
+.diff-bar { display: inline-flex; gap: var(--s-1); margin-left: var(--s-2); align-self: center; }
+.diff-bar > i { width: 6px; height: 6px; border-radius: 0; }
+.diff-bar > i.is-add { background: var(--vital); }
+.diff-bar > i.is-del { background: var(--wound); }
+.hall-step-icon.is-new { color: var(--vital); }
+
+/* Список файлов набора изменений: строка — как у файла в карточке квеста. */
+.diff-files { display: grid; gap: var(--s-2); margin: var(--s-4) 0 0; padding: 0; list-style: none; }
+.diff-file { border: 1px solid var(--hub-border-soft); border-radius: var(--r-2); overflow: hidden; }
+.diff-file > details > summary { list-style: none; cursor: pointer; }
+.diff-file > details > summary::-webkit-details-marker { display: none; }
+.diff-file-head {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto auto auto 16px;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: var(--control-md);
+  padding: 0 var(--s-4);
+  color: var(--hub-muted);
+  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui);
+}
+.diff-file > details > summary:hover { background: var(--hub-raised); }
+.diff-file-icon { display: inline-flex; color: var(--hub-muted); }
+.diff-file-icon.is-new { color: var(--vital); }
+.diff-file-icon .hall-icon,
+.diff-file-chevron .hall-icon { width: 14px; height: 14px; }
+.diff-file-path { min-width: 0; overflow: hidden; color: var(--hub-text-2); font-family: var(--font-mono); text-overflow: ellipsis; white-space: nowrap; }
+.diff-file-chevron { display: inline-flex; transition: transform var(--motion-fast) var(--ease); }
+.diff-file > details[open] .diff-file-chevron { transform: rotate(90deg); }
+button.diff-file-open {
+  display: inline-grid;
+  place-items: center;
+  width: var(--control-sm);
+  height: var(--control-sm);
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-2);
+  background: transparent;
+  color: var(--hub-muted);
+  cursor: pointer;
+}
+button.diff-file-open:hover,
+button.diff-file-open:focus-visible { background: var(--hub-selected); color: var(--hub-text); outline: none; }
+button.diff-file-open .hall-icon { width: 14px; height: 14px; }
+.diff-files .quest-diff-count { display: inline-flex; gap: var(--s-2); font: var(--fw-normal) var(--t-small) / 1.4 var(--font-mono); }
+.diff-files .quest-diff-count .is-add { color: var(--vital); font-weight: var(--fw-normal); }
+.diff-files .quest-diff-count .is-del { color: var(--wound); font-weight: var(--fw-normal); }

@@ -218,7 +218,8 @@
 }
 .hall-chats-group.is-open .hall-chats-caret .hall-icon { transform: rotate(90deg); }
 
-.hall-chats-add {
+.hall-chats-add,
+.hall-chats-gear {
   display: inline-grid;
   place-items: center;
   flex: 0 0 auto;
@@ -236,11 +237,14 @@
 }
 
 .hall-chats-group:hover .hall-chats-add,
-.hall-chats-add:focus-visible {
+.hall-chats-group:hover .hall-chats-gear,
+.hall-chats-add:focus-visible,
+.hall-chats-gear:focus-visible {
   opacity: 1;
 }
 
-.hall-chats-add:hover {
+.hall-chats-add:hover,
+.hall-chats-gear:hover {
   background: var(--hub-selected);
   color: var(--hub-text);
 }
@@ -361,7 +365,11 @@
 }
 
 .hall-chats-add .hall-icon,
+.hall-chats-gear .hall-icon,
 .hall-chat-drop .hall-icon { width: 14px; height: 14px; }
+/* Шестерёнка встаёт перед «+»: счётчик чатов остаётся на своём месте. */
+.hall-chats-gear { margin-left: auto; }
+.hall-chats-gear + .hall-chats-add { margin-left: 0; }
 
 .hall-chats-archive {
   margin-block-start: var(--s-2);
@@ -400,8 +408,8 @@
   color: var(--hub-muted-2);
 }
 
-/* «Временный чат» — строка под проектами тем же отступом, что и заголовок
-   группы: значок стоит в столбце шевронов, подпись — в столбце имён. */
+/* «Временный чат» — строка под поиском, рядом с «Новым чатом»: значок стоит
+   в столбце шевронов групп ниже, подпись — в столбце имён. */
 .hall-chats-temporary {
   display: flex;
   align-items: center;
@@ -417,7 +425,7 @@
   text-align: left;
   cursor: pointer;
 }
-.hall-chats-temporary .hall-icon { width: 12px; height: 12px; }
+.hall-chats-temporary .hall-icon { width: 14px; height: 14px; color: var(--hub-muted); }
 
 .hall-chats-temporary:hover {
   background: var(--hub-raised);

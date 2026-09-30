@@ -164,7 +164,7 @@ func (a *App) learningBindings(ctx context.Context, source domain.ProjectAgent, 
 	for _, boundAgent := range selected {
 		beforeSkills[boundAgent.ID] = append([]string(nil), boundAgent.SkillIDs...)
 		beforeRules[boundAgent.ID] = append([]string(nil), boundAgent.Rules...)
-		if skillTargets[boundAgent.ID] {
+		if skillTargets[boundAgent.ID] && learned.ID != "" {
 			if superseded := strings.TrimSpace(fmt.Sprint(learned.Configuration["supersedesSkillId"])); superseded != "" {
 				boundAgent.SkillIDs = withoutString(boundAgent.SkillIDs, superseded)
 			}

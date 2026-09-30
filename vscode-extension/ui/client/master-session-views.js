@@ -6,26 +6,56 @@ import { icon } from './ui-icons.js'
 // разговор, сохранённый в режиме «Сначала вопросы», показывался как «Авто» —
 // интерфейс врал о сохранённом состоянии, а выйти из режима было нечем.
 // Сверку списка с перечислением ядра держит договорённость в ui/contracts.mjs.
-const modes=[['auto','Авто'],['brief','Кратко'],['detailed','Подробно'],['plan','План'],['questions','Сначала вопросы']]
-export function masterSessionHtml(sessions,esc){
+const modes=[['auto','Авто'],['brief','Кратко'],['detailed','Подробно'],['plan','План'],['questions','Сначала вопросы','Вопросы']]
+// developmentHtml — готовая панель «Навыки и развитие» (master-development.js):
+// её состояние живёт в ui, а не в сессиях, и собирает её вызывающий.
+export function masterSessionHtml(sessions,esc,openPanel='',developmentHtml=''){
  if(!sessions)return ''
  const current=sessions.items.find(v=>v.id===sessions.active)
+ const proposed=(sessions.memoryEntries || []).filter(v=>v.status==='proposed').length
  return `<div class="hall-sessions">
   ${/* Список разговоров уехал в master-chat-directory.js: он стал
        кросс-проектным и живёт левой колонкой экрана, а не внутри разговора.
        Полоса разошлась по шапке чата — там же теперь и вкладка задания.
        Панели «•••» и «Память» остались здесь: их ищут по root, и место
        в дереве им безразлично. */''}
-  <section class="hall-session-panel" data-session-panel="history" hidden aria-label="Действия с разговором">
-   <div class="hall-session-menu"><button type="button" class="hall-chip" data-action="master-session-new">Новый чат</button><button type="button" class="hall-chip" data-action="master-session-toggle" data-panel="memory">Память${sessions.memoryEntries?.some(v=>v.status==='proposed')?' •':''}</button>${current?.branchOffer === 'skipped' ? `<button type="button" class="hall-chip" data-action="master-session-branch" data-id="${esc(current.id)}">Создать ветку для плана</button>` : current?.branchOffer === 'bound' ? `<span class="hall-chip">Ветка: ${esc(current.branchName)}</span>` : ''}${masterAnswerStyleHtml(sessions,esc)}</div>
-   <label>Название<input data-master-session-title maxlength="100" value="${esc(current?.title || '')}" /></label><button type="button" class="hall-chip" data-action="master-session-rename" data-id="${esc(sessions.active)}">Переименовать</button><button type="button" class="hall-chip" data-action="master-session-pin" data-id="${esc(sessions.active)}">${current?.pinned?'Открепить':'Закрепить'}</button><button type="button" class="hall-chip" data-action="master-session-archive" data-id="${esc(sessions.active)}">${current?.archived?'Вернуть из архива':'В архив'}</button><button type="button" class="hall-chip" data-action="master-session-export" data-id="${esc(sessions.active)}">Экспорт Markdown</button><button type="button" class="hall-chip" data-action="master-session-delete" data-id="${esc(sessions.active)}">Удалить разговор</button>
-   <details><summary>Автозапуск в проекте: ${sessions.autoRunReadOnly?'включён для чтения':'выключен'}</summary><p>Только в режиме «Выполнить»: один агент, чтение проекта без записи, команд и сети. Лимиты: 20 000 токенов, 120 секунд, одна попытка и одна ревизия плана. Инструменты: read_file, list_files, search_text, project_map, search_code. Задания вне этих пределов требуют подтверждения.</p><button type="button" class="hall-chip" data-action="master-session-auto-read-only" data-value="${!sessions.autoRunReadOnly}">${sessions.autoRunReadOnly?'Выключить автозапуск':'Разрешить автозапуск в этих пределах'}</button></details>
-   ${current?.summary?`<details><summary>Резюме беседы</summary><p>${esc(current.summary)}</p></details>`:''}
+  ${/* Меню «•••» — поповер у самой кнопки, а не полоса под шапкой: полоса
+       сдвигала ленту и держала два десятка одинаковых чипов вперемешку с
+       полем и свёртками («Удалить» стояло рядом с «Экспорт»). Облик выбрал
+       владелец по снимкам стенда 29 сентября 2026 (вариант C): название
+       полем, частые действия плитками, подробность ответа — сегментами,
+       удаление отдельно и красным. «Новый чат» ушёл: он есть в рейке. */''}
+  <section class="hall-session-panel hall-pop" data-session-panel="history"${openPanel==='history'?'':' hidden'} aria-label="Действия с разговором">
+   <div class="hall-pop-title"><input id="master-session-title" data-master-session-title maxlength="100" value="${esc(current?.title || '')}" aria-label="Название разговора" /><button type="button" class="hall-pop-icon" data-action="master-session-rename" data-id="${esc(sessions.active)}" aria-label="Переименовать" title="Сохранить название (Enter)">${icon('edit')}</button></div>
+   <div class="hall-pop-tiles">
+    ${tile('pin', current?.pinned?'Открепить':'Закрепить', 'master-session-pin', sessions.active, esc)}
+    ${tile('download', 'Экспорт', 'master-session-export', sessions.active, esc, 'Экспорт в Markdown')}
+    ${tile('archive', current?.archived?'Вернуть':'В архив', 'master-session-archive', sessions.active, esc, current?.archived?'Вернуть из архива':'Убрать в архив')}
+    ${current?.branchOffer === 'skipped' ? tile('git', 'Ветка', 'master-session-branch', current.id, esc, 'Создать ветку для плана') : current?.branchOffer === 'bound' ? `<span class="hall-pop-tile is-static" title="Ветка: ${esc(current.branchName)}">${icon('git')}<span>${esc(current.branchName)}</span></span>` : ''}
+   </div>
+   <div class="hall-pop-sep"></div>
+   ${masterAnswerStyleHtml(sessions,esc)}
+   <button type="button" class="hall-pop-row" role="switch" aria-checked="${Boolean(sessions.autoRunReadOnly)}" data-action="master-session-auto-read-only" data-value="${!sessions.autoRunReadOnly}" title="Инструменты: read_file, list_files, search_text, project_map, search_code. Задания вне этих пределов требуют подтверждения.">${icon('retry')}<span>Автозапуск на чтение</span><span class="hall-pop-switch" aria-hidden="true"></span></button>
+   <small class="hall-pop-note">В режиме «Выполнить» агент читает проект без записи, команд и сети: до 20 000 токенов и 2 минут.</small>
+   <button type="button" class="hall-pop-row" data-action="master-session-toggle" data-panel="memory">${icon('memory')}<span>Память проекта</span><small>${proposed?`<i class="hall-pop-dot"></i>${proposed} ${proposed===1?'новая':'новых'}`:''}${icon('chevron-right')}</small></button>
+   ${developmentHtml?`<button type="button" class="hall-pop-row" data-action="master-session-toggle" data-panel="development">${icon('bolt')}<span>Навыки и развитие</span><small>${icon('chevron-right')}</small></button>`:''}
+   ${current?.summary?`<details class="hall-pop-more"><summary class="hall-pop-row">${icon('text')}<span>Резюме беседы</span><small>${icon('chevron-right')}</small></summary><p>${esc(current.summary)}</p></details>`:''}
+   <div class="hall-pop-sep"></div>
+   <button type="button" class="hall-pop-row is-danger" data-action="master-session-delete" data-id="${esc(sessions.active)}">${icon('trash')}<span>Удалить разговор</span></button>
   </section>
-  <section class="hall-session-panel" data-session-panel="memory" hidden aria-label="Память проекта"><p>Подтверждённые записи используются в других чатах проекта.</p>
+  <section class="hall-session-panel hall-pop is-memory" data-session-panel="memory"${openPanel==='memory'?'':' hidden'} aria-label="Память проекта">
+   <button type="button" class="hall-pop-back" data-action="master-session-toggle" data-panel="history" aria-label="Назад к действиям с разговором">${icon('chevron-right')}<span>Память проекта</span></button>
+   <small class="hall-pop-note">Подтверждённые записи используются в других чатах проекта.</small>
    ${(sessions.memoryEntries || []).map(v=>masterMemoryEntryHtml(v,sessions.memoryEntries,esc)).join('')}
-   <label>Добавить запись<textarea data-master-memory rows="2" maxlength="4000" placeholder="Решение или предпочтение проекта…"></textarea></label><button type="button" class="hall-chip" data-action="master-session-memory-save">Сохранить память</button>
+   <label class="hall-pop-add">Добавить запись<textarea data-master-memory rows="2" maxlength="4000" placeholder="Решение или предпочтение проекта…"></textarea></label><button type="button" class="hall-chip" data-action="master-session-memory-save">Сохранить память</button>
   </section>
+  ${/* «Навыки и развитие» открывались только с шагов настройки Мастера в
+       онбординге: найти, чему Мастер научился, и откатить это было почти
+       негде. Панель живёт в том же меню, что и память проекта. */''}
+  ${developmentHtml?`<section class="hall-session-panel hall-pop is-development" data-session-panel="development"${openPanel==='development'?'':' hidden'} aria-label="Навыки и развитие">
+   <button type="button" class="hall-pop-back" data-action="master-session-toggle" data-panel="history" aria-label="Назад к действиям с разговором">${icon('chevron-right')}<span>Навыки и развитие</span></button>
+   ${developmentHtml}
+  </section>`:''}
  </div>`
 }
 // Подробность ответа переехала в меню «•••» полосы разговора: её меняют раз в
@@ -33,12 +63,14 @@ export function masterSessionHtml(sessions,esc){
 // выбирают перед каждой репликой, — режим работы и модель.
 function masterAnswerStyleHtml(sessions,esc){
  if(!sessions)return ''
- // То, что названо в свёрнутом меню, и отмечено в раскрытом. Отметку считаем от
- // той же ступени, что и надпись, иначе меню показывает «Авто» и не отмечает
- // ничего — у сессии в этом поле бывает и чужое значение.
+ // Отметку считаем от той же ступени, что и надпись: у сессии в этом поле
+ // бывает и чужое значение, и тогда отмечается «Авто».
  const modeId=modes.find(v=>v[0]===sessions.mode)?.[0] || 'auto'
- const modeLabel=modes.find(v=>v[0]===modeId)[1]
- return `<details class="hall-answer-style"><summary>Ответ: ${esc(modeLabel)}</summary><div role="group" aria-label="Подробность ответа">${modes.map(([id,label])=>`<button type="button" class="hall-chip" data-action="master-session-mode" data-value="${id}" aria-pressed="${modeId===id}">${label}</button>`).join('')}</div></details>`
+ return `<div class="hall-pop-label" id="master-answer-style-label">Подробность ответа</div><div class="hall-pop-seg" role="group" aria-labelledby="master-answer-style-label">${modes.map(([id,label,short])=>`<button type="button" data-action="master-session-mode" data-value="${id}" aria-pressed="${modeId===id}" title="${label}">${short || label}</button>`).join('')}</div>`
+}
+// Плитка частого действия: значок над подписью, полное имя — в подсказке.
+function tile(glyph,label,action,id,esc,title=label){
+ return `<button type="button" class="hall-pop-tile" data-action="${action}" data-id="${esc(id || '')}" title="${esc(title)}">${icon(glyph)}<span>${esc(label)}</span></button>`
 }
 
 // Ряд управления композера: чем занят Мастер и какой моделью отвечает.

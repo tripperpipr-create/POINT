@@ -20,6 +20,11 @@
   --hall-who-col: 0px;
   --hall-msg-indent: 0px;
   --hall-mine-fill: color-mix(in srgb, var(--hub-text) 7%, transparent);
+  /* `scrollbar-width: thin` (блок кода, таблица, уточнения, поле ввода)
+     включает стандартную полосу Chromium и выключает полосы темы VS Code —
+     без цвета она светлая на тёмной ленте. Свойство наследуется, поэтому
+     цвет задан один раз на весь разговор. */
+  scrollbar-color: var(--hub-border-strong) transparent;
 }
 
 /* —— Каркас ленты —— */
@@ -314,26 +319,16 @@
 .hall-dialogue .hall-answer-badge .hall-chip:focus-visible { background: var(--hub-selected); }
 
 /* —— Разделитель дня и служебные строки —— */
+/* Дата стоит в потоке, а не липнет к верху: липкая полоса во всю колонку
+   резала карточку квеста поперёк кромки и перекрывала текст (замечание
+   владельца по живой IDE, 29 сентября 2026). И сама она тише: без линий во
+   всю ширину и без веса — метка времени, а не раздел. */
 .hall-dialogue .hall-day {
-  position: sticky;
-  /* Ниже маски верхнего края ленты (07a-master-compose.css): у самого края
-     липкая дата растворялась вместе с уезжающим текстом. */
-  top: var(--s-6);
-  z-index: 1;
   display: flex;
-  align-items: center;
-  gap: var(--s-5);
-  padding: var(--s-3) 0;
-  background: var(--hub-void);
-  font: var(--fw-medium) var(--t-small) / 1 var(--font-ui);
-  color: var(--hub-muted);
-}
-.hall-dialogue .hall-day::before,
-.hall-dialogue .hall-day::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--hub-border-soft);
+  justify-content: center;
+  padding: var(--s-2) 0;
+  font: var(--fw-normal) var(--t-small) / 1 var(--font-ui);
+  color: var(--hub-faint);
 }
 
 /* Основания ответа и строка страницы — мелкие метки, не текст. */

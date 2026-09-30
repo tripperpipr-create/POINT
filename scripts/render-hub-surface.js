@@ -1123,6 +1123,21 @@ if (process.argv[2] === 'master') {
     // `docker compose` с пробой адреса (DeliveredApplicationState).
     const appState = { questId: 'quest-bench', kind: 'web', launch: 'compose', url: 'http://localhost:8080', target: 'C:\Users\Rif\Point\systemio', composeFile: 'compose.yaml', action: 'start' }
     const composeLines = ['$ docker compose -f compose.yaml up -d', 'Network systemio_default  Creating', 'Network systemio_default  Created', 'Container systemio-db-1  Creating', 'Container systemio-db-1  Created', 'Container systemio-app-1  Creating', 'Container systemio-app-1  Created', 'Container systemio-db-1  Starting', 'Container systemio-db-1  Started', 'Container systemio-app-1  Starting']
+    if (variant === 'work-order-blocked') {
+      // Разбор квеста — ответ хоста на «Показать разбор» (learning-controller.js):
+      // ядро собрало его из записанных сигналов, дефектов ходов и улучшений.
+      listeners['window:message']({ data: { type: 'questRetrospective', questId: 'quest-bench', retrospective: {
+        questId: 'quest-bench', status: 'blocked',
+        observations: [
+          { source: 'master', kind: 'planning/plan_rejected', detail: 'этап поручал исполнителю Docker, которого в песочнице нет' },
+          { source: 'gate', kind: 'evidence_gate', outcome: 'finalization_blocked', detail: 'не доказано: GET /health' },
+          { source: 'agent', kind: 'verification_gap', outcome: 'consumed', detail: 'обязательная проверка не записана' },
+        ],
+        masterLearning: [{ jobId: 'job-bench', skillId: 'master-planning', phase: 'planning', status: 'canary' }],
+        agentLearning: [{ id: 'improvement-bench', projectAgentId: 'agentdraft-bench', kind: 'skill_recovery', status: 'applied_unproven',
+          skillName: 'Проверка перед отчётом', canary: 'pending', canaryReasons: ['нужно три прогона кандидата, было один'], rollbackAvailable: true }],
+      } } })
+    }
     if (variant === 'work-order-approved') {
       listeners['window:message']({ data: { type: 'masterApplicationState', questId: 'quest-bench', workOrderId: order.id, final: true, opened: 'browser', state: {
         ...appState, status: 'running', inFlight: false, services: 2, probed: true, ready: true, httpStatus: 200, contentType: 'text/html; charset=utf-8',

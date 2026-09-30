@@ -60,24 +60,54 @@
   flex-wrap: nowrap;
   container: hall-chat-head / inline-size;
 }
-.hall-head-chat .hall-chat-settings {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--s-2);
-}
-.hall-head-chat .hall-chat-settings > .hall-icon { display: none; }
 @container hall-chat-head (max-width: 980px) {
-  .hall-head-chat:has(#master-brief-tabs) .hall-alarm-word,
-  .hall-head-chat:has(#master-brief-tabs) .hall-chat-settings > span { display: none; }
-  .hall-head-chat:has(#master-brief-tabs) .hall-chat-settings > .hall-icon { display: block; }
-  .hall-head-chat:has(#master-brief-tabs) .hall-chat-settings { width: var(--control-sm); padding: 0; }
+  .hall-head-chat:has(#master-brief-tabs) .hall-alarm-word { display: none; }
 }
 @container hall-chat-head (max-width: 640px) {
-  .hall-head-chat .hall-alarm-word,
-  .hall-head-chat .hall-chat-settings > span { display: none; }
-  .hall-head-chat .hall-chat-settings > .hall-icon { display: block; }
-  .hall-head-chat .hall-chat-settings { width: var(--control-sm); padding: 0; }
+  .hall-head-chat .hall-alarm-word { display: none; }
+}
+
+/* ——— Настройки проекта: кнопка справа снизу ———
+   Вариант A по снимкам стенда 30.09.2026. Стоит в правом нижнем углу
+   разговора, рядом с карточкой ввода; имя проекта над подписью. Разговор —
+   контейнер: когда рядом с карточкой места нет, кнопка сжимается до значка и
+   поднимается над карточкой, чтобы не лечь на поле ввода. */
+.hall-dialogue { container: hall-dialogue / inline-size; }
+.hall-dialogue .hall-project-fab {
+  position: absolute;
+  right: calc(var(--hall-quest-offset, 0px) + var(--s-6));
+  bottom: var(--s-6);
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-4);
+  /* Ширина — свободное место справа от карточки ввода: колонка разговора
+     центрирована, и кнопке остаётся половина разницы за вычетом отступов. */
+  max-width: min(220px, calc((100cqi - var(--hall-read-col)) / 2 - var(--s-6) - var(--s-4)));
+  padding: var(--s-3) var(--s-5) var(--s-3) var(--s-4);
+  border: 1px solid var(--hub-border);
+  border-radius: var(--r-3);
+  background: var(--hub-raised);
+  box-shadow: var(--e-1);
+  color: var(--hub-text-2);
+  font: var(--fw-normal) var(--t-small) / 1.3 var(--font-ui);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--motion-fast) var(--ease), background-color var(--motion-fast) var(--ease);
+}
+.hall-dialogue .hall-project-fab > .hall-icon { width: 18px; height: 18px; flex: 0 0 auto; color: var(--hub-muted); }
+.hall-dialogue .hall-project-fab > span { display: grid; min-width: 0; }
+.hall-dialogue .hall-project-fab b { overflow: hidden; color: var(--hub-text); font: var(--fw-medium) var(--t-base) / 1.3 var(--font-ui); text-overflow: ellipsis; white-space: nowrap; }
+.hall-dialogue .hall-project-fab small { color: var(--hub-muted); font-size: var(--t-small); }
+.hall-dialogue .hall-project-fab:hover,
+.hall-dialogue .hall-project-fab:focus-visible { border-color: var(--hub-border-strong); background: var(--hub-selected); outline: none; }
+.hall-dialogue .hall-project-fab:hover > .hall-icon { color: var(--hub-text); }
+@container hall-dialogue (max-width: 1110px) {
+  .hall-dialogue .hall-project-fab { max-width: none; padding: var(--s-3); }
+  .hall-dialogue .hall-project-fab > span { display: none; }
+}
+@container hall-dialogue (max-width: 900px) {
+  .hall-dialogue .hall-project-fab { bottom: calc(var(--hall-compose-reserve) + var(--s-4)); }
 }
 /* Значковые кнопки шапки: квадрат по росту контрола, значок по центру. */
 .hall-head-chat .hall-head-icon {
@@ -169,65 +199,248 @@
   margin-left: auto;
 }
 
-/* —— 2. Полоса сессии ——
-   Было пять контролов в ряд: ☰, название, «Новый чат», «Память», «•••». Первый
-   из них дублировал кнопку «＋» рельсы в полутора сантиметрах от неё. Осталось
-   название и одно меню; всё, что делают с разговором, лежит под «•••». */
-.hall-dialogue .hall-sessions {
-  padding: var(--s-2) var(--s-6);
+/* —— 2. Меню разговора «•••» ——
+   Поповер у кнопки в шапке, а не полоса под ней: полоса сдвигала ленту, а
+   закрытая оставляла пустую строку с лишней линией. Контейнер `.hall-sessions`
+   места не занимает — панели встают поверх ленты от края `.hall-dialogue`.
+   Облик — вариант C по снимкам стенда 29 сентября 2026: название полем,
+   частые действия плитками, подробность ответа сегментами, удаление отдельно. */
+.hall-dialogue .hall-sessions { display: contents; }
+.hall-dialogue .hall-pop {
+  position: absolute;
+  top: var(--s-2);
+  right: var(--hall-pop-right, var(--s-6));
+  z-index: 30;
+  box-sizing: border-box;
+  width: 296px;
+  max-height: calc(100% - var(--s-7));
+  overflow: auto;
+  padding: var(--s-2);
+  border: 1px solid var(--hub-border);
+  border-radius: var(--r-3);
+  background: var(--hub-raised);
+  box-shadow: var(--e-2);
+  font: var(--fw-normal) var(--t-base) / 1.4 var(--font-ui);
+  color: var(--hub-text-2);
 }
-.hall-dialogue .hall-session-menu .hall-chip,
-.hall-dialogue .hall-session-panel .hall-chip {
-  min-height: var(--control-sm);
-  padding: var(--s-1) var(--s-4);
+.hall-dialogue .hall-pop[hidden] { display: none; }
+/* Кнопка «•••» остаётся нажатой, пока её меню открыто. */
+.hall-head-chat .hall-head-icon[aria-expanded="true"] { background: var(--hub-selected); color: var(--hub-text); }
+.hall-dialogue .hall-pop .hall-icon { width: 16px; height: 16px; flex: 0 0 auto; color: var(--hub-muted); }
+
+/* Название — поле, сохраняется карандашом или Enter. */
+.hall-dialogue .hall-pop-title {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin: 0 0 var(--s-2);
+  padding: 0 var(--s-1) 0 var(--s-4);
+  min-height: var(--control-md);
+  border: 1px solid var(--hub-border);
+  border-radius: var(--r-2);
+  background: var(--hub-void);
+}
+.hall-dialogue .hall-pop-title:focus-within { border-color: var(--hub-border-strong); }
+.hall-dialogue .hall-pop-title input:not([type="checkbox"]):not([type="radio"]):not([type="range"]) {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0;
   border: 0;
-  border-radius: 4px;
+  background: transparent;
+  color: var(--hub-text);
+  font: var(--fw-medium) var(--t-base) / 1.4 var(--font-ui);
+  outline: none;
+}
+.hall-dialogue .hall-pop-icon {
+  display: inline-grid;
+  place-items: center;
+  width: var(--control-sm);
+  height: var(--control-sm);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-2);
+  background: transparent;
+  cursor: pointer;
+}
+
+/* Частые действия — плитки: значок над подписью. */
+.hall-dialogue .hall-pop-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  gap: var(--s-2);
+}
+.hall-dialogue .hall-pop-tile {
+  display: grid;
+  justify-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+  padding: var(--s-4) var(--s-1) var(--s-3);
+  border: 0;
+  border-radius: var(--r-2);
+  background: transparent;
+  color: var(--hub-text-2);
+  font: var(--fw-normal) var(--t-small) / 1.2 var(--font-ui);
+  cursor: pointer;
+}
+.hall-dialogue .hall-pop-tile > span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hall-dialogue .hall-pop-tile.is-static { cursor: default; color: var(--hub-muted); }
+
+/* Строка меню: значок, подпись, хвост справа. */
+.hall-dialogue .hall-pop-row {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s-4);
+  box-sizing: border-box;
+  width: 100%;
+  min-height: var(--control-md);
+  padding: 0 var(--s-4);
+  border: 0;
+  border-radius: var(--r-2);
+  background: transparent;
+  color: var(--hub-text-2);
+  font: var(--fw-normal) var(--t-base) / 1.4 var(--font-ui);
+  text-align: left;
+  list-style: none;
+  cursor: pointer;
+}
+.hall-dialogue .hall-pop-row::-webkit-details-marker { display: none; }
+.hall-dialogue .hall-pop-row > small {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  color: var(--hub-muted);
+  font-size: var(--t-small);
+}
+.hall-dialogue .hall-pop-row > small .hall-icon { width: 14px; height: 14px; }
+.hall-dialogue .hall-pop-row.is-danger,
+.hall-dialogue .hall-pop-row.is-danger .hall-icon { color: var(--wound); }
+.hall-dialogue .hall-pop-tile:hover,
+.hall-dialogue .hall-pop-tile:focus-visible,
+.hall-dialogue .hall-pop-row:hover,
+.hall-dialogue .hall-pop-row:focus-visible,
+.hall-dialogue .hall-pop-icon:hover,
+.hall-dialogue .hall-pop-icon:focus-visible,
+.hall-dialogue .hall-pop-back:hover,
+.hall-dialogue .hall-pop-back:focus-visible {
+  background: var(--hub-selected);
+  color: var(--hub-text);
+  outline: none;
+}
+.hall-dialogue .hall-pop-tile.is-static:hover { background: transparent; color: var(--hub-muted); }
+.hall-dialogue .hall-pop-row.is-danger:hover,
+.hall-dialogue .hall-pop-row.is-danger:focus-visible { background: var(--wound-wash); color: var(--wound); }
+.hall-dialogue .hall-pop-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--caution); }
+.hall-dialogue .hall-pop-sep { height: 1px; margin: var(--s-2) calc(var(--s-2) * -1); background: var(--hub-border-soft); }
+.hall-dialogue .hall-pop-note {
+  display: block;
+  margin: 0;
+  padding: 0 var(--s-4) var(--s-3) calc(var(--s-4) * 2 + 16px);
+  color: var(--hub-muted);
+  font-size: var(--t-small);
+  line-height: 1.45;
+}
+
+/* Подробность ответа — сегменты, выбранный светлее. */
+.hall-dialogue .hall-pop-label { padding: var(--s-3) var(--s-4) var(--s-2); color: var(--hub-muted); font-size: var(--t-small); }
+.hall-dialogue .hall-pop-seg {
+  display: flex;
+  gap: var(--s-1);
+  margin: 0 var(--s-2) var(--s-3);
+  padding: var(--s-1);
+  border-radius: var(--r-2);
+  background: var(--hub-void);
+}
+.hall-dialogue .hall-pop-seg > button {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: var(--control-sm);
+  padding: 0 var(--s-1);
+  border: 0;
+  border-radius: var(--r-1);
+  background: transparent;
+  color: var(--hub-muted);
+  font: var(--fw-normal) var(--t-small) / 1 var(--font-ui);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.hall-dialogue .hall-pop-seg > button:hover,
+.hall-dialogue .hall-pop-seg > button:focus-visible { color: var(--hub-text); outline: none; }
+.hall-dialogue .hall-pop-seg > button[aria-pressed="true"] { background: var(--hub-selected); color: var(--hub-text); }
+
+/* Переключатель автозапуска: включённый — цветом кнопки темы. */
+.hall-dialogue .hall-pop-switch {
+  position: relative;
+  width: 28px;
+  height: 16px;
+  border-radius: var(--r-full);
+  background: var(--hub-border-strong);
+  transition: background-color var(--motion-fast) var(--ease);
+}
+.hall-dialogue .hall-pop-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--hub-text-2);
+  transition: transform var(--motion-fast) var(--ease);
+}
+.hall-dialogue .hall-pop-row[aria-checked="true"] .hall-pop-switch { background: var(--ember); }
+.hall-dialogue .hall-pop-row[aria-checked="true"] .hall-pop-switch::after { transform: translateX(12px); background: var(--hub-void); }
+
+/* Резюме раскрывается в самом меню. */
+.hall-dialogue .hall-pop-more[open] > summary .hall-icon:last-child { transform: rotate(90deg); }
+.hall-dialogue .hall-pop-more > p { margin: 0; padding: 0 var(--s-4) var(--s-3) calc(var(--s-4) * 2 + 16px); color: var(--hub-muted); font-size: var(--t-small); line-height: 1.5; }
+
+/* Память — второй экран того же меню, со стрелкой назад. */
+.hall-dialogue .hall-pop-back {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  width: 100%;
+  min-height: var(--control-md);
+  margin-bottom: var(--s-2);
+  padding: 0 var(--s-3);
+  border: 0;
+  border-radius: var(--r-2);
+  background: transparent;
+  color: var(--hub-text);
+  font: var(--fw-medium) var(--t-base) / 1.4 var(--font-ui);
+  cursor: pointer;
+}
+.hall-dialogue .hall-pop-back .hall-icon { transform: rotate(180deg); }
+.hall-dialogue .hall-pop.is-memory .hall-pop-note { padding-left: var(--s-3); }
+.hall-dialogue .hall-pop.is-memory .hall-memory-entry { padding: var(--s-4) var(--s-3); border-bottom: 1px solid var(--hub-border-soft); }
+.hall-dialogue .hall-pop.is-memory .hall-chip {
+  min-height: var(--control-sm);
+  padding: 0 var(--s-4);
+  border: 0;
+  border-radius: var(--r-2);
   background: transparent;
   color: var(--hub-muted);
   font: var(--fw-normal) var(--t-small) / 1.3 var(--font-ui);
-  letter-spacing: normal;
-  text-transform: none;
-  transition: background-color var(--motion-fast) var(--ease), color var(--motion-fast) var(--ease);
+  cursor: pointer;
 }
-.hall-dialogue .hall-session-menu .hall-chip:hover,
-.hall-dialogue .hall-session-menu .hall-chip:focus-visible,
-.hall-dialogue .hall-session-panel .hall-chip:hover,
-.hall-dialogue .hall-session-panel .hall-chip:focus-visible {
-  background: color-mix(in srgb, var(--hub-text) 12%, transparent);
+.hall-dialogue .hall-pop.is-memory .hall-chip:hover,
+.hall-dialogue .hall-pop.is-memory .hall-chip:focus-visible { background: var(--hub-selected); color: var(--hub-text); outline: none; }
+.hall-dialogue .hall-pop.is-memory textarea {
+  box-sizing: border-box;
+  width: 100%;
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--hub-border);
+  border-radius: var(--r-2);
+  background: var(--hub-void);
   color: var(--hub-text);
-  outline: none;
+  font: var(--fw-normal) var(--t-small) / 1.45 var(--font-ui);
+  resize: vertical;
 }
-.hall-dialogue .hall-session-menu {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-2);
-  margin-bottom: var(--s-4);
-}
-.hall-dialogue .hall-session-panel {
-  padding: var(--s-4) 0 var(--s-5);
-}
-.hall-dialogue .hall-session-panel > label {
-  gap: var(--s-2);
-  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui);
-  color: var(--hub-muted);
-}
-/* Поля панели — строкой на подчёркивании. Цепочка :not() повторена по той же
-   причине, что и в рельсе: без неё правило проигрывает канону полей ввода. */
-.hall-dialogue .hall-session-panel input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
-.hall-dialogue .hall-session-panel textarea {
-  padding: var(--s-1) 0;
-  border: 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--hub-text) 10%, transparent);
-  border-radius: 0;
-  background: transparent;
-  color: var(--hub-text);
-  font: var(--fw-normal) var(--t-small) / 1.4 var(--font-ui);
-}
-.hall-dialogue .hall-session-panel input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus,
-.hall-dialogue .hall-session-panel textarea:focus {
-  outline: none;
-  border-bottom-color: color-mix(in srgb, var(--hub-text) 26%, transparent);
-}
+.hall-dialogue .hall-pop-add { display: grid; gap: var(--s-2); padding: var(--s-4) var(--s-3) var(--s-2); color: var(--hub-muted); font-size: var(--t-small); }
+
 /* —— 3. Лента ——
    Без колонки говорящего: свой текст в плашке, ответ плоским текстом.
    Нулевые --hall-who-col и --hall-msg-indent объявлены в 07c-master-feed.css. */
@@ -595,62 +808,6 @@
   color: var(--hub-text-3);
 }
 
-/* —— Подробность ответа в меню разговора ——
-   В ряду управления это поповер, который открывается вверх: под композером
-   ничего нет. В панели «•••» поповер не годится — панель прокручивается внутри
-   себя (max-height 240), и всплывающее вверх она обрезает по своему краю.
-   Внутри панели меню раскрывается обычным блоком, в потоке. */
-.hall-dialogue .hall-session-panel .hall-answer-style > summary {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-2);
-  min-height: var(--control-sm);
-  padding: var(--s-1) var(--s-4);
-  border-radius: var(--r-full);
-  background: var(--hall-slot-fill);
-  color: var(--hub-muted);
-  font: var(--fw-normal) var(--t-small) / 1.3 var(--font-ui);
-  letter-spacing: normal;
-  text-transform: none;
-  list-style: none;
-  cursor: pointer;
-}
-.hall-dialogue .hall-session-panel .hall-answer-style > summary::-webkit-details-marker {
-  display: none;
-}
-.hall-dialogue .hall-session-panel .hall-answer-style > summary:hover,
-.hall-dialogue .hall-session-panel .hall-answer-style[open] > summary {
-  background: var(--hall-slot-fill-hover);
-  color: var(--hub-text);
-}
-.hall-dialogue .hall-session-panel .hall-answer-style > div {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-2);
-  margin-top: var(--s-3);
-}
-.hall-dialogue .hall-session-panel .hall-answer-style > div .hall-chip {
-  min-height: var(--control-sm);
-  padding: var(--s-1) var(--s-4);
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--hub-muted);
-  font: var(--fw-normal) var(--t-small) / 1.3 var(--font-ui);
-  letter-spacing: normal;
-  text-transform: none;
-}
-.hall-dialogue .hall-session-panel .hall-answer-style > div .hall-chip:hover,
-.hall-dialogue .hall-session-panel .hall-answer-style > div .hall-chip:focus-visible {
-  background: var(--hall-slot-fill-hover);
-  color: var(--hub-text);
-  outline: none;
-}
-.hall-dialogue .hall-session-panel .hall-answer-style > div .hall-chip[aria-pressed="true"] {
-  background: var(--hall-slot-fill);
-  color: var(--hub-text);
-}
-
 /* ——— Задание: вкладка в шапке разговора ———
    Вкладка открывает правую панель на задании; сама панель — в
    07d-master-inspector.css. */
@@ -842,3 +999,8 @@
 .master-development pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 .master-development header { display: flex; align-items: center; justify-content: space-between; gap: var(--s-4); }
 .master-development details { margin-block: var(--s-4); }
+/* В меню «•••» панель развития — содержимое поповера, а не карточка шага
+   онбординга: рамка и фон `.onboarding-panel` там лишние. Селектор сильнее
+   одноклассового правила слоя 50 при любом порядке слоёв. */
+.hall-dialogue .hall-pop.is-development .master-development { padding: var(--s-3); border: 0; background: none; }
+.hall-dialogue .hall-pop.is-development .master-development h2 { font-size: var(--t-base); }

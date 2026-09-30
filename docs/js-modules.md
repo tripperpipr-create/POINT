@@ -183,6 +183,12 @@ workflow — `vscode-extension/ui/client/drag-drop.js`. Экранировани
 `vscode-extension/ui/client/quest-app-actions.js`. Вид приложения, способ
 запуска и вывод `docker compose` отдаёт ядро: `GET
 /api/v2/master/quests/{id}/application` (`internal/app/delivered_app_state_v2.go`).
+Блок «Что Point вынес из квеста» у завершённого квеста рисует
+`vscode-extension/ui/client/quest-retrospective-views.js`: по кнопке он шлёт
+`loadQuestRetrospective`, ответ хоста (`questRetrospective`) принимает
+`run-inbox.js`, оформление — `vscode-extension/ui/layers/08c-quest-retrospective.css`.
+Разбор собирает ядро без модели: `GET /api/v2/master/quests/{id}/retrospective`
+(`internal/app/quest_retrospective.go`).
 
 Полосу идущего квеста над полем ввода считает
 `vscode-extension/ui/client/master-quest-strip.js` из наряда v2. Подписи,

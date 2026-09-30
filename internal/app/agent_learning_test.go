@@ -795,3 +795,65 @@ func revisionNumber(value any) int {
 		return 0
 	}
 }
+
+// Квест кончается без ключа API: ядро ключей не хранит. На платном
+// провайдере оценка субагента падала и оставалась «ожидает» навсегда; ход
+// Мастера несёт ключ и продолжает её.
+func TestPendingSubagentEvaluationResumesOnMasterTurnWithKey(t *testing.T) {
+	application := newTestApp(t)
+	ctx := context.Background()
+	view, err := application.OpenWorkspace(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	review, _ := json.Marshal(map[string]any{
+		"decision": "create", "name": "Evidence-first change", "description": "Reusable verified workflow.",
+		"instructions":   "Inspect the relevant context, make the bounded change, and record an explicit verifier result.",
+		"memoryDecision": "skip", "instructionDecision": "skip",
+	})
+	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		if request.Header.Get("Authorization") != "Bearer paid-key" {
+			http.Error(w, "missing key", http.StatusUnauthorized)
+			return
+		}
+		writePlannerSSE(t, w, string(review), 120, 60)
+	}))
+	defer provider.Close()
+	tools := []string{"project_map", "list_files", "search_code", "read_file", "search_text"}
+	parent, err := application.SaveProjectAgent(domain.ProjectAgent{WorkspaceID: view.Workspace.ID, Name: "Developer", RoleDescription: "General developer",
+		Provider: domain.ProviderOpenAI, ProviderPreset: "openai", BaseURL: provider.URL, PrimaryModel: "review-model", AllowedTools: tools})
+	if err != nil {
+		t.Fatal(err)
+	}
+	quest := domain.Quest{ID: "quest-paid-subagent", WorkspaceID: view.Workspace.ID, Title: "Paid", Status: domain.QuestCompleted, CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
+	if err = application.store.SaveQuest(ctx, quest); err != nil {
+		t.Fatal(err)
+	}
+	subagent := parent
+	subagent.ID = ""
+	subagent.Name, subagent.RoleDescription = "Developer · Tests", "Temporary testing specialist"
+	subagent.ParentAgentID, subagent.OwnerQuestID, subagent.Temporary = parent.ID, quest.ID, true
+	if subagent, err = application.SaveProjectAgent(subagent); err != nil {
+		t.Fatal(err)
+	}
+	run := saveLearningRun(t, application, view.Workspace.ID, subagent, "run-paid-subagent", time.Now().UTC())
+	run.ToolsUsed = tools
+	if err = application.store.SaveRun(ctx, run); err != nil {
+		t.Fatal(err)
+	}
+	if err = application.store.SaveExecution(ctx, domain.ExecutionInstance{ID: "execution-paid-subagent", WorkspaceID: view.Workspace.ID,
+		ProjectAgentID: subagent.ID, QuestID: quest.ID, RunID: run.ID, StartedAt: time.Now().UTC()}); err != nil {
+		t.Fatal(err)
+	}
+	application.queueQuestSubagentEvaluations(quest.ID)
+	application.learningWG.Wait()
+	if stored, getErr := application.store.GetProjectAgent(ctx, subagent.ID); getErr != nil || stored.Status != domain.ProjectAgentEvaluationPending {
+		t.Fatalf("keyless evaluation did not leave the specialist pending: %s err=%v", stored.Status, getErr)
+	}
+	application.retryPendingSubagentEvaluations(view.Workspace.ID, "paid-key")
+	application.learningWG.Wait()
+	item, err := application.store.FindAgentImprovementByRun(ctx, run.ID)
+	if err != nil || item.Kind != "subagent_specialization" || item.PromotionStatus != "candidate" {
+		t.Fatalf("evaluation did not resume with the key: %#v err=%v", item, err)
+	}
+}

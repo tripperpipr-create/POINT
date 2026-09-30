@@ -8,6 +8,7 @@ import (
 	"unicode"
 
 	"local-agent-workbench/internal/domain"
+	"local-agent-workbench/internal/skillprompt"
 )
 
 type ReadSkill struct {
@@ -53,7 +54,7 @@ func (t ReadSkill) Execute(ctx context.Context, raw json.RawMessage) domain.Tool
 	return logExecute(ctx, "read_skill", started, OK(map[string]any{
 		"id": skill.ID, "name": skill.Name, "description": skill.Description,
 		"instructions": skill.Instructions, "references": skill.References, "scripts": skill.Scripts,
-		"requiredTools": skill.RequiredTools, "configuration": skill.Configuration,
+		"requiredTools": skill.RequiredTools, "configuration": skillprompt.PromptConfiguration(skill.Configuration),
 	}), "skill_id", skill.ID, "name", skill.Name)
 }
 

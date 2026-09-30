@@ -246,6 +246,13 @@ func (a *App) Statistics(workspaceID string) (map[string]any, error) {
 	for key, value := range buildBudgetPhaseTotals(usage) {
 		stats[key] = value
 	}
+	// Обучение Мастера расходует токены мимо журнала расхода: у него своя
+	// таблица и окно 30 дней. Смешивать окна в одной цифре нельзя — число
+	// показывается отдельно и подписано своим окном.
+	if masterBudget, budgetErr := a.store.MasterLearningBudget(ctx, workspaceID); budgetErr == nil {
+		stats["masterLearningTokens30d"] = masterBudget.SpentTokens + masterBudget.ReservedTokens
+		stats["masterLearningLimitTokens30d"] = masterBudget.LimitTokens
+	}
 	if costKnown {
 		stats["knownCostCents"] = knownCost
 	}

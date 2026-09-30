@@ -86,6 +86,10 @@ type activeRun struct {
 	dbSource                   workbenchtools.DBConnectionSource
 	teamBus                    workbenchtools.TeamBus
 	initialBudgetReservationID string
+	// teamInboxSeen — события ящика команды, уже вставленные в этот прогон.
+	// Широковещательное событие хранилище доставленным не отмечает (у него
+	// нет одного адресата), и без этой памяти оно приходило на каждом шаге.
+	teamInboxSeen map[string]bool
 }
 
 func (a *activeRun) takeInitialBudgetReservation() string {
@@ -296,7 +300,11 @@ func (e *Engine) injectTeamInbox(active *activeRun, history *conversationHistory
 		return
 	}
 	events, err := active.teamBus.TeamInbox(context.Background(), active.correlation.FlowRunID, agentID, true)
-	if err != nil || len(events) == 0 {
+	if err != nil {
+		return
+	}
+	events = unseenTeamEvents(active, events)
+	if len(events) == 0 {
 		return
 	}
 	var body strings.Builder
@@ -313,6 +321,29 @@ func (e *Engine) injectTeamInbox(active *activeRun, history *conversationHistory
 	e.publishOrLog(context.Background(), e.snapshot(active), domain.EventRunMessageInjected, "agent", map[string]any{
 		"content": boundedLearningMessage(text), "source": "team_inbox",
 	})
+}
+
+// unseenTeamEvents оставляет события, которых этот прогон ещё не видел, и
+// не возвращает этапу его собственные сообщения: статус, опубликованный этим
+// же узлом, агенту уже известен.
+func unseenTeamEvents(active *activeRun, events []domain.TeamEvent) []domain.TeamEvent {
+	active.amendmentsMu.Lock()
+	defer active.amendmentsMu.Unlock()
+	if active.teamInboxSeen == nil {
+		active.teamInboxSeen = map[string]bool{}
+	}
+	fresh := make([]domain.TeamEvent, 0, len(events))
+	for _, event := range events {
+		if active.teamInboxSeen[event.ID] {
+			continue
+		}
+		active.teamInboxSeen[event.ID] = true
+		if node := strings.TrimSpace(active.correlation.FlowNodeID); node != "" && event.FlowNodeID == node {
+			continue
+		}
+		fresh = append(fresh, event)
+	}
+	return fresh
 }
 
 func (e *Engine) isPathForbidden(active *activeRun, path string) bool {

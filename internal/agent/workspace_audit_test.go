@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -149,5 +150,39 @@ func TestFailedWorkspaceAuditStillReachesModel(t *testing.T) {
 	result := attachWorkspaceAudit(workbenchtools.Fail("workspace_audit_failed", "boom"), workspaceAuditSummary{Tool: "run_command", SnapshotComplete: false})
 	if !strings.Contains(string(result.Output), `"_pointWorkspaceAudit"`) {
 		t.Fatalf("incomplete snapshot must stay visible to the model: %s", result.Output)
+	}
+}
+
+// Снимок после команды идёт по холодному после Docker диску. Срок не меньше
+// полутора минут, а обрыв по сроку даёт вторую попытку по прогретому кэшу.
+func TestPostToolAuditTimeoutAndRetry(t *testing.T) {
+	if got := postToolAuditTimeout(1600 * time.Millisecond); got != minPostToolAudit {
+		t.Fatalf("fast before-snapshot gave %v", got)
+	}
+	if got := postToolAuditTimeout(20 * time.Second); got != 400*time.Second {
+		t.Fatalf("slow before-snapshot gave %v", got)
+	}
+	if got := postToolAuditTimeout(time.Hour); got != maxPostToolAudit {
+		t.Fatalf("cap not applied: %v", got)
+	}
+	calls := 0
+	snapshot, err := captureAfterExecutable(func(ctx context.Context) (workspace.TextSnapshot, error) {
+		calls++
+		if calls == 1 {
+			<-ctx.Done()
+			return workspace.TextSnapshot{}, ctx.Err()
+		}
+		return workspace.TextSnapshot{Complete: true}, nil
+	}, 10*time.Millisecond)
+	if err != nil || !snapshot.Complete || calls != 2 {
+		t.Fatalf("retry: calls=%d err=%v", calls, err)
+	}
+	calls = 0
+	_, err = captureAfterExecutable(func(context.Context) (workspace.TextSnapshot, error) {
+		calls++
+		return workspace.TextSnapshot{}, os.ErrPermission
+	}, time.Second)
+	if calls != 1 || !errors.Is(err, os.ErrPermission) {
+		t.Fatalf("non-deadline error was retried: calls=%d err=%v", calls, err)
 	}
 }

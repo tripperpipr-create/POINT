@@ -135,7 +135,3 @@
 .hub-journal {
   gap: var(--space-4);
 }
-.changeset-diff,
-.change-record pre {
-  max-height: var(--diff-max);
-}

@@ -249,7 +249,24 @@ project. A Skill without `familyId` is its own lineage (a revision is tied to
 its predecessor through `supersedesSkillId`), so an unrelated newer Skill never
 blocks the rollback of a regressed one. A failed run revises the equipped
 recovery Skill of the same failure category instead of adding another, and an
-agent keeps at most five learned Skills, the oldest leaving first. See
+agent keeps at most five learned Skills, the oldest leaving first; the cap also
+holds on explicit promotion. A failed or corrected run revises a candidate
+Skill with the reviewer's fix; only a verified success joins its canary.
+Rollback reverses the improvement's own delta against the current agent and
+Blueprint state (what it added leaves, what it displaced returns), so later
+Skills, rules and lessons survive; the improvement row keeps every snapshot on
+re-save. A regressed older revision whose lineage already has a newer one is
+unequipped and retired instead of blocking the canary on every run. Runtime
+skips Skills marked `rolled_back` or `deprecated` even if an ID lingers, and
+neither the prompt nor `read_skill` carries learning bookkeeping keys
+(`evalGate`, `sourceRuns`, `sourceWorkspaces`, …). The reviewer model runs
+outside the learning mutex; the result applies only if the agent, Skill and
+Blueprint did not change meanwhile. The reviewer sees the run's learning
+signals and the agent's already indexed principles, so one cause is not learned
+twice. Learning evidence is assembled in memory from the event journal and is
+not written to disk. A temporary subagent whose evaluation failed without an
+API key stays pending and is re-evaluated by the next Master turn that carries
+one. See
 [agent-evaluation.md](agent-evaluation.md) for thresholds and API contracts.
 
 Applied patches form the file-change history shown in the Agent Hub. This includes both explicitly accepted `propose_patch` diffs and exact text mutations detected around approved `run_command` or custom process/command tools. Executable tools are snapshotted only after approval, then compared after process exit even when the command fails. One `workspace.changed` event reports the source, total, recorded, non-revertible and omitted changes plus snapshot completeness. Exact bodies are bounded and stored only in local SQLite; event/API payloads omit the duplicate bodies and redact the visible diff. Sensitive, binary, unreadable or oversized content is fingerprinted without being persisted and cannot claim rollback coverage.
@@ -351,11 +368,21 @@ learned revisions. Temporary conversations are excluded. Approval, revision,
 feedback and evidence-gate events supplement model validation/repair signals;
 executor completion is never a quality score for the Master.
 
-Three new attributed completed operations of a phase enable a single candidate
-for one existing skill. A persistent single-worker queue uses the configured
+A candidate for one existing skill is generated only when a defect gives it
+something to fix: a contract error, a repair, negative feedback among the
+unconsumed operations of the phase (defective ones lead the three examples),
+or, for token savings alone, a full window of ten clean operations consumed at
+once. Operations keep the reasons of their defects (rejected brief fields,
+planner refusal text, exploration limits), and the generator receives them.
+Verifying another world's revision needs only three examples. A persistent single-worker queue uses the configured
 Master HTTP model to generate methodology, replay saved inputs for baseline and
 candidate, run fixed scenarios, and judge paired quality/portability. Native
-server contracts are checked as well. Replay contains redacted text only: no
+server contracts are checked as well: intake replays keep the conversation
+tools, so `propose_brief` goes through the server validators, and fixed intake
+scenarios carry formal expectations (a question yields no task, a
+no-writes/diagnosis-only request grants no writes, untrusted text grants no
+network hosts). Loopback check addresses such as `http://localhost:PORT/health`
+are portable; host paths and remote URLs are not. Replay contains redacted text only: no
 images, signatures, credentials, tool dispatch or quest execution. Project
 examples remain in their origin world; only generic instructions can transfer.
 
@@ -363,9 +390,15 @@ No candidate is trialed without preserved constraints, no quality regression,
 and either a demonstrated defect correction or at least 10% reported token
 savings with complete usage data. Three non-regressing uses confirm the source
 trial. Another world must independently compare using its own examples and pass
-three uses before shared promotion. Contract errors, repairs or negative
-feedback withdraw a trial/shared lineage immediately; manual withdrawal is
-also available. Insufficient evidence remains experimental, not proven.
+three uses before shared promotion. Contract errors and negative feedback
+withdraw a revision immediately. Repairs, including a work order the human
+revised after the Master, withdraw it only when the repaired share exceeds the
+phase baseline by 25 points (or, without a baseline, a majority of uses). A
+revision born in another world, or shared, is first switched off only in the
+world where it failed; the lineage rolls back in the origin world or after a
+failure in a second world. A trial never used for 14 days is withdrawn. Manual
+withdrawal is also available. Insufficient evidence remains experimental, not
+proven.
 
 Every background call reserves a conservative upper bound for input, capped
 output and up to three provider attempts within 10% of actual main Master tokens

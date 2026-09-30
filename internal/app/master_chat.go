@@ -445,6 +445,12 @@ func (a *App) MasterChat(ctx context.Context, req MasterChatRequest) (MasterChat
 		return MasterChatView{}, err
 	}
 	briefing := a.masterProjectFacts(ctx)
+	// Предложение памяти, по которому человек не решил за две недели, снимается
+	// без подписи отказа: под ответами их копились десятки. Нужное правило
+	// Мастер предложит снова при следующем поводе.
+	if _, pruneErr := a.store.DeleteStaleMasterMemoryProposals(ctx, workspaceID, time.Now().Add(-masterMemoryProposalTTL)); pruneErr != nil {
+		slog.Warn("prune stale master memory proposals", "error", pruneErr)
+	}
 	service, sessions, err := a.sessionMasterService(ctx, a.masterChatService(ctx, briefing), req.ConversationID)
 	if err != nil {
 		return MasterChatView{}, err
@@ -465,10 +471,8 @@ func (a *App) masterChatPrepared(ctx context.Context, req MasterChatRequest, wor
 	if scoped, ok := service.Store.(masterSessionStore); ok {
 		scoped.turnID = req.TurnID
 		scoped.attachments = attachments
-		for _, entry := range sessions.MemoryEntries {
-			if entry.Status == "accepted" {
-				scoped.memoryIDs = append(scoped.memoryIDs, entry.ID)
-			}
+		for _, entry := range masterMemoryInContext(sessions.MemoryEntries) {
+			scoped.memoryIDs = append(scoped.memoryIDs, entry.ID)
 		}
 		service.Store = scoped
 	}
@@ -499,6 +503,10 @@ func (a *App) masterChatPrepared(ctx context.Context, req MasterChatRequest, wor
 		defer a.finishMasterOperation(service.Skills, cfg, req.APIKey)
 	}
 	rules := a.masterProjectRules()
+	var revisionNotes []string
+	if !temporary && req.TaskIntake {
+		revisionNotes = a.masterRevisionNotes(ctx, workspaceID, sessions.Active)
+	}
 	response, err := service.Chat(ctx, orchestrator.ChatRequest{
 		AutoRunReadOnly: sessions.AutoRunReadOnly,
 		Summary:         summary,
@@ -510,6 +518,7 @@ func (a *App) masterChatPrepared(ctx context.Context, req MasterChatRequest, wor
 		APIKey:      req.APIKey,
 
 		PreviousAnswerRejected: req.PreviousAnswerRejected,
+		RevisionNotes:          revisionNotes,
 		ContextWindowTokens:    a.masterAttachmentReference(ctx, cfg).ContextWindow,
 		ProjectRules:           rules.Text,
 		RuleSources:            rules.Sources,
@@ -519,6 +528,7 @@ func (a *App) masterChatPrepared(ctx context.Context, req MasterChatRequest, wor
 	}
 	if response.FallbackReason != "" && !service.Skills.Operation.ProviderError {
 		service.Skills.Operation.ContractError = true
+		service.Skills.Operation.AddDefect("fallback", response.FallbackReason)
 	}
 	if err != nil {
 		return MasterChatView{}, err
@@ -574,14 +584,21 @@ func (a *App) masterChatPrepared(ctx context.Context, req MasterChatRequest, wor
 			response.MemorySuggestions = nil
 		}
 	}
+	declined := map[string]bool{}
+	if len(response.MemorySuggestions) > 0 {
+		if declined, err = a.store.MasterMemoryDeclined(ctx, workspaceID); err != nil {
+			return MasterChatView{}, err
+		}
+	}
 	for _, suggestion := range response.MemorySuggestions {
 		content := strings.TrimSpace(suggestion)
 		if content == "" || len([]rune(content)) > 4000 {
 			continue
 		}
-		duplicate := false
+		signature := masterMemorySignature(content)
+		duplicate := declined[signature]
 		for _, entry := range sessions.MemoryEntries {
-			if strings.EqualFold(entry.Content, content) {
+			if masterMemorySignature(entry.Content) == signature {
 				duplicate = true
 				break
 			}

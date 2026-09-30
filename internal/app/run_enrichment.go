@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"sort"
 	"strings"
 	"time"
 
@@ -66,7 +67,8 @@ func (a *App) enrichProjectAgentForRun(workspaceID string, agent domain.ProjectA
 	if err != nil {
 		return err
 	}
-	for _, memory := range memories {
+	memoryBudget := agentMemoryPromptRunes
+	for _, memory := range prioritizedMemories(memories) {
 		if !memory.Pinned && memory.Kind != domain.MemoryProfile && memory.Kind != domain.MemoryAgent && memory.Kind != domain.MemoryProject && memory.Kind != domain.MemoryQuest {
 			continue
 		}
@@ -79,6 +81,11 @@ func (a *App) enrichProjectAgentForRun(workspaceID string, agent domain.ProjectA
 		content := strings.TrimSpace(memory.Content)
 		if content == "" {
 			continue
+		}
+		if size := len([]rune(content)); size > memoryBudget {
+			continue
+		} else {
+			memoryBudget -= size
 		}
 		label := string(memory.Kind) + " memory"
 		*inputs = append(*inputs, domain.RunContextInput{
@@ -101,6 +108,27 @@ func (a *App) enrichProjectAgentForRun(workspaceID string, agent domain.ProjectA
 		}
 	}
 	return nil
+}
+
+// agentMemoryPromptRunes — потолок памяти в контексте прогона. Выученная
+// память, память проекта и квестов копятся без предела, а каждая запись
+// едет в каждый прогон агента.
+const agentMemoryPromptRunes = 8000
+
+// prioritizedMemories ставит закреплённые записи первыми, затем более
+// уверенные и более свежие: при нехватке места выпадают они последними.
+func prioritizedMemories(memories []domain.MemoryRecord) []domain.MemoryRecord {
+	result := append([]domain.MemoryRecord(nil), memories...)
+	sort.SliceStable(result, func(i, j int) bool {
+		if result[i].Pinned != result[j].Pinned {
+			return result[i].Pinned
+		}
+		if result[i].Confidence != result[j].Confidence {
+			return result[i].Confidence > result[j].Confidence
+		}
+		return result[i].UpdatedAt.After(result[j].UpdatedAt)
+	})
+	return result
 }
 
 type skillStore interface {
@@ -131,7 +159,7 @@ func resolveEquippedSkills(store skillStore, workspaceID string, agent domain.Pr
 	var equipped []domain.SkillRuntime
 	for _, skillID := range agent.SkillIDs {
 		skill, ok := skillByID[skillID]
-		if !ok {
+		if !ok || skillRetired(skill) {
 			continue
 		}
 		instance, hasInstance := instanceBySkill[skillID]
@@ -153,6 +181,13 @@ func resolveEquippedSkills(store skillStore, workspaceID string, agent domain.Pr
 		equipped = append(equipped, skillRuntimeFrom(skill, instance, hasInstance))
 	}
 	return equipped, nil
+}
+
+// skillRetired: откатанная ревизия и навык, помеченный устаревшим, в промпт
+// не попадают, даже если их ID остался у агента. Откат снимает ID с агентов,
+// а эта проверка — вторая линия на случай, когда снятие не дошло.
+func skillRetired(skill domain.SkillDefinition) bool {
+	return skillFamilyField(skill.Configuration, "promotionStatus") == "rolled_back" || curatorDeprecated(skill)
 }
 
 // skillRuntimeFrom переводит определение навыка в то, что уезжает в промпт.

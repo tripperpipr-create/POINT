@@ -12,6 +12,7 @@ import (
 	"local-agent-workbench/internal/domain"
 	"local-agent-workbench/internal/masterskills"
 	"local-agent-workbench/internal/orchestrator"
+	"local-agent-workbench/internal/security"
 )
 
 type MasterDevelopment struct {
@@ -24,10 +25,50 @@ type MasterDevelopment struct {
 }
 
 func (a *App) recordMasterEvidence(ctx context.Context, order domain.WorkOrder, quest, kind, outcome string) {
-	signal := domain.MasterEvidenceSignal{ID: fmt.Sprintf("%s-%d-%s-%s", order.ID, order.Version, kind, outcome), WorkspaceID: order.WorkspaceID, ProposalID: order.ProposalID, QuestID: quest, Kind: kind, Outcome: outcome, CreatedAt: time.Now().UTC()}
+	a.recordMasterEvidenceDetail(ctx, order, quest, kind, outcome, "", "")
+}
+
+// recordMasterEvidenceDetail keeps one signal per key: a quest has several
+// manual criteria, and each decision is its own evidence.
+func (a *App) recordMasterEvidenceDetail(ctx context.Context, order domain.WorkOrder, quest, kind, outcome, key, detail string) {
+	a.saveMasterEvidenceSignal(ctx, order, quest, kind, outcome, key, detail, "")
+}
+
+func (a *App) saveMasterEvidenceSignal(ctx context.Context, order domain.WorkOrder, quest, kind, outcome, key, detail, conversationID string) {
+	id := fmt.Sprintf("%s-%d-%s-%s", order.ID, order.Version, kind, outcome)
+	if key != "" {
+		id += "-" + key
+	}
+	signal := domain.MasterEvidenceSignal{ID: id, WorkspaceID: order.WorkspaceID, ProposalID: order.ProposalID, QuestID: quest, Kind: kind, Outcome: outcome,
+		Detail: truncateRunes(security.Redact(strings.TrimSpace(detail)), 500), ConversationID: conversationID, CreatedAt: time.Now().UTC()}
 	if err := a.store.SaveMasterEvidence(ctx, signal); err != nil {
 		slog.Warn("save master evidence", "error", err)
 	}
+}
+
+// masterRevisionNotes — однократные заметки для хода Мастера о нарядах этой
+// беседы, которые человек переписал сам. Поправка человека — главный повод
+// предложить правило памяти, но раньше Мастер узнавал о ней, только если
+// человек сам о ней писал. Решение о записи остаётся за человеком.
+func (a *App) masterRevisionNotes(ctx context.Context, ws, conversationID string) []string {
+	if strings.TrimSpace(conversationID) == "" {
+		return nil
+	}
+	pending, err := a.store.PendingMasterRevisionNotes(ctx, ws, conversationID)
+	if err != nil {
+		slog.Warn("pending master revision notes", "error", err)
+		return nil
+	}
+	notes := make([]string, 0, len(pending))
+	for _, signal := range pending {
+		notes = append(notes, strings.TrimSpace(signal.Detail))
+		marker := domain.MasterEvidenceSignal{ID: signal.ID + "-noted", WorkspaceID: signal.WorkspaceID, ProposalID: signal.ProposalID,
+			QuestID: signal.QuestID, Kind: "revision", Outcome: "noted_to_master", CreatedAt: time.Now().UTC()}
+		if err = a.store.SaveMasterEvidence(ctx, marker); err != nil {
+			slog.Warn("mark master revision note", "error", err)
+		}
+	}
+	return notes
 }
 
 func (a *App) masterSkillDefinitions(ctx context.Context, ws string) ([]domain.SkillDefinition, error) {
@@ -51,7 +92,9 @@ func (a *App) masterSkillDefinitions(ctx context.Context, ws string) ([]domain.S
 		// Builtins remain the fallback. New releases do not erase learned
 		// revisions; only an explicit rollback changes an active lineage.
 		for _, revision := range revisions {
-			if revision.Skill.ID != skill.ID {
+			if revision.Skill.ID != skill.ID || trials[revision.ID] == "failed" {
+				// A revision that failed here stays off in this world even
+				// while other worlds keep it.
 				continue
 			}
 			local := revision.WorkspaceID == ws || trials[revision.ID] == "passed" || (cfg.Enabled && trials[revision.ID] == "canary")
@@ -125,6 +168,7 @@ func (a *App) finishMasterOperation(s *orchestrator.MasterSkillSession, cfg doma
 		}
 	}
 	a.wakeMasterLearning(s.Operation.WorkspaceID, cfg, key)
+	a.retryPendingSubagentEvaluations(s.Operation.WorkspaceID, key)
 }
 
 func (a *App) MasterDevelopment(ctx context.Context) (MasterDevelopment, error) {
@@ -202,6 +246,62 @@ func (a *App) RollbackMasterSkill(ctx context.Context, id string) (MasterDevelop
 	return a.MasterDevelopment(ctx)
 }
 
+const masterCanaryIdleLimit = 14 * 24 * time.Hour
+
+// masterRevisionUse — применения ревизии в одном мире и база сравнения:
+// применения прежних ревизий того же навыка там же.
+type masterRevisionUse struct {
+	uses, repaired             int
+	baseline, baselineRepaired int
+	broken                     bool
+}
+
+// regression называет причину отката или пустую строку. Нарушение контракта
+// и отрицательная оценка человека откатывают сразу. Исправление хода — частый
+// спутник приёма задания, и одно исправление больше не снимает ревизию:
+// сравнивается доля исправленных ходов с базой, а без базы — большинство.
+func (u masterRevisionUse) regression() string {
+	if u.broken {
+		return "Нарушение контракта или отрицательная оценка при применении"
+	}
+	if u.repaired < 2 {
+		return ""
+	}
+	rate := float64(u.repaired) / float64(u.uses)
+	if u.baseline < 3 {
+		if rate > 0.5 {
+			return fmt.Sprintf("Исправлено %d из %d ходов с этой ревизией; базы для сравнения нет", u.repaired, u.uses)
+		}
+		return ""
+	}
+	baseRate := float64(u.baselineRepaired) / float64(u.baseline)
+	if rate-baseRate >= 0.25 {
+		return fmt.Sprintf("Доля исправленных ходов выросла с %.0f%% до %.0f%%", baseRate*100, rate*100)
+	}
+	return ""
+}
+
+// retireMasterRevisionInWorld снимает ревизию после сбоя в этом мире. Ревизия,
+// рождённая здесь, откатывается целиком. Пришедшая из другого проекта или
+// общая сначала выключается только здесь; вся линия откатывается, когда
+// сбой повторился во втором мире.
+func (a *App) retireMasterRevisionInWorld(ctx context.Context, r domain.MasterSkillRevision, ws, reason string) error {
+	if r.WorkspaceID == ws {
+		return a.store.RollbackMasterRevision(ctx, r.ID, reason)
+	}
+	if err := a.store.SetMasterSkillTrial(ctx, r.ID, ws, "failed"); err != nil {
+		return err
+	}
+	failed, err := a.store.MasterSkillTrialWorlds(ctx, r.ID, "failed")
+	if err != nil {
+		return err
+	}
+	if failed >= 2 {
+		return a.store.RollbackMasterRevision(ctx, r.ID, reason+"; сбой подтверждён во втором проекте")
+	}
+	return nil
+}
+
 func (a *App) updateMasterCanaries(ctx context.Context, ws string) error {
 	revisions, err := a.store.MasterSkillRevisions(ctx)
 	if err != nil {
@@ -211,27 +311,53 @@ func (a *App) updateMasterCanaries(ctx context.Context, ws string) error {
 	if err != nil {
 		return err
 	}
+	// Человек переписал наряд после Мастера: задание разошлось с тем, что
+	// было нужно. Это исправление хода, засчитанное задним числом.
+	revised, err := a.store.MasterEvidenceProposals(ctx, ws, "revision", "user_revised")
+	if err != nil {
+		return err
+	}
 	for _, r := range revisions {
 		if r.Status != "canary" && r.Status != "local" && r.Status != "shared" {
 			continue
 		}
-		count := 0
-		bad := false
+		use := masterRevisionUse{}
 		for _, op := range ops {
 			if op.ProviderError {
 				continue
 			}
 			for _, used := range op.Skills {
-				if used.SkillID == r.Skill.ID && used.Digest == r.Digest {
-					if op.ContractError || op.Repairs > 0 || op.Feedback == "down" {
-						bad = true
+				if used.SkillID != r.Skill.ID {
+					continue
+				}
+				repaired := op.Repairs > 0 || (op.ProposalID != "" && revised[op.ProposalID])
+				if used.Digest != r.Digest {
+					use.baseline++
+					if repaired {
+						use.baselineRepaired++
 					}
-					count++
+					continue
+				}
+				use.uses++
+				if repaired {
+					use.repaired++
+				}
+				if op.ContractError || op.Feedback == "down" {
+					use.broken = true
 				}
 			}
 		}
-		if bad {
-			if err = a.store.RollbackMasterRevision(ctx, r.ID, "Нарушение контракта или отрицательная оценка при применении"); err != nil {
+		count := use.uses
+		if r.Status == "canary" && r.WorkspaceID == ws && count == 0 && time.Since(r.CreatedAt) > masterCanaryIdleLimit {
+			// Проба, которую ни разу не применили, ничего не докажет, а её
+			// задание держит очередь навыка: новое не ставится, пока жива проба.
+			if err = a.store.RollbackMasterRevision(ctx, r.ID, "Проба не применялась 14 дней: проверить нечем"); err != nil {
+				return err
+			}
+			continue
+		}
+		if reason := use.regression(); reason != "" {
+			if err = a.retireMasterRevisionInWorld(ctx, r, ws, reason); err != nil {
 				return err
 			}
 			continue

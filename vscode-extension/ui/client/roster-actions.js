@@ -10,6 +10,7 @@
 // мира.
 
 import { constructorStepForProfileStep, constructorToProjectAgent, newConstructorDraft } from './agent-constructor.js'
+import { requestQuestRetrospective } from './quest-retrospective-views.js'
 
 export function handleRosterClickAction({
   action, target, ui, root, vscode, render, persistDraft,
@@ -102,6 +103,7 @@ export function handleRosterClickAction({
     else render()
     return true
   }
+  if (action === 'load-quest-retrospective') return requestQuestRetrospective(target, ui, vscode, render)
   if (action === 'rollback-agent-improvement') {
     vscode.postMessage({ type: 'rollbackAgentImprovement', id: target.dataset.id })
     return true

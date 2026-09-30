@@ -22,7 +22,7 @@
 import { countOf, formatElapsed, list } from './format-units.js'
 import { icon } from './ui-icons.js'
 import { masterCardMoreAttrs } from './master-card-open.js'
-import { diffCountHtml, diffHtml, diffStats } from './diff-view.js'
+import { diffCountHtml, diffHtml, diffPathHtml, diffStats } from './diff-view.js'
 
 // Отказы, о которых ядро сообщает отдельным событием защиты: строка сбоя их
 // повторила бы.
@@ -151,7 +151,7 @@ export function createQuestJournal(dependencies) {
     const stats = diffStats(patch.diff)
     const verb = stats.created ? 'создан' : stats.deleted ? 'удалён' : 'изменён'
     const state = { proposed: 'ждёт решения', rejected: 'отклонён', reverted: 'откачен' }[patch.status] || `${verb}${sandboxOnly ? ' в песочнице' : ''}`
-    const head = `<span class="hall-step-icon">${icon(stats.created ? 'file-plus' : 'file-edit')}</span><span class="quest-file-path" title="${esc(patch.path)}">${esc(patch.path)}</span>${diffCountHtml(stats)}<small>${esc(state)}</small>`
+    const head = `<span class="hall-step-icon${stats.created ? ' is-new' : ''}">${icon(stats.created ? 'file-plus' : 'file-edit')}</span><span class="quest-file-path" title="${esc(patch.path)}">${diffPathHtml(patch.path, esc)}</span>${diffCountHtml(stats)}<small>${esc(state)}</small>`
     if (!stats.known) return `<div class="quest-file">${head}</div>`
     return `<details class="quest-file"${masterCardMoreAttrs(key, { esc })}><summary>${head}<span class="quest-file-chevron">${icon('chevron-right')}</span></summary>${diffHtml(patch.diff, esc)}</details>`
   }

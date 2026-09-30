@@ -15,6 +15,7 @@
 
 import { FAILED_REQUEST_SECTIONS, failedRequestOwnsForm } from './request-failure-routing.js'
 import { masterAgentBusy, masterAgentErrors } from './master-agent-card-state.js'
+import { applyQuestRetrospectiveMessage } from './quest-retrospective-views.js'
 
 const RUN_MESSAGES = new Set([
   'contextAdded', 'contextPreview', 'contextPreviewError',
@@ -47,6 +48,7 @@ export function createRunInbox({
   orchestratorPolicyFailed,
 }) {
   return function applyRunMessage(message) {
+    if (applyQuestRetrospectiveMessage(message, ui, render)) return true
     if (!RUN_MESSAGES.has(message.type)) return false
       if (message.type === 'contextAdded') {
         const incoming=Array.isArray(message.items)?message.items:[]

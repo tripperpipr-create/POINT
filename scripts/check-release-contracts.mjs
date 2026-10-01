@@ -836,6 +836,8 @@ for (const [file, maximum] of Object.entries({
   // Провал этапа в карточке выполнения: work-order-execution-views.js стоит
   // у своего потолка, разбор причины и повтор с правками живут здесь.
   'vscode-extension/ui/client/stage-failure-views.js': 80,
+  // Строка «Проверки Point перед приёмкой» в карточке прогона.
+  'vscode-extension/ui/client/pre-accept-views.js': 12,
   'vscode-extension/ui/client/quest-journal-views.js': 340,
   'vscode-extension/ui/client/stage-labels.js': 80,
   'vscode-extension/ui/client/diff-view.js': 60,

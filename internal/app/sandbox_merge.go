@@ -487,7 +487,7 @@ func (a *App) startMergedSandboxedExecution(projectAgentID, task, questID, flowR
 	}
 	merged, err := manager.Merge(context.Background(), sandbox.MergeRequest{
 		WorkspaceID: ws.ID, ExecutionID: execID, BasePath: plan.BasePath, Seeds: plan.Seeds,
-		Runtime:     a.stageSandboxRuntime(context.Background(), brief, questID, flowRunID, flowNodeID),
+		Runtime:     managedSandboxRuntimeForBrief(brief),
 		Resolutions: resolutions, BaselineChangeSetIDs: plan.DependsOn,
 	})
 	if err != nil || len(merged.Conflicts) > 0 {

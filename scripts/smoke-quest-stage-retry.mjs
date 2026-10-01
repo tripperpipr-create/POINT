@@ -9,7 +9,7 @@ import assert from 'node:assert/strict'
 import { workOrderExecutionParts } from '../vscode-extension/ui/client/work-order-execution-views.js'
 import { handleMasterClickAction } from '../vscode-extension/ui/client/master-actions.js'
 import { esc } from '../vscode-extension/ui/client/html-escape.js'
-import { preAcceptNoteHtml } from '../vscode-extension/ui/client/stage-failure-views.js'
+import { preAcceptNoteHtml } from '../vscode-extension/ui/client/pre-accept-views.js'
 
 const order = status => ({ id: 'order-1', runtime: {
   questId: 'quest-1', status,
@@ -41,7 +41,6 @@ const diagnosed = orderStatus => {
   value.runtime.stall.error = 'Accept: verify-pack: x Build failed in 17.43s'
   value.runtime.stageFailure = {
     at: '2026-09-30T12:37:56Z', nodeId: 'verify', nodeName: 'Accept', autoRetry: { allowed: false },
-    runtimeChoices: [{ id: 'node20', label: 'Node 20 (npm 10)' }, { id: 'node22', label: 'Node 22 (npm 10)' }],
     diagnosis: { class: 'runtime', image: 'point-agent-sandbox:release', checks: [
       { criterionId: 'verify-pack', command: 'cd cf-vue-apps && npm ci && npm run verify', class: 'runtime', cause: 'npm 12 заблокировал скрипты установки: vue-demi, ssh2', hint: 'повторить в образе Node 20 или 22' },
     ] },
@@ -51,7 +50,8 @@ const diagnosed = orderStatus => {
 const why = workOrderExecutionParts(diagnosed('awaiting_user'), {}, { esc })?.stall || ''
 assert.ok(why.includes('npm 12 заблокировал скрипты установки') && why.includes('verify-pack') && why.includes('point-agent-sandbox:release'), 'the cause, not the build summary')
 assert.ok(!why.includes('x Build failed in 17.43s'), 'the raw summary is replaced by the diagnosis')
-assert.ok(why.indexOf('data-runtime="node20"') < why.indexOf('data-control="retry"'), 'a runtime cause puts the runtime retry first')
+// Кнопок под отдельную причину нет: что менять в повторе, решает Мастер.
+assert.ok(!why.includes('data-runtime=') && !why.includes('Повторить в ') && why.includes('data-control="retry"'), 'no cause-specific retry buttons')
 assert.ok(why.includes('data-action="analyze-stage-failure"') && why.includes('Разобрать с Мастером'), 'the Master can be asked')
 
 // Сбой среды Point повторит сам — человек видит это, а не ждёт кнопки.
@@ -73,10 +73,8 @@ const click = (action, dataset) => handleMasterClickAction({ action, target: { d
 assert.equal(click('retry-work-order-stage', { id: 'order-1', questId: 'quest-1', proposalDigest: 'sha256:abc' }), true)
 assert.deepEqual([sent[0].type, sent[0].action, sent[0].proposalDigest], ['controlMasterWorkOrderQuestV2', 'retry', 'sha256:abc'])
 retryUi.masterWorkOrderBusy.clear()
-click('retry-work-order-stage', { id: 'order-1', questId: 'quest-1', runtime: 'node20' })
-assert.equal(sent[1].runtime, 'node20')
 click('analyze-stage-failure', { id: 'order-1' })
-assert.deepEqual([sent[2].type, sent[2].conversationId], ['analyzeStageFailureWithMaster', 'chat-1'])
+assert.deepEqual([sent[1].type, sent[1].conversationId], ['analyzeStageFailureWithMaster', 'chat-1'])
 // Проверка Point перед приёмкой: карточка говорит, сколько проверок прошло, а
 // без прогона молчит.
 assert.equal(preAcceptNoteHtml({}, esc), '')

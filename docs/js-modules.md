@@ -183,11 +183,12 @@ workflow — `vscode-extension/ui/client/drag-drop.js`. Экранировани
 хоста `masterApplicationState` и `masterReportState`) держит
 `vscode-extension/ui/client/quest-app-state.js`, нажатия разбирает
 `vscode-extension/ui/client/quest-app-actions.js` (там же повтор проваленного
-этапа в выбранной среде или по разрешённому предложению Мастера и кнопка
+этапа как есть или по разрешённому предложению Мастера и кнопка
 «Разобрать с Мастером»). Разобранный провал этапа — причину каждой проверки,
 авто-повтор и карточку разрешения правки проверки — рисует
-`vscode-extension/ui/client/stage-failure-views.js` (там же строка «Проверки
-Point перед приёмкой: N из M прошли» из `runtime.preAcceptCheck`); повтор без человека по
+`vscode-extension/ui/client/stage-failure-views.js`; строку «Проверки Point
+перед приёмкой: N из M прошли» из `runtime.preAcceptCheck` —
+`vscode-extension/ui/client/pre-accept-views.js`; повтор без человека по
 решению ядра и разбор провала Мастером запускает наблюдатель наряда
 (`stageFailureAutopilot` в `vscode-extension/master-work-order-watch.js`). Вид приложения, способ
 запуска и вывод `docker compose` отдаёт ядро: `GET

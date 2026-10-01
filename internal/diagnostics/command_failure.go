@@ -100,7 +100,7 @@ func DiagnoseCommand(run CommandRun) (CommandFailure, bool) {
 		}
 		return CommandFailure{
 			Signature: "npm_install_scripts_blocked", Class: FailureRuntime, Cause: cause,
-			Hint:     "повторить в образе Node 20 или 22 (npm 10 выполняет скрипты установки) либо разрешить эти пакеты в allowScripts проекта",
+			Hint:     "разрешить этим пакетам скрипты установки в настройках проекта (allowScripts) или собирать версией npm, которая их выполняет",
 			Evidence: evidence,
 		}, true
 	}

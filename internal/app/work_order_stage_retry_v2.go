@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"local-agent-workbench/internal/domain"
-	"local-agent-workbench/internal/environment"
 	"local-agent-workbench/internal/flowruntime"
 	"local-agent-workbench/internal/security"
 )
@@ -58,7 +57,7 @@ func (a *App) holdWorkOrderQuestForStageDecisionV2(ctx context.Context, quest do
 	quest.Controller[stageFailureKey] = map[string]any{
 		"nodeId": nodeID, "nodeName": nodeName, "flowRunId": run.ID,
 		"error": truncateRunes(security.Redact(failure), 1000), "at": time.Now().UTC().Format(time.RFC3339Nano),
-		"diagnosis": diagnosis, "autoRetry": autoRetry, "runtimeChoices": environment.RetryRuntimeChoices(),
+		"diagnosis": diagnosis, "autoRetry": autoRetry,
 	}
 	// Предложение прежнего провала к этому не относится.
 	delete(quest.Controller, stageRetryProposalKey)
@@ -87,11 +86,6 @@ func stageRetryStatusMessage(nodeName string, plan stageRetryPlan) string {
 	}
 	message := fmt.Sprintf("%s «%s»", who, nodeName)
 	changes := []string{}
-	if plan.Runtime != "" {
-		if choice, ok := environment.RetryRuntimeChoiceByID(plan.Runtime); ok {
-			changes = append(changes, "в среде "+choice.Label)
-		}
-	}
 	if plan.Instruction != "" {
 		changes = append(changes, "с указанием исполнителю")
 	}
@@ -157,11 +151,7 @@ func (a *App) retryFailedWorkOrderStageV2(ctx context.Context, quest domain.Ques
 			}
 			// Правки повтора — только проваленному этапу, ради которого повтор.
 			if nodeID == failedNodeID || failedNodeID == "" {
-				delete(state.Output, retryRuntimeOutputKey)
 				delete(state.Output, retryInstructionOutputKey)
-				if plan.Runtime != "" {
-					state.Output[retryRuntimeOutputKey] = plan.Runtime
-				}
 				if plan.Instruction != "" {
 					state.Output[retryInstructionOutputKey] = plan.Instruction
 				}

@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"local-agent-workbench/internal/domain"
-	"local-agent-workbench/internal/environment"
 	"local-agent-workbench/internal/security"
 	"local-agent-workbench/internal/textutil"
 	workbenchtools "local-agent-workbench/internal/tools"
@@ -263,7 +262,6 @@ func (t *masterReadTools) readQuest(ctx context.Context, arguments json.RawMessa
 			}
 			summary["criteria"] = criteria
 		}
-		summary["retryRuntimeChoices"] = environment.RetryRuntimeChoices()
 	}
 	return workbenchtools.OK(summary)
 }
@@ -274,12 +272,11 @@ func proposeStageRetryDefinition() domain.ToolDefinition {
 	return domain.ToolDefinition{
 		Name: proposeStageRetryTool,
 		Description: "Предложить повтор проваленного этапа квеста, который ждёт решения (read_quest показывает stageFailure). " +
-			"Сначала прочитай квест и причину провала. runtime — среда из retryRuntimeChoices, когда причина в среде (например, npm 12 блокирует скрипты установки — node20). " +
-			"instruction — указание исполнителю LLM-этапа. criteria — правка команды машинного критерия, только если сломана сама проверка (например, нет mkdir -p перед npm pack --pack-destination); " +
+			"Сначала прочитай квест и причину провала. " +
+			"instruction — указание исполнителю LLM-этапа. criteria — правка команды машинного критерия, только если сломана сама проверка: она не может пройти при исправной работе или не укладывается в срок, делая лишнее; " +
 			"такая правка ждёт разрешения человека, остальное Point применит сам. Не предлагай правку, которая прячет код выхода или ослабляет проверку.",
 		InputSchema: json.RawMessage(`{"type":"object","properties":{` +
 			`"questId":{"type":"string","description":"Корневой квест, ждущий решения по этапу"},` +
-			`"runtime":{"type":"string","description":"Имя среды из retryRuntimeChoices, например node20"},` +
 			`"instruction":{"type":"string","description":"Что учесть исполнителю этапа в новой попытке"},` +
 			`"criteria":{"type":"array","items":{"type":"object","properties":{"criterionId":{"type":"string"},"command":{"type":"string","description":"Новая полная команда проверки"},"reason":{"type":"string"}},"required":["criterionId","command","reason"],"additionalProperties":false}},` +
 			`"diagnosis":{"type":"string","description":"Причина провала своими словами, для человека"}},` +

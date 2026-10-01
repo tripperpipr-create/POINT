@@ -139,6 +139,14 @@ func TestLastWriterGetsAcceptanceChecksBeforeFinishing(t *testing.T) {
 	if outcome := f.verify("node_first"); outcome.Ran {
 		t.Fatalf("an early writer was judged by the whole work order: %+v", outcome)
 	}
+	// Писатель плана, собранного моделью, роли не несёт — и всё равно писатель.
+	planned := domain.FlowGraph{
+		Nodes: []domain.FlowNode{{ID: "w", Kind: domain.FlowNodeAgent, Config: map[string]any{"planner": "model"}}, f.accept},
+		Edges: []domain.FlowEdge{{From: "w", To: f.accept.ID}},
+	}
+	if accept, ok := lastWriterBeforeAccept(planned, "w"); !ok || accept.ID != f.accept.ID {
+		t.Fatal("a role-less planned writer is not recognized as the last writer before Accept")
+	}
 	f.backend.fail.Store(true)
 	failed := f.verify(f.writer.ID)
 	if !failed.Ran || failed.Passed {

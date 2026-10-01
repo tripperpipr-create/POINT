@@ -409,7 +409,7 @@ async function handleMasterMessage(message) {
 		  }
           // Повтор этапа может нести среду из списка или предложение Мастера,
           // которое человек разрешил; ядро перепроверяет и то и другое.
-          const retry=action==='retry' ? {runtime:String(message.runtime || ''),proposalDigest:String(message.proposalDigest || '')} : {}
+          const retry=action==='retry' ? {proposalDigest:String(message.proposalDigest || '')} : {}
           const result=await this.service.request('/api/v2/master/quests/'+encodeURIComponent(questId)+'/'+encodeURIComponent(action),{
             method:'POST',body:JSON.stringify({message:String(message.message || ''),apiKey,...retry})
           })

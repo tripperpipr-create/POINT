@@ -29,7 +29,7 @@ import { diffCountHtml, diffStats } from './diff-view.js'
 import { questApplicationHtml, questReportHtml } from './quest-app-views.js'
 import { preparedFilesHtml } from './quest-prepared-views.js'
 import { questRetrospectiveHtml } from './quest-retrospective-views.js'
-import { preAcceptNoteHtml } from './stage-failure-views.js'
+import { preAcceptNoteHtml } from './pre-accept-views.js'
 
 const LIVE = new Set(['preflight', 'running', 'verifying', 'applying'])
 // Работающий или остановленный квест остаётся частью ленты разговора: этапы,

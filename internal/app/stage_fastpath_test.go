@@ -219,12 +219,12 @@ func TestDeterministicAcceptFailureDetailShowsMissingTool(t *testing.T) {
 // run_command уже разобрал причину: приёмка берёт её, а не первую строку со
 // словом failed («x Build failed in 17.43s» 30.09).
 func TestDeterministicAcceptFailureDetailPrefersCommandCause(t *testing.T) {
-	result := domain.ToolResult{Output: json.RawMessage(`{"exitCode":1,"stderr":"x Build failed in 17.43s","cause":"npm 12 заблокировал скрипты установки: vue-demi","causeClass":"runtime","causeHint":"повторить в образе Node 20"}`)}
+	result := domain.ToolResult{Output: json.RawMessage(`{"exitCode":1,"stderr":"x Build failed in 17.43s","cause":"npm 12 заблокировал скрипты установки: vue-demi","causeClass":"runtime","causeHint":"разрешить скрипты установки"}`)}
 	if got := deterministicAcceptFailureDetail(result); got != "npm 12 заблокировал скрипты установки: vue-demi" {
 		t.Fatalf("failure detail=%q", got)
 	}
 	failure, ok := acceptCheckFailure(result)
-	if !ok || failure.Class != "runtime" || failure.Hint != "повторить в образе Node 20" {
+	if !ok || failure.Class != "runtime" || failure.Hint != "разрешить скрипты установки" {
 		t.Fatalf("failure=%#v", failure)
 	}
 }

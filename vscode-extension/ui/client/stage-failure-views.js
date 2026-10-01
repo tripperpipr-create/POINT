@@ -24,7 +24,7 @@ function diagnosisHtml(failure, esc) {
 
 function autopilotHtml(failure, proposal, esc) {
   if (proposal?.autoApply && !proposal.needsApproval) {
-    const what = [proposal.runtimeLabel ? `в среде ${proposal.runtimeLabel}` : '', proposal.instruction ? 'с указанием исполнителю' : ''].filter(Boolean).join(', ')
+    const what = proposal.instruction ? 'с указанием исполнителю' : ''
     return `<small class="stage-failure-auto">Мастер повторяет этап${what ? ' ' + esc(what) : ''}${proposal.diagnosis ? ': ' + esc(proposal.diagnosis) : ''}</small>`
   }
   if (failure?.autoRetry?.allowed) {
@@ -38,11 +38,10 @@ function proposalHtml(order, runtime, proposal, esc) {
   const changes = (Array.isArray(proposal.criteria) ? proposal.criteria : []).map(change => `<li><b>${esc(change.criterionId)}</b>
       <span>было</span><code>${esc(change.previousCommand || '')}</code>
       <span>станет</span><code>${esc(change.command || '')}</code>${change.reason ? `<small>${esc(change.reason)}</small>` : ''}</li>`).join('')
-  const runtimeLine = proposal.runtimeLabel ? `<small>Среда: ${esc(proposal.runtimeLabel)}</small>` : ''
   return `<div class="stage-retry-proposal">
       <b>Мастер предлагает изменить проверку и повторить этап</b>
       ${proposal.diagnosis ? `<p>${esc(proposal.diagnosis)}</p>` : ''}
-      <ul>${changes}</ul>${runtimeLine}
+      <ul>${changes}</ul>
       <div><button type="button" class="hall-btn is-primary" data-action="retry-work-order-stage" data-id="${esc(order.id)}" data-quest-id="${esc(runtime.questId || '')}" data-proposal-digest="${esc(proposal.digest)}">Разрешить и повторить</button></div>
     </div>`
 }
@@ -51,28 +50,18 @@ function controlButton(order, runtime, control, label, cls, esc) {
   return `<button type="button" class="${cls}" data-action="control-master-work-order-v2" data-control="${control}" data-id="${esc(order.id)}" data-quest-id="${esc(runtime.questId || '')}">${label}</button>`
 }
 
-// Кнопки: повтор как есть, повтор в другой среде (рекомендованной диагнозом —
-// первой), разбор Мастером, вердикт и новая версия наряда.
+// Кнопки: повтор как есть, разбор Мастером, вердикт и новая версия наряда.
+// Кнопок под отдельную причину здесь нет: были «Повторить в Node 20 / 22» под
+// один случай с npm, и при провале по сроку они обещали лечение, которого не
+// давали. Что менять в повторе, решает Мастер по разбору — для любой задачи.
 function buttonsHtml(order, runtime, failure, esc) {
   const revise = `<button type="button" class="hall-btn" data-action="revise-master-work-order-v2" data-id="${esc(order.id)}">Обсудить новую версию</button>`
   if (runtime.status !== 'awaiting_user') return `<div>${revise}</div>`
-  const choices = Array.isArray(failure?.runtimeChoices) ? failure.runtimeChoices : []
-  const recommended = failure?.diagnosis?.class === 'runtime'
-  const runtimes = choices.map(choice => `<button type="button" class="hall-btn${recommended ? ' is-primary' : ''}" data-action="retry-work-order-stage" data-id="${esc(order.id)}" data-quest-id="${esc(runtime.questId || '')}" data-runtime="${esc(choice.id)}">Повторить в ${esc(choice.label)}</button>`).join('')
-  return `<div>${recommended ? runtimes : ''}${controlButton(order, runtime, 'retry', 'Повторить этап', recommended ? 'hall-btn' : 'hall-btn is-primary', esc)}${recommended ? '' : runtimes}<button type="button" class="hall-btn" data-action="analyze-stage-failure" data-id="${esc(order.id)}">Разобрать с Мастером</button>${controlButton(order, runtime, 'finalize', 'Завершить квест', 'hall-btn', esc)}${revise}</div>`
+  return `<div>${controlButton(order, runtime, 'retry', 'Повторить этап', 'hall-btn is-primary', esc)}<button type="button" class="hall-btn" data-action="analyze-stage-failure" data-id="${esc(order.id)}">Разобрать с Мастером</button>${controlButton(order, runtime, 'finalize', 'Завершить квест', 'hall-btn', esc)}${revise}</div>`
 }
 
 export function stageFailureHtml(order, runtime, esc) {
   const failure = runtime?.stageFailure
   const proposal = runtime?.stageRetryProposal
   return `${diagnosisHtml(failure, esc)}${autopilotHtml(failure, proposal, esc)}${proposalHtml(order, runtime, proposal, esc)}${buttonsHtml(order, runtime, failure, esc)}`
-}
-
-// Проверка Point перед приёмкой: человек видит, что критерии уже прогонялись
-// на результате последнего пишущего этапа и чем это кончилось.
-export function preAcceptNoteHtml(runtime, esc) {
-  const check = runtime?.preAcceptCheck
-  if (!check || !Number(check.total)) return ''
-  const tail = check.allPassed || runtime.stall ? '' : ' — исполнитель получил причины и исправляет'
-  return `<small class="work-order-exec-note" data-pre-accept-check="${check.allPassed ? 'passed' : 'failed'}">Проверки Point перед приёмкой: ${esc(String(Number(check.passed) || 0))} из ${esc(String(Number(check.total)))} прошли${tail}</small>`
 }

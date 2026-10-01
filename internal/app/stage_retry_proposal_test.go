@@ -7,21 +7,20 @@ import (
 	"testing"
 )
 
-// Предложение Мастера из правок, не трогающих договор, — среда из списка и
-// указание исполнителю — окно применяет само, и правки достаются ровно
-// проваленному этапу.
+// Предложение Мастера из правок, не трогающих договор, — указание исполнителю
+// — окно применяет само, и оно достаётся ровно проваленному этапу.
 func TestSafeStageRetryProposalAppliesWithoutHuman(t *testing.T) {
 	application, quest, run := failedStageQuestWithErrorForTest(t, "npm run verify: \"hasInjectionContext\" is not exported by \"vue-demi/lib/index.mjs\"")
 	ctx := context.Background()
 	application.finalizeQuestAfterFlow(quest.ID, false)
 	proposal, err := application.ProposeStageRetryV2(ctx, quest.WorkspaceID, StageRetryProposalInput{
-		QuestID: quest.ID, Runtime: "node20", Instruction: "Собирай под Node 20: npm 12 блокирует скрипты установки",
+		QuestID: quest.ID, Instruction: "Собирай под Node 20: npm 12 блокирует скрипты установки",
 		Diagnosis: "npm 12 заблокировал postinstall vue-demi",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if proposal.NeedsApproval || !proposal.AutoApply || proposal.RuntimeLabel == "" {
+	if proposal.NeedsApproval || !proposal.AutoApply {
 		t.Fatalf("safe proposal must apply by itself: %#v", proposal)
 	}
 	result, err := application.ControlWorkOrderQuestV2(ctx, quest.ID, "retry", WorkOrderQuestControlRequest{Source: StageRetrySourceAuto, ProposalDigest: proposal.Digest})
@@ -30,9 +29,6 @@ func TestSafeStageRetryProposalAppliesWithoutHuman(t *testing.T) {
 	}
 	if result.Status == "" {
 		t.Fatal("retry result has no status")
-	}
-	if choice := application.stageRetryRuntimeChoice(ctx, "", run.ID, "verify"); choice != "node20" {
-		t.Fatalf("retried stage runtime=%q", choice)
 	}
 	stored, _ := application.store.GetFlowRun(ctx, run.ID)
 	if instruction, _ := stored.NodeStates["verify"].Output[retryInstructionOutputKey].(string); !strings.Contains(instruction, "Node 20") {
@@ -53,9 +49,9 @@ func TestSafeStageRetryProposalAppliesWithoutHuman(t *testing.T) {
 // Статус называет, кто повторил и что поменял: повтор без человека виден так
 // же, как нажатие.
 func TestStageRetryStatusNamesWhoAndWhat(t *testing.T) {
-	message := stageRetryStatusMessage("Accept", stageRetryPlan{Source: StageRetrySourceAuto, Proposal: "sha256:x", Runtime: "node20",
+	message := stageRetryStatusMessage("Accept", stageRetryPlan{Source: StageRetrySourceAuto, Proposal: "sha256:x", Instruction: "собери заново",
 		Criteria: []StageRetryCriterionChange{{CriterionID: "tgz-content"}}})
-	for _, want := range []string{"Мастер повторяет этап «Accept»", "Node 20", "tgz-content"} {
+	for _, want := range []string{"Мастер повторяет этап «Accept»", "с указанием исполнителю", "tgz-content"} {
 		if !strings.Contains(message, want) {
 			t.Fatalf("%q lacks %q", message, want)
 		}
@@ -109,10 +105,9 @@ func TestStageRetryProposalRejectsUnsafeChanges(t *testing.T) {
 	cases := map[string]StageRetryProposalInput{
 		"masked":   {QuestID: quest.ID, Criteria: []StageRetryCriterionChange{{CriterionID: "build", Command: "docker compose build || true", Reason: "x"}}},
 		"unknown":  {QuestID: quest.ID, Criteria: []StageRetryCriterionChange{{CriterionID: "deploy", Command: "true", Reason: "x"}}},
-		"image":    {QuestID: quest.ID, Runtime: "ubuntu:latest"},
 		"empty":    {QuestID: quest.ID, Diagnosis: "ничего не меняю"},
 		"same":     {QuestID: quest.ID, Criteria: []StageRetryCriterionChange{{CriterionID: "build", Command: "docker compose build", Reason: "x"}}},
-		"no_quest": {QuestID: "quest_missing", Runtime: "node20"},
+		"no_quest": {QuestID: "quest_missing", Instruction: "повтори"},
 	}
 	for name, input := range cases {
 		if _, err := application.ProposeStageRetryV2(ctx, quest.WorkspaceID, input); err == nil {

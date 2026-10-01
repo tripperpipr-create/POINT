@@ -347,7 +347,7 @@ func (a *App) StartRun(request StartRunRequest) (domain.Run, error) {
 	}
 	slog.Info("agent start progress", "execution_id", execID, "phase", "stage_brief", "stage_role", request.StageRole)
 	brief = stageScopedBrief(brief, request.StageRole)
-	runtimeRequirements := a.stageSandboxRuntime(context.Background(), brief, questID, flowRunID, flowNodeID)
+	runtimeRequirements := managedSandboxRuntimeForBrief(brief)
 	if err := a.validateTaskEnvironment(brief); err != nil {
 		return domain.Run{}, err
 	}

@@ -53,7 +53,7 @@ func (a *App) startSandboxedExecutionWithSeed(projectAgentID, task, questID, par
 		PreferWorktree: true, LiveWorkspace: sandbox.LiveFileMutationEnabled() && !a.questRequiresIsolatedWorkspace(context.Background(), ws.ID, questID),
 	}
 	if brief, briefErr := a.taskBriefForQuest(context.Background(), ws.ID, questID); briefErr == nil {
-		createRequest.Runtime = a.stageSandboxRuntime(context.Background(), brief, questID, "", "")
+		createRequest.Runtime = managedSandboxRuntimeForBrief(brief)
 		if len(createRequest.Runtime.RequiredCommands) > 0 {
 			createRequest.Runtime.Progress = func(phase, message string) {
 				a.updateRuntimeProvisioningProgressV2(context.Background(), ws.ID, questID, phase, message)

@@ -35,7 +35,7 @@ func TestDiagnoseBlockedInstallScriptsNamesPackagesAndBuildConsequence(t *testin
 	if strings.Count(failure.Cause, "vue-demi") != 2 { // один раз в списке пакетов, один раз в сборке
 		t.Fatalf("package list repeats names: %q", failure.Cause)
 	}
-	if !strings.Contains(failure.Hint, "Node 20") {
+	if !strings.Contains(failure.Hint, "allowScripts") {
 		t.Fatalf("hint=%q", failure.Hint)
 	}
 }

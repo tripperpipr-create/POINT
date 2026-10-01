@@ -95,8 +95,12 @@ func lastWriterBeforeAccept(flow domain.FlowGraph, nodeID string) (domain.FlowNo
 	if !ok || !domain.FlowNodeWriteFiles(self) {
 		return domain.FlowNode{}, false
 	}
+	// Узел без роли — писатель плана, собранного моделью («Выполнить задание»):
+	// наряд запускает его как implement (workOrderExecutionStageRoleV2). Живой
+	// квест 1.10 показал цену пропуска: единственный писатель остался без
+	// проверки, и приёмка упала на том, что он мог исправить сам.
 	switch domain.FlowNodeStageRole(self) {
-	case domain.StageRoleImplement, domain.StageRoleIntegrate:
+	case domain.StageRoleImplement, domain.StageRoleIntegrate, "":
 	default:
 		return domain.FlowNode{}, false
 	}

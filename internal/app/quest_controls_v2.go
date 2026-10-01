@@ -20,10 +20,9 @@ type WorkOrderQuestControlRequest struct {
 	APIKey string `json:"apiKey,omitempty"`
 	// Повтор проваленного этапа. Source — кто повторяет: человек или окно по
 	// решению сервера (auto); ProposalDigest — какое предложение Мастера
-	// применить; Runtime — среда из закрытого списка, выбранная человеком.
+	// применить.
 	Source         string `json:"source,omitempty"`
 	ProposalDigest string `json:"proposalDigest,omitempty"`
-	Runtime        string `json:"runtime,omitempty"`
 }
 
 type WorkOrderQuestControlResult struct {

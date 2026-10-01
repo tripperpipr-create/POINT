@@ -12,8 +12,6 @@ import (
 
 	"local-agent-workbench/internal/diagnostics"
 	"local-agent-workbench/internal/domain"
-	"local-agent-workbench/internal/environment"
-	"local-agent-workbench/internal/sandbox"
 	"local-agent-workbench/internal/security"
 )
 
@@ -36,7 +34,6 @@ const (
 	maxAutoRetriesPerStage    = 2
 	maxAutoRetriesPerQuest    = 3
 	stageAutoRetryDelaySecs   = 30
-	retryRuntimeOutputKey     = "retryRuntime"
 	retryInstructionOutputKey = "retryInstruction"
 	maxRetryInstructionRunes  = 2000
 )
@@ -67,8 +64,6 @@ type StageRetryProposal struct {
 	NodeID        string                      `json:"nodeId"`
 	NodeName      string                      `json:"nodeName,omitempty"`
 	FailureAt     string                      `json:"failureAt"`
-	Runtime       string                      `json:"runtime,omitempty"`
-	RuntimeLabel  string                      `json:"runtimeLabel,omitempty"`
 	Instruction   string                      `json:"instruction,omitempty"`
 	Criteria      []StageRetryCriterionChange `json:"criteria,omitempty"`
 	Diagnosis     string                      `json:"diagnosis,omitempty"`
@@ -80,7 +75,6 @@ type StageRetryProposal struct {
 // StageRetryProposalInput — то, что предлагает Мастер.
 type StageRetryProposalInput struct {
 	QuestID     string                      `json:"questId"`
-	Runtime     string                      `json:"runtime,omitempty"`
 	Instruction string                      `json:"instruction,omitempty"`
 	Criteria    []StageRetryCriterionChange `json:"criteria,omitempty"`
 	Diagnosis   string                      `json:"diagnosis,omitempty"`
@@ -89,7 +83,6 @@ type StageRetryProposalInput struct {
 // stageRetryPlan — что применить при этом повторе.
 type stageRetryPlan struct {
 	Source      string
-	Runtime     string
 	Instruction string
 	Criteria    []StageRetryCriterionChange
 	Proposal    string
@@ -97,9 +90,6 @@ type stageRetryPlan struct {
 
 func (p stageRetryPlan) journalNote() string {
 	parts := []string{"источник: " + p.Source}
-	if p.Runtime != "" {
-		parts = append(parts, "среда: "+p.Runtime)
-	}
 	if p.Instruction != "" {
 		parts = append(parts, "указание исполнителю")
 	}
@@ -192,13 +182,6 @@ func (a *App) ProposeStageRetryV2(ctx context.Context, workspaceID string, input
 	proposal := StageRetryProposal{NodeID: nodeID, NodeName: nodeName, FailureAt: failureAt,
 		Diagnosis: truncateRunes(security.Redact(strings.TrimSpace(input.Diagnosis)), 1200),
 		CreatedAt: time.Now().UTC().Format(time.RFC3339Nano)}
-	if runtime := strings.TrimSpace(input.Runtime); runtime != "" {
-		choice, ok := environment.RetryRuntimeChoiceByID(runtime)
-		if !ok {
-			return StageRetryProposal{}, fmt.Errorf("среда %q не из списка: доступны %s", runtime, retryRuntimeChoiceNames())
-		}
-		proposal.Runtime, proposal.RuntimeLabel = choice.ID, choice.Label
-	}
 	instruction := strings.TrimSpace(input.Instruction)
 	if len([]rune(instruction)) > maxRetryInstructionRunes {
 		return StageRetryProposal{}, fmt.Errorf("указание длиннее %d знаков", maxRetryInstructionRunes)
@@ -211,7 +194,7 @@ func (a *App) ProposeStageRetryV2(ctx context.Context, workspaceID string, input
 		}
 		proposal.Criteria = changes
 	}
-	if proposal.Runtime == "" && proposal.Instruction == "" && len(proposal.Criteria) == 0 {
+	if proposal.Instruction == "" && len(proposal.Criteria) == 0 {
 		return StageRetryProposal{}, errors.New("в предложении нет правок: для повтора как есть хватит кнопки «Повторить этап»")
 	}
 	proposal.NeedsApproval = len(proposal.Criteria) > 0
@@ -227,14 +210,6 @@ func (a *App) ProposeStageRetryV2(ctx context.Context, workspaceID string, input
 		return StageRetryProposal{}, err
 	}
 	return proposal, nil
-}
-
-func retryRuntimeChoiceNames() string {
-	names := []string{}
-	for _, choice := range environment.RetryRuntimeChoices() {
-		names = append(names, choice.ID)
-	}
-	return strings.Join(names, ", ")
 }
 
 // validateCriterionChanges — критерий существует, машинный, команда новая и не
@@ -285,7 +260,10 @@ func stageRetryProposalDigest(proposal StageRetryProposal) string {
 	payload, _ := json.Marshal(struct {
 		NodeID, FailureAt, Runtime, Instruction string
 		Criteria                                []StageRetryCriterionChange
-	}{proposal.NodeID, proposal.FailureAt, proposal.Runtime, proposal.Instruction, proposal.Criteria})
+		// Runtime остался в отпечатке пустым полем: прежде предложение могло
+		// нести выбор среды, и уже сохранённые предложения считали отпечаток с
+		// ним. Без поля они стали бы «устаревшими» посреди ожидания человека.
+	}{proposal.NodeID, proposal.FailureAt, "", proposal.Instruction, proposal.Criteria})
 	sum := sha256.Sum256(payload)
 	return "sha256:" + hex.EncodeToString(sum[:])
 }
@@ -323,19 +301,13 @@ func resolveStageRetryPlanV2(quest domain.Quest, request WorkOrderQuestControlRe
 		if source == StageRetrySourceAuto && (!proposal.AutoApply || proposal.NeedsApproval || !stageAutoRetryAvailable(quest, nodeID)) {
 			return stageRetryPlan{}, errStageRetryLimit
 		}
-		plan.Runtime, plan.Instruction, plan.Criteria, plan.Proposal = proposal.Runtime, proposal.Instruction, proposal.Criteria, proposal.Digest
+		plan.Instruction, plan.Criteria, plan.Proposal = proposal.Instruction, proposal.Criteria, proposal.Digest
 		return plan, nil
-	}
-	if runtime := strings.TrimSpace(request.Runtime); runtime != "" {
-		if _, ok := environment.RetryRuntimeChoiceByID(runtime); !ok {
-			return stageRetryPlan{}, fmt.Errorf("среда %q не из списка: доступны %s", runtime, retryRuntimeChoiceNames())
-		}
-		plan.Runtime = runtime
 	}
 	if source == StageRetrySourceAuto {
 		failure, _, _ := stageFailureRecord(quest)
 		auto, _ := failure["autoRetry"].(map[string]any)
-		if allowed, _ := auto["allowed"].(bool); !allowed || plan.Runtime != "" || !stageAutoRetryAvailable(quest, nodeID) {
+		if allowed, _ := auto["allowed"].(bool); !allowed || !stageAutoRetryAvailable(quest, nodeID) {
 			return stageRetryPlan{}, errStageRetryLimit
 		}
 	}
@@ -397,34 +369,4 @@ func amendedCriterionArguments(arguments json.RawMessage, amendment domain.Crite
 		return arguments
 	}
 	return encoded
-}
-
-// stageSandboxRuntime — среда песочницы этапа: из наряда и, если этап
-// повторяется в другой среде, с выбранным вариантом поверх.
-func (a *App) stageSandboxRuntime(ctx context.Context, brief *domain.TaskBrief, questID, flowRunID, nodeID string) sandbox.RuntimeRequirements {
-	requirements := managedSandboxRuntimeForBrief(brief)
-	if choice := a.stageRetryRuntimeChoice(ctx, questID, flowRunID, nodeID); choice != "" {
-		requirements = environment.RuntimeRequirementsWithRetryChoice(requirements, choice)
-	}
-	return requirements
-}
-
-func (a *App) stageRetryRuntimeChoice(ctx context.Context, questID, flowRunID, nodeID string) string {
-	if a == nil || a.store == nil {
-		return ""
-	}
-	if (flowRunID == "" || nodeID == "") && strings.TrimSpace(questID) != "" {
-		if quest, err := a.store.GetQuest(ctx, questID); err == nil {
-			flowRunID, nodeID = quest.FlowRunID, quest.FlowNodeID
-		}
-	}
-	if flowRunID == "" || nodeID == "" {
-		return ""
-	}
-	run, err := a.store.GetFlowRun(ctx, flowRunID)
-	if err != nil {
-		return ""
-	}
-	choice, _ := run.NodeStates[nodeID].Output[retryRuntimeOutputKey].(string)
-	return choice
 }

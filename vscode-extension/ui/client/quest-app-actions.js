@@ -20,7 +20,7 @@ export function handleQuestAppAction({ action, target, ui, vscode, render }) {
     const questId = String(target.dataset.questId || '')
     if (!id || !questId || ui.masterWorkOrderBusy.has(id)) return true
     ui.masterWorkOrderBusy.add(id)
-    vscode.postMessage({ type: 'controlMasterWorkOrderQuestV2', workOrderId: id, questId, action: 'retry', runtime: String(target.dataset.runtime || ''), proposalDigest: String(target.dataset.proposalDigest || '') })
+    vscode.postMessage({ type: 'controlMasterWorkOrderQuestV2', workOrderId: id, questId, action: 'retry', proposalDigest: String(target.dataset.proposalDigest || '') })
     render()
     return true
   }

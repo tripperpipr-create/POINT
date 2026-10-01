@@ -76,16 +76,20 @@ type activeRun struct {
 	pauseReason       string
 	// autoResumeAfter — пауза снимается сама через этот срок (ноль — только
 	// человеком). Нужна паузе provider_unavailable.
-	autoResumeAfter            time.Duration
-	paused                     bool
-	resumeCh                   chan struct{}
-	amendmentsMu               sync.RWMutex
-	amendments                 domain.ExecutionAmendments
-	correlation                runCorrelation
-	finalized                  chan struct{}
-	clock                      *activeClock
-	steps                      *stepBudget
-	checkpointSeq              int
+	autoResumeAfter time.Duration
+	paused          bool
+	resumeCh        chan struct{}
+	amendmentsMu    sync.RWMutex
+	amendments      domain.ExecutionAmendments
+	correlation     runCorrelation
+	finalized       chan struct{}
+	clock           *activeClock
+	steps           *stepBudget
+	checkpointSeq   int
+	// checkpointCost — во что обошлись контрольные точки прогона: каждая
+	// сериализует всю историю разговора и пишет её в SQLite. Число нужно,
+	// чтобы решать о дельтах по замеру, а не по догадке.
+	checkpointCost             checkpointCost
 	sandboxPath                string
 	sandboxImage               string
 	apiKey                     string
@@ -201,6 +205,7 @@ type Engine struct {
 	stopping        bool
 	publishFailures atomic.Int64
 	processExecutor sandbox.ProcessExecutor
+	stageVerifier   StageVerifier
 	budgets         ModelBudgetController
 	toolSessions    ToolSessionOpener
 	cliFactory      func(executors.Kind) executors.Executor

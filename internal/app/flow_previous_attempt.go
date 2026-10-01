@@ -139,3 +139,13 @@ func previousAttemptContext(flowRun domain.FlowRun, nodeID string) (domain.RunCo
 	}
 	return domain.RunContextInput{Kind: domain.ContextText, Label: "Прерванная попытка этапа", Content: summary}, true
 }
+
+// retryInstructionContext — указание к повтору этапа от Мастера, принятое
+// сервером: что учесть в новой попытке. Цель, права и критерии оно не меняет.
+func retryInstructionContext(flowRun domain.FlowRun, nodeID string) (domain.RunContextInput, bool) {
+	instruction, _ := flowRun.NodeStates[nodeID].Output[retryInstructionOutputKey].(string)
+	if strings.TrimSpace(instruction) == "" {
+		return domain.RunContextInput{}, false
+	}
+	return domain.RunContextInput{Kind: domain.ContextText, Label: "Указание к повтору этапа", Content: instruction}, true
+}

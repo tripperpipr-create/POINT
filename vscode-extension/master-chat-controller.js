@@ -1,6 +1,6 @@
 const { pickMasterContext, previewMasterContext, searchMasterContext, attachMasterContextPath } = require('./master-context-controller')
 const { followMasterTurn } = require('./master-turn-stream')
-const { watchMasterWorkOrder, watchMasterWorkOrders, projectScope } = require('./master-work-order-watch')
+const { watchMasterWorkOrder, watchMasterWorkOrders, askMasterAboutStageFailure, projectScope } = require('./master-work-order-watch')
 const { offerMasterChatBranch } = require('./master-chat-branch')
 const vscode = require('vscode')
 const { spawn } = require('child_process')
@@ -389,6 +389,13 @@ async function handleMasterMessage(message) {
           post({type:'masterWorkOrderControlled',workOrder,viewId:message.viewId})
           break
         }
+        case 'analyzeStageFailureWithMaster': {
+          // Ручной разбор провала: та же реплика, что шлёт наблюдатель сам.
+          const workOrder=await this.service.request('/api/v2/work-orders/'+encodeURIComponent(String(message.workOrderId || '')))
+          const asked=await askMasterAboutStageFailure(this,workOrder,message.conversationId,{manual:true})
+          if(!asked) post({type:'masterBranchNotice',tone:'error',message:'Мастер не взялся за разбор: нет провала этапа или разговора наряда',viewId:message.viewId})
+          break
+        }
         case 'controlMasterWorkOrderQuestV2': {
           const questId=String(message.questId || '')
           const workOrderId=String(message.workOrderId || '')
@@ -400,8 +407,11 @@ async function handleMasterMessage(message) {
 			const connectionId=routing.mode==='auto' ? routing.routerConnectionId : routing.fixedConnectionId
 			apiKey=connectionId ? await this.credentialFor({connectionId},'утверждённого маршрута WorkOrder') : await this.credentialForOrchestrator()
 		  }
+          // Повтор этапа может нести среду из списка или предложение Мастера,
+          // которое человек разрешил; ядро перепроверяет и то и другое.
+          const retry=action==='retry' ? {runtime:String(message.runtime || ''),proposalDigest:String(message.proposalDigest || '')} : {}
           const result=await this.service.request('/api/v2/master/quests/'+encodeURIComponent(questId)+'/'+encodeURIComponent(action),{
-            method:'POST',body:JSON.stringify({message:String(message.message || ''),apiKey})
+            method:'POST',body:JSON.stringify({message:String(message.message || ''),apiKey,...retry})
           })
           const workOrder=await this.service.request('/api/v2/work-orders/'+encodeURIComponent(workOrderId))
           post({type:'masterWorkOrderControlled',result,workOrder,viewId:message.viewId})

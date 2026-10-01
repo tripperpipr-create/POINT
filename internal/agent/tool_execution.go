@@ -242,10 +242,19 @@ func (e *Engine) executeTool(ctx context.Context, active *activeRun, profile dom
 		"error_message", observability.Snippet(security.Redact(errMsg), 240),
 	)
 	var integrityErr error
+	// Сколько стоит аудит рабочей папки вокруг команды: два обхода дерева и
+	// запись изменений. На Windows с антивирусом обход после команды доходил
+	// до десятков секунд, и без этого числа его не отличить от самой команды.
+	timing := map[string]int64{}
+	if auditedExecutable {
+		timing["auditBeforeMs"] = beforeTook.Milliseconds()
+	}
+	auditStarted := time.Now()
 	if auditedExecutable {
 		after, auditErr := captureAfterExecutable(func(ctx context.Context) (workspace.TextSnapshot, error) {
 			return patches.FS.CaptureTextSnapshotFrom(ctx, &before)
 		}, postToolAuditTimeout(beforeTook))
+		timing["auditAfterMs"] = time.Since(auditStarted).Milliseconds()
 		active.lastSnapshot = nil
 		if auditErr == nil && after.Complete {
 			active.lastSnapshot = &after
@@ -268,7 +277,12 @@ func (e *Engine) executeTool(ctx context.Context, active *activeRun, profile dom
 			}
 		}
 	}
-	if err := e.publish(context.Background(), e.snapshot(active), domain.EventToolFinished, "agent", map[string]any{"tool": call.Name, "callId": call.ID, "durationMs": durationMs, "result": result}); err != nil {
+	finished := map[string]any{"tool": call.Name, "callId": call.ID, "durationMs": durationMs, "result": result}
+	if auditedExecutable {
+		timing["auditTotalMs"] = time.Since(auditStarted).Milliseconds() + timing["auditBeforeMs"]
+		finished["timing"] = timing
+	}
+	if err := e.publish(context.Background(), e.snapshot(active), domain.EventToolFinished, "agent", finished); err != nil {
 		return result, fmt.Errorf("%w: unknown_outcome: tool ran but its result was not persisted: %v", errToolJournalIntegrity, err)
 	}
 	return result, integrityErr

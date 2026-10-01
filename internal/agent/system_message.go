@@ -140,11 +140,16 @@ func verificationToolDisplayNames(profile domain.AgentProfile, customTools []dom
 			ordered = append(ordered, "run_command")
 		}
 	}
+	// Остаток — по алфавиту: обход map случаен, а системное сообщение обязано
+	// быть одинаковым от вызова к вызову, иначе кэш префикса у провайдера
+	// промахивается на первом же токене после этого места.
+	rest := make([]string, 0, len(names))
 	for name := range names {
 		if _, already := seen[name]; already || name == "run_command" {
 			continue
 		}
-		ordered = append(ordered, name)
+		rest = append(rest, name)
 	}
-	return ordered
+	sort.Strings(rest)
+	return append(ordered, rest...)
 }

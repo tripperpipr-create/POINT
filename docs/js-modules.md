@@ -33,7 +33,7 @@ webview. У них нет ни `require`, ни `vscode` — только объ�
 **Группа сообщений** — `handleXxxMessage.call(this, message)`. Однородное
 семейство `case`-веток уезжает в модуль, провайдер приходит как `this`. Так
 устроены `vscode-extension/master-chat-controller.js`,
-`vscode-extension/master-chat-branch.js` (предложение ветки, Git worktree и переключение чата),
+`vscode-extension/master-chat-branch.js` (предложение ветки, Git worktree и переключение чата; в папке без своего Git — worktree каждого вложенного репозитория с откатом при частичном сбое),
 `vscode-extension/infra-controller.js`,
 `vscode-extension/hub-runtime-controller.js`,
 `vscode-extension/roster-controller.js`,
@@ -182,7 +182,14 @@ workflow — `vscode-extension/ui/client/drag-drop.js`. Экранировани
 `vscode-extension/ui/client/quest-app-views.js`; их живое состояние (ответы
 хоста `masterApplicationState` и `masterReportState`) держит
 `vscode-extension/ui/client/quest-app-state.js`, нажатия разбирает
-`vscode-extension/ui/client/quest-app-actions.js`. Вид приложения, способ
+`vscode-extension/ui/client/quest-app-actions.js` (там же повтор проваленного
+этапа в выбранной среде или по разрешённому предложению Мастера и кнопка
+«Разобрать с Мастером»). Разобранный провал этапа — причину каждой проверки,
+авто-повтор и карточку разрешения правки проверки — рисует
+`vscode-extension/ui/client/stage-failure-views.js` (там же строка «Проверки
+Point перед приёмкой: N из M прошли» из `runtime.preAcceptCheck`); повтор без человека по
+решению ядра и разбор провала Мастером запускает наблюдатель наряда
+(`stageFailureAutopilot` в `vscode-extension/master-work-order-watch.js`). Вид приложения, способ
 запуска и вывод `docker compose` отдаёт ядро: `GET
 /api/v2/master/quests/{id}/application` (`internal/app/delivered_app_state_v2.go`).
 Блок «Что Point вынес из квеста» у завершённого квеста рисует

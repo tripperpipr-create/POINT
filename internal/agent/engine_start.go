@@ -122,6 +122,7 @@ func (e *Engine) Start(input StartInput) (domain.Run, error) {
 			ExecutionID: input.ExecutionID, QuestID: input.QuestID,
 			FlowRunID: input.FlowRunID, FlowNodeID: input.FlowNodeID,
 			CompletionCheckKind: strings.TrimSpace(input.CompletionCheckKind),
+			StageRole:           strings.TrimSpace(input.StageRole),
 		},
 	}
 	if len(input.ForbiddenPaths) > 0 {
@@ -276,6 +277,7 @@ func (e *Engine) ContinueFromCheckpoint(input StartInput, existing domain.Run, c
 			FlowRunID:           textutil.FirstNonEmpty(checkpoint.FlowRunID, input.FlowRunID),
 			FlowNodeID:          textutil.FirstNonEmpty(checkpoint.FlowNodeID, input.FlowNodeID),
 			CompletionCheckKind: strings.TrimSpace(input.CompletionCheckKind),
+			StageRole:           strings.TrimSpace(input.StageRole),
 		},
 	}
 	active.clock.restore(checkpoint.ActiveElapsedMs, checkpoint.ActiveTimeExtensions, activeBudget)

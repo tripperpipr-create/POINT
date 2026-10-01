@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"local-agent-workbench/internal/agent"
+	"local-agent-workbench/internal/diagnostics"
 	"local-agent-workbench/internal/domain"
-	projectenv "local-agent-workbench/internal/environment"
 	"local-agent-workbench/internal/flowruntime"
 	"local-agent-workbench/internal/sandbox"
 	"local-agent-workbench/internal/security"
@@ -429,30 +429,59 @@ func toolResultExitCode(result domain.ToolResult) int {
 	return payload.ExitCode
 }
 
+// deterministicAcceptFailureDetail — причина провала проверки. run_command
+// разбирает её сам (поле cause); прежде здесь бралась первая строка со словом
+// failed, и приёмка 30.09 сказала «x Build failed in 17.43s» вместо «npm 12
+// заблокировал скрипты установки».
 func deterministicAcceptFailureDetail(result domain.ToolResult) string {
-	if result.Error != nil && strings.TrimSpace(result.Error.Message) != "" {
-		return truncateRunes(security.Redact(strings.TrimSpace(result.Error.Message)), 160)
-	}
-	var payload struct {
-		Stderr string `json:"stderr"`
-	}
-	if json.Unmarshal(result.Output, &payload) != nil {
+	failure, ok := acceptCheckFailure(result)
+	if !ok {
 		return ""
 	}
-	line := ""
-	for _, candidate := range strings.Split(payload.Stderr, "\n") {
-		candidate = strings.TrimSpace(candidate)
-		if line == "" && candidate != "" {
-			line = candidate
-		}
-		lower := strings.ToLower(candidate)
-		if (strings.Contains(lower, "error") || strings.Contains(lower, "failed") || strings.Contains(lower, "not exported")) &&
-			!strings.Contains(lower, "complete log") && !strings.Contains(lower, "error code") && !strings.Contains(lower, "error command") {
-			line = candidate
-			break
-		}
+	return truncateRunes(security.Redact(failure.Cause), 300)
+}
+
+// acceptCheckDetail — вывод проверки и образ, в котором она шла. Без образа
+// провал 30.09 выглядел ошибкой проекта: никто не видел, что приёмка шла под
+// npm 12, а исполнители — под npm 10.
+func acceptCheckDetail(output json.RawMessage, record domain.SandboxRecord) string {
+	var payload map[string]any
+	if json.Unmarshal(output, &payload) != nil || payload == nil {
+		return string(output)
 	}
-	return truncateRunes(security.Redact(line), 160)
+	if image := strings.TrimSpace(record.BackendImage); image != "" {
+		payload["sandboxImage"] = image
+	}
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return string(output)
+	}
+	return string(encoded)
+}
+
+func acceptCheckFailure(result domain.ToolResult) (diagnostics.CommandFailure, bool) {
+	if result.Error != nil && strings.TrimSpace(result.Error.Message) != "" {
+		failure, _ := diagnostics.DiagnoseCommand(diagnostics.CommandRun{ExitCode: 1, Stderr: result.Error.Message})
+		failure.Cause = strings.TrimSpace(result.Error.Message)
+		return failure, true
+	}
+	var payload struct {
+		Stdout     string `json:"stdout"`
+		Stderr     string `json:"stderr"`
+		ExitCode   int    `json:"exitCode"`
+		TimedOut   bool   `json:"timedOut"`
+		Cause      string `json:"cause"`
+		CauseClass string `json:"causeClass"`
+		CauseHint  string `json:"causeHint"`
+	}
+	if json.Unmarshal(result.Output, &payload) != nil {
+		return diagnostics.CommandFailure{}, false
+	}
+	if payload.Cause != "" {
+		// Вывод разобран там, где знали команду и решения шлюза.
+		return diagnostics.CommandFailure{Class: payload.CauseClass, Cause: payload.Cause, Hint: payload.CauseHint}, true
+	}
+	return diagnostics.DiagnoseCommand(diagnostics.CommandRun{ExitCode: payload.ExitCode, TimedOut: payload.TimedOut, Stdout: payload.Stdout, Stderr: payload.Stderr})
 }
 
 // criteriaSupportDeterministicAccept is true when every parent criterion is a
@@ -511,10 +540,6 @@ func (a *App) tryDeterministicAccept(quest domain.Quest, flowRun domain.FlowRun,
 	if err != nil {
 		return true, flowRun, err
 	}
-	sandboxFS, err := workspace.Open(sandboxRecord.Path)
-	if err != nil {
-		return true, flowRun, err
-	}
 	hosts := bootstrapNetworkHosts(a, flowRun, projectAgent)
 	policy := "DENY"
 	if len(hosts) > 0 {
@@ -546,93 +571,26 @@ func (a *App) tryDeterministicAccept(quest domain.Quest, flowRun domain.FlowRun,
 		return true, flowRun, err
 	}
 
-	tool := tools.RunCommand{
-		FS: sandboxFS, NetworkPolicy: policy, AllowedNetworkHosts: hosts,
-		Executor: a.sandboxProcessExecutor(), RunID: runID, QuestID: flowRun.QuestID,
-		DefaultTimeout: 10 * time.Minute, MaxOutput: 256 * 1024,
+	batchInput := criteriaBatchInput{
+		QuestID: flowRun.QuestID, RunID: runID, Criteria: brief.Criteria, Sandbox: sandboxRecord,
+		NetworkPolicy: policy, NetworkHosts: hosts,
+	}
+	if approvalErr == nil {
+		batchInput.WorkOrder = &approval.WorkOrder
+	}
+	batch, verificationNote, err := a.acceptCriteriaBatch(context.Background(), batchInput, flowRun, exec.ID)
+	if err != nil {
+		return true, flowRun, err
 	}
 	evidence := agent.CompletionEvidence{
 		BriefVersion: brief.Version, WorkspaceRevision: 0, Status: "verified",
-		Criteria: make([]agent.CriterionEvidence, 0, len(brief.Criteria)),
+		Criteria: batch.Criteria,
 	}
-	allOK := true
-	summaries := make([]string, 0, len(brief.Criteria))
-	for _, criterion := range brief.Criteria {
-		if criterion.Kind == "manual" {
-			evidence.Criteria = append(evidence.Criteria, agent.CriterionEvidence{
-				CriterionID: criterion.ID, Text: criterion.Text, Kind: criterion.Kind, Status: "needs_review",
-			})
-			evidence.Status = "needs_review"
-			summaries = append(summaries, criterion.ID+": manual acceptance pending")
-			continue
-		}
-		if approvalErr == nil && deferredHostCriterionV2(approval.WorkOrder, criterion) {
-			evidence.Criteria = append(evidence.Criteria, agent.CriterionEvidence{
-				CriterionID: criterion.ID, Text: criterion.Text, Kind: criterion.Kind,
-				Status: "unavailable", ExpectedExitCode: criterion.ExpectedExitCode,
-			})
-			evidence.Status = "needs_review"
-			summaries = append(summaries, criterion.ID+": awaiting delivered workspace")
-			continue
-		}
-		var args map[string]any
-		_ = json.Unmarshal(criterion.Arguments, &args)
-		if args == nil {
-			args = map[string]any{}
-		}
-		if masked, fragment, ok := maskedCriterionEvidence(criterion, args); ok {
-			evidence.Criteria = append(evidence.Criteria, masked)
-			evidence.Status = "needs_review"
-			summaries = append(summaries, criterion.ID+": command masks its exit code ("+fragment+")")
-			continue
-		}
-		if _, ok := args["timeoutSeconds"]; !ok {
-			args["timeoutSeconds"] = 300
-		}
-		if _, ok := args["reason"]; !ok {
-			args["reason"] = "deterministic accept: " + criterion.ID
-		}
-		if cmd, _ := args["command"].(string); strings.TrimSpace(cmd) != "" {
-			args["command"] = projectenv.ResolvePHPVerificationCommand(sandboxRecord.Path, cmd)
-		}
-		raw, _ := json.Marshal(args)
-		ctx, cancel := context.WithTimeout(context.Background(), 12*time.Minute)
-		result := tool.Execute(ctx, raw)
-		cancel()
-		exit := toolResultExitCode(result)
-		expected := 0
-		if criterion.ExpectedExitCode != nil {
-			expected = *criterion.ExpectedExitCode
-		}
-		ce := agent.CriterionEvidence{
-			CriterionID: criterion.ID, Text: criterion.Text, Kind: criterion.Kind,
-			ExpectedExitCode: criterion.ExpectedExitCode,
-			Check: &agent.CheckEvidence{
-				Tool: criterion.Tool, Arguments: criterion.Arguments, ExitCode: &exit,
-				Detail: string(result.Output), Status: "passed",
-			},
-		}
-		if !result.OK || exit != expected {
-			allOK = false
-			ce.Status = "failed"
-			if ce.Check != nil {
-				ce.Check.Status = "unresolved"
-			}
-			if result.Error != nil {
-				ce.Check.Detail = result.Error.Message
-			}
-			commandText, _ := args["command"].(string)
-			failure := fmt.Sprintf("%s: %q exited %d (expected %d)", criterion.ID, truncateRunes(security.Redact(commandText), 100), exit, expected)
-			if detail := deterministicAcceptFailureDetail(result); detail != "" {
-				failure += " (" + detail + ")"
-			}
-			summaries = append(summaries, failure)
-		} else {
-			ce.Status = "satisfied"
-			summaries = append(summaries, criterion.ID+": ok")
-		}
-		evidence.Criteria = append(evidence.Criteria, ce)
+	if batch.NeedsReview {
+		evidence.Status = "needs_review"
 	}
+	allOK := batch.AllOK
+	summaries := batch.Summaries
 	for _, drift := range a.candidateLockfileDrift(flowRun, sandboxRecord.Path) {
 		allOK = false
 		evidence.Criteria = append(evidence.Criteria, lockfileDriftEvidence(drift))
@@ -648,7 +606,7 @@ func (a *App) tryDeterministicAccept(quest domain.Quest, flowRun domain.FlowRun,
 		checkStatus = "rejected"
 	}
 	checkPayload, _ := json.Marshal(map[string]any{
-		"status": checkStatus, "evidence": evidence, "checkKind": "accept",
+		"status": checkStatus, "evidence": evidence, "checkKind": "accept", "verificationService": verificationNote,
 	})
 	if err = a.store.Append(context.Background(), domain.Event{
 		ID: domain.NewID("event"), RunID: runID, Type: domain.EventCompletionChecked, Actor: "system",

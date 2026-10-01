@@ -1,4 +1,5 @@
-// Нажатия блока приложения и кнопки отчёта в карточке прогона.
+// Нажатия блока приложения, кнопки отчёта и повтора проваленного этапа в
+// карточке прогона.
 //
 // Жили в master-actions.js, который стоит у потолка своего бюджета строк
 // (scripts/check-release-contracts.mjs); выросли, когда у приложения появились
@@ -7,11 +8,27 @@
 
 import { markQuestAppPending, questReports } from './quest-app-state.js'
 
-const ACTIONS = new Set(['control-master-application-v2', 'generate-work-order-report', 'open-work-order-report'])
+const ACTIONS = new Set(['control-master-application-v2', 'generate-work-order-report', 'open-work-order-report', 'retry-work-order-stage', 'analyze-stage-failure'])
 const APP_CONTROLS = new Set(['start', 'stop', 'open', 'terminal'])
 
 export function handleQuestAppAction({ action, target, ui, vscode, render }) {
   if (!ACTIONS.has(action)) return false
+  // Повтор проваленного этапа в выбранной среде или по предложению Мастера,
+  // которое человек разрешил. Ядро перепроверяет и среду, и предложение.
+  if (action === 'retry-work-order-stage') {
+    const id = String(target.dataset.id || '')
+    const questId = String(target.dataset.questId || '')
+    if (!id || !questId || ui.masterWorkOrderBusy.has(id)) return true
+    ui.masterWorkOrderBusy.add(id)
+    vscode.postMessage({ type: 'controlMasterWorkOrderQuestV2', workOrderId: id, questId, action: 'retry', runtime: String(target.dataset.runtime || ''), proposalDigest: String(target.dataset.proposalDigest || '') })
+    render()
+    return true
+  }
+  if (action === 'analyze-stage-failure') {
+    const id = String(target.dataset.id || '')
+    if (id) vscode.postMessage({ type: 'analyzeStageFailureWithMaster', workOrderId: id, conversationId: String(ui.masterData?.sessions?.active || '') })
+    return true
+  }
   if (action === 'control-master-application-v2') {
     const id = String(target.dataset.id || '')
     const questId = String(target.dataset.questId || '')

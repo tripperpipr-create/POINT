@@ -29,6 +29,7 @@ import { diffCountHtml, diffStats } from './diff-view.js'
 import { questApplicationHtml, questReportHtml } from './quest-app-views.js'
 import { preparedFilesHtml } from './quest-prepared-views.js'
 import { questRetrospectiveHtml } from './quest-retrospective-views.js'
+import { preAcceptNoteHtml } from './stage-failure-views.js'
 
 const LIVE = new Set(['preflight', 'running', 'verifying', 'applying'])
 // Работающий или остановленный квест остаётся частью ленты разговора: этапы,
@@ -371,6 +372,7 @@ export function questRunHtml(order, ui, deps = {}) {
         ${questRetrospectiveHtml(order, ui, esc)}
         ${deps.createdHtml || ''}
         ${parts.provisioning || ''}
+        ${preAcceptNoteHtml(runtime, esc)}
         ${/* Остановленный вердиктом квест журнала не ждёт: «Загружаем журнал…»
              у него висело бы вечно. Причину затыка и пустой идущий этап пустота
              объясняет сама. */''}

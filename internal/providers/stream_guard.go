@@ -22,9 +22,26 @@ import (
 // оборванное соединение держало прогон до общего срока.
 const defaultStreamIdleSeconds = 180
 
+// Сколько поток может молчать до первого байта тела. Prefill длинного
+// контекста на локальной модели — законные минуты, поэтому срок щедрый; но
+// он есть: сервер, отдавший заголовки и замолчавший, держал прогон 6,5 часа,
+// потому что сторож тишины ждал первого байта, которого не было.
+const defaultStreamFirstByteSeconds = 1800
+
 // errStreamStalled — поток начался и замолчал дольше срока тишины. Ошибка
 // временная: тот же запрос повторяется, как при обрыве соединения.
 var errStreamStalled = errors.New("provider stream stalled: no data within the idle timeout")
+
+func (c Config) streamFirstByte() time.Duration {
+	switch {
+	case c.StreamFirstByteSeconds < 0:
+		return 0
+	case c.StreamFirstByteSeconds == 0:
+		return defaultStreamFirstByteSeconds * time.Second
+	default:
+		return time.Duration(c.StreamFirstByteSeconds) * time.Second
+	}
+}
 
 func (c Config) streamIdle() time.Duration {
 	switch {
@@ -37,22 +54,32 @@ func (c Config) streamIdle() time.Duration {
 	}
 }
 
-// idleReader закрывает тело ответа, если после первого байта оно молчит
-// дольше idle. Чтение, прерванное таким закрытием, возвращает errStreamStalled,
-// а не безликую ошибку закрытого соединения.
+// idleReader закрывает тело ответа, если оно молчит дольше срока: до первого
+// байта — firstByte, после — idle. Чтение, прерванное таким закрытием,
+// возвращает errStreamStalled, а не безликую ошибку закрытого соединения.
 type idleReader struct {
 	body    io.ReadCloser
 	idle    time.Duration
 	mu      sync.Mutex
 	timer   *time.Timer
+	started bool
 	stalled atomic.Bool
 }
 
-func newIdleReader(body io.ReadCloser, idle time.Duration) io.ReadCloser {
-	if idle <= 0 {
+func newIdleReader(body io.ReadCloser, idle, firstByte time.Duration) io.ReadCloser {
+	if idle <= 0 && firstByte <= 0 {
 		return body
 	}
-	return &idleReader{body: body, idle: idle}
+	r := &idleReader{body: body, idle: idle}
+	if firstByte > 0 {
+		r.timer = time.AfterFunc(firstByte, r.stall)
+	}
+	return r
+}
+
+func (r *idleReader) stall() {
+	r.stalled.Store(true)
+	_ = r.body.Close()
 }
 
 func (r *idleReader) Read(p []byte) (int, error) {
@@ -62,13 +89,18 @@ func (r *idleReader) Read(p []byte) (int, error) {
 	}
 	if n > 0 {
 		r.mu.Lock()
-		if r.timer == nil {
-			r.timer = time.AfterFunc(r.idle, func() {
-				r.stalled.Store(true)
-				_ = r.body.Close()
-			})
-		} else {
+		switch {
+		case r.started && r.timer != nil:
 			r.timer.Reset(r.idle)
+		case !r.started:
+			r.started = true
+			if r.timer != nil {
+				r.timer.Stop()
+				r.timer = nil
+			}
+			if r.idle > 0 {
+				r.timer = time.AfterFunc(r.idle, r.stall)
+			}
 		}
 		r.mu.Unlock()
 	}

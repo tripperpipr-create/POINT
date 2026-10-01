@@ -93,6 +93,11 @@ type ModelEvent struct {
 	// 20 132 входных токенов свежими были 10.
 	CacheReadTokens  int `json:"cacheReadTokens,omitempty"`
 	CacheWriteTokens int `json:"cacheWriteTokens,omitempty"`
+	// CachedInputTokens — часть InputTokens, которую провайдер взял из кэша
+	// префикса (OpenAI prompt_tokens_details.cached_tokens, Anthropic
+	// cache_read_input_tokens). В отличие от CacheReadTokens она уже входит в
+	// InputTokens: это замер попадания в кэш, а не отдельная статья расхода.
+	CachedInputTokens int `json:"cachedInputTokens,omitempty"`
 	// CostMicroUSD — стоимость обращения в стотысячных долях доллара. Целое
 	// вместо дробного намеренно: деньги, сложенные из float, расходятся с суммой
 	// по строкам, и объяснить это человеку нечем.
@@ -133,6 +138,9 @@ type Config struct {
 	// StreamIdleSeconds — сколько поток может молчать после первого байта.
 	// Ноль — умолчание (defaultStreamIdleSeconds), отрицательное — без сторожа.
 	StreamIdleSeconds int
+	// StreamFirstByteSeconds — сколько поток может молчать до первого байта тела.
+	// Ноль — умолчание (defaultStreamFirstByteSeconds), отрицательное — без срока.
+	StreamFirstByteSeconds int
 	// MCPConfigJSON — конфигурация MCP-сервера Point для исполнителей, которые
 	// принимают чужие инструменты только так. Внутри адрес и ключ сессии,
 	// выданный одной сущности на время одного разговора.

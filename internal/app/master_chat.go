@@ -120,6 +120,9 @@ func (a *App) masterChatService(ctx context.Context, briefing orchestrator.Proje
 	a.mu.RUnlock()
 	workspaceID := a.currentWorldID()
 	reading := newMasterReadTools(fs, a.store, workspaceID)
+	reading.proposeRetry = func(ctx context.Context, input StageRetryProposalInput) (StageRetryProposal, error) {
+		return a.ProposeStageRetryV2(ctx, workspaceID, input)
+	}
 	return orchestrator.ChatService{
 		ReadTools: reading,
 		Store:     a.store,

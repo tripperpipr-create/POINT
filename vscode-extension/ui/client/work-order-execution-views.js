@@ -1,6 +1,7 @@
 import { masterPlanHtml, masterPlanState } from './master-plan-views.js'
 import { formatElapsed, list } from './format-units.js'
 import { stageFlowNode, stageLabel, stageLabelText } from './stage-labels.js'
+import { stageFailureHtml } from './stage-failure-views.js'
 
 // Экран выполнения утверждённого наряда.
 //
@@ -19,7 +20,6 @@ import { stageFlowNode, stageLabel, stageLabelText } from './stage-labels.js'
 // Строку прогона и порядок частей собирает quest-run-views.js: здесь только
 // сами части, чтобы их можно было ставить в разном порядке у идущего и у
 // законченного квеста.
-
 
 // Пометка этапа, которую перечень плана рисует справа. Совпадает по смыслу с
 // STAGE_NOTE ленты разговора: состояние узла, а не его название.
@@ -156,8 +156,8 @@ export function workOrderExecutionParts(order, ui, deps = {}) {
   const stallHtml = stall ? `<div class="work-order-exec-stall">
       <b>${esc(stallTitle)}</b>
       ${stall.nodeName || stall.nodeId ? `<small>Этап «${esc(stallName || stall.nodeName || stall.nodeId)}»</small>` : ''}
-      ${stall.error ? `<p>${esc(stall.error)}</p>` : ''}
-      ${stall.waitReason === 'stage_failed' ? `<div>${runtime.status === 'awaiting_user' ? ['retry:Повторить этап:hall-btn is-primary', 'finalize:Завершить квест:hall-btn'].map(item => item.split(':')).map(([control, label, cls]) => `<button type="button" class="${cls}" data-action="control-master-work-order-v2" data-control="${control}" data-id="${esc(order.id)}" data-quest-id="${esc(runtime.questId || '')}">${label}</button>`).join('') : ''}<button type="button" class="hall-btn" data-action="revise-master-work-order-v2" data-id="${esc(order.id)}">Обсудить новую версию</button></div>` : ''}
+      ${stall.error && !runtime.stageFailure?.diagnosis?.checks?.length ? `<p>${esc(stall.error)}</p>` : ''}
+      ${stall.waitReason === 'stage_failed' ? stageFailureHtml(order, runtime, esc) : ''}
     </div>` : ''
   const plan = launchPlan(runtime, esc) || masterPlanHtml('Этапы', workOrderStageRows(order, ui, deps), esc, { limit: 12 })
   const transcript = transcriptFor(order, ui, deps)

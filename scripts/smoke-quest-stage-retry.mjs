@@ -9,6 +9,7 @@ import assert from 'node:assert/strict'
 import { workOrderExecutionParts } from '../vscode-extension/ui/client/work-order-execution-views.js'
 import { handleMasterClickAction } from '../vscode-extension/ui/client/master-actions.js'
 import { esc } from '../vscode-extension/ui/client/html-escape.js'
+import { preAcceptNoteHtml } from '../vscode-extension/ui/client/stage-failure-views.js'
 
 const order = status => ({ id: 'order-1', runtime: {
   questId: 'quest-1', status,
@@ -32,4 +33,56 @@ assert.equal(posted[0]?.type, 'controlMasterWorkOrderQuestV2')
 assert.equal(posted[0]?.action, 'retry')
 handleMasterClickAction({ action: 'control-master-work-order-v2', target, ui, render() {}, vscode: { postMessage: message => posted.push(message) } })
 assert.equal(posted.length, 1, 'double click sends one retry')
-console.log(JSON.stringify({ stageRetry: 'ok', heldButtons: true, verdictHasNoRetry: true, oneRequest: true }))
+
+// Разобранный провал (30.09): причина по каждой проверке вместо «x Build
+// failed», образ проверки, среды для повтора — рекомендованная первой.
+const diagnosed = orderStatus => {
+  const value = order(orderStatus)
+  value.runtime.stall.error = 'Accept: verify-pack: x Build failed in 17.43s'
+  value.runtime.stageFailure = {
+    at: '2026-09-30T12:37:56Z', nodeId: 'verify', nodeName: 'Accept', autoRetry: { allowed: false },
+    runtimeChoices: [{ id: 'node20', label: 'Node 20 (npm 10)' }, { id: 'node22', label: 'Node 22 (npm 10)' }],
+    diagnosis: { class: 'runtime', image: 'point-agent-sandbox:release', checks: [
+      { criterionId: 'verify-pack', command: 'cd cf-vue-apps && npm ci && npm run verify', class: 'runtime', cause: 'npm 12 заблокировал скрипты установки: vue-demi, ssh2', hint: 'повторить в образе Node 20 или 22' },
+    ] },
+  }
+  return value
+}
+const why = workOrderExecutionParts(diagnosed('awaiting_user'), {}, { esc })?.stall || ''
+assert.ok(why.includes('npm 12 заблокировал скрипты установки') && why.includes('verify-pack') && why.includes('point-agent-sandbox:release'), 'the cause, not the build summary')
+assert.ok(!why.includes('x Build failed in 17.43s'), 'the raw summary is replaced by the diagnosis')
+assert.ok(why.indexOf('data-runtime="node20"') < why.indexOf('data-control="retry"'), 'a runtime cause puts the runtime retry first')
+assert.ok(why.includes('data-action="analyze-stage-failure"') && why.includes('Разобрать с Мастером'), 'the Master can be asked')
+
+// Сбой среды Point повторит сам — человек видит это, а не ждёт кнопки.
+const environment = diagnosed('awaiting_user')
+environment.runtime.stageFailure.autoRetry = { allowed: true, delaySeconds: 30, attempt: 1, max: 2 }
+assert.ok((workOrderExecutionParts(environment, {}, { esc })?.stall || '').includes('Point повторит этап сам через 30 с'), 'automatic retry is announced')
+
+// Правка проверки ждёт разрешения: было и станет рядом, одна кнопка.
+const amended = diagnosed('awaiting_user')
+amended.runtime.stageRetryProposal = { digest: 'sha256:abc', needsApproval: true, autoApply: false, diagnosis: 'npm pack не создаёт каталог',
+  criteria: [{ criterionId: 'tgz-content', previousCommand: 'npm pack --pack-destination /tmp/p', command: 'mkdir -p /tmp/p && npm pack --pack-destination /tmp/p', reason: 'нет каталога' }] }
+const card = workOrderExecutionParts(amended, {}, { esc })?.stall || ''
+assert.ok(card.includes('Разрешить и повторить') && card.includes('data-proposal-digest="sha256:abc"'), 'approval button carries the proposal digest')
+assert.ok(card.includes('mkdir -p /tmp/p &amp;&amp; npm pack') && card.includes('было') && card.includes('станет'), 'the exact diff is shown')
+
+const sent = []
+const retryUi = { masterWorkOrderBusy: new Set(), masterData: { sessions: { active: 'chat-1' } } }
+const click = (action, dataset) => handleMasterClickAction({ action, target: { dataset, closest: () => null }, ui: retryUi, render() {}, vscode: { postMessage: message => sent.push(message) } })
+assert.equal(click('retry-work-order-stage', { id: 'order-1', questId: 'quest-1', proposalDigest: 'sha256:abc' }), true)
+assert.deepEqual([sent[0].type, sent[0].action, sent[0].proposalDigest], ['controlMasterWorkOrderQuestV2', 'retry', 'sha256:abc'])
+retryUi.masterWorkOrderBusy.clear()
+click('retry-work-order-stage', { id: 'order-1', questId: 'quest-1', runtime: 'node20' })
+assert.equal(sent[1].runtime, 'node20')
+click('analyze-stage-failure', { id: 'order-1' })
+assert.deepEqual([sent[2].type, sent[2].conversationId], ['analyzeStageFailureWithMaster', 'chat-1'])
+// Проверка Point перед приёмкой: карточка говорит, сколько проверок прошло, а
+// без прогона молчит.
+assert.equal(preAcceptNoteHtml({}, esc), '')
+assert.equal(preAcceptNoteHtml({ preAcceptCheck: { passed: 0, total: 0, allPassed: true } }, esc), '')
+const failedNote = preAcceptNoteHtml({ preAcceptCheck: { passed: 1, total: 3, allPassed: false } }, esc)
+assert.ok(failedNote.includes('1 из 3 прошли') && failedNote.includes('исправляет') && failedNote.includes('data-pre-accept-check="failed"'), failedNote)
+const passedNote = preAcceptNoteHtml({ preAcceptCheck: { passed: 3, total: 3, allPassed: true } }, esc)
+assert.ok(passedNote.includes('3 из 3 прошли') && !passedNote.includes('исправляет'), passedNote)
+console.log(JSON.stringify({ stageRetry: 'ok', heldButtons: true, verdictHasNoRetry: true, oneRequest: true, diagnosis: true, autoRetryNotice: true, approvalCard: true, preAcceptNote: true }))

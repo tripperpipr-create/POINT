@@ -153,6 +153,11 @@ func (h *conversationHistory) ReplaceStable(stable []providers.Message) {
 	h.stable = append([]providers.Message(nil), stable...)
 }
 
+// compactionTargetPercent — до какой доли бюджета сжимается разговор, когда
+// он перестал влезать. Запас небольшой: вытесненное уходит в память прогона,
+// и терять лишнее раньше времени нельзя.
+const compactionTargetPercent = 85
+
 func (h *conversationHistory) Prepare(tools []domain.ToolDefinition, budgetTokens int) ([]providers.Message, contextCompactionReport, error) {
 	report := contextCompactionReport{BudgetTokens: budgetTokens}
 	if budgetTokens < 1 {
@@ -174,7 +179,13 @@ func (h *conversationHistory) Prepare(tools []domain.ToolDefinition, budgetToken
 		return nil, report, fmt.Errorf("immutable task context needs about %d input tokens, exceeding the %d-token budget", base, budgetTokens)
 	}
 
-	for len(h.rounds) > minimumRecentRounds && estimate(h.messages()) > budgetTokens {
+	// Сжатие с запасом. Раньше вытеснялся ровно один раунд — ровно столько,
+	// чтобы влезть, — и на следующем ходу снова один: разговор сдвигался после
+	// стабильного префикса на каждом ходу, и кэш префикса у провайдера
+	// промахивался на всём хвосте. С запасом следующие ходы только дописывают
+	// в конец и читают прежнее из кэша; вытесненное остаётся в памяти прогона.
+	target := budgetTokens * compactionTargetPercent / 100
+	for len(h.rounds) > minimumRecentRounds && estimate(h.messages()) > target {
 		h.evictOldestRound(&report)
 		h.trimMemory(memoryBudgetBytes(budgetTokens))
 	}

@@ -39,6 +39,44 @@ func NewAnthropic(config Config) *Anthropic {
 	return &Anthropic{config: config, client: streamingClient(config)}
 }
 
+// Кэш префикса Anthropic включается только явными метками: без них каждый ход
+// агента заново оплачивал и считал весь разговор — системное сообщение,
+// инструменты и историю. Метки стоят на трёх стабильных границах: конец
+// инструментов, конец системного сообщения и последний блок разговора. Следующий
+// ход продолжает тот же префикс и читает его из кэша.
+func anthropicEphemeral() map[string]any { return map[string]any{"type": "ephemeral"} }
+
+func markAnthropicConversationCache(messages []map[string]any) {
+	if len(messages) == 0 {
+		return
+	}
+	blocks, _ := messages[len(messages)-1]["content"].([]map[string]any)
+	for i := len(blocks) - 1; i >= 0; i-- {
+		// Размышление метку не несёт: API принимает её только на содержимом.
+		if kind, _ := blocks[i]["type"].(string); kind == "thinking" || kind == "redacted_thinking" {
+			continue
+		}
+		blocks[i]["cache_control"] = anthropicEphemeral()
+		return
+	}
+}
+
+// anthropicUsage — расход по ответу Anthropic. input_tokens у кэширующего
+// запроса считает только свежую часть; Point же везде понимает InputTokens как
+// весь промпт (по нему сверяются окно и бюджет), поэтому части складываются.
+type anthropicUsage struct {
+	Input      int `json:"input_tokens"`
+	Output     int `json:"output_tokens"`
+	CacheRead  int `json:"cache_read_input_tokens"`
+	CacheWrite int `json:"cache_creation_input_tokens"`
+}
+
+func (u anthropicUsage) prompt() int { return u.Input + u.CacheRead + u.CacheWrite }
+
+func (u anthropicUsage) event() ModelEvent {
+	return ModelEvent{Kind: EventUsage, InputTokens: u.prompt(), OutputTokens: u.Output, CachedInputTokens: u.CacheRead}
+}
+
 func anthropicTools(definitions []domain.ToolDefinition) []map[string]any {
 	result := make([]map[string]any, 0, len(definitions))
 	for _, definition := range definitions {
@@ -135,11 +173,14 @@ func (a *Anthropic) Stream(ctx context.Context, request ModelRequest, onEvent fu
 		"stream":     true,
 	}
 	if system != "" {
-		body["system"] = system
+		body["system"] = []map[string]any{{"type": "text", "text": system, "cache_control": anthropicEphemeral()}}
 	}
 	if len(request.Tools) > 0 {
-		body["tools"] = anthropicTools(request.Tools)
+		tools := anthropicTools(request.Tools)
+		tools[len(tools)-1]["cache_control"] = anthropicEphemeral()
+		body["tools"] = tools
 	}
+	markAnthropicConversationCache(messages)
 	// Температура и режим рассуждения — взаимоисключающие: при включённом
 	// thinking API требует temperature = 1, поэтому её просто не отправляем.
 	if effort := strings.TrimSpace(request.ReasoningEffort); effort != "" && effort != "none" {
@@ -209,7 +250,7 @@ func (a *Anthropic) Stream(ctx context.Context, request ModelRequest, onEvent fu
 			}
 			return fmt.Errorf("provider returned %s: %s", response.Status, strings.TrimSpace(string(snippet)))
 		}
-		body := newIdleReader(response.Body, a.config.streamIdle())
+		body := newIdleReader(response.Body, a.config.streamIdle(), a.config.streamFirstByte())
 		streamErr := streamAnthropicResponse(ctx, body, onEvent)
 		_ = body.Close()
 		if streamErr != nil {
@@ -317,15 +358,9 @@ func streamAnthropicResponse(ctx context.Context, body io.Reader, onEvent func(M
 				StopReason  string `json:"stop_reason"`
 			} `json:"delta"`
 			Message struct {
-				Usage struct {
-					Input  int `json:"input_tokens"`
-					Output int `json:"output_tokens"`
-				} `json:"usage"`
+				Usage anthropicUsage `json:"usage"`
 			} `json:"message"`
-			Usage struct {
-				Input  int `json:"input_tokens"`
-				Output int `json:"output_tokens"`
-			} `json:"usage"`
+			Usage anthropicUsage `json:"usage"`
 			Error *struct {
 				Type    string `json:"type"`
 				Message string `json:"message"`
@@ -369,17 +404,17 @@ func streamAnthropicResponse(ctx context.Context, body io.Reader, onEvent func(M
 			if block := blocks[chunk.Index]; block != nil {
 				block.thoughtSignature += chunk.Delta.Signature
 			}
-		case chunk.Type == "message_start" && (chunk.Message.Usage.Input > 0 || chunk.Message.Usage.Output > 0):
-			if err := onEvent(ModelEvent{Kind: EventUsage, InputTokens: chunk.Message.Usage.Input, OutputTokens: chunk.Message.Usage.Output}); err != nil {
+		case chunk.Type == "message_start" && (chunk.Message.Usage.prompt() > 0 || chunk.Message.Usage.Output > 0):
+			if err := onEvent(chunk.Message.Usage.event()); err != nil {
 				return err
 			}
 		case chunk.Type == "message_delta":
 			if chunk.Delta.StopReason != "" {
 				stopReason = chunk.Delta.StopReason
 			}
-			if chunk.Usage.Input > 0 || chunk.Usage.Output > 0 {
+			if chunk.Usage.prompt() > 0 || chunk.Usage.Output > 0 {
 				outputTokens = chunk.Usage.Output
-				if err := onEvent(ModelEvent{Kind: EventUsage, InputTokens: chunk.Usage.Input, OutputTokens: chunk.Usage.Output}); err != nil {
+				if err := onEvent(chunk.Usage.event()); err != nil {
 					return err
 				}
 			}

@@ -1092,6 +1092,9 @@ const TYPE_SCALE = new Set(
     coreTools.add(match[1].replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase())
   }
   for (const match of master.matchAll(/masterEntityDefinition\("(\w+)"/g)) coreTools.add(match[1])
+  // Инструменты со своей схемой объявлены константой `…Tool` (предложение
+  // повтора этапа): без неё сверка не увидела бы их вовсе.
+  for (const match of master.matchAll(/const \w+Tool\s*=\s*"(\w+)"/g)) coreTools.add(match[1])
   // Инструменты разговора — задание, уточнения, память — объявлены
   // константами оркестратора. Они такие же шаги хода, и в ленте их надо
   // называть, а не писать «обратился к инструменту».

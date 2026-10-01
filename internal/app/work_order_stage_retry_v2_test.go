@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -12,6 +13,13 @@ import (
 // failedStageQuestForTest — квест, у которого Flow упал на втором этапе:
 // первый пройден, второй провалился, третий пропущен из-за провала.
 func failedStageQuestForTest(t *testing.T) (*App, domain.Quest, domain.FlowRun) {
+	t.Helper()
+	return failedStageQuestWithErrorForTest(t, "workspace mutation audit failed after executable tool started: context deadline exceeded")
+}
+
+// failedStageQuestWithErrorForTest — то же, с заданной ошибкой этапа: от её
+// класса зависит, повторит ли Point этап сам.
+func failedStageQuestWithErrorForTest(t *testing.T, stageError string) (*App, domain.Quest, domain.FlowRun) {
 	t.Helper()
 	application, quest, _ := approvedHostCheckQuestForTest(t, 1)
 	ctx := context.Background()
@@ -31,7 +39,7 @@ func failedStageQuestForTest(t *testing.T) (*App, domain.Quest, domain.FlowRun) 
 	}
 	if err := application.store.SaveExecution(ctx, domain.ExecutionInstance{ID: "execution-verify-1", WorkspaceID: quest.WorkspaceID, QuestID: quest.ID,
 		FlowRunID: "flowrun-stage", FlowNodeID: "verify", RunID: "run-verify-1", Status: domain.RunFailed,
-		Error: "workspace mutation audit failed after executable tool started: context deadline exceeded", StartedAt: now}); err != nil {
+		Error: stageError, StartedAt: now}); err != nil {
 		t.Fatal(err)
 	}
 	run := domain.FlowRun{ID: "flowrun-stage", FlowID: graph.ID, WorkspaceID: quest.WorkspaceID, QuestID: quest.ID, Status: domain.RunFailed,
@@ -39,7 +47,7 @@ func failedStageQuestForTest(t *testing.T) (*App, domain.Quest, domain.FlowRun) 
 		Snapshot: map[string]any{"graph": graph},
 		NodeStates: map[string]domain.FlowNodeState{
 			"implement": {Status: "completed", Attempts: 1, Output: map[string]any{"completed": true}},
-			"verify": {Status: "failed", Attempts: 1, Error: "workspace mutation audit failed after executable tool started: context deadline exceeded",
+			"verify": {Status: "failed", Attempts: 1, Error: stageError,
 				Output: map[string]any{"executionId": "execution-verify-1", "attemptExecutionIds": []any{"execution-verify-1"}}},
 			"integrate": {Status: "skipped", Error: "пропущен: другой этап Flow завершился с ошибкой", Output: map[string]any{"skippedDueToPeerFailure": true}},
 		}}
@@ -76,7 +84,7 @@ func failedStageQuestForTest(t *testing.T) (*App, domain.Quest, domain.FlowRun) 
 // Провал этапа — не вердикт: квест ждёт человека, пакет доказательств не
 // тратится, в карточке — какой этап и почему.
 func TestFailedStageHoldsQuestForDecisionInsteadOfVerdict(t *testing.T) {
-	application, quest, _ := failedStageQuestForTest(t)
+	application, quest, _ := failedStageQuestWithErrorForTest(t, "npm run build: src/main.ts (4:2): Unexpected token")
 	ctx := context.Background()
 	application.finalizeQuestAfterFlow(quest.ID, false)
 	held, err := application.workOrderQuestV2(ctx, quest.WorkspaceID, quest.ID)
@@ -87,8 +95,70 @@ func TestFailedStageHoldsQuestForDecisionInsteadOfVerdict(t *testing.T) {
 	if held.Status != domain.QuestAwaitingUser || !strings.Contains(message, "Проверка сборки") || !strings.Contains(message, "Повторите этап") {
 		t.Fatalf("failed stage did not wait for a decision: status=%s message=%q", held.Status, message)
 	}
+	failure, _ := held.Controller[stageFailureKey].(map[string]any)
+	auto, _ := failure["autoRetry"].(map[string]any)
+	if allowed, _ := auto["allowed"].(bool); allowed {
+		t.Fatalf("an error in the work itself was marked for a retry without the human: %#v", auto)
+	}
 	if _, final, _ := application.store.WorkOrderVerdictV2(ctx, quest.ID); final {
 		t.Fatal("a held stage failure spent the quest's only verdict")
+	}
+	// Окно не может выдать ошибку работы за сбой среды.
+	if _, err = application.ControlWorkOrderQuestV2(ctx, quest.ID, "retry", WorkOrderQuestControlRequest{Source: StageRetrySourceAuto}); !errors.Is(err, errStageRetryLimit) {
+		t.Fatalf("an automatic retry of a work error was accepted: %v", err)
+	}
+}
+
+// Сбой самого Point — снимок не успел — повторяется без человека: провал
+// отмечен как разрешённый к авто-повтору, и окно повторяет этап само.
+func TestPointEnvironmentFailureRetriesWithoutHuman(t *testing.T) {
+	application, quest, run := failedStageQuestForTest(t)
+	ctx := context.Background()
+	application.finalizeQuestAfterFlow(quest.ID, false)
+	held, err := application.workOrderQuestV2(ctx, quest.WorkspaceID, quest.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	message, _ := held.Controller["statusMessage"].(string)
+	failure, _ := held.Controller[stageFailureKey].(map[string]any)
+	auto, _ := failure["autoRetry"].(map[string]any)
+	if allowed, _ := auto["allowed"].(bool); !allowed || !strings.Contains(message, "повторит этап сам") || !strings.Contains(message, "сбой среды Point") {
+		t.Fatalf("environment failure not marked for an automatic retry: message=%q auto=%#v", message, auto)
+	}
+	result, err := application.ControlWorkOrderQuestV2(ctx, quest.ID, "retry", WorkOrderQuestControlRequest{Source: StageRetrySourceAuto})
+	if err != nil && !strings.Contains(err.Error(), "agent") {
+		t.Fatalf("automatic retry refused: %v", err)
+	}
+	if result.Status != domain.QuestRunning {
+		t.Fatalf("automatic retry left the quest in %s", result.Status)
+	}
+	retried, err := application.workOrderQuestV2(ctx, quest.WorkspaceID, quest.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if node, total := stageAutoRetryCounts(retried, "verify"); node != 1 || total != 1 {
+		t.Fatalf("automatic retry not counted: node=%d total=%d", node, total)
+	}
+	if message, _ := retried.Controller["statusMessage"].(string); !strings.Contains(message, "Point повторяет этап") {
+		t.Fatalf("status does not say who retried: %q", message)
+	}
+	stored, _ := application.store.GetFlowRun(ctx, run.ID)
+	if stored.NodeStates["verify"].Attempts != 2 {
+		t.Fatalf("stage not retried: %#v", stored.NodeStates["verify"])
+	}
+}
+
+// Лимит повторов без человека: исчерпанный этап ждёт человека, даже если
+// сбой снова в среде.
+func TestAutomaticRetryStopsAtTheLimit(t *testing.T) {
+	quest := domain.Quest{Controller: map[string]any{stageAutoRetriesKey: map[string]any{"verify": float64(maxAutoRetriesPerStage)}}}
+	info := stageAutoRetryInfo(quest, "verify", StageFailureDiagnosis{Class: "transient"})
+	if allowed, _ := info["allowed"].(bool); allowed {
+		t.Fatalf("stage limit ignored: %#v", info)
+	}
+	quest.Controller[stageAutoRetriesKey] = map[string]any{"a": float64(2), "b": float64(1)}
+	if stageAutoRetryAvailable(quest, "c") {
+		t.Fatal("quest limit ignored")
 	}
 }
 

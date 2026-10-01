@@ -252,6 +252,7 @@ func (a *App) scheduleWaitingAgentNodes(quest domain.Quest, flow domain.FlowGrap
 		}
 		contract = integrateStageContract(flow, node, contract)
 		task += workContractInstructions(contract)
+		task += preAcceptStageNote(quest, flow, node)
 		projectAgent, agentErr := a.store.GetProjectAgent(context.Background(), effectiveAgentID)
 		if agentErr != nil {
 			return agentErr

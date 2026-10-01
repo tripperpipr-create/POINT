@@ -333,6 +333,7 @@ function createHubMessageRouter({ openWorkspaceFile }) {
 		case 'reviseMasterWorkOrderV2':
       case 'hireMasterWorkOrderAgentV2':
       case 'controlMasterWorkOrderQuestV2':
+      case 'analyzeStageFailureWithMaster':
       case 'reviewMasterManualCriterionV2':
       case 'controlMasterApplicationV2':
       // Четыре ветки ниже написаны в master-chat-controller.js давно, но во

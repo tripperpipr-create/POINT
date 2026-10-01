@@ -57,6 +57,17 @@ type ContainerBackend struct {
 	infrastructureOutput func(context.Context, ...string) (string, error)
 	runtimeBuildMu       sync.Mutex
 	availability         deferredProbe
+	// knownImages — дайджесты образов, уже найденных локально. Запись песочницы
+	// хранит дайджест, а не тег, поэтому раньше каждая команда начиналась с
+	// docker image inspect. Дайджест неизменен; если образ удалят, docker run
+	// --pull never честно откажет сам.
+	knownImages sync.Map
+	// cacheVolumes — тома кэша квестов, уже созданные и отданные пользователю
+	// песочницы (cache_volumes.go).
+	cacheVolumes sync.Map
+	// runtimeProbes — удачные пробы команд и версий в образах-дайджестах
+	// (container_runtime.go).
+	runtimeProbes sync.Map
 }
 
 // deferredProbe guards a backend whose daemon was down at startup. Point used
@@ -237,6 +248,17 @@ func (b *ContainerBackend) PrepareProcess(ctx context.Context, request ProcessRe
 		"--tmpfs", "/tmp:rw,nosuid,nodev,size=512m",
 		"--volume", root + ":/workspace:rw", "--workdir", workdir,
 	}
+	cacheArgs, cacheEnvironment, err := b.cacheMounts(ctx, request.CacheScope, request.Authoritative, executionImage)
+	if err != nil {
+		if gatewayAddress != "" {
+			cleanupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			_ = b.runInfrastructure(cleanupCtx, "rm", "--force", gatewayName)
+			_ = b.runInfrastructure(cleanupCtx, "network", "rm", networkName)
+			cancel()
+		}
+		return PreparedProcess{}, err
+	}
+	args = append(args, cacheArgs...)
 	if gatewayAddress != "" {
 		args = append(args, "--add-host", "point-egress-gateway:"+gatewayAddress)
 		pinned, pinErr := pinAllowlistHosts(ctx, policy)
@@ -252,7 +274,7 @@ func (b *ContainerBackend) PrepareProcess(ctx context.Context, request ProcessRe
 	if strings.TrimSpace(b.User) != "" {
 		args = append(args, "--user", strings.TrimSpace(b.User))
 	}
-	for _, entry := range containerEnvironment(request.Environment) {
+	for _, entry := range withEnvironmentOverrides(containerEnvironment(request.Environment), cacheEnvironment) {
 		args = append(args, "--env", entry)
 	}
 	for _, entry := range proxyEnvironment {
@@ -268,6 +290,13 @@ func (b *ContainerBackend) PrepareProcess(ctx context.Context, request ProcessRe
 	command := b.commandFor(ctx, args...)
 	command.Env = dockerClientEnvironment()
 	cleanup := func(cleanupCtx context.Context) error {
+		// docker run --rm убирает контейнер сам, если клиент дождался его конца.
+		// Лишний rm --force стоил вызова docker CLI на каждую команду. Нужен он
+		// только когда клиента убили по сроку или отмене (контейнер тогда живёт
+		// дальше) или docker сам не смог запустить контейнер (код 125).
+		if ctx.Err() == nil && command.ProcessState != nil && command.ProcessState.ExitCode() >= 0 && command.ProcessState.ExitCode() != 125 && policy.Mode != "ALLOWLIST" {
+			return nil
+		}
 		cleanupCommand := b.commandFor(cleanupCtx, "rm", "--force", name)
 		cleanupCommand.Env = dockerClientEnvironment()
 		cleanupCommand.Stdout = io.Discard
@@ -481,6 +510,15 @@ func (b *ContainerBackend) resolveExecutionImage(ctx context.Context, requested 
 		digest := strings.ToLower(strings.TrimSpace(b.ImageDigest))
 		return b.Image, digest, nil
 	}
+	if imageDigestPattern.MatchString(strings.ToLower(requested)) {
+		lowered := strings.ToLower(requested)
+		if lowered == strings.ToLower(strings.TrimSpace(b.ImageDigest)) {
+			return b.Image, lowered, nil
+		}
+		if _, ok := b.knownImages.Load(lowered); ok {
+			return lowered, lowered, nil
+		}
+	}
 	if !imageReferencePattern.MatchString(requested) {
 		return "", "", errors.New("managed docker sandbox image reference is invalid")
 	}
@@ -493,6 +531,9 @@ func (b *ContainerBackend) resolveExecutionImage(ctx context.Context, requested 
 	digest = strings.ToLower(strings.TrimSpace(digest))
 	if !imageDigestPattern.MatchString(digest) {
 		return "", "", errors.New("managed docker sandbox image returned an invalid digest")
+	}
+	if strings.ToLower(requested) == digest {
+		b.knownImages.Store(digest, struct{}{})
 	}
 	return requested, digest, nil
 }
@@ -549,6 +590,26 @@ func containerEnvironment(environment []string) []string {
 		result = append(result, key+"="+value)
 	}
 	return result
+}
+
+// withEnvironmentOverrides заменяет переменные base одноимёнными из overrides.
+// Дубль --env у docker run разрешался бы порядком, а не явно.
+func withEnvironmentOverrides(base, overrides []string) []string {
+	if len(overrides) == 0 {
+		return base
+	}
+	replaced := make(map[string]bool, len(overrides))
+	for _, entry := range overrides {
+		key, _, _ := strings.Cut(entry, "=")
+		replaced[key] = true
+	}
+	result := make([]string, 0, len(base)+len(overrides))
+	for _, entry := range base {
+		if key, _, _ := strings.Cut(entry, "="); !replaced[key] {
+			result = append(result, entry)
+		}
+	}
+	return append(result, overrides...)
 }
 
 func dockerClientEnvironment() []string {

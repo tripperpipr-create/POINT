@@ -173,7 +173,7 @@ func (o *Ollama) Stream(ctx context.Context, request ModelRequest, onEvent func(
 			"attempt", attempt,
 			"duration_ms", time.Since(started).Milliseconds(),
 		)
-		body := newIdleReader(response.Body, o.config.streamIdle())
+		body := newIdleReader(response.Body, o.config.streamIdle(), o.config.streamFirstByte())
 		streamErr := streamOllamaResponse(ctx, body, onEvent)
 		_ = body.Close()
 		if streamErr != nil {

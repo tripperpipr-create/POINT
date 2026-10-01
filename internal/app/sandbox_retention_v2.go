@@ -13,6 +13,7 @@ func (a *App) Startup(ctx context.Context) {
 	// мире: живое в соседних мирах ведут их ядра (world_recovery.go).
 	a.recoverAbandonedWorld(context.Background(), a.startupWorldID(context.Background()))
 	go a.cleanupExpiredQuestSandboxes(context.Background(), time.Now().UTC())
+	go a.cleanupFinishedQuestCaches(context.Background())
 }
 
 func (a *App) cleanupExpiredQuestSandboxes(ctx context.Context, now time.Time) {

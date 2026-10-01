@@ -139,6 +139,8 @@ The v2 path replaces "a proposal plus whatever the Flow did" with one reviewed c
 `internal/domain/evidence_gate_v2.go`), carry the Point version, match the work order and source-snapshot digests and include environment and versioned stack-preset evidence. Anything else is `blocked`. A rejected accept verdict still supplies its per-criterion exit codes, never a confirmation; each criterion carries a reading `status` (`passed`, `failed`, `needs_review`, `not_run`, `unavailable`) that the gate does not consult, and undelivered Change Set paths are reported as `preparedFiles`, apart from the delivered `changedFiles`.
 6. **Delivery.** A verified result produces a `DeliveryReceipt` naming the target and workspace revision. `applyMode=automatic` transfers the result; `applyMode=manual` keeps it in `isolated_review` untouched. `commitMode=squash` creates exactly one commit from an explicit changed-file list and refuses unrelated workspace drift. Starting or stopping a delivered Docker Compose application requires a matching version, digest, receipt and idempotency key.
 
+A failed Flow stage holds the quest in `awaiting_user` with a diagnosis instead of a verdict (`internal/app/work_order_stage_retry_v2.go`). Every failed check gets a cause, hint and class from `internal/diagnostics/command_failure.go` — the same parser `run_command` uses to put `cause` into a failed command's output. The class decides how far a retry may go without the human (`internal/app/stage_retry_policy.go`): an environment failure of Point itself is retried as is; the Master may propose a retry through `propose_stage_retry` with a sandbox from a closed list (`internal/environment/retry_runtime.go`) or an instruction to the stage agent, which the extension applies at once; a change to a criterion command waits for the human's approval of the exact diff. Amendments live beside the approved work order in an immutable table, like manual criterion reviews: acceptance runs the amended command, and the evidence bundle names every change in `knownLimitations`, so the gate is never weakened silently. The extension, which alone holds the route key, performs these retries; the core re-checks every request against the stored failure, proposal digest and limits (2 per stage, 3 per quest).
+
 Milestones stay coarse on purpose: a detailed Flow is compiled only when a milestone becomes current, so replanning cannot silently widen the approved product scope. The legacy quest-proposal, Change Set, workflow and flow endpoints remain available as compatibility adapters alongside this path.
 
 ## Domain and execution
@@ -204,6 +206,14 @@ encodes a rule the release gate enforces:
   request and result shapes shared by the CLI and runtime paths.
 - `internal/observability` carries request attributes into `slog`, so a log line
   from deep inside a run still names the workspace and the run.
+
+Point checks a work order before acceptance does (`internal/app/stage_verification.go`). A writing stage carries only a manual `stage-complete` criterion, so it used to learn of a failed acceptance check after acceptance, when nobody was left to fix it. Now, when the last writing stage before Accept is about to finish, the engine asks its `StageVerifier` (`internal/agent/stage_verifier.go`): the core copies the stage sandbox the way the next stage would inherit it, runs the acceptance criteria there through the same code as deterministic acceptance (`internal/app/criteria_batch.go`) and, on failure, returns the cause to the agent — at most twice; after that the stage finishes and acceptance judges. Every such run is stored in the immutable `verification_results_v2` under a key over the tree digest (`sandbox.TreeDigest`), the image digest, the executed commands and the network policy. With `POINT_VERIFY_SERVICE=on` acceptance does not rerun a batch that fully passed under the same key; the evidence names the reused run, and the evidence gate rejects a reuse whose record is missing or was made on another tree. A failure is never reused. The default mode `shadow` still runs everything in acceptance and records whether the reused outcome would have agreed; `off` disables the service.
+
+`cmd/point-perf-report` reads the event journal of `hub-v2.db` read-only and
+splits the wall time of recent Flow runs into model waiting, commands and
+workspace audit per stage, with the prompt-cache hit rate and the most
+expensive command families. Speed changes are judged by its numbers before and
+after, not by impression.
 
 `cmd/point-egress-gateway` is the sandbox's outbound proxy: `serve` listens for
 container traffic and enforces the allowlist, `probe` checks a single

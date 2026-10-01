@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"local-agent-workbench/internal/domain"
 )
@@ -37,6 +38,21 @@ type CheckEvidence struct {
 	TimedOut          bool            `json:"timedOut"`
 	Detail            string          `json:"detail"`
 	Status            string          `json:"status"` // passed | stale | unresolved | regression
+	// TreeDigest — отпечаток дерева, на котором проверку принял судящий этап.
+	TreeDigest string `json:"treeDigest,omitempty"`
+	// ReusedFrom — проверка не запускалась заново: её исход взят из прогона
+	// Point на том же дереве, в том же образе и теми же командами.
+	ReusedFrom *CheckReuse `json:"reusedFrom,omitempty"`
+}
+
+// CheckReuse называет прогон, из которого взят исход проверки. Затвор
+// доказательств сверяет его с записью и с отпечатком дерева приёмки.
+type CheckReuse struct {
+	ResultID    string    `json:"resultId"`
+	RanAt       time.Time `json:"ranAt"`
+	TreeDigest  string    `json:"treeDigest"`
+	ImageDigest string    `json:"imageDigest,omitempty"`
+	RunID       string    `json:"runId,omitempty"`
 }
 
 func (t *completionTracker) isDeclaredCheck(identity string) bool {

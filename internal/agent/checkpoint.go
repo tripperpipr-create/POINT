@@ -63,6 +63,7 @@ func (e *Engine) persistRoundCheckpoint(active *activeRun, history *conversation
 	if inFlightCallID == "" {
 		active.clock.stop()
 	}
+	checkpointStarted := time.Now()
 	elapsed, extensions := active.clock.snapshot()
 	historyJSON, err := history.marshal()
 	if err != nil {
@@ -120,7 +121,22 @@ func (e *Engine) persistRoundCheckpoint(active *activeRun, history *conversation
 		return err
 	}
 	e.syncControllerState(active, pauseReason, checkpoint.Resumable())
-	return e.saveRun(e.snapshot(active))
+	err = e.saveRun(e.snapshot(active))
+	active.checkpointCost.add(time.Since(checkpointStarted), len(historyJSON)+len(completionJSON)+len(observationsJSON)+len(briefJSON)+len(contextJSON))
+	return err
+}
+
+// checkpointCost копит цену контрольных точек одного прогона.
+type checkpointCost struct {
+	Count int   `json:"count"`
+	Ms    int64 `json:"ms"`
+	Bytes int64 `json:"bytes"`
+}
+
+func (c *checkpointCost) add(took time.Duration, size int) {
+	c.Count++
+	c.Ms += took.Milliseconds()
+	c.Bytes += int64(size)
 }
 
 func completedToolCallSet(keys []string) map[string]struct{} {

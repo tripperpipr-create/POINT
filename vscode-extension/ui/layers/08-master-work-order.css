@@ -176,6 +176,55 @@
   color: var(--hub-text-2);
   font: var(--fw-normal) var(--t-micro) / var(--lh-base) var(--font-mono);
 }
+/* Разобранный провал этапа: по строке на проваленную проверку — причина
+   человеческим языком, подсказка и команда моноширинным. Предложение Мастера
+   с правкой проверки — отдельный ярус: было и станет рядом, решение за
+   человеком. */
+.stage-failure-checks {
+  display: grid;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.stage-failure-checks li,
+.stage-retry-proposal li {
+  display: grid;
+  gap: var(--s-1);
+  color: var(--hub-text-2);
+  font-size: var(--t-small);
+}
+.stage-failure-checks li b,
+.stage-retry-proposal li b { color: var(--hub-text); }
+.stage-failure-checks code,
+.stage-retry-proposal code {
+  overflow-x: auto;
+  color: var(--hub-muted);
+  font: var(--fw-normal) var(--t-micro) / var(--lh-base) var(--font-mono);
+  white-space: pre;
+}
+.work-order-exec-stall .stage-failure-auto { color: var(--hub-text-2); }
+.stage-retry-proposal {
+  display: grid;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  border: 1px solid var(--hub-border);
+  background: var(--hub-panel);
+}
+.stage-retry-proposal b { color: var(--hub-text); }
+.stage-retry-proposal ul {
+  display: grid;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.stage-retry-proposal li span { color: var(--hub-faint); font-size: var(--t-micro); }
+.work-order-exec-stall > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
 .work-order-exec-empty { color: var(--hub-faint); font-size: var(--t-small); }
 .work-order-exec-note { color: var(--hub-faint); font-size: var(--t-micro); }
 

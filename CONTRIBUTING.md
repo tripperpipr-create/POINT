@@ -12,7 +12,7 @@
 | `vscode-extension/ui/` | Design-system sources: tokens, CSS layers, build |
 | `docs/` | Living references, status, dependency policy and historical UI/UX log |
 | `frontend/` | Wails diagnostic client (not the canonical UI) |
-| `cmd/` | `point-core`, `point-db`, the egress gateway and the performance/soak probes |
+| `cmd/` | `point-core`, `point-db`, the egress gateway, the performance/soak probes and `point-perf-report` (where quest time goes, by the event journal) |
 | `acceptance/`, `examples/` | Fixture workspaces for the 2×10 suite and language probes |
 
 The JavaScript side has its own map: which host controller owns what, which

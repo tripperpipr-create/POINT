@@ -65,6 +65,7 @@ func (e *Engine) executeWithCheckpoint(ctx context.Context, active *activeRun, p
 	identicalToolPlanCount := 0
 	toolPlanRecoveries := 0
 	reasoningBudgetRecoveries := 0
+	preAcceptChecks := 0
 	emptyResponseRecoveries := 0
 	transientModelRetries := 0
 	toolOutputBudgetNoticed := false
@@ -252,7 +253,7 @@ func (e *Engine) executeWithCheckpoint(ctx context.Context, active *activeRun, p
 					return
 				}
 			}
-			e.publishOrLog(ctx, e.snapshot(active), domain.EventModelRequested, "agent", map[string]any{"model": currentModel, "messageCount": len(messages), "estimatedInputTokens": estimatedInputTokens, "inputBudgetTokens": inputBudgetTokens, "contextWindowTokens": profile.ContextWindowTokens, "budgetReservationId": reservationID})
+			e.publishOrLog(ctx, e.snapshot(active), domain.EventModelRequested, "agent", map[string]any{"model": currentModel, "messageCount": len(messages), "estimatedInputTokens": estimatedInputTokens, "inputBudgetTokens": inputBudgetTokens, "contextWindowTokens": profile.ContextWindowTokens, "budgetReservationId": reservationID, "checkpoints": active.checkpointCost})
 			log := observability.From(ctx)
 			log.Info("agent model request",
 				"run_id", run.ID,
@@ -313,7 +314,7 @@ func (e *Engine) executeWithCheckpoint(ctx context.Context, active *activeRun, p
 					if int64(event.OutputTokens) > usageOutput {
 						usageOutput = int64(event.OutputTokens)
 					}
-					return e.publish(ctx, e.snapshot(active), domain.EventModelUsage, "model", map[string]any{"budgetReservationId": reservationID, "usage": map[string]int{"inputTokens": event.InputTokens, "outputTokens": event.OutputTokens}})
+					return e.publish(ctx, e.snapshot(active), domain.EventModelUsage, "model", map[string]any{"budgetReservationId": reservationID, "usage": map[string]int{"inputTokens": event.InputTokens, "outputTokens": event.OutputTokens, "cachedInputTokens": event.CachedInputTokens}})
 				case providers.EventRetry:
 					// Провайдер начинает запрос заново: всё, что пришло в этой
 					// попытке, выбрасывается. Прежде текст оборванной попытки
@@ -572,6 +573,36 @@ func (e *Engine) executeWithCheckpoint(ctx context.Context, active *activeRun, p
 				history.AppendRound(conversationRound{Step: step, Assistant: providers.Message{Role: "assistant", Content: assistantText, Reasoning: reasoning}, Followup: &feedback})
 				completionRevisions++
 				continue
+			}
+			// Проверка Point перед завершением (stage_verifier.go): провал
+			// возвращает этап в работу с причиной, пока агент может исправить.
+			if e.stageVerifier != nil && !wrapUp && preAcceptChecks < maxPreAcceptChecks && active.correlation.FlowNodeID != "" {
+				active.clock.stop()
+				outcome := e.stageVerifier.VerifyBeforeCompletion(ctx, StageVerifyRequest{
+					RunID: currentRun.ID, ExecutionID: active.correlation.ExecutionID, QuestID: active.correlation.QuestID,
+					FlowRunID: active.correlation.FlowRunID, FlowNodeID: active.correlation.FlowNodeID, SandboxPath: active.sandboxPath,
+				})
+				active.clock.start()
+				if ctx.Err() != nil {
+					e.finishContext(active, ctx.Err())
+					return
+				}
+				if outcome.Ran {
+					status := "accepted"
+					if !outcome.Passed {
+						status = "revision_required"
+					}
+					e.publishOrLog(ctx, currentRun, domain.EventCompletionChecked, "system", map[string]any{
+						"status": status, "checkKind": "pre_accept", "verification": outcome,
+						"workspaceRevision": workspaceRevision, "episode": preAcceptChecks + 1, "maxEpisodes": maxPreAcceptChecks,
+					})
+					if !outcome.Passed {
+						preAcceptChecks++
+						feedback := providers.Message{Role: "user", Content: outcome.Feedback}
+						history.AppendRound(conversationRound{Step: step, Assistant: providers.Message{Role: "assistant", Content: assistantText, Reasoning: reasoning}, Followup: &feedback})
+						continue
+					}
+				}
 			}
 			if completionRevisions > 0 || active.taskBrief != nil {
 				if err := e.publish(ctx, currentRun, domain.EventCompletionChecked, "agent", withCompletionCheckKind(active, map[string]any{

@@ -19,6 +19,8 @@ function runtimeSignature(runtime) {
     (runtime.stages || []).map(item => `${item.id || ''}:${item.status || ''}:${item.runId || ''}`).join(','),
     runtime.stall ? `${runtime.stall.nodeId || ''}:${runtime.stall.waitReason || ''}` : '',
     runtime.waitingForSandbox ? 'sandbox' : '', runtime.resumeAfterRestart ? 'auto' : '',
+    // Провал этапа и предложение Мастера — поводы действовать без человека.
+    runtime.stageFailure?.at || '', runtime.stageRetryProposal?.digest || '',
   ].join('|')
 }
 
@@ -121,6 +123,10 @@ function watchMasterWorkOrder(host, workOrderId, conversationId) {
           await refreshMasterHistory(host, id, conversationId, scope)
           if (order.runtime.resumeAfterRestart && scope.current()) void resumeAfterRestart(host, order, conversationId)
         }
+        if (order?.runtime?.status === 'awaiting_user' && order.runtime.stageFailure) {
+          await refreshMasterHistory(host, id, conversationId, scope)
+          if (scope.current()) void stageFailureAutopilot(host, order, conversationId)
+        }
       }
       if (!isTransientWorkOrder(order)) {
         // Finalization persists the deterministic Master reply in the same
@@ -146,7 +152,94 @@ function watchMasterWorkOrders(host, master) {
     if (!isTransientWorkOrder(order)) continue
     watchMasterWorkOrder(host, order.id, conversationId)
     void resumeAfterRestart(host, order, conversationId)
+    void stageFailureAutopilot(host, order, conversationId)
   }
+}
+
+// Ключ утверждённого маршрута наряда: модели этапов зовутся с ним, а живёт он
+// только в SecretStorage расширения.
+async function routingApiKey(host, order) {
+  const routing = order?.routing || {}
+  const connectionId = routing.mode === 'auto' ? routing.routerConnectionId : routing.fixedConnectionId
+  return connectionId ? host.credentialFor({ connectionId }, 'утверждённого маршрута WorkOrder') : host.credentialForOrchestrator()
+}
+
+// Провал этапа, который Point может довести без человека. Решает ядро:
+// провал несёт autoRetry.allowed (сбой среды), предложение Мастера —
+// autoApply (правки, не трогающие договор). Окно только исполняет, один раз на
+// провал и на предложение, и ядро перепроверяет каждый запрос.
+async function stageFailureAutopilot(host, order, conversationId) {
+  const runtime = order?.runtime
+  const failure = runtime?.stageFailure
+  if (runtime?.status !== 'awaiting_user' || !failure || !runtime.questId || !host?.service || typeof host.credentialFor !== 'function') return
+  host.stageFailureActions ||= new Set()
+  const proposal = runtime.stageRetryProposal
+  const scope = projectScope(host)
+  const act = async (key, body, note) => {
+    if (host.stageFailureActions.has(key)) return
+    host.stageFailureActions.add(key)
+    try {
+      const apiKey = await routingApiKey(host, order)
+      if (!scope.current()) { host.stageFailureActions.delete(key); return }
+      await host.service.request('/api/v2/master/quests/' + encodeURIComponent(runtime.questId) + '/retry', {
+        method: 'POST', body: JSON.stringify({ message: '', apiKey, source: 'auto', ...body }),
+      })
+      host.service.hostLog?.('info', `[chat] этап квеста ${runtime.questId} повторён без человека: ${note}`)
+      watchMasterWorkOrder(host, order.id, conversationId)
+    } catch (error) {
+      host.service.hostLog?.('warn', `[chat] повтор этапа без человека не принят: ${String(error?.message || error).slice(0, 200)}`)
+    }
+  }
+  if (proposal?.autoApply && !proposal.needsApproval && proposal.failureAt === failure.at) {
+    return act(`${runtime.questId}:${proposal.digest}`, { proposalDigest: proposal.digest }, 'предложение Мастера')
+  }
+  if (failure.autoRetry?.allowed) {
+    const key = `${runtime.questId}:${failure.at}:env`
+    if (host.stageFailureActions.has(key)) return
+    const delay = Math.max(0, Number(failure.autoRetry.delaySeconds) || 30) * 1000
+    await new Promise(resolve => setTimeout(resolve, delay))
+    return act(key, {}, 'сбой среды')
+  }
+  if (!proposal) await askMasterAboutStageFailure(host, order, conversationId)
+}
+
+// Разбор провала Мастером: одна реплика в разговоре наряда на каждый провал.
+// Мастер читает квест, и если ошибку можно исправить повтором, предлагает его
+// инструментом propose_stage_retry — дальше решает ядро.
+async function askMasterAboutStageFailure(host, order, conversationId, { manual = false } = {}) {
+  const runtime = order?.runtime
+  const failure = runtime?.stageFailure
+  const chat = String(order?.conversationId || conversationId || '')
+  if (!failure || !runtime?.questId || !chat || typeof host.credentialForOrchestrator !== 'function') return false
+  host.stageFailureAnalyses ||= new Set()
+  const key = `${runtime.questId}:${failure.at}`
+  if (!manual && host.stageFailureAnalyses.has(key)) return false
+  host.stageFailureAnalyses.add(key)
+  const scope = projectScope(host)
+  try {
+    const apiKey = await host.credentialForOrchestrator()
+    if (!scope.current()) return false
+    const workspaceId = String(host.boot?.currentWorkspace?.id || '')
+    const turn = await host.service.request('/api/v2/master/turns', { method: 'POST', body: JSON.stringify({
+      message: stageFailurePrompt(runtime.questId, failure), conversationId: chat, sources: [], taskIntake: true, apiKey, workspaceId,
+    }) })
+    const { followMasterTurn } = require('./master-turn-stream')
+    void followMasterTurn(host, turn)
+    return true
+  } catch (error) {
+    host.stageFailureAnalyses.delete(key)
+    host.service.hostLog?.('warn', `[chat] Мастер не взялся за провал этапа: ${String(error?.message || error).slice(0, 200)}`)
+    return false
+  }
+}
+
+function stageFailurePrompt(questId, failure) {
+  const checks = (failure.diagnosis?.checks || []).map(check => `- ${check.criterionId ? check.criterionId + ': ' : ''}${check.cause}${check.hint ? ' (' + check.hint + ')' : ''}`).join('\n')
+  return [
+    `Этап «${failure.nodeName || failure.nodeId || 'этап'}» квеста ${questId} упал. Разбор Point:`,
+    checks || String(failure.error || '').slice(0, 600),
+    'Прочитай квест (read_quest) и реши: если ошибку исправит повтор — другая среда, указание исполнителю или правка сломанной проверки, — предложи его через propose_stage_retry. Если нужно менять саму работу или договор — объясни коротко, что именно, без предложения.',
+  ].join('\n')
 }
 
 // Пауза ядра, после которой продолжать можно без человека: запуск прерван
@@ -180,4 +273,4 @@ async function resumeAfterRestart(host, order, conversationId) {
   }
 }
 
-module.exports = { watchMasterWorkOrder, watchMasterWorkOrders, resumeAfterRestart, isTransientWorkOrder, activeStageRunId, runtimeSignature, projectScope }
+module.exports = { watchMasterWorkOrder, watchMasterWorkOrders, resumeAfterRestart, stageFailureAutopilot, askMasterAboutStageFailure, stageFailurePrompt, isTransientWorkOrder, activeStageRunId, runtimeSignature, projectScope }

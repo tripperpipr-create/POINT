@@ -1,0 +1,122 @@
+package app
+
+import (
+	"context"
+	"errors"
+	"strings"
+	"testing"
+)
+
+// Предложение Мастера из правок, не трогающих договор, — среда из списка и
+// указание исполнителю — окно применяет само, и правки достаются ровно
+// проваленному этапу.
+func TestSafeStageRetryProposalAppliesWithoutHuman(t *testing.T) {
+	application, quest, run := failedStageQuestWithErrorForTest(t, "npm run verify: \"hasInjectionContext\" is not exported by \"vue-demi/lib/index.mjs\"")
+	ctx := context.Background()
+	application.finalizeQuestAfterFlow(quest.ID, false)
+	proposal, err := application.ProposeStageRetryV2(ctx, quest.WorkspaceID, StageRetryProposalInput{
+		QuestID: quest.ID, Runtime: "node20", Instruction: "Собирай под Node 20: npm 12 блокирует скрипты установки",
+		Diagnosis: "npm 12 заблокировал postinstall vue-demi",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if proposal.NeedsApproval || !proposal.AutoApply || proposal.RuntimeLabel == "" {
+		t.Fatalf("safe proposal must apply by itself: %#v", proposal)
+	}
+	result, err := application.ControlWorkOrderQuestV2(ctx, quest.ID, "retry", WorkOrderQuestControlRequest{Source: StageRetrySourceAuto, ProposalDigest: proposal.Digest})
+	if err != nil && !strings.Contains(err.Error(), "agent") {
+		t.Fatalf("automatic retry with a safe proposal refused: %v", err)
+	}
+	if result.Status == "" {
+		t.Fatal("retry result has no status")
+	}
+	if choice := application.stageRetryRuntimeChoice(ctx, "", run.ID, "verify"); choice != "node20" {
+		t.Fatalf("retried stage runtime=%q", choice)
+	}
+	stored, _ := application.store.GetFlowRun(ctx, run.ID)
+	if instruction, _ := stored.NodeStates["verify"].Output[retryInstructionOutputKey].(string); !strings.Contains(instruction, "Node 20") {
+		t.Fatalf("instruction not delivered to the stage: %#v", stored.NodeStates["verify"].Output)
+	}
+	if context, ok := retryInstructionContext(stored, "verify"); !ok || !strings.Contains(context.Content, "Node 20") {
+		t.Fatal("instruction does not reach the stage prompt")
+	}
+	retried, _ := application.workOrderQuestV2(ctx, quest.WorkspaceID, quest.ID)
+	if _, has := retried.Controller[stageRetryProposalKey]; has {
+		t.Fatal("applied proposal stayed on the quest")
+	}
+	if node, _ := stageAutoRetryCounts(retried, "verify"); node != 1 {
+		t.Fatalf("a retry without the human was not counted: %d", node)
+	}
+}
+
+// Статус называет, кто повторил и что поменял: повтор без человека виден так
+// же, как нажатие.
+func TestStageRetryStatusNamesWhoAndWhat(t *testing.T) {
+	message := stageRetryStatusMessage("Accept", stageRetryPlan{Source: StageRetrySourceAuto, Proposal: "sha256:x", Runtime: "node20",
+		Criteria: []StageRetryCriterionChange{{CriterionID: "tgz-content"}}})
+	for _, want := range []string{"Мастер повторяет этап «Accept»", "Node 20", "tgz-content"} {
+		if !strings.Contains(message, want) {
+			t.Fatalf("%q lacks %q", message, want)
+		}
+	}
+	if message := stageRetryStatusMessage("Accept", stageRetryPlan{Source: StageRetrySourceAuto}); !strings.HasPrefix(message, "Point повторяет этап") {
+		t.Fatalf("environment retry: %q", message)
+	}
+}
+
+// Правка команды проверки меняет утверждённое: окно само её не применит,
+// человек — да, и после этого команда проверки другая.
+func TestCriterionProposalWaitsForHumanAndAmendsTheCheck(t *testing.T) {
+	application, quest, _ := failedStageQuestWithErrorForTest(t, "npm error code ENOENT")
+	ctx := context.Background()
+	application.finalizeQuestAfterFlow(quest.ID, false)
+	proposal, err := application.ProposeStageRetryV2(ctx, quest.WorkspaceID, StageRetryProposalInput{
+		QuestID: quest.ID, Diagnosis: "каталога нет",
+		Criteria: []StageRetryCriterionChange{{CriterionID: "build", Command: "mkdir -p out && docker compose build", Reason: "каталог назначения не создаётся"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !proposal.NeedsApproval || proposal.AutoApply || proposal.Criteria[0].PreviousCommand != "docker compose build" {
+		t.Fatalf("criterion change must wait for the human: %#v", proposal)
+	}
+	if _, err = application.ControlWorkOrderQuestV2(ctx, quest.ID, "retry", WorkOrderQuestControlRequest{Source: StageRetrySourceAuto, ProposalDigest: proposal.Digest}); !errors.Is(err, errStageRetryLimit) {
+		t.Fatalf("the window applied a criterion change by itself: %v", err)
+	}
+	if _, err = application.ControlWorkOrderQuestV2(ctx, quest.ID, "retry", WorkOrderQuestControlRequest{ProposalDigest: "sha256:stale"}); !errors.Is(err, errStageRetryProposal) {
+		t.Fatalf("a stale proposal was applied: %v", err)
+	}
+	if _, err = application.ControlWorkOrderQuestV2(ctx, quest.ID, "retry", WorkOrderQuestControlRequest{ProposalDigest: proposal.Digest}); err != nil && !strings.Contains(err.Error(), "agent") {
+		t.Fatalf("human approval refused: %v", err)
+	}
+	commands := application.effectiveCriterionCommands(ctx, quest)
+	if commands["build"] != "mkdir -p out && docker compose build" {
+		t.Fatalf("check not amended: %v", commands)
+	}
+	amendments := application.criterionAmendments(ctx, quest.ID)
+	if limitation := amendments["build"].Limitation(); !strings.Contains(limitation, "было «docker compose build»") {
+		t.Fatalf("the outcome would not name the change: %q", limitation)
+	}
+}
+
+// Сервер отвергает правки, которые ослабили бы проверку или вышли бы за
+// закрытый список сред.
+func TestStageRetryProposalRejectsUnsafeChanges(t *testing.T) {
+	application, quest, _ := failedStageQuestWithErrorForTest(t, "build failed")
+	ctx := context.Background()
+	application.finalizeQuestAfterFlow(quest.ID, false)
+	cases := map[string]StageRetryProposalInput{
+		"masked":   {QuestID: quest.ID, Criteria: []StageRetryCriterionChange{{CriterionID: "build", Command: "docker compose build || true", Reason: "x"}}},
+		"unknown":  {QuestID: quest.ID, Criteria: []StageRetryCriterionChange{{CriterionID: "deploy", Command: "true", Reason: "x"}}},
+		"image":    {QuestID: quest.ID, Runtime: "ubuntu:latest"},
+		"empty":    {QuestID: quest.ID, Diagnosis: "ничего не меняю"},
+		"same":     {QuestID: quest.ID, Criteria: []StageRetryCriterionChange{{CriterionID: "build", Command: "docker compose build", Reason: "x"}}},
+		"no_quest": {QuestID: "quest_missing", Runtime: "node20"},
+	}
+	for name, input := range cases {
+		if _, err := application.ProposeStageRetryV2(ctx, quest.WorkspaceID, input); err == nil {
+			t.Fatalf("%s: unsafe proposal accepted", name)
+		}
+	}
+}

@@ -19,6 +19,13 @@ type ProcessRequest struct {
 	NetworkPolicy       string
 	AllowedNetworkHosts []string
 	RunID               string
+	// CacheScope — область постоянных кэшей пакетных менеджеров (квест).
+	// Пусто — кэши живут в tmpfs одной команды, как раньше.
+	CacheScope string
+	// Authoritative — прогон, чей результат Point принимает как доказательство
+	// (приёмка). Он получает только кэши, которые менеджер пакетов сверяет с
+	// lock-файлом: подложить в них «зелёный» результат нельзя.
+	Authoritative bool
 }
 
 // PreparedProcess owns one executable command and an idempotent cleanup hook.

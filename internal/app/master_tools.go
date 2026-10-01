@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"local-agent-workbench/internal/domain"
+	"local-agent-workbench/internal/environment"
 	"local-agent-workbench/internal/security"
 	"local-agent-workbench/internal/textutil"
 	workbenchtools "local-agent-workbench/internal/tools"
@@ -34,6 +35,10 @@ type masterReadTools struct {
 	base        *companionReadTools
 	store       masterReadStore
 	workspaceID string
+	// proposeRetry записывает предложение повтора проваленного этапа. Это не
+	// действие над проектом: сервер проверяет и хранит правки, а применяет их
+	// повтор, право на который решает политика (stage_retry_policy.go).
+	proposeRetry func(context.Context, StageRetryProposalInput) (StageRetryProposal, error)
 }
 
 func newMasterReadTools(fs *workspace.FS, store masterReadStore, workspaceID string) *masterReadTools {
@@ -52,8 +57,11 @@ func (t *masterReadTools) Definitions() []domain.ToolDefinition {
 	definitions = append(definitions,
 		masterEntityDefinition("read_execution", "Прочитать состояние execution или связанного run по идентификатору, включая ошибку и последние события."),
 		masterEntityDefinition("read_changeset", "Прочитать workspace-scoped Change Set, его файлы, состояние execution и последние события."),
-		masterEntityDefinition("read_quest", "Прочитать workspace-scoped квест и краткие сведения о его execution и последних событиях."),
+		masterEntityDefinition("read_quest", "Прочитать workspace-scoped квест и краткие сведения о его execution и последних событиях. У квеста, ждущего решения по проваленному этапу, — stageFailure с разобранной причиной каждой проваленной проверки."),
 	)
+	if t.proposeRetry != nil {
+		definitions = append(definitions, proposeStageRetryDefinition())
+	}
 	sort.Slice(definitions, func(i, j int) bool { return definitions[i].Name < definitions[j].Name })
 	return definitions
 }
@@ -73,6 +81,11 @@ func (t *masterReadTools) Execute(ctx context.Context, name string, arguments js
 		return t.readChangeSet(ctx, arguments)
 	case "read_quest":
 		return t.readQuest(ctx, arguments)
+	case proposeStageRetryTool:
+		if t.proposeRetry == nil {
+			return workbenchtools.Fail("tool_not_allowed", "предложение повтора недоступно в этом разговоре")
+		}
+		return t.proposeStageRetry(ctx, arguments)
 	default:
 		if t.base != nil {
 			return t.base.Execute(ctx, name, arguments)
@@ -222,13 +235,74 @@ func (t *masterReadTools) readQuest(ctx context.Context, arguments json.RawMessa
 			break
 		}
 	}
-	return workbenchtools.OK(map[string]any{
+	summary := map[string]any{
 		"id": quest.ID, "parentId": quest.ParentID, "title": quest.Title, "description": boundedMasterReadText(quest.Description, 2000),
 		"status": quest.Status, "objectives": quest.Objectives, "constraints": quest.Constraints,
 		"definitionOfDone": quest.DefinitionOfDone, "teamId": quest.TeamID, "flowId": quest.FlowID,
 		"createdAt": quest.CreatedAt, "updatedAt": quest.UpdatedAt, "finishedAt": quest.FinishedAt,
 		"executions": executionSummaries,
-	})
+	}
+	if message, _ := quest.Controller["statusMessage"].(string); message != "" {
+		summary["statusMessage"] = boundedMasterReadText(message, 1200)
+	}
+	// Провал этапа — то, ради чего Мастера зовут разбирать квест: причина по
+	// каждой проверке, машинные критерии с текущими командами и варианты среды.
+	if failure, ok := quest.Controller[stageFailureKey].(map[string]any); ok {
+		summary["stageFailure"] = failure
+		if proposal, has := quest.Controller[stageRetryProposalKey]; has {
+			summary["stageRetryProposal"] = proposal
+		}
+		if quest.Brief != nil {
+			criteria := []map[string]any{}
+			for _, criterion := range quest.Brief.Criteria {
+				var args struct {
+					Command string `json:"command"`
+				}
+				_ = json.Unmarshal(criterion.Arguments, &args)
+				criteria = append(criteria, map[string]any{"id": criterion.ID, "kind": criterion.Kind, "text": criterion.Text, "command": args.Command})
+			}
+			summary["criteria"] = criteria
+		}
+		summary["retryRuntimeChoices"] = environment.RetryRuntimeChoices()
+	}
+	return workbenchtools.OK(summary)
+}
+
+const proposeStageRetryTool = "propose_stage_retry"
+
+func proposeStageRetryDefinition() domain.ToolDefinition {
+	return domain.ToolDefinition{
+		Name: proposeStageRetryTool,
+		Description: "Предложить повтор проваленного этапа квеста, который ждёт решения (read_quest показывает stageFailure). " +
+			"Сначала прочитай квест и причину провала. runtime — среда из retryRuntimeChoices, когда причина в среде (например, npm 12 блокирует скрипты установки — node20). " +
+			"instruction — указание исполнителю LLM-этапа. criteria — правка команды машинного критерия, только если сломана сама проверка (например, нет mkdir -p перед npm pack --pack-destination); " +
+			"такая правка ждёт разрешения человека, остальное Point применит сам. Не предлагай правку, которая прячет код выхода или ослабляет проверку.",
+		InputSchema: json.RawMessage(`{"type":"object","properties":{` +
+			`"questId":{"type":"string","description":"Корневой квест, ждущий решения по этапу"},` +
+			`"runtime":{"type":"string","description":"Имя среды из retryRuntimeChoices, например node20"},` +
+			`"instruction":{"type":"string","description":"Что учесть исполнителю этапа в новой попытке"},` +
+			`"criteria":{"type":"array","items":{"type":"object","properties":{"criterionId":{"type":"string"},"command":{"type":"string","description":"Новая полная команда проверки"},"reason":{"type":"string"}},"required":["criterionId","command","reason"],"additionalProperties":false}},` +
+			`"diagnosis":{"type":"string","description":"Причина провала своими словами, для человека"}},` +
+			`"required":["questId","diagnosis"],"additionalProperties":false}`),
+	}
+}
+
+func (t *masterReadTools) proposeStageRetry(ctx context.Context, arguments json.RawMessage) domain.ToolResult {
+	var input StageRetryProposalInput
+	if failure := workbenchtools.Decode(arguments, &input); failure != nil {
+		return *failure
+	}
+	proposal, err := t.proposeRetry(ctx, input)
+	if err != nil {
+		return workbenchtools.FailWithHint("proposal_rejected", err.Error(), "исправь предложение по замечанию или объясни человеку, почему повтор не поможет")
+	}
+	note := "Point повторит этап сам — сообщи человеку коротко, что изменено и почему."
+	if proposal.NeedsApproval {
+		note = "Правка проверки ждёт разрешения человека: карточка с изменением уже под ответом. Объясни коротко, зачем она нужна."
+	} else if !proposal.AutoApply {
+		note = "Повторы без человека исчерпаны: предложение ждёт кнопки человека."
+	}
+	return workbenchtools.OK(map[string]any{"accepted": true, "needsApproval": proposal.NeedsApproval, "autoApply": proposal.AutoApply, "note": note})
 }
 
 func (t *masterReadTools) eventSnippets(ctx context.Context, runID string) []map[string]any {

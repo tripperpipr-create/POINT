@@ -331,6 +331,7 @@ func New(dataDir string, options ...Option) (*App, error) {
 	application.engine.SetTrustedCustomToolLookup(application.trustedCustomTool)
 	application.engine.SetBudgetController(application)
 	application.engine.SetToolSessionOpener(application)
+	application.engine.SetStageVerifier(application)
 	application.networkGrants = workbenchtools.NewNetworkGrantBook()
 	application.engine.SetNetworkGrants(application.networkGrants)
 	if executor, ok := application.sandboxBackend.(sandbox.ProcessExecutor); ok {

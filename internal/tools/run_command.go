@@ -18,6 +18,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"local-agent-workbench/internal/diagnostics"
 	"local-agent-workbench/internal/domain"
 	"local-agent-workbench/internal/egress"
 	"local-agent-workbench/internal/observability"
@@ -35,6 +36,10 @@ type RunCommand struct {
 	SandboxImage   string
 	RunID          string
 	QuestID        string
+	// Authoritative — результат команды служит доказательством (приёмка,
+	// ревью, прогон без роли этапа). Такой прогон не получает кэши, в которые
+	// пишут агенты и которые не сверяются с lock-файлом.
+	Authoritative bool
 	// NetworkPolicy is empty for user-owned terminal actions. Agent runtimes
 	// set DENY by default and may provide an explicit host allowlist.
 	NetworkPolicy       string
@@ -156,6 +161,7 @@ func (t RunCommand) Execute(ctx context.Context, raw json.RawMessage) domain.Too
 			Environment: sanitizedProcessEnv(), NetworkPolicy: t.NetworkPolicy,
 			AllowedNetworkHosts: append([]string(nil), effectiveHosts...),
 			RunID:               t.RunID,
+			CacheScope:          t.QuestID, Authoritative: t.Authoritative,
 		})
 		if prepareErr != nil {
 			return finish(FailWithHint("sandbox_denied", prepareErr.Error(), "use a local verifier that fits the configured sandbox network and resource policy"))
@@ -236,6 +242,24 @@ func (t RunCommand) Execute(ctx context.Context, raw json.RawMessage) domain.Too
 		// видела только exitCode -1.
 		output["error"] = security.Redact(runErr.Error())
 		output["hint"] = "the shell could not start the command; check the program name and the cwd, then retry"
+	}
+	// Причина провала — сразу в выводе. 30.09 исполнитель дважды по три минуты
+	// перезапускал сборку, только чтобы найти ошибку в хвосте после `| tail`.
+	denied := []string{}
+	for _, decision := range gatewayDecisions {
+		if decision.Decision == "denied" {
+			denied = append(denied, fmt.Sprintf("%s:%d", decision.FQDN, decision.Port))
+		}
+	}
+	if failure, failed := diagnostics.DiagnoseCommand(diagnostics.CommandRun{
+		Command: input.Command, ExitCode: exitCode, TimedOut: timedOut, Timeout: timeout.String(),
+		Stdout: stdout.String(), Stderr: stderr.String(), DeniedHosts: denied,
+	}); failed {
+		output["cause"] = security.Redact(failure.Cause)
+		output["causeClass"] = failure.Class
+		if failure.Hint != "" {
+			output["causeHint"] = failure.Hint
+		}
 	}
 	result := OK(output)
 	result.Truncated = truncated

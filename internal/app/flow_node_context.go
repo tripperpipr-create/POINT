@@ -230,6 +230,9 @@ func flowNodeContext(quest domain.Quest, flow domain.FlowGraph, flowRun domain.F
 	if attempt, ok := previousAttemptContext(flowRun, nodeID); ok {
 		inputs = append(inputs, attempt)
 	}
+	if instruction, ok := retryInstructionContext(flowRun, nodeID); ok {
+		inputs = append(inputs, instruction)
+	}
 	nodeByID := make(map[string]domain.FlowNode, len(flow.Nodes))
 	for _, node := range flow.Nodes {
 		nodeByID[node.ID] = node

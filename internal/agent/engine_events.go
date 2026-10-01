@@ -20,6 +20,9 @@ type runCorrelation struct {
 	FlowRunID           string
 	FlowNodeID          string
 	CompletionCheckKind string
+	// StageRole — роль этапа Flow. По ней инструменты решают, доверять ли
+	// прогону общие кэши квеста (см. sandbox/cache_volumes.go).
+	StageRole string
 }
 
 func (e *Engine) complete(active *activeRun, result string) {

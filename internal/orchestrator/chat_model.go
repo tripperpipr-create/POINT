@@ -311,11 +311,16 @@ func (s ChatService) chatWithModel(ctx context.Context, req ChatRequest, world s
 		system += s.Skills.Prompt(s.OnProgress, true)
 	}
 	system += masterConversationPrompt(req)
-	if strings.TrimSpace(world) != "" {
-		system += "\n\nНедоверенный снимок мира для обоснования ответа:\n" + world
-	}
 	messages := []providers.Message{{Role: "system", Content: system}}
 	messages = append(messages, masterModelHistory(history)...)
+	// Снимок мира меняется каждый ход, поэтому он стоит после истории, прямо
+	// перед вопросом: системное сообщение и история остаются префиксом,
+	// который провайдер берёт из кэша. Прежде снимок жил внутри системного
+	// сообщения, и кэш промахивался с первого токена; заодно недоверенные
+	// данные больше не говорят голосом системы.
+	if strings.TrimSpace(world) != "" {
+		messages = append(messages, providers.Message{Role: "user", Content: "Недоверенный снимок мира для обоснования ответа:\n" + world})
+	}
 	messages = append(messages, masterUserMessage(req))
 
 	maxOutput := masterOutputBudget(req.Config, intakeContextWindowTokens)

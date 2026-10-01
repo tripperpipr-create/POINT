@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"local-agent-workbench/internal/domain"
+	"local-agent-workbench/internal/environment"
 	"local-agent-workbench/internal/flowruntime"
 	"local-agent-workbench/internal/security"
 )
@@ -52,11 +53,19 @@ func (a *App) holdWorkOrderQuestForStageDecisionV2(ctx context.Context, quest do
 	if quest.Controller == nil {
 		quest.Controller = map[string]any{}
 	}
+	diagnosis := a.stageFailureDiagnosisV2(ctx, run, nodeID, failure)
+	autoRetry := stageAutoRetryInfo(quest, nodeID, diagnosis)
 	quest.Controller[stageFailureKey] = map[string]any{
 		"nodeId": nodeID, "nodeName": nodeName, "flowRunId": run.ID,
-		"error": truncateRunes(security.Redact(failure), 1000), "at": time.Now().UTC().Format(time.RFC3339),
+		"error": truncateRunes(security.Redact(failure), 1000), "at": time.Now().UTC().Format(time.RFC3339Nano),
+		"diagnosis": diagnosis, "autoRetry": autoRetry, "runtimeChoices": environment.RetryRuntimeChoices(),
 	}
-	message := fmt.Sprintf("Этап «%s» не выполнен: %s. Повторите этап — пройденные этапы сохранятся — или завершите квест.", nodeName, truncateRunes(security.Redact(failure), 400))
+	// Предложение прежнего провала к этому не относится.
+	delete(quest.Controller, stageRetryProposalKey)
+	message := truncateRunes(diagnosis.Summary(nodeName), 600) + ". Повторите этап — пройденные этапы сохранятся — или завершите квест."
+	if allowed, _ := autoRetry["allowed"].(bool); allowed {
+		message = truncateRunes(diagnosis.Summary(nodeName), 600) + fmt.Sprintf(". Сбой среды: Point повторит этап сам через %d с.", stageAutoRetryDelaySecs)
+	}
 	if _, err = a.setWorkOrderQuestStatusV2(ctx, quest, domain.QuestAwaitingUser, message); err != nil {
 		slog.Warn("stage failure hold not recorded; quest goes to verdict", "quest_id", quest.ID, "error", security.Redact(err.Error()))
 		return false
@@ -64,6 +73,35 @@ func (a *App) holdWorkOrderQuestForStageDecisionV2(ctx context.Context, quest do
 	a.publishWorkOrderNoticeV2(ctx, approval, quest, "warning", message)
 	slog.Info("work order quest holds for a stage decision", "quest_id", quest.ID, "node_id", nodeID)
 	return true
+}
+
+// stageRetryStatusMessage — что человек видит, пока этап повторяется: кто
+// повторил и с какими правками.
+func stageRetryStatusMessage(nodeName string, plan stageRetryPlan) string {
+	who := "Повтор этапа"
+	if plan.Source == StageRetrySourceAuto {
+		who = "Point повторяет этап"
+		if plan.Proposal != "" {
+			who = "Мастер повторяет этап"
+		}
+	}
+	message := fmt.Sprintf("%s «%s»", who, nodeName)
+	changes := []string{}
+	if plan.Runtime != "" {
+		if choice, ok := environment.RetryRuntimeChoiceByID(plan.Runtime); ok {
+			changes = append(changes, "в среде "+choice.Label)
+		}
+	}
+	if plan.Instruction != "" {
+		changes = append(changes, "с указанием исполнителю")
+	}
+	for _, change := range plan.Criteria {
+		changes = append(changes, "с изменённой проверкой "+change.CriterionID)
+	}
+	if len(changes) > 0 {
+		message += " " + strings.Join(changes, ", ")
+	}
+	return message
 }
 
 func stageFailureSettled(quest domain.Quest) bool {
@@ -98,7 +136,7 @@ func failedFlowNodeV2(run domain.FlowRun) (string, string) {
 // этапы и их результаты остаются; проваленный узел получает новую попытку с
 // отчётом о прежней, пропущенные из-за него узлы снова ждут своих
 // предшественников. Прежнее исполнение и его набор правок остаются уликами.
-func (a *App) retryFailedWorkOrderStageV2(ctx context.Context, quest domain.Quest, apiKey string) (domain.QuestStatus, error) {
+func (a *App) retryFailedWorkOrderStageV2(ctx context.Context, quest domain.Quest, apiKey string, plan stageRetryPlan) (domain.QuestStatus, error) {
 	if !stageFailurePending(quest) {
 		return quest.Status, errNoStageFailureV2
 	}
@@ -109,12 +147,24 @@ func (a *App) retryFailedWorkOrderStageV2(ctx context.Context, quest domain.Ques
 	if _, failed := terminalFailedWorkOrderFlowV2(run); !failed {
 		return quest.Status, errNoStageFailureV2
 	}
+	_, failedNodeID, _ := stageFailureRecord(quest)
 	reopen := map[string]domain.QuestStatus{}
 	for nodeID, state := range run.NodeStates {
 		switch {
 		case state.Status == "failed":
 			if state.Output == nil {
 				state.Output = map[string]any{}
+			}
+			// Правки повтора — только проваленному этапу, ради которого повтор.
+			if nodeID == failedNodeID || failedNodeID == "" {
+				delete(state.Output, retryRuntimeOutputKey)
+				delete(state.Output, retryInstructionOutputKey)
+				if plan.Runtime != "" {
+					state.Output[retryRuntimeOutputKey] = plan.Runtime
+				}
+				if plan.Instruction != "" {
+					state.Output[retryInstructionOutputKey] = plan.Instruction
+				}
 			}
 			executionID, _ := state.Output["executionId"].(string)
 			attemptIDs := stringListFromAny(state.Output["attemptExecutionIds"])
@@ -148,10 +198,23 @@ func (a *App) retryFailedWorkOrderStageV2(ctx context.Context, quest domain.Ques
 	run.Error = ""
 	run.FinishedAt = nil
 	// Сначала квест: переход проверяет, что он всё ещё ждёт этого решения, и
-	// берёт аренду записи. Flow без живого квеста не оживляется.
-	status, err := a.store.ControlWorkOrderQuestV2(ctx, quest.ID, "retry", "")
+	// берёт аренду записи. Flow без живого квеста не оживляется. Журнал
+	// называет источник и правки: повтор без человека виден так же, как нажатие.
+	status, err := a.store.ControlWorkOrderQuestV2(ctx, quest.ID, "retry", plan.journalNote())
 	if err != nil {
 		return quest.Status, err
+	}
+	// Поправки критериев — после того, как квест принял повтор: отвергнутый
+	// повтор не должен оставлять изменённых проверок.
+	now := time.Now().UTC()
+	for index, change := range plan.Criteria {
+		if saveErr := a.store.SaveCriterionAmendmentV2(ctx, domain.CriterionAmendment{
+			QuestID: quest.ID, CriterionID: change.CriterionID, PreviousCommand: change.PreviousCommand,
+			Command: change.Command, Reason: change.Reason, ProposedBy: "master",
+			CreatedAt: now.Add(time.Duration(index) * time.Microsecond),
+		}); saveErr != nil {
+			return status, fmt.Errorf("поправка проверки %s не записана: %w", change.CriterionID, saveErr)
+		}
 	}
 	if err = a.store.SaveFlowRun(ctx, run); err != nil {
 		return status, err
@@ -161,7 +224,11 @@ func (a *App) retryFailedWorkOrderStageV2(ctx context.Context, quest domain.Ques
 		failure, _ := latest.Controller[stageFailureKey].(map[string]any)
 		name, _ := failure["nodeName"].(string)
 		delete(latest.Controller, stageFailureKey)
-		latest.Controller["statusMessage"] = fmt.Sprintf("Повтор этапа «%s»", name)
+		delete(latest.Controller, stageRetryProposalKey)
+		if plan.Source == StageRetrySourceAuto {
+			countStageAutoRetry(&latest, failedNodeID)
+		}
+		latest.Controller["statusMessage"] = stageRetryStatusMessage(name, plan)
 		latest.UpdatedAt = time.Now().UTC()
 		_ = a.saveLoadedQuest(ctx, latest, latest.Status, "stage_retry")
 	}

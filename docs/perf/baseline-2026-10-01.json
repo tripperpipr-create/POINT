@@ -1,0 +1,553 @@
+{
+  "summary": {
+    "flows": 10,
+    "wallMs": 45665213,
+    "modelMs": 36662813,
+    "toolMs": 8220876,
+    "commandMs": 8167266,
+    "auditMs": 0,
+    "modelCalls": 386,
+    "inputTokens": 16724513,
+    "cachedTokens": 0,
+    "topCommands": [
+      {
+        "command": "npm run verify 2\u003e\u00261",
+        "calls": 6,
+        "totalMs": 1216645
+      },
+      {
+        "command": "npm ci 2\u003e\u00261 |",
+        "calls": 6,
+        "totalMs": 1127834
+      },
+      {
+        "command": "npm run verify \u003e",
+        "calls": 2,
+        "totalMs": 835211
+      },
+      {
+        "command": "rm -rf /tmp/cf-vue-apps-pack \u0026\u0026",
+        "calls": 5,
+        "totalMs": 665111
+      },
+      {
+        "command": "npm ci \u0026\u0026 npm",
+        "calls": 3,
+        "totalMs": 495557
+      },
+      {
+        "command": "npm_config_cache=.npm npm run verify",
+        "calls": 1,
+        "totalMs": 494412
+      },
+      {
+        "command": "node node_modules/pinia/node_modules/vue-demi/scripts/postin",
+        "calls": 1,
+        "totalMs": 467413
+      },
+      {
+        "command": "node ./scripts/postinstall.js; echo \"POSTINSTALL_EXIT=$?\";",
+        "calls": 1,
+        "totalMs": 444308
+      },
+      {
+        "command": "npm run verify",
+        "calls": 1,
+        "totalMs": 410456
+      },
+      {
+        "command": "npm_config_cache=.npm npm ci --include=dev",
+        "calls": 1,
+        "totalMs": 206940
+      },
+      {
+        "command": "npm ci --no-audit --no-fund",
+        "calls": 4,
+        "totalMs": 198124
+      },
+      {
+        "command": "mkdir -p /tmp/cf-vue-apps-pack \u0026\u0026",
+        "calls": 1,
+        "totalMs": 160030
+      }
+    ]
+  },
+  "flows": [
+    {
+      "flowRunId": "flowrun_d7b7d4f59d9ed625d76346a8",
+      "startedAt": "2026-09-26T16:58:13.2493616Z",
+      "wallMs": 541328,
+      "stages": [
+        {
+          "runId": "run_be4d4801cbd02a771dc4aedc",
+          "role": "implement",
+          "wallMs": 416565,
+          "modelMs": 248870,
+          "modelCalls": 17,
+          "inputTokens": 172290,
+          "cachedTokens": 0,
+          "toolMs": 166229,
+          "commandMs": 166223,
+          "auditMs": 0,
+          "commands": 11,
+          "reasoningRecoveries": 0
+        },
+        {
+          "runId": "run_e7460f7f6598942c9a5aad96",
+          "role": "integrate",
+          "wallMs": 124320,
+          "modelMs": 84449,
+          "modelCalls": 6,
+          "inputTokens": 77441,
+          "cachedTokens": 0,
+          "toolMs": 39244,
+          "commandMs": 39239,
+          "auditMs": 0,
+          "commands": 3,
+          "reasoningRecoveries": 0
+        }
+      ]
+    },
+    {
+      "flowRunId": "flowrun_20055a05ecb16ad24c3e8ba5",
+      "startedAt": "2026-09-28T08:33:53.2263235Z",
+      "wallMs": 3600663,
+      "stages": [
+        {
+          "runId": "run_ef7d0e944eae44f3cde8bf29",
+          "role": "implement",
+          "wallMs": 363566,
+          "modelMs": 283416,
+          "modelCalls": 14,
+          "inputTokens": 455657,
+          "cachedTokens": 0,
+          "toolMs": 74339,
+          "commandMs": 71230,
+          "auditMs": 0,
+          "commands": 5,
+          "reasoningRecoveries": 0
+        },
+        {
+          "runId": "run_cf5cfec0f2bfb44a452d5dd6",
+          "role": "implement",
+          "wallMs": 1086241,
+          "modelMs": 964696,
+          "modelCalls": 30,
+          "inputTokens": 1866044,
+          "cachedTokens": 0,
+          "toolMs": 98905,
+          "commandMs": 96444,
+          "auditMs": 0,
+          "commands": 21,
+          "reasoningRecoveries": 0
+        },
+        {
+          "runId": "run_24262df3a34e5d7991bc24e5",
+          "role": "implement",
+          "wallMs": 1320876,
+          "modelMs": 775812,
+          "modelCalls": 11,
+          "inputTokens": 381538,
+          "cachedTokens": 0,
+          "toolMs": 539456,
+          "commandMs": 539445,
+          "auditMs": 0,
+          "commands": 6,
+          "reasoningRecoveries": 0
+        },
+        {
+          "runId": "run_ffa28422025f5bfe9d6a2db7",
+          "role": "integrate",
+          "wallMs": 803277,
+          "modelMs": 206172,
+          "modelCalls": 9,
+          "inputTokens": 259834,
+          "cachedTokens": 0,
+          "toolMs": 591330,
+          "commandMs": 588848,
+          "auditMs": 0,
+          "commands": 7,
+          "reasoningRecoveries": 0
+        }
+      ]
+    },
+    {
+      "flowRunId": "flowrun_475892cad147acd451c4f615",
+      "startedAt": "2026-09-28T14:42:47.4016962Z",
+      "wallMs": 3448046,
+      "stages": [
+        {
+          "runId": "run_2c6aadbe657138c46bb90188",
+          "role": "implement",
+          "wallMs": 902935,
+          "modelMs": 352596,
+          "modelCalls": 13,
+          "inputTokens": 603219,
+          "cachedTokens": 0,
+          "toolMs": 543249,
+          "commandMs": 541032,
+          "auditMs": 0,
+          "commands": 9,
+          "reasoningRecoveries": 0
+        },
+        {
+          "runId": "run_e75d87f9b158bb9986eed034",
+          "role": "implement",
+          "wallMs": 1552891,
+          "modelMs": 972338,
+          "modelCalls": 19,
+          "inputTokens": 784795,
+          "cachedTokens": 0,
+          "toolMs": 572726,
+          "commandMs": 570550,
+          "auditMs": 0,
+          "commands": 9,
+          "reasoningRecoveries": 0
+        },
+        {
+          "runId": "run_c361f9b5f4288270900d8ccc",
+          "role": "integrate",
+          "wallMs": 975947,
+          "modelMs": 303978,
+          "modelCalls": 15,
+          "inputTokens": 758578,
+          "cachedTokens": 0,
+          "toolMs": 617315,
+          "commandMs": 614756,
+          "auditMs": 0,
+          "commands": 12,
+          "reasoningRecoveries": 0
+        }
+      ]
+    },
+    {
+      "flowRunId": "flowrun_d027dc8ff043fc98e8dd449c",
+      "startedAt": "2026-09-28T16:33:46.4163605Z",
+      "wallMs": 2658473,
+      "stages": [
+        {
+          "runId": "run_02df475e640de5ac97b87bb3",
+          "role": "implement",
+          "wallMs": 2658473,
+          "modelMs": 2491380,
+          "modelCalls": 30,
+          "inputTokens": 1736679,
+          "cachedTokens": 0,
+          "toolMs": 148674,
+          "commandMs": 144407,
+          "auditMs": 0,
+          "commands": 20,
+          "reasoningRecoveries": 0
+        }
+      ]
+    },
+    {
+      "flowRunId": "flowrun_7c99cafdf8981e65c00cdd93",
+      "startedAt": "2026-09-29T03:27:08.2826659Z",
+      "wallMs": 1158445,
+      "stages": [
+        {
+          "runId": "run_4414778f439d95c44abe529d",
+          "role": "implement",
+          "wallMs": 824899,
+          "modelMs": 785687,
+          "modelCalls": 17,
+          "inputTokens": 534385,
+          "cachedTokens": 0,
+          "toolMs": 30213,
+          "commandMs": 26872,
+          "auditMs": 0,
+          "commands": 6,
+          "reasoningRecoveries": 0
+        },
+        {
+          "runId": "run_0b0e6103b913ff8d87d9327e",
+          "role": "implement",
+          "wallMs": 26845,
+          "modelMs": 20764,
+          "modelCalls": 2,
+          "inputTokens": 36127,
+          "cachedTokens": 0,
+          "toolMs": 4625,
+          "commandMs": 4625,
+          "auditMs": 0,
+          "commands": 1,
+          "reasoningRecoveries": 0
+        },
+        {
+          "runId": "run_7c6be1b91fd30499f5619227",
+          "role": "integrate",
+          "wallMs": 285204,
+          "modelMs": 169744,
+          "modelCalls": 16,
+          "inputTokens": 782246,
+          "cachedTokens": 0,
+          "toolMs": 93385,
+          "commandMs": 89684,
+          "auditMs": 0,
+          "commands": 18,
+          "reasoningRecoveries": 0
+        }
+      ]
+    },
+    {
+      "flowRunId": "flowrun_aa242bfd544f1504fa3a33d0",
+      "startedAt": "2026-09-29T05:07:24.3763115Z",
+      "wallMs": 1639822,
+      "stages": [
+        {
+          "runId": "run_a5ab03fee649998e10d1e7d3",
+          "role": "implement",
+          "wallMs": 1639822,
+          "modelMs": 754465,
+          "modelCalls": 30,
+          "inputTokens": 1627698,
+          "cachedTokens": 0,
+          "toolMs": 867799,
+          "commandMs": 865420,
+          "auditMs": 0,
+          "commands": 20,
+          "reasoningRecoveries": 0
+        }
+      ]
+    },
+    {
+      "flowRunId": "flowrun_6622790d8671d3449c7fa14d",
+      "startedAt": "2026-09-29T09:16:59.3218603Z",
+      "wallMs": 1506936,
+      "stages": [
+        {
+          "runId": "run_4dedf8b073a36f588516df57",
+          "role": "implement",
+          "wallMs": 243668,
+          "modelMs": 229372,
+          "modelCalls": 9,
+          "inputTokens": 178053,
+          "cachedTokens": 0,
+          "toolMs": 11889,
+          "commandMs": 9680,
+          "auditMs": 0,
+          "commands": 2,
+          "reasoningRecoveries": 0
+        },
+        {
+          "runId": "run_90c4441f5855fbd318277f8a",
+          "role": "implement",
+          "wallMs": 511806,
+          "modelMs": 434409,
+          "modelCalls": 18,
+          "inputTokens": 831702,
+          "cachedTokens": 0,
+          "toolMs": 66954,
+          "commandMs": 64635,
+          "auditMs": 0,
+          "commands": 11,
+          "reasoningRecoveries": 0
+        },
+        {
+          "runId": "run_02645a52d1d326a01777ce60",
+          "role": "integrate",
+          "wallMs": 365884,
+          "modelMs": 350142,
+          "modelCalls": 6,
+          "inputTokens": 330405,
+          "cachedTokens": 0,
+          "toolMs": 11852,
+          "commandMs": 9060,
+          "auditMs": 0,
+          "commands": 3,
+          "reasoningRecoveries": 0
+        },
+        {
+          "runId": "run_64d3de064abe67f193a45e96",
+          "role": "integrate",
+          "wallMs": 352107,
+          "modelMs": 282923,
+          "modelCalls": 6,
+          "inputTokens": 321965,
+          "cachedTokens": 0,
+          "toolMs": 66345,
+          "commandMs": 63510,
+          "auditMs": 0,
+          "commands": 2,
+          "reasoningRecoveries": 0
+        }
+      ]
+    },
+    {
+      "flowRunId": "flowrun_516e91ea7eafb9611f4aa3af",
+      "startedAt": "2026-09-29T20:22:35.6807173Z",
+      "wallMs": 24802648,
+      "stages": [
+        {
+          "runId": "run_4b07e8bd110f0790ed117bfa",
+          "role": "implement",
+          "wallMs": 217095,
+          "modelMs": 119595,
+          "modelCalls": 8,
+          "inputTokens": 133758,
+          "cachedTokens": 0,
+          "toolMs": 92128,
+          "commandMs": 89555,
+          "auditMs": 0,
+          "commands": 5,
+          "reasoningRecoveries": 0
+        },
+        {
+          "runId": "run_680c18d132f3ee8a37e4dfa3",
+          "role": "implement",
+          "wallMs": 23393638,
+          "modelMs": 23393327,
+          "modelCalls": 3,
+          "inputTokens": 44016,
+          "cachedTokens": 0,
+          "toolMs": 1,
+          "commandMs": 0,
+          "auditMs": 0,
+          "commands": 0,
+          "reasoningRecoveries": 0
+        },
+        {
+          "runId": "run_79481b4a85ee011e5c1139a1",
+          "role": "implement",
+          "wallMs": 422750,
+          "modelMs": 351730,
+          "modelCalls": 12,
+          "inputTokens": 342550,
+          "cachedTokens": 0,
+          "toolMs": 59428,
+          "commandMs": 59419,
+          "auditMs": 0,
+          "commands": 7,
+          "reasoningRecoveries": 0
+        },
+        {
+          "runId": "run_4ac77e94d490994c5a906103",
+          "role": "implement",
+          "wallMs": 477978,
+          "modelMs": 106591,
+          "modelCalls": 3,
+          "inputTokens": 52920,
+          "cachedTokens": 0,
+          "toolMs": 354209,
+          "commandMs": 354192,
+          "auditMs": 0,
+          "commands": 1,
+          "reasoningRecoveries": 0
+        }
+      ]
+    },
+    {
+      "flowRunId": "flowrun_85539100f07e631b768f48fa",
+      "startedAt": "2026-09-30T04:37:28.1726119Z",
+      "wallMs": 3076949,
+      "stages": [
+        {
+          "runId": "run_3e7333cfc09fba2aa19322a4",
+          "role": "implement",
+          "wallMs": 1358184,
+          "modelMs": 1230133,
+          "modelCalls": 30,
+          "inputTokens": 2106619,
+          "cachedTokens": 0,
+          "toolMs": 100767,
+          "commandMs": 93240,
+          "auditMs": 0,
+          "commands": 20,
+          "reasoningRecoveries": 0
+        },
+        {
+          "runId": "run_e16afe12f7c9d7922c17784d",
+          "role": "implement",
+          "wallMs": 1068787,
+          "modelMs": 313788,
+          "modelCalls": 8,
+          "inputTokens": 312308,
+          "cachedTokens": 0,
+          "toolMs": 747495,
+          "commandMs": 747477,
+          "auditMs": 0,
+          "commands": 6,
+          "reasoningRecoveries": 0
+        },
+        {
+          "runId": "run_d938c71abf51321661cc0966",
+          "role": "integrate",
+          "wallMs": 389150,
+          "modelMs": 361958,
+          "modelCalls": 11,
+          "inputTokens": 860722,
+          "cachedTokens": 0,
+          "toolMs": 22953,
+          "commandMs": 22861,
+          "auditMs": 0,
+          "commands": 5,
+          "reasoningRecoveries": 0
+        },
+        {
+          "runId": "run_62e16cc4ca7dde9c71eaffbc",
+          "role": "integrate",
+          "wallMs": 225191,
+          "modelMs": 213582,
+          "modelCalls": 7,
+          "inputTokens": 179841,
+          "cachedTokens": 0,
+          "toolMs": 9719,
+          "commandMs": 9711,
+          "auditMs": 0,
+          "commands": 2,
+          "reasoningRecoveries": 0
+        }
+      ]
+    },
+    {
+      "flowRunId": "flowrun_68f942d1a4cd7233c6f529b4",
+      "startedAt": "2026-09-30T11:41:03.0138232Z",
+      "wallMs": 3231903,
+      "stages": [
+        {
+          "runId": "run_66cfa02cf7c793a9cae1b9fb",
+          "role": "implement",
+          "wallMs": 174835,
+          "modelMs": 76172,
+          "modelCalls": 9,
+          "inputTokens": 126171,
+          "cachedTokens": 0,
+          "toolMs": 94989,
+          "commandMs": 94982,
+          "auditMs": 0,
+          "commands": 5,
+          "reasoningRecoveries": 0
+        },
+        {
+          "runId": "run_2231f88ef8c4303b5f3e0aec",
+          "role": "implement",
+          "wallMs": 1819445,
+          "modelMs": 666922,
+          "modelCalls": 13,
+          "inputTokens": 457349,
+          "cachedTokens": 0,
+          "toolMs": 1148160,
+          "commandMs": 1145786,
+          "auditMs": 0,
+          "commands": 5,
+          "reasoningRecoveries": 0
+        },
+        {
+          "runId": "run_74fad111e8851008d764d943",
+          "role": "integrate",
+          "wallMs": 1169638,
+          "modelMs": 117802,
+          "modelCalls": 14,
+          "inputTokens": 369603,
+          "cachedTokens": 0,
+          "toolMs": 1046498,
+          "commandMs": 1044383,
+          "auditMs": 0,
+          "commands": 9,
+          "reasoningRecoveries": 0
+        }
+      ]
+    }
+  ]
+}

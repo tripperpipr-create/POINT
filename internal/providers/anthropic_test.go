@@ -50,22 +50,30 @@ func TestAnthropicBuildsMessagesEnvelope(t *testing.T) {
 	if headers.Get("x-api-key") != "k-secret" || headers.Get("anthropic-version") == "" {
 		t.Fatalf("заголовки авторизации не выставлены: %v", headers)
 	}
+	type cacheControl struct {
+		Type string `json:"type"`
+	}
 	var body struct {
-		System    string `json:"system"`
-		MaxTokens int    `json:"max_tokens"`
+		System []struct {
+			Text         string        `json:"text"`
+			CacheControl *cacheControl `json:"cache_control"`
+		} `json:"system"`
+		MaxTokens int `json:"max_tokens"`
 		Tools     []struct {
-			Name        string         `json:"name"`
-			InputSchema map[string]any `json:"input_schema"`
+			Name         string         `json:"name"`
+			InputSchema  map[string]any `json:"input_schema"`
+			CacheControl *cacheControl  `json:"cache_control"`
 		} `json:"tools"`
 		Messages []struct {
 			Role    string `json:"role"`
 			Content []struct {
-				Type      string `json:"type"`
-				Text      string `json:"text"`
-				ID        string `json:"id"`
-				Name      string `json:"name"`
-				ToolUseID string `json:"tool_use_id"`
-				Source    struct {
+				Type         string        `json:"type"`
+				Text         string        `json:"text"`
+				ID           string        `json:"id"`
+				Name         string        `json:"name"`
+				ToolUseID    string        `json:"tool_use_id"`
+				CacheControl *cacheControl `json:"cache_control"`
+				Source       struct {
 					Type      string `json:"type"`
 					MediaType string `json:"media_type"`
 					Data      string `json:"data"`
@@ -76,8 +84,17 @@ func TestAnthropicBuildsMessagesEnvelope(t *testing.T) {
 	if err = json.Unmarshal(raw, &body); err != nil {
 		t.Fatalf("тело запроса не разобрано: %v (%s)", err, raw)
 	}
-	if body.System != "Ты Point" {
-		t.Fatalf("системная инструкция не вынесена в поле system: %q", body.System)
+	if len(body.System) != 1 || body.System[0].Text != "Ты Point" {
+		t.Fatalf("системная инструкция не вынесена в поле system: %+v", body.System)
+	}
+	// Кэш префикса: метки на конце системного сообщения, инструментов и
+	// разговора. Без них каждый ход заново считал весь контекст.
+	if body.System[0].CacheControl == nil || body.Tools[len(body.Tools)-1].CacheControl == nil {
+		t.Fatalf("стабильный префикс не помечен для кэша: %s", raw)
+	}
+	lastMessage := body.Messages[len(body.Messages)-1].Content
+	if lastMessage[len(lastMessage)-1].CacheControl == nil || body.Messages[0].Content[0].CacheControl != nil {
+		t.Fatalf("метка кэша разговора не на последнем блоке: %s", raw)
 	}
 	for _, message := range body.Messages {
 		if message.Role == "system" {

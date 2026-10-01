@@ -218,6 +218,42 @@ func TestIdleReaderDoesNotFireBeforeFirstByte(t *testing.T) {
 	}
 }
 
+// Сервер отдал заголовки и замолчал навсегда: прежде сторож тишины ждал первого
+// байта, и прогон висел 6,5 часа. Теперь срок первого байта рвёт обращение, и
+// тот же запрос повторяется.
+func TestSilentStreamBeforeFirstByteIsRetried(t *testing.T) {
+	var requests atomic.Int32
+	release := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.(http.Flusher).Flush()
+		if requests.Add(1) == 1 {
+			select {
+			case <-release:
+			case <-r.Context().Done():
+			}
+			return
+		}
+		fmt.Fprint(w, "data: {\"choices\":[{\"delta\":{\"content\":\"ok\"}}]}\n\ndata: [DONE]\n\n")
+	}))
+	defer server.Close()
+	defer close(release)
+	model := NewOpenAICompatible(Config{BaseURL: server.URL + "/v1", HeaderTimeoutSeconds: 5, StreamIdleSeconds: 1, StreamFirstByteSeconds: 1})
+	events, err := collectStream(t, func(onEvent func(ModelEvent) error) error {
+		return model.Stream(context.Background(), ModelRequest{Model: "m", Messages: []Message{{Role: "user", Content: "hi"}}}, onEvent)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	retried := false
+	for _, event := range events {
+		retried = retried || event.Kind == EventRetry
+	}
+	if !retried || requests.Load() != 2 {
+		t.Fatalf("silent stream was not cut: requests=%d events=%+v", requests.Load(), events)
+	}
+}
+
 func TestAnthropicRetriesOverloadedStreamAndReportsStopReason(t *testing.T) {
 	var requests atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

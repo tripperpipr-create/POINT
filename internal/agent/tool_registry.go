@@ -58,6 +58,7 @@ func buildToolRegistryWithExecution(fs *workspace.FS, customTools []domain.Custo
 		FS: fs, NetworkPolicy: networkPolicy, AllowedNetworkHosts: allowedNetworkHosts,
 		ConfirmedGitRemotes: append([]string(nil), confirmedRemotes...), Grants: grants,
 		Executor: executor, SandboxImage: sandboxImage, RunID: runID, QuestID: correlation.QuestID,
+		Authoritative: !writerStageRole(correlation.StageRole),
 	}
 	toolItems := []workbenchtools.Tool{
 		workbenchtools.ProjectMap{FS: fs}, workbenchtools.SearchCode{FS: fs}, workbenchtools.ListFiles{FS: fs},
@@ -109,4 +110,15 @@ func confirmedRemotesFromBrief(brief *domain.TaskBrief) []string {
 		return nil
 	}
 	return append([]string(nil), brief.Permissions.ConfirmedGitRemotes...)
+}
+
+// writerStageRole — этап, который пишет код, а не судит о нём. Только такие
+// этапы делят с квестом все кэши; прогон без роли (прямой запуск,
+// возобновление без записи роли) считается судящим — безопасная сторона.
+func writerStageRole(role string) bool {
+	switch strings.TrimSpace(role) {
+	case domain.StageRoleBootstrap, domain.StageRoleImplement, domain.StageRoleIntegrate:
+		return true
+	}
+	return false
 }

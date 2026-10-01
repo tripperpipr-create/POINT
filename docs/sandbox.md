@@ -44,6 +44,15 @@ The runtime container contract is:
 
 - the execution root (live workspace or isolated sandbox) is mounted at `/workspace`, read-write;
 - the image root is read-only and temporary files use a bounded tmpfs;
+- package-manager caches of a quest live in named Docker volumes
+  (`internal/sandbox/cache_volumes.go`) and survive commands and stages: npm
+  and the Go module cache are verified against the lock file and `go.sum`, so
+  every run of the quest gets them; the Go build cache and pip cache can be
+  written into by an agent and are not verified, so only writer stages
+  (bootstrap, implement, integrate) get them, and acceptance, review and runs
+  without a stage role keep a throwaway tmpfs cache. The volumes are owned by
+  the sandbox identity, labelled with the quest and removed at core start once
+  the quest is closed or purged;
 - all Linux capabilities are dropped, privilege escalation is disabled, IPC is
   private and the process count, memory and CPU are bounded;
 - the process runs as a non-root numeric identity;
@@ -144,6 +153,11 @@ POINT_SANDBOX_MEMORY=2g
 POINT_SANDBOX_CPUS=2
 POINT_SANDBOX_PIDS=256
 ```
+
+`POINT_VERIFY_SERVICE` (`off`, `shadow` — the default, `on`) controls the
+verification service described in [architecture.md](architecture.md): whether
+Point checks the last writing stage against the acceptance criteria and whether
+acceptance may reuse a run that fully passed on the same tree and image.
 
 `POINT_SANDBOX_REQUIRE_STRONG=true` is the downgrade guard. If the backend is
 missing, Docker is unavailable, the image is absent, the container user is

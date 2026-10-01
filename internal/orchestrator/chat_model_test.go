@@ -107,14 +107,19 @@ func TestMasterTalksThroughItsOwnModel(t *testing.T) {
 
 	// Модель обязана видеть состав ростера, иначе отвечать ей нечем и она
 	// начнёт выдумывать.
-	system := ""
+	system, world := "", ""
 	for _, message := range seen.Messages {
 		if message.Role == "system" {
 			system = message.Content
 		}
+		// Снимок мира — отдельное сообщение перед репликой человека: так
+		// системное сообщение и история остаются кэшируемым префиксом.
+		if message.Role == "user" && strings.HasPrefix(message.Content, "Недоверенный снимок мира") {
+			world = message.Content
+		}
 	}
-	if !strings.Contains(system, "Разведчик") {
-		t.Fatalf("снимок мира не дошёл до модели: %q", system)
+	if !strings.Contains(world, "Разведчик") || strings.Contains(system, "Разведчик") {
+		t.Fatalf("снимок мира не дошёл до модели отдельным сообщением: %q", world)
 	}
 	if !strings.Contains(system, "не запускаешь квесты") {
 		t.Fatalf("границы роли не заданы промптом: %q", system)
@@ -387,8 +392,8 @@ func TestModelSeesItsOwnPendingProposal(t *testing.T) {
 	}
 	system := ""
 	for _, message := range seen.Messages {
-		if message.Role == "system" {
-			system = message.Content
+		if message.Role == "system" || strings.HasPrefix(message.Content, "Недоверенный снимок мира") {
+			system += message.Content
 		}
 	}
 	if !strings.Contains(system, "Починить вебхук биллинга") {

@@ -90,6 +90,10 @@ func (b *ContainerBackend) imageMatchesToolVersions(ctx context.Context, image s
 		if !runtimeCommandPattern.MatchString(command) || !runtimeVersionPattern.MatchString(expected) {
 			return fmt.Errorf("invalid sandbox version request for %q", tool)
 		}
+		key := "version|" + image + "|" + command + "|" + expected
+		if b.probePassed(image, key) {
+			continue
+		}
 		probeCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
 		output, err := b.output(probeCtx,
 			"run", "--rm", "--pull", "never", "--network", "none", "--read-only",
@@ -107,6 +111,7 @@ func (b *ContainerBackend) imageMatchesToolVersions(ctx context.Context, image s
 		if actual != expected && !strings.HasPrefix(actual, expected+".") {
 			return fmt.Errorf("%w: sandbox %s version %q does not match requested %q", ErrRuntimeVersionUnavailable, tool, actual, expected)
 		}
+		b.rememberProbe(image, key)
 	}
 	return nil
 }
@@ -185,6 +190,10 @@ func (b *ContainerBackend) imageProvidesCommands(ctx context.Context, image stri
 			checks = append(checks, command+" --version >/dev/null 2>&1")
 		}
 	}
+	key := "commands|" + image + "|" + strings.Join(checks, " && ")
+	if b.probePassed(image, key) {
+		return nil
+	}
 	probeCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	_, err := b.output(probeCtx,
@@ -192,7 +201,28 @@ func (b *ContainerBackend) imageProvidesCommands(ctx context.Context, image stri
 		"--cap-drop", "ALL", "--security-opt", "no-new-privileges=true",
 		"--user", strings.TrimSpace(b.User), image, "/bin/sh", "-lc", strings.Join(checks, " && "),
 	)
+	if err == nil {
+		b.rememberProbe(image, key)
+	}
 	return err
+}
+
+// Пробы образа — отдельный docker run на каждую, и раньше каждый этап квеста
+// повторял их заново. Образ, названный дайджестом, неизменен: однажды
+// найденные в нём команды и версии там и останутся. Запоминаются только
+// удачные пробы и только для дайджестов — тег мог переехать на другой образ.
+func (b *ContainerBackend) probePassed(image, key string) bool {
+	if !imageDigestPattern.MatchString(image) {
+		return false
+	}
+	_, ok := b.runtimeProbes.Load(key)
+	return ok
+}
+
+func (b *ContainerBackend) rememberProbe(image, key string) {
+	if imageDigestPattern.MatchString(image) {
+		b.runtimeProbes.Store(key, struct{}{})
+	}
 }
 
 func (b *ContainerBackend) buildRuntimeImage(ctx context.Context, baseDigest, runtimeID, runtimeVersion string, commands, packages []string) (string, string, error) {

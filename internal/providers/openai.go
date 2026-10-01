@@ -195,7 +195,7 @@ func (o *OpenAICompatible) Stream(ctx context.Context, request ModelRequest, onE
 			"attempt", attempt,
 			"duration_ms", time.Since(started).Milliseconds(),
 		)
-		body := newIdleReader(response.Body, o.config.streamIdle())
+		body := newIdleReader(response.Body, o.config.streamIdle(), o.config.streamFirstByte())
 		streamErr := streamOpenAIResponse(ctx, body, onEvent)
 		_ = body.Close()
 		if streamErr != nil {
@@ -311,8 +311,11 @@ func streamOpenAIResponse(ctx context.Context, body io.Reader, onEvent func(Mode
 				FinishReason string `json:"finish_reason"`
 			} `json:"choices"`
 			Usage struct {
-				Prompt     int `json:"prompt_tokens"`
-				Completion int `json:"completion_tokens"`
+				Prompt        int `json:"prompt_tokens"`
+				Completion    int `json:"completion_tokens"`
+				PromptDetails struct {
+					Cached int `json:"cached_tokens"`
+				} `json:"prompt_tokens_details"`
 			} `json:"usage"`
 			Error *struct {
 				Message string `json:"message"`
@@ -375,7 +378,7 @@ func streamOpenAIResponse(ctx context.Context, body io.Reader, onEvent func(Mode
 		}
 		if chunk.Usage.Prompt > 0 || chunk.Usage.Completion > 0 {
 			completionTokens = chunk.Usage.Completion
-			if err = onEvent(ModelEvent{Kind: EventUsage, InputTokens: chunk.Usage.Prompt, OutputTokens: chunk.Usage.Completion}); err != nil {
+			if err = onEvent(ModelEvent{Kind: EventUsage, InputTokens: chunk.Usage.Prompt, OutputTokens: chunk.Usage.Completion, CachedInputTokens: chunk.Usage.PromptDetails.Cached}); err != nil {
 				return err
 			}
 		}

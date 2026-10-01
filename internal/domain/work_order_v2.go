@@ -85,6 +85,14 @@ type WorkOrderRuntime struct {
 	// Stall — причина, по которой выполнение стоит. Раньше текст отказа жил
 	// только в flowRun.NodeStates и не доходил ни до карточки, ни до человека.
 	Stall *WorkOrderStall `json:"stall,omitempty"`
+	// StageFailure — разобранный провал этапа, которого ждёт квест: причина
+	// каждой проваленной проверки, образ, разрешение повторить без человека.
+	// StageRetryProposal — предложение Мастера повторить этап с правками.
+	StageFailure       map[string]any `json:"stageFailure,omitempty"`
+	StageRetryProposal map[string]any `json:"stageRetryProposal,omitempty"`
+	// PreAcceptCheck — последний прогон критериев, который Point сделал сам
+	// перед приёмкой: человек видит, что проверки уже шли и чем кончились.
+	PreAcceptCheck *WorkOrderPreAcceptCheck `json:"preAcceptCheck,omitempty"`
 	// Stages — этапы Flow для экрана выполнения. Наблюдатель и так опрашивает
 	// наряд раз в 2.5 с, поэтому экрану не нужен полный /api/state/runtime.
 	Stages []WorkOrderStage `json:"stages,omitempty"`

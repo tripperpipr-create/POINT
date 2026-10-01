@@ -211,8 +211,21 @@ func TestModelPlannedWorkOrderNodeUsesImplementationBrief(t *testing.T) {
 
 func TestDeterministicAcceptFailureDetailShowsMissingTool(t *testing.T) {
 	result := domain.ToolResult{Output: json.RawMessage(`{"exitCode":127,"stderr":"/bin/sh: docker: not found\nsecond line"}`)}
-	if got := deterministicAcceptFailureDetail(result); got != "/bin/sh: docker: not found" {
+	if got := deterministicAcceptFailureDetail(result); got != "в образе нет программы docker" {
 		t.Fatalf("failure detail=%q", got)
+	}
+}
+
+// run_command уже разобрал причину: приёмка берёт её, а не первую строку со
+// словом failed («x Build failed in 17.43s» 30.09).
+func TestDeterministicAcceptFailureDetailPrefersCommandCause(t *testing.T) {
+	result := domain.ToolResult{Output: json.RawMessage(`{"exitCode":1,"stderr":"x Build failed in 17.43s","cause":"npm 12 заблокировал скрипты установки: vue-demi","causeClass":"runtime","causeHint":"повторить в образе Node 20"}`)}
+	if got := deterministicAcceptFailureDetail(result); got != "npm 12 заблокировал скрипты установки: vue-demi" {
+		t.Fatalf("failure detail=%q", got)
+	}
+	failure, ok := acceptCheckFailure(result)
+	if !ok || failure.Class != "runtime" || failure.Hint != "повторить в образе Node 20" {
+		t.Fatalf("failure=%#v", failure)
 	}
 }
 

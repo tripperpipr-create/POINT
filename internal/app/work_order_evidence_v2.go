@@ -625,6 +625,7 @@ func (a *App) buildWorkOrderEvidenceV2(ctx context.Context, approval domain.Work
 		summary   string
 	}{}
 	proofChecks := map[string]domain.VerificationCheck{}
+	var reusedChecks []string
 	if outcomeErr == nil {
 		for index, criterion := range order.Criteria {
 			if index < len(outcome.Promises) {
@@ -655,8 +656,26 @@ func (a *App) buildWorkOrderEvidenceV2(ctx context.Context, approval domain.Work
 					check.ExitCode, check.Satisfied = nil, false
 					check.Summary = "Проверка выполнялась до последнего изменения; на итоговой ревизии не запускалась"
 				}
+				check.TreeDigest = criterion.Check.TreeDigest
+				if reuse := criterion.Check.ReusedFrom; reuse != nil {
+					// Взятый исход принимается, только если запись о нём цела
+					// и сделана на том же дереве, что видела приёмка. Иначе
+					// это проваленная проверка, а не «проверки не было».
+					check.ReusedFromCheckID = reuse.ResultID
+					if reason := a.reusedCheckProblem(ctx, order.WorkspaceID, criterion.Check.TreeDigest, *reuse); reason != "" {
+						check.Satisfied = false
+						check.Summary = "Переиспользованная проверка отвергнута: " + reason
+					} else {
+						reusedChecks = append(reusedChecks, criterion.CriterionID)
+					}
+				}
 				proofChecks[criterion.CriterionID] = check
 			}
+		}
+		if len(reusedChecks) > 0 {
+			sort.Strings(reusedChecks)
+			bundle.KnownLimitations = append(bundle.KnownLimitations,
+				"Проверки не запускались приёмкой заново, их исход взят из прогона Point на той же ревизии, в том же образе и теми же командами: "+strings.Join(reusedChecks, ", "))
 		}
 		bundle.ChangedFiles = append(bundle.ChangedFiles, outcome.AppliedFiles...)
 		if !outcome.Verified && outcome.Honest != "" && !workOrderHasDeferredComposeCriteriaV2(order) {
@@ -665,7 +684,15 @@ func (a *App) buildWorkOrderEvidenceV2(ctx context.Context, approval domain.Work
 	} else if len(executionFailures) == 0 {
 		bundle.KnownLimitations = append(bundle.KnownLimitations, "Невозможно собрать итог проверки: "+security.Redact(outcomeErr.Error()))
 	}
+	// Поправки команд, разрешённые человеком при повторе этапа: шлюз сверяет
+	// выполненную команду с действующей, а итог квеста называет каждую правку —
+	// изменённая проверка не выдаётся за утверждённую.
+	amendments := a.criterionAmendments(ctx, quest.ID)
 	for _, criterion := range order.Criteria {
+		if amendment, ok := amendments[criterion.ID]; ok && criterion.Kind != "manual" {
+			criterion.Arguments = amendedCriterionArguments(criterion.Arguments, amendment)
+			bundle.KnownLimitations = append(bundle.KnownLimitations, amendment.Limitation())
+		}
 		item := proof[criterion.ID]
 		ev := domain.CriterionEvidence{CriterionID: criterion.ID, Satisfied: item.satisfied, Tool: criterion.Tool, Summary: item.summary}
 		if criterion.Kind == "manual" {

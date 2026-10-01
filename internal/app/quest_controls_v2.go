@@ -18,6 +18,12 @@ type WorkOrderQuestControlRequest struct {
 	// APIKey is transient resume material from desktop SecretStorage. It is
 	// never written to the quest control journal.
 	APIKey string `json:"apiKey,omitempty"`
+	// Повтор проваленного этапа. Source — кто повторяет: человек или окно по
+	// решению сервера (auto); ProposalDigest — какое предложение Мастера
+	// применить; Runtime — среда из закрытого списка, выбранная человеком.
+	Source         string `json:"source,omitempty"`
+	ProposalDigest string `json:"proposalDigest,omitempty"`
+	Runtime        string `json:"runtime,omitempty"`
 }
 
 type WorkOrderQuestControlResult struct {
@@ -58,8 +64,15 @@ func (a *App) ControlWorkOrderQuestV2(ctx context.Context, questID, action strin
 	}
 	// Решение по проваленному этапу: повторить с места сбоя или вынести вердикт.
 	if action == "retry" {
+		if !stageFailurePending(quest) {
+			return result, errNoStageFailureV2
+		}
+		plan, planErr := resolveStageRetryPlanV2(quest, request)
+		if planErr != nil {
+			return result, planErr
+		}
 		a.cancelWorkOrderLaunchV2(questID)
-		result.Status, err = a.retryFailedWorkOrderStageV2(ctx, quest, request.APIKey)
+		result.Status, err = a.retryFailedWorkOrderStageV2(ctx, quest, request.APIKey, plan)
 		return result, err
 	}
 	if action == "finalize" {

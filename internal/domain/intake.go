@@ -159,6 +159,10 @@ type VerificationCheck struct {
 	Summary    string `json:"summary,omitempty"`
 	ArtifactID string `json:"artifactId,omitempty"`
 	DurationMs int64  `json:"durationMs,omitempty"`
+	// ReusedFromCheckID — исход взят из прогона проверок Point (запись
+	// verification_results_v2) на дереве TreeDigest, а не получен заново.
+	ReusedFromCheckID string `json:"reusedFromCheckId,omitempty"`
+	TreeDigest        string `json:"treeDigest,omitempty"`
 }
 
 type EvidenceDecisionRecord struct {

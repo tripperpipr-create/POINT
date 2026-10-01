@@ -328,6 +328,10 @@ WHERE approval.work_order_id=? ORDER BY approval.version DESC LIMIT 1`, order.ID
 	if note, _ := state["plannerNote"].(string); note != "" {
 		runtime.PlannerNote = note
 	}
+	if runtime.Status == domain.QuestAwaitingUser {
+		runtime.StageFailure, _ = state["stageFailure"].(map[string]any)
+		runtime.StageRetryProposal, _ = state["stageRetryProposal"].(map[string]any)
+	}
 	runtime.UpdatedAt = parseTime(updated)
 	if bundle, evidenceErr := s.GetEvidenceBundle(ctx, runtime.QuestID); evidenceErr == nil {
 		evidence := bundle
@@ -352,6 +356,7 @@ WHERE approval.work_order_id=? ORDER BY approval.version DESC LIMIT 1`, order.ID
 		runtime.Milestones = milestones
 	}
 	s.attachWorkOrderFlowStateV2(ctx, &runtime)
+	runtime.PreAcceptCheck = s.latestPreAcceptCheckV2(ctx, runtime.FlowRunID)
 	order.Runtime = &runtime
 }
 

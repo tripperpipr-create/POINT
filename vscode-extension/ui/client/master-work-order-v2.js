@@ -102,7 +102,7 @@ export function masterWorkOrderCardsHtml(orders, esc, busyIds = new Set(), deps 
 		${versionsHtml}
         <details class="master-v2-editor-advanced"${masterCardMoreAttrs(`order-edit-json:${order.id}`,{esc})}><summary>Профессиональные настройки</summary>
           <p>JSON редактирует точный контракт. Сервер проверит версии, права, секреты, сеть и критерии до создания новой immutable-версии.</p>
-		  ${['criteria','milestones','completion','workspace','stack','roster','routing','network','secrets','budget','delivery'].map(field=>`<label><span>${field}</span><textarea data-work-order-json="${field}" rows="${field==='criteria'||field==='milestones'?8:5}">${jsonValue(order[field],esc)}</textarea></label>`).join('')}
+		  ${['criteria','milestones','completion','dependencyPlan','workspace','stack','roster','routing','network','secrets','budget','delivery'].map(field=>`<label><span>${field}</span><textarea data-work-order-json="${field}" rows="${field==='criteria'||field==='milestones'?8:5}">${field==='dependencyPlan' && !order[field] ? 'null' : jsonValue(order[field],esc)}</textarea></label>`).join('')}
         </details>
         <div class="master-v2-editor-actions"><button type="button" class="hall-btn is-primary" data-action="save-master-work-order-v2" data-id="${esc(order.id)}" ${busy?'disabled':''}>${busy?'Сохраняем…':'Сохранить новую версию'}</button></div>
       </details>` : ''
@@ -137,7 +137,7 @@ export function masterWorkOrderCardsHtml(orders, esc, busyIds = new Set(), deps 
 	// решают, а читают, когда решили читать. Наверху остаётся то, по чему квест
 	// принимают, — условия готовности.
 	const summaryHtml=`<div class="master-v2-summary">
-        <section><b>Что будет сделано</b>${rows(order.scope,esc)}</section>
+        <section><b>Что будет сделано</b>${rows(order.scope,esc)}</section>${list(order.dependencyPlan?.projects).length ? `<section><b>Подготовка зависимостей</b><ul>${list(order.dependencyPlan.projects).map(project=>`<li><b>${esc(project.manager)} · ${esc(project.cwd || '.')}</b>${list(project.commands).map(command=>`<code>${esc(command.command)}</code>`).join('')}</li>`).join('')}</ul></section>` : ''}
       </div>`
 	// Вопрос Мастера — состояние квеста, а не примечание к нему: точка тем же
 	// тоном, что и кикер, и счёт вопросов прямо в строке.

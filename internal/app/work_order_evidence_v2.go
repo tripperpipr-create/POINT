@@ -613,6 +613,7 @@ func (a *App) buildWorkOrderEvidenceV2(ctx context.Context, approval domain.Work
 	if note, _ := quest.Controller["plannerNote"].(string); strings.TrimSpace(note) != "" {
 		bundle.KnownLimitations = append(bundle.KnownLimitations, strings.TrimSpace(note))
 	}
+	a.appendSandboxAuditLimitations(ctx, &bundle, order.WorkspaceID, quest)
 	if len(order.Network) > 0 {
 		raw, _ := json.Marshal(order.Network)
 		sum := sha256.Sum256(raw)
@@ -999,6 +1000,9 @@ func (a *App) applyChangeSetAtPathV2(ctx context.Context, workspaceID, workspace
 	}
 	if set.WorkspaceID != workspaceID {
 		return changesets.ApplyResult{}, fmt.Errorf("change set belongs to another workspace")
+	}
+	if err = a.guardSandboxDelivery(ctx, set); err != nil {
+		return changesets.ApplyResult{}, err
 	}
 	for _, dependencyID := range set.DependsOn {
 		dependency, getErr := a.store.GetChangeSet(ctx, dependencyID)

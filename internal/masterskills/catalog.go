@@ -76,8 +76,16 @@ func Prompt(skills []domain.SkillRuntime) string {
 func Catalog(skills []domain.SkillRuntime) string {
 	var b strings.Builder
 	b.WriteString("\nДополнительные методики доступны через read_skill(id):\n")
-	for _, s := range skills {
-		fmt.Fprintf(&b, "%s — %s\n", s.ID, s.Description)
+	for i, s := range skills {
+		if i >= 24 {
+			b.WriteString("More pinned skills: search_skills(query).\n")
+			break
+		}
+		description := []rune(s.Description)
+		if len(description) > 200 {
+			description = description[:200]
+		}
+		fmt.Fprintf(&b, "%s - %s\n", s.ID, string(description))
 	}
 	return b.String()
 }

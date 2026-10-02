@@ -1,6 +1,8 @@
 # Execution sandbox
 
-Current for Point `1.2.3` as of 2026-09-23. This document is the operational
+Experimental `embedded` mode uses a Point-owned WSL 2 guest with a pinned Moby/Podman pack and Linux volumes. It refuses Windows bind/live execution, checks engine/image/security identity, coordinates active executions across windows and terminates only its owned guest after ten idle minutes. Both engines passed the seven native parity scenarios on the current PC under profile v2. Docker remains supported and global defaults remain `bind/shadow`. Provisioning, measurements and pending clean Windows/installed IDE acceptance are described in [embedded runtime implementation](implementation-embedded-runtime.md).
+
+Current for Point `1.2.3` as of 2026-10-01. This document is the operational
 contract for executable agent tools. File mutation mode and operating system
 isolation are separate guarantees and must not be presented as the same thing.
 Product rules for Orchestrator supervision, confirmed-only git remotes and
@@ -26,6 +28,89 @@ already matches the proposed hash. `POINT_LIVE_WORKSPACE=0` (or
 under a temp root. The open project stays unchanged until reviewed delivery.
 
 ## Backends
+
+### Volume workspaces (experimental)
+
+The implemented 4a–4d behavior and Windows/Docker evidence are recorded in
+[the volume acceptance report](perf/sandbox-volume-2026-10-01.md). The user
+deferred live 4e quests, so this remains opt-in and the default stays `bind`.
+
+`POINT_SANDBOX_WORKSPACE=bind|volume` selects storage for a new isolated run;
+the default remains `bind`. A Flow records this choice at launch and its
+successors inherit it. Live workspaces and migrated records retain bind mounts
+and `legacy-v1` file rules. New isolated copies use `portable-v2` in either mode.
+Volume mode always creates a filtered host mirror, including for clean Git
+projects; the original project's Git metadata stays on the host.
+
+The mirror supplies file tools, search, IDE, Change Sets and three-way merging.
+The independent named Linux volume supplies command execution, dependencies
+and build outputs. The immutable baseline contains only portable files.
+Host synchronization state lives in a sibling `.point-control` directory,
+which is never mounted into the stage container.
+
+One non-root, read-only-root container serves a stage through `docker exec`.
+It mounts only its workspace, a read-only versioned helper volume, and the
+existing permitted quest caches. CPU, memory and PID limits, private IPC/PID
+namespaces, `cap-drop ALL` and `no-new-privileges` apply. The static
+`point-sandboxd` binary is shipped separately for Linux amd64 and arm64, checked
+by SHA-256 and pinned in the sandbox record. Execution images and their existing
+attestations are unchanged. A compatible image needs no Point software;
+shell commands still require `/bin/sh`, and direct commands require their program.
+The only root setup process assigns ownership of a new empty volume, has no
+network or project code, and retains only `CHOWN`.
+
+An ordinary invocation applies host edits, runs the command, kills command
+descendants, clears `/tmp`, scans portable Linux files once, and returns framed
+stdout, stderr, result and delta in one exec. Command output cannot become a
+control frame. PID 1 reaps orphans; reset signals the available PID namespace
+excluding supervisor processes. Supervisors set `PR_SET_DUMPABLE=0`. See
+[kill(2)](https://man7.org/linux/man-pages/man2/kill.2.html) and
+[PR_SET_DUMPABLE](https://man7.org/linux/man-pages/man2/PR_SET_DUMPABLE.2const.html).
+An allowlist gateway remains warm but receives a fresh policy and quotas for
+each command over host-controlled Docker stdin. End closes its connections and
+revokes the grant. Failure and timeout still collect the file delta.
+
+Portable rules exclude dependency/build directories, secrets, links/junctions,
+PNG/JPEG and `.exe/.dll/.so`. Package-root `vendor` is excluded, while source
+assets below `src`, such as `src/styles/vendor`, are retained. All transfer,
+snapshot and digest paths share the versioned rules. Digest includes canonical
+relative `/` paths, directories and SHA-256 file bytes in deterministic order;
+mtime is never trusted. Case/Unicode aliases and Windows-unrepresentable paths
+fail with the offending names. Full dependency clones preserve internal links
+without dereferencing them.
+
+A single-parent writer receives an independent full clone for the same image.
+An image change requires a clean portable copy and dependency installation.
+Review, verification and Accept always receive a clean portable volume with
+only verified download caches. Join retains the existing mirror merge and
+Change Set lineage, then uploads the result into a new clean volume.
+
+Every operation is durably recorded before dispatch. Received deltas are saved
+before mirror application and can be replayed without repeating commands.
+An unknown command outcome is never automatically executed again. Container
+loss recreates execution resources; volume loss restores the mirror and marks
+dependencies lost. Independent digests are checked before handoff, verification
+and delivery. A mismatch retains a conflict copy, resynchronizes the mirror and
+stops advancement. Interrupted or incomplete audit requires a new clean check
+and an immutable human decision for the same sandbox and digest before delivery.
+The historical limitation stays in the evidence bundle.
+
+Resources carry core-owner, workspace, quest and sandbox labels. Close removes
+execution containers, networks and workspace volumes. Startup collects proven
+orphans belonging to its owner; a grace period protects creation before database
+registration. Shared binary volumes are retained while referenced. Low Docker
+filesystem capacity (under 10% or 5 GiB) produces a warning.
+
+Build the helpers with `node scripts/build-sandboxd.mjs`; the regular core and
+distribution builds include them. Set `POINT_VOLUME_INTEGRATION=1` and
+`POINT_SANDBOXD_BINARY` to the matching binary to run the separate volume tests.
+`go run ./cmd/point-sandbox-bench -project <path> -revision HEAD -command true`
+compares fixed sources, image, resources and policy. Heavy commands default to
+five clean runs; `true` uses twenty warm calls. Setup/preparation are reported
+separately. The measured audit includes snapshots, patch diff and a durable JSON
+journal, and excludes model calls and the app event bus. Switching the default
+requires the complete parity/isolation gates, Windows performance targets,
+unchanged `pack-artifact` within 600 seconds and live Node/Go quest delivery.
 
 `filtered-copy` is the compatibility backend for isolated copies. It creates an
 immutable baseline plus a writable execution copy (or a detached Git worktree)
@@ -128,6 +213,8 @@ legacy Workflow runs for executable automation; the UI must not label an
 interactive Cursor session as sandboxed by Point.
 
 ## Production configuration
+
+Sandbox copies live under `%TEMP%\point-sandboxes` (`os.TempDir()/point-sandboxes`) shared by every core on the machine. `POINT_SANDBOX_ROOT` replaces that root; the `internal/app` and `internal/httpapi` test binaries point it at their own temporary directory and remove it after the run. Before 2 October 2026 they used the shared root and left about a thousand copies per day of test runs (23.7 GB by then).
 
 Build the versioned runtime image before starting Point Core:
 

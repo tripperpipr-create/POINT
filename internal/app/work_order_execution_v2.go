@@ -403,7 +403,7 @@ func taskBriefFromWorkOrderV2(order domain.WorkOrder) (domain.TaskBrief, error) 
 			SourceDigest: domain.WorkOrderSourceDigest(order),
 			Sources:      append([]domain.SourceSnapshotRef(nil), order.Sources...),
 			Milestones:   append([]domain.MilestonePlan(nil), order.Milestones...),
-			Workspace:    order.Workspace, Stack: order.Stack, Sandbox: order.Sandbox, Setup: order.Setup, Routing: order.Routing,
+			Workspace:    order.Workspace, Stack: order.Stack, Sandbox: order.Sandbox, Setup: order.Setup, Dependencies: order.Dependencies, Routing: order.Routing,
 			Network: append([]domain.NetworkGrant(nil), order.Network...),
 			Secrets: append([]domain.SecretRequirement(nil), order.Secrets...), Completion: order.Completion, Delivery: order.Delivery,
 		},

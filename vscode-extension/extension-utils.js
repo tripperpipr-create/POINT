@@ -10,6 +10,7 @@ const DECISION_RESOLVE_ROUTES = [
   /^\/api\/quest-proposals\/decide$/,
   /^\/api\/companion\/actions\/decide$/,
   /^\/api\/egress-asks\/[A-Za-z0-9_-]+\/resolve$/,
+  /^\/api\/sandboxes\/[A-Za-z0-9_-]+\/audit-review$/,
 ]
 
 // Дата, показанная человеку. Пара к formatDateTime в ui/client: у хоста и

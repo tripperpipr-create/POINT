@@ -10,7 +10,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"strconv"
@@ -85,7 +87,13 @@ func (t RunCommand) Execute(ctx context.Context, raw json.RawMessage) domain.Too
 			return finish(FailWithHint("unsupported_shell_syntax", unsupported, "pipefail is already on: `cmd 2>&1 | tail -20` returns the exit code of cmd; or run `cmd > /tmp/out.log 2>&1; echo \"exit=$?\"; tail -20 /tmp/out.log` in the same command; use [ ] instead of [[ ]]"))
 		}
 	}
-	cwd, err := t.FS.Resolve(input.CWD, false)
+	var cwd string
+	var err error
+	if resolver, ok := t.Executor.(sandbox.VolumeDirectoryResolver); ok && resolver.UsesVolume(t.FS.Root()) {
+		cwd, err = resolver.ResolveProcessDirectory(t.FS.Root(), input.CWD)
+	} else {
+		cwd, err = t.FS.Resolve(input.CWD, false)
+	}
 	if err != nil {
 		return finish(FailWithHint("invalid_cwd", err.Error(), "use a workspace-relative directory such as src, or omit cwd to run at the workspace root"))
 	}
@@ -154,8 +162,12 @@ func (t RunCommand) Execute(ctx context.Context, raw json.RawMessage) domain.Too
 	commandCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	var cmd *exec.Cmd
+	var volumeExecutor sandbox.DeltaProcessExecutor
+	if candidate, ok := t.Executor.(sandbox.DeltaProcessExecutor); ok && candidate.UsesVolume(t.FS.Root()) {
+		volumeExecutor = candidate
+	}
 	var readEgressDecisions func(context.Context) ([]sandbox.EgressDecision, error)
-	if t.Executor != nil {
+	if t.Executor != nil && volumeExecutor == nil {
 		prepared, prepareErr := t.Executor.PrepareProcess(commandCtx, sandbox.ProcessRequest{
 			WorkspaceRoot: t.FS.Root(), WorkingDirectory: cwd, ShellCommand: sandboxShellCommand(input.Command), Image: t.SandboxImage,
 			Environment: sanitizedProcessEnv(), NetworkPolicy: t.NetworkPolicy,
@@ -178,9 +190,9 @@ func (t RunCommand) Execute(ctx context.Context, raw json.RawMessage) domain.Too
 				_ = prepared.Cleanup(cleanupCtx)
 			}()
 		}
-	} else if runtime.GOOS == "windows" {
+	} else if volumeExecutor == nil && runtime.GOOS == "windows" {
 		cmd = osproc.Command("cmd.exe", "/d", "/s", "/c", input.Command)
-	} else {
+	} else if volumeExecutor == nil {
 		program, args := HostShellCommand(input.Command)
 		cmd = osproc.Command(program, args...)
 	}
@@ -197,11 +209,26 @@ func (t RunCommand) Execute(ctx context.Context, raw json.RawMessage) domain.Too
 		streamLimit = 1
 	}
 	stdout, stderr := &limitedWriter{limit: streamLimit}, &limitedWriter{limit: streamLimit}
-	cmd.Stdout, cmd.Stderr = stdout, stderr
-	runErr := runProcess(commandCtx, cmd)
+	var runErr error
+	var volumeOutcome sandbox.ProcessOutcome
+	if volumeExecutor != nil {
+		volumeOutcome, runErr = volumeExecutor.RunVolumeProcess(commandCtx, sandbox.ProcessRequest{WorkspaceRoot: t.FS.Root(), WorkingDirectory: cwd, ShellCommand: sandboxShellCommand(input.Command), Image: t.SandboxImage, Environment: sanitizedProcessEnv(), NetworkPolicy: t.NetworkPolicy, AllowedNetworkHosts: effectiveHosts, RunID: t.RunID, CacheScope: t.QuestID, Authoritative: t.Authoritative}, stdout, stderr)
+	} else {
+		cmd.Stdout, cmd.Stderr = stdout, stderr
+		runErr = runProcess(commandCtx, cmd)
+	}
 	duration := time.Since(started)
 	gatewayStatus := "not_applicable"
 	var gatewayDecisions []sandbox.EgressDecision
+	if volumeExecutor != nil {
+		gatewayDecisions = volumeOutcome.EgressDecisions
+		if policy.Mode == "ALLOWLIST" {
+			gatewayStatus = "recorded"
+			if runErr != nil {
+				gatewayStatus = "unavailable"
+			}
+		}
+	}
 	if readEgressDecisions != nil {
 		readCtx, readCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		var readErr error
@@ -223,6 +250,13 @@ func (t RunCommand) Execute(ctx context.Context, raw json.RawMessage) domain.Too
 		}
 	}
 	timedOut := commandCtx.Err() == context.DeadlineExceeded
+	if volumeExecutor != nil {
+		exitCode = volumeOutcome.ExitCode
+		timedOut = volumeOutcome.TimedOut || timedOut
+		if runErr != nil {
+			exitCode = -1
+		}
+	}
 	output := map[string]any{"stdout": security.Redact(stdout.String()), "stderr": security.Redact(stderr.String()), "exitCode": exitCode, "durationMs": duration.Milliseconds(), "timedOut": timedOut}
 	// Сетевая атрибуция — доказательство для команды, которая ходила в сеть.
 	// Для `ls` она была пятью пустыми полями в каждом выводе, который читает
@@ -254,9 +288,11 @@ func (t RunCommand) Execute(ctx context.Context, raw json.RawMessage) domain.Too
 	if failure, failed := diagnostics.DiagnoseCommand(diagnostics.CommandRun{
 		Command: input.Command, ExitCode: exitCode, TimedOut: timedOut, Timeout: timeout.String(),
 		Stdout: stdout.String(), Stderr: stderr.String(), DeniedHosts: denied,
+		MissingDependencies: missingDeclaredPackages(t.FS.Root(), input.Command, input.CWD),
 	}); failed {
 		output["cause"] = security.Redact(failure.Cause)
 		output["causeClass"] = failure.Class
+		output["causeSignature"] = failure.Signature
 		if failure.Hint != "" {
 			output["causeHint"] = failure.Hint
 		}
@@ -499,4 +535,47 @@ func networkHostAllowed(host string, allowedHosts []string) bool {
 		}
 	}
 	return false
+}
+
+// Classify only packages both declared in a manifest and absent in this workspace.
+// An application import or a TypeScript diagnostic alone is not environment evidence.
+func missingDeclaredPackages(root, command, cwd string) []string {
+	dirs := []string{cwd}
+	for _, match := range regexp.MustCompile(`(?:^|&&\s*)cd\s+(?:"([^"]+)"|'([^']+)'|([^\s;&|]+))\s*&&`).FindAllStringSubmatch(command, -1) {
+		for _, dir := range match[1:] {
+			if dir != "" && domain.DependencyPathValid(dir, true) {
+				dirs = append(dirs, dir)
+				break
+			}
+		}
+	}
+	var result []string
+	for _, dir := range dirs {
+		if !domain.DependencyPathValid(dir, true) {
+			continue
+		}
+		base := filepath.Join(root, filepath.FromSlash(dir))
+		data, err := os.ReadFile(filepath.Join(base, "package.json"))
+		if err != nil {
+			continue
+		}
+		var manifest struct {
+			Dependencies    map[string]any
+			DevDependencies map[string]any
+		}
+		if json.Unmarshal(data, &manifest) != nil {
+			continue
+		}
+		for _, group := range []map[string]any{manifest.Dependencies, manifest.DevDependencies} {
+			for name := range group {
+				if !domain.DependencyPathValid(name, false) {
+					continue
+				}
+				if _, err := os.Stat(filepath.Join(base, "node_modules", filepath.FromSlash(name))); os.IsNotExist(err) {
+					result = append(result, name)
+				}
+			}
+		}
+	}
+	return result
 }

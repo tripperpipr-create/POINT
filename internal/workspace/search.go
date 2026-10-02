@@ -74,7 +74,7 @@ func (f *FS) SearchWith(ctx context.Context, options SearchOptions) ([]ContextMa
 			return err
 		}
 		if entry.IsDir() {
-			if current != root && excludedDirs[strings.ToLower(entry.Name())] {
+			if current != root && f.skipDirectory(current, false) {
 				return filepath.SkipDir
 			}
 			return nil

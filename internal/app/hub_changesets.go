@@ -27,7 +27,9 @@ func (a *App) startSandboxedExecution(projectAgentID, task, questID, parentExecu
 	return a.startSandboxedExecutionWithSeed(projectAgentID, task, questID, parentExecutionID, "")
 }
 
-func (a *App) startSandboxedExecutionWithSeed(projectAgentID, task, questID, parentExecutionID, rootSeedPath string) (domain.ExecutionInstance, error) {
+type sandboxStageOptions struct{ Role, StorageMode, FileRulesVersion string }
+
+func (a *App) startSandboxedExecutionWithSeed(projectAgentID, task, questID, parentExecutionID, rootSeedPath string, options ...sandboxStageOptions) (domain.ExecutionInstance, error) {
 	ws, err := a.requireWorkspace()
 	if err != nil {
 		return domain.ExecutionInstance{}, err
@@ -49,8 +51,13 @@ func (a *App) startSandboxedExecutionWithSeed(projectAgentID, task, questID, par
 		return domain.ExecutionInstance{}, err
 	}
 	createRequest := sandbox.CreateRequest{
+		QuestID:     questID,
 		WorkspaceID: ws.ID, WorkspacePath: ws.Path, ExecutionID: execID,
 		PreferWorktree: true, LiveWorkspace: sandbox.LiveFileMutationEnabled() && !a.questRequiresIsolatedWorkspace(context.Background(), ws.ID, questID),
+	}
+	if len(options) > 0 {
+		createRequest.StorageMode = options[0].StorageMode
+		createRequest.FileRulesVersion = options[0].FileRulesVersion
 	}
 	if brief, briefErr := a.taskBriefForQuest(context.Background(), ws.ID, questID); briefErr == nil {
 		createRequest.Runtime = managedSandboxRuntimeForBrief(brief)
@@ -81,9 +88,27 @@ func (a *App) startSandboxedExecutionWithSeed(projectAgentID, task, questID, par
 		if sandboxErr != nil {
 			return domain.ExecutionInstance{}, fmt.Errorf("load parent sandbox: %w", sandboxErr)
 		}
+		if _, err = a.sandboxIntegrity(context.Background(), parentSandbox); err != nil {
+			return domain.ExecutionInstance{}, fmt.Errorf("parent sandbox integrity: %w", err)
+		}
 		createRequest.SeedPath = parentSandbox.Path
 		createRequest.ParentSandboxID = parentSandbox.ID
 		createRequest.ParentExecutionID = parent.ID
+		createRequest.StorageMode = parentSandbox.StorageMode
+		if createRequest.StorageMode == "" {
+			createRequest.StorageMode = "bind"
+		}
+		createRequest.FileRulesVersion = parentSandbox.FileRulesVersion
+		if createRequest.FileRulesVersion == "" {
+			createRequest.FileRulesVersion = "legacy-v1"
+		}
+		createRequest.SeedVolume = parentSandbox.WorkspaceVolume
+		createRequest.SeedImageDigest = parentSandbox.BackendImageDigest
+		role := domain.StageRoleImplement
+		if len(options) > 0 {
+			role = options[0].Role
+		}
+		createRequest.PortableOnly = role == domain.StageRoleAccept || role == domain.StageRoleImplReview
 		createRequest.BaselineChangeSetIDs = a.changeSetDependencyIDs(ws.ID, parent.ID)
 	}
 	sandboxRecord, err := a.sandboxBackend.Create(context.Background(), createRequest)
@@ -177,10 +202,13 @@ func (a *App) BuildChangeSet(executionID string) (domain.ChangeSet, error) {
 	if err != nil {
 		return domain.ChangeSet{}, err
 	}
+	if _, err = a.sandboxIntegrity(context.Background(), sandboxRecord); err != nil {
+		return domain.ChangeSet{}, err
+	}
 	applier := changesets.Applier{Store: a.store}
 	return applier.BuildFromSandbox(context.Background(), changesets.BuildRequest{
 		WorkspaceID: ws.ID, ExecutionID: exec.ID, QuestID: exec.QuestID, Title: "Changes from " + exec.ID,
-		WorkspacePath: ws.Path, BaselinePath: baselinePath, SandboxPath: sandboxRecord.Path, DependsOn: dependencies,
+		WorkspacePath: ws.Path, BaselinePath: baselinePath, SandboxPath: sandboxRecord.Path, DependsOn: dependencies, FileRulesVersion: sandboxRecord.FileRulesVersion,
 	})
 }
 
@@ -261,6 +289,9 @@ func (a *App) ApplyChangeSet(changeSetID string) (changesets.ApplyResult, error)
 		return changesets.ApplyResult{}, err
 	}
 	if err = a.guardWorld(set.WorkspaceID); err != nil {
+		return changesets.ApplyResult{}, err
+	}
+	if err = a.guardSandboxDelivery(context.Background(), set); err != nil {
 		return changesets.ApplyResult{}, err
 	}
 	for _, dependencyID := range set.DependsOn {

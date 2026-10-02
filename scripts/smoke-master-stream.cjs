@@ -3,7 +3,7 @@ const vm=require('node:vm')
 const assert=require('node:assert/strict')
 const posted=[],requests=[],attempts=new Map()
 const frame=(id,sequence,type,text)=>`id: ${sequence}\nevent: master\ndata: ${JSON.stringify({turnId:id,conversationId:'chat-'+id,sequence,type,text})}\n\n`
-const sandbox={module:{exports:{}},TextDecoder,setTimeout:fn=>setImmediate(fn),require:name=>{if(name==='./master-work-order-watch')return {watchMasterWorkOrder:async()=>{},isTransientWorkOrder:()=>false,projectScope:require('../vscode-extension/master-work-order-watch.js').projectScope};throw new Error('поток хода Мастера подключил неизвестный модуль: '+name)},fetch:async url=>{
+const sandbox={module:{exports:{}},TextDecoder,setTimeout:fn=>setImmediate(fn),require:name=>{if(name==='./master-scope')return require('../vscode-extension/master-scope.js');if(name==='./master-work-order-watch')return {watchMasterWorkOrder:async()=>{},isTransientWorkOrder:()=>false,projectScope:require('../vscode-extension/master-work-order-watch.js').projectScope};throw new Error('поток хода Мастера подключил неизвестный модуль: '+name)},fetch:async url=>{
  requests.push(url)
  const id=new URL(url).pathname.split('/')[5]
  const attempt=(attempts.get(id)||0)+1;attempts.set(id,attempt)

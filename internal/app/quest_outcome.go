@@ -415,6 +415,17 @@ func (a *App) completionProofFromRun(ctx context.Context, runID string, quest do
 			proof = nil
 			if json.Unmarshal(event.Data, &p) == nil && p.Evidence != nil && p.Evidence.BriefVersion == quest.Brief.Version {
 				switch p.Status {
+				case "needs_review", "implementation_ready":
+					// Keep delivered implementation facts and pending criteria;
+					// their presence does not constitute independent acceptance.
+					pending := *p.Evidence
+					if pending.Status == "verified" {
+						pending.Status = p.Status
+					}
+					proof = &pending
+					if p.CheckKind == "merged-result" {
+						mergedProof = &pending
+					}
 				case "accepted_after_revision":
 					proof = p.Evidence
 					if p.CheckKind == "merged-result" {

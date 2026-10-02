@@ -36,6 +36,7 @@ type completionRequirement struct {
 }
 
 type completionTracker struct {
+	managedVerification            bool
 	explicitVerification           bool
 	verificationToolAvailable      bool
 	commandAttempts                int
@@ -52,6 +53,7 @@ type completionTracker struct {
 func newCompletionTracker(profile domain.AgentProfile, task string, customTools []domain.CustomTool, briefs ...*domain.TaskBrief) *completionTracker {
 	completionPolicy := DescribeCompletionPolicy(profile, task, customTools)
 	tracker := &completionTracker{
+		managedVerification:            profile.ManagedVerification,
 		explicitVerification:           completionPolicy.ExplicitVerification,
 		verificationToolAvailable:      completionPolicy.VerificationToolAvailable,
 		successfulVerificationRevision: -1,
@@ -110,6 +112,9 @@ func (t *completionTracker) ObserveTool(name string, arguments json.RawMessage, 
 func (t *completionTracker) Missing(workspaceRevision int, changedFiles []string) []completionRequirement {
 	if t.brief != nil {
 		return t.missingCriteria(workspaceRevision, changedFiles)
+	}
+	if t.managedVerification {
+		return nil
 	}
 	if t.explicitVerification && !t.verificationToolAvailable {
 		return []completionRequirement{{Code: "verification_tool_unavailable", Message: "the task explicitly requires a test/build/lint verification, but no verification-capable tool is enabled for this agent"}}

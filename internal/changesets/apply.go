@@ -25,14 +25,15 @@ type Applier struct {
 }
 
 type BuildRequest struct {
-	WorkspaceID   string
-	ExecutionID   string
-	QuestID       string
-	Title         string
-	WorkspacePath string
-	BaselinePath  string
-	SandboxPath   string
-	DependsOn     []string
+	WorkspaceID      string
+	ExecutionID      string
+	QuestID          string
+	Title            string
+	WorkspacePath    string
+	BaselinePath     string
+	SandboxPath      string
+	DependsOn        []string
+	FileRulesVersion string
 }
 
 func (a Applier) BuildFromSandbox(ctx context.Context, req BuildRequest) (domain.ChangeSet, error) {
@@ -41,7 +42,7 @@ func (a Applier) BuildFromSandbox(ctx context.Context, req BuildRequest) (domain
 	if strings.TrimSpace(req.BaselinePath) != "" {
 		basePath = req.BaselinePath
 	}
-	diffs, err := manager.Diff(ctx, basePath, req.SandboxPath)
+	diffs, err := manager.DiffWithRules(ctx, basePath, req.SandboxPath, req.FileRulesVersion)
 	if err != nil {
 		return domain.ChangeSet{}, err
 	}

@@ -18,6 +18,9 @@ var masterSessionsMu sync.Mutex
 
 type MasterSession = domain.MasterConversation
 type MasterSessions struct {
+	ScopeKind       string                     `json:"scopeKind"`
+	WorkspacePath   string                     `json:"workspacePath"`
+	WorkspaceID     string                     `json:"workspaceId"`
 	AutoRunReadOnly bool                       `json:"autoRunReadOnly"`
 	Model           string                     `json:"model,omitempty"`
 	Active          string                     `json:"active"`
@@ -28,20 +31,30 @@ type MasterSessions struct {
 	WorkMode        string                     `json:"workMode"`
 }
 type MasterSessionUpdate struct {
-	Action   string `json:"action"`
-	ID       string `json:"id"`
-	Value    string `json:"value"`
-	SourceID string `json:"sourceId,omitempty"`
+	ScopeKind   string `json:"scopeKind,omitempty"`
+	WorkspaceID string `json:"workspaceId,omitempty"`
+	Action      string `json:"action"`
+	ID          string `json:"id"`
+	Value       string `json:"value"`
+	SourceID    string `json:"sourceId,omitempty"`
 }
 
 func (a *App) MasterSessions(ctx context.Context) (MasterSessions, error) {
-	w := a.currentWorldID()
+	var scopeErr error
+	ctx, scopeErr = a.WithMasterWorkspace(ctx, a.masterWorldID(ctx))
+	if scopeErr != nil {
+		return MasterSessions{}, scopeErr
+	}
+	w := a.masterWorldID(ctx)
 	items, err := a.store.MasterConversations(ctx, w)
 	if err != nil {
 		return MasterSessions{}, err
 	}
 	if len(items) == 0 {
-		v := MasterSession{ID: "legacy", WorkspaceID: w, Title: "Первый разговор", Mode: "auto", WorkMode: "plan"}
+		if strings.HasPrefix(w, "point-chat-") {
+			return MasterSessions{}, errors.New("POINT conversation was deleted")
+		}
+		v := MasterSession{ID: "legacy", WorkspaceID: w, Title: "Первый разговор", Mode: "auto", WorkMode: "auto"}
 		if err = a.store.SaveMasterConversation(ctx, v); err != nil {
 			return MasterSessions{}, err
 		}
@@ -51,7 +64,7 @@ func (a *App) MasterSessions(ctx context.Context) (MasterSessions, error) {
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return MasterSessions{}, err
 	}
-	result := MasterSessions{Items: items, Active: items[0].ID, Mode: items[0].Mode, WorkMode: items[0].WorkMode}
+	result := MasterSessions{ScopeKind: domain.ConversationScope(w), WorkspacePath: a.masterScopedFS(ctx).Root(), WorkspaceID: w, Items: items, Active: items[0].ID, Mode: items[0].Mode, WorkMode: items[0].WorkMode}
 	autoRun, _ := a.store.Setting(ctx, "master.auto-run.read-only."+w)
 	result.AutoRunReadOnly = autoRun == "true"
 	for _, v := range items {
@@ -118,11 +131,23 @@ func masterMemorySignature(content string) string {
 func (a *App) UpdateMasterSession(ctx context.Context, req MasterSessionUpdate) (MasterSessions, error) {
 	masterSessionsMu.Lock()
 	defer masterSessionsMu.Unlock()
+	if (req.Action == "new" || req.Action == "temporary") && (req.ScopeKind == "point_chat" || a.currentWorldID() == "" || req.ScopeKind != "project" && strings.HasPrefix(a.masterWorldID(ctx), "point-chat-")) {
+		scoped, err := a.newPointChatScope(ctx, domain.NewID("chat"), req.Action == "temporary")
+		if err != nil {
+			return MasterSessions{}, err
+		}
+		return a.MasterSessions(scoped)
+	}
+	var scopeErr error
+	ctx, scopeErr = a.WithMasterWorkspace(ctx, req.WorkspaceID)
+	if scopeErr != nil {
+		return MasterSessions{}, scopeErr
+	}
 	value, err := a.MasterSessions(ctx)
 	if err != nil {
 		return value, err
 	}
-	w := a.currentWorldID()
+	w := a.masterWorldID(ctx)
 	id := req.ID
 	if id == "" {
 		id = value.Active
@@ -148,8 +173,10 @@ func (a *App) UpdateMasterSession(ctx context.Context, req MasterSessionUpdate) 
 			id = domain.NewID("temporary")
 		}
 		branchOffer := "pending"
-		if req.Action == "temporary" { branchOffer = "" }
-		err = a.store.SaveMasterConversation(ctx, MasterSession{ID: id, WorkspaceID: w, Title: "Новый разговор", Mode: "auto", WorkMode: "plan", Temporary: req.Action == "temporary", BranchOffer: branchOffer})
+		if req.Action == "temporary" {
+			branchOffer = ""
+		}
+		err = a.store.SaveMasterConversation(ctx, MasterSession{ID: id, WorkspaceID: w, Title: "Новый разговор", Mode: "auto", WorkMode: "auto", Temporary: req.Action == "temporary", BranchOffer: branchOffer})
 		if err == nil {
 			err = a.store.SaveSetting(ctx, "master.active."+w, id)
 		}
@@ -187,7 +214,7 @@ func (a *App) UpdateMasterSession(ctx context.Context, req MasterSessionUpdate) 
 			}
 		case "workMode":
 			switch req.Value {
-			case "discuss", "plan", "execute", "agent":
+			case "auto", "discuss", "plan", "fast":
 				current.WorkMode = req.Value
 			default:
 				return value, errors.New("неизвестный режим работы")
@@ -196,6 +223,9 @@ func (a *App) UpdateMasterSession(ctx context.Context, req MasterSessionUpdate) 
 		current.UpdatedAt = time.Now().UTC().Format(time.RFC3339Nano)
 		err = a.store.SaveMasterConversation(ctx, *current)
 	case "delete":
+		if strings.HasPrefix(w, "point-chat-") {
+			return a.deletePointConversation(ctx, w, id)
+		}
 		// Разговор уносит свои наряды, а вместе с ними — незавершённую работу,
 		// которую по ним начали: остановленную, откаченную и снесённую целиком.
 		// Иначе работа осталась бы без договора, по которому её утверждали.
@@ -321,7 +351,7 @@ func (a *App) MasterPage(ctx context.Context, id string, before int64, query str
 	if err != nil {
 		return domain.MasterMessagePage{}, err
 	}
-	return a.store.MasterMessagePage(ctx, a.currentWorldID(), sessions.Active, before, query, 60)
+	return a.store.MasterMessagePage(ctx, a.masterWorldID(ctx), sessions.Active, before, query, 60)
 }
 
 // Разговор уносит незавершённые квесты, которые в нём поставили.

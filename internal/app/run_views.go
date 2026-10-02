@@ -71,7 +71,7 @@ func (a *App) RevertPatch(patchID string) (domain.PatchProposal, error) {
 	if patch.Status != "applied" {
 		return domain.PatchProposal{}, fmt.Errorf("only an applied change can be reverted; current status is %s", patch.Status)
 	}
-	fs, err := a.fs()
+	fs, err := a.runWorkspaceFS(ctx, run)
 	if err != nil {
 		return domain.PatchProposal{}, err
 	}
@@ -239,6 +239,7 @@ func (a *App) Runs() ([]domain.Run, error) {
 }
 
 func publicRun(run domain.Run) domain.Run {
+	run.ScopeKind = domain.ConversationScope(run.WorkspaceID)
 	run.ContextItems = publicContextItems(run.ContextItems)
 	if run.Controller.ActiveSecondsBudget > 0 {
 		run.Controller.ActiveSecondsRemaining = run.Controller.RemainingActiveSeconds()
@@ -277,6 +278,7 @@ func publicPatches(items []domain.PatchProposal) []domain.PatchProposal {
 func publicEvents(items []domain.Event) []domain.Event {
 	result := append([]domain.Event(nil), items...)
 	for index := range result {
+		result[index].ScopeKind = domain.ConversationScope(result[index].WorkspaceID)
 		switch result[index].Type {
 		case domain.EventPatchProposed, domain.EventPatchApplied, domain.EventPatchRejected, domain.EventPatchReverted:
 			var patch domain.PatchProposal

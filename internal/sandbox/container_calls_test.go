@@ -159,7 +159,7 @@ func TestQuestCachesMountOnceAndStayOutOfAuthoritativeRuns(t *testing.T) {
 	}
 	writer := prepare(false)
 	_ = prepare(false)
-	for _, want := range []string{"/cache/npm:rw", "/cache/gomod:rw", "/cache/gobuild:rw", "/cache/pip:rw", "GOCACHE=/cache/gobuild", "NPM_CONFIG_CACHE=/cache/npm"} {
+	for _, want := range []string{"/cache/npm:rw", "/cache/gomod:rw", "/cache/gobuild:rw", "/cache/composer:rw", "/cache/pip:rw", "GOCACHE=/cache/gobuild", "NPM_CONFIG_CACHE=/cache/npm"} {
 		if !strings.Contains(writer, want) {
 			t.Fatalf("writer run misses %q: %s", want, writer)
 		}
@@ -173,8 +173,8 @@ func TestQuestCachesMountOnceAndStayOutOfAuthoritativeRuns(t *testing.T) {
 			creates++
 		}
 	}
-	if creates != 4 {
-		t.Fatalf("cache volumes created %d times over two commands, want 4:\n%s", creates, strings.Join(infra, "\n"))
+	if creates != 5 {
+		t.Fatalf("cache volumes created %d times over two commands, want 5:\n%s", creates, strings.Join(infra, "\n"))
 	}
 	judge := prepare(true)
 	if strings.Contains(judge, "/cache/gobuild") || strings.Contains(judge, "/cache/pip") || !strings.Contains(judge, "GOCACHE=/tmp/go-cache") {

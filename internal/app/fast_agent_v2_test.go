@@ -122,7 +122,7 @@ func TestFastAgentV2RejectsStalePreflightBeforePersistence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = application.StartFastAgent(FastAgentRequest{ProfileID: projectAgent.ID, Task: "Change code", PreflightFingerprint: "sha256:stale"}); err == nil {
+	if _, err = application.startFastAgentV2(FastAgentRequest{ProfileID: projectAgent.ID, Task: "Change code", PreflightFingerprint: "sha256:stale"}); err == nil {
 		t.Fatal("stale preflight unexpectedly launched FastAgent")
 	}
 	after, err := application.store.ListQuests(context.Background(), world.ID)
@@ -149,7 +149,7 @@ func TestFastAgentV2BudgetRejectionLeavesNoLaunchEntities(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = application.StartFastAgent(FastAgentRequest{ProfileID: projectAgent.ID, Task: "Change code"}); err == nil {
+	if _, err = application.startFastAgentV2(FastAgentRequest{ProfileID: projectAgent.ID, Task: "Change code"}); err == nil {
 		t.Fatal("exhausted budget unexpectedly launched FastAgent")
 	}
 	quests, err := application.store.ListQuests(context.Background(), world.ID)
@@ -170,7 +170,7 @@ func TestFastAgentV2SandboxFailureLeavesNoLaunchEntities(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = application.StartFastAgent(FastAgentRequest{ProfileID: projectAgent.ID, Task: "Change code"}); err == nil {
+	if _, err = application.startFastAgentV2(FastAgentRequest{ProfileID: projectAgent.ID, Task: "Change code"}); err == nil {
 		t.Fatal("sandbox failure unexpectedly launched FastAgent")
 	}
 	quests, err := application.store.ListQuests(context.Background(), world.ID)
@@ -201,7 +201,7 @@ func TestFastAgentV2PostCommitStartFailureIsTerminalAndRecoverable(t *testing.T)
 		t.Fatal(err)
 	}
 	application.engine.StopAll()
-	if _, err = application.StartFastAgent(FastAgentRequest{ProfileID: projectAgent.ID, Task: "Change code"}); err == nil {
+	if _, err = application.startFastAgentV2(FastAgentRequest{ProfileID: projectAgent.ID, Task: "Change code"}); err == nil {
 		t.Fatal("stopped engine unexpectedly launched FastAgent")
 	}
 	quests, err := application.store.ListQuests(context.Background(), world.ID)
@@ -249,7 +249,7 @@ func TestFastAgentV2CommitFailureClosesPhysicalSandboxAndRollsBackLaunch(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = application.StartFastAgent(FastAgentRequest{ProfileID: projectAgent.ID, Task: "Competing launch"}); err == nil {
+	if _, err = application.startFastAgentV2(FastAgentRequest{ProfileID: projectAgent.ID, Task: "Competing launch"}); err == nil {
 		t.Fatal("competing writer unexpectedly committed")
 	}
 	backend := application.sandboxBackend.(*strongWorkOrderSandbox).recordingSandboxBackend

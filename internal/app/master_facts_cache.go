@@ -28,6 +28,9 @@ type masterFactsCache struct {
 }
 
 func (a *App) masterProjectFacts(ctx context.Context) orchestrator.ProjectFacts {
+	if _, ok := ctx.Value(masterScopeKey{}).(masterScope); ok {
+		return a.computeMasterProjectFacts(ctx)
+	}
 	a.mu.RLock()
 	fs := a.currentFS
 	name := ""

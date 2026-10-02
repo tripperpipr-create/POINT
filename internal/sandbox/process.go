@@ -2,7 +2,10 @@ package sandbox
 
 import (
 	"context"
+	"io"
 	"os/exec"
+
+	"local-agent-workbench/internal/workspace"
 )
 
 // ProcessRequest is the complete host-to-sandbox process contract. Paths are
@@ -53,6 +56,30 @@ type EgressDecision struct {
 // policy.
 type ProcessExecutor interface {
 	PrepareProcess(context.Context, ProcessRequest) (PreparedProcess, error)
+}
+
+// DeltaProcessExecutor executes volume workspaces without exposing protocol frames
+// to tools. Bind/live paths continue through PreparedProcess.
+type DeltaProcessExecutor interface {
+	ProcessExecutor
+	UsesVolume(string) bool
+	RunVolumeProcess(context.Context, ProcessRequest, io.Writer, io.Writer) (ProcessOutcome, error)
+}
+
+type VolumeDirectoryResolver interface {
+	UsesVolume(string) bool
+	ResolveProcessDirectory(root, path string) (string, error)
+}
+type ProcessOutcome struct {
+	ExitCode        int
+	TimedOut        bool
+	EgressDecisions []EgressDecision
+	AuditIncomplete bool
+}
+type ManifestAuditor interface {
+	UsesVolume(string) bool
+	CaptureVolumeAudit(context.Context, string, *workspace.TextSnapshot, bool) (workspace.TextSnapshot, error)
+	RulesForWorkspace(string) string
 }
 
 // ControlledEgressExecutor marks a process boundary where allowlisted traffic

@@ -67,7 +67,7 @@ func (a *App) executeDeterministicFlowTool(quest domain.Quest, flow domain.FlowG
 		if parentExecutionID == "" {
 			rootSeedPath = a.rootFlowSeedPath(flowRun)
 		}
-		exec, err = a.startSandboxedExecutionWithSeed(projectAgent.ID, "Tool: "+node.ToolName, quest.ID, parentExecutionID, rootSeedPath)
+		exec, err = a.startSandboxedExecutionWithSeed(projectAgent.ID, "Tool: "+node.ToolName, quest.ID, parentExecutionID, rootSeedPath, flowSandboxOptions(flowRun, domain.FlowNodeStageRole(node)))
 	}
 	if err != nil {
 		return domain.FlowRun{}, err

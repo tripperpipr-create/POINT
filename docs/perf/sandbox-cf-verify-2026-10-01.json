@@ -1,0 +1,30 @@
+{
+  "createdAt": "2026-10-01T05:48:10.385778Z",
+  "project": "C:\\Users\\Rif\\PhpstormProjects\\фронт cf\\cf-vue-apps",
+  "revision": "2fad8ed804a28cc00d8250dbf973c1a5e09cfc68",
+  "image": "point-agent-sandbox-node20:1.0.0",
+  "imageDigest": "sha256:e275fe9b63da3b04b78fcc8b90036215971cc27cc7e648f87d3f79e741332874",
+  "dockerVersion": "27.2.0",
+  "rules": "portable-v2",
+  "audit": "SHA-256 snapshots, patch diff and durable JSON journal; excludes LLM and app event bus",
+  "samples": [
+    {
+      "mode": "volume",
+      "command": "npm run verify",
+      "setupMs": 42133,
+      "preparationMs": 9389,
+      "durationMs": 117568,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    }
+  ],
+  "aggregates": [
+    {
+      "mode": "volume",
+      "command": "npm run verify",
+      "count": 1,
+      "medianMs": 117568,
+      "p95Ms": 117568
+    }
+  ]
+}

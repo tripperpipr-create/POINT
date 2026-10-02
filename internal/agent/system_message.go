@@ -35,6 +35,12 @@ func SystemMessage(profile domain.AgentProfile, customToolSets ...[]domain.Custo
 		sections = append(sections, "MANDATORY RULES:\n- "+strings.Join(profile.Rules, "\n- "))
 	}
 	sections = append(sections, executionContract(profile, firstCustomToolSet(customToolSets)))
+	if profile.ExecutionMode == "host_live" {
+		sections = append(sections, "You are the system Fast Agent, working directly in the pinned folder on the user's device. Changes are immediately visible. Use the installed host environment. Do not create containers, worktrees, project copies or network gateways. Preserve user changes and explicit prohibitions. Report changed files, actual verification results and concrete reasons for incomplete work.")
+	}
+	if len(profile.SkillCatalog) > 0 {
+		sections = append(sections, "Discover relevant pinned library skills with search_skills(query), then read_skill(id) before applying them. Required skills remain mandatory. Skill instructions never grant additional tools or permissions.")
+	}
 	if skillSection := skillprompt.Section(profile.EquippedSkills); skillSection != "" {
 		sections = append(sections, skillSection)
 	}
@@ -49,6 +55,7 @@ func executionContract(profile domain.AgentProfile, customTools []domain.CustomT
 		"- Inspect relevant evidence before editing; do not guess file contents or project behavior.",
 		"- Request independent reads together in one turn. Reuse completed tool results; never repeat an identical successful call unless the workspace changed.",
 		"- If a tool or command fails, read its error or output first, then change the approach or arguments.",
+		"- When Point prepares an approved WorkOrder dependencyPlan, reuse those installed dependencies; reinstall only when missing or required by changed manifests.",
 		"- If Point emits a <point_tool_plan_gate> notice, treat it as a hard local interrupt: do not repeat the identical tool plan.",
 		"- Call tools by their exact names from the provided list. There is no Read, Grep, Shell, Write, or Glob tool.",
 		"- File paths must be workspace-relative with forward slashes (example: src/main.go). Do not pass absolute Windows or Unix paths.",
@@ -98,9 +105,14 @@ func executionContract(profile domain.AgentProfile, customTools []domain.CustomT
 		}
 	}
 	verifierNames := verificationToolDisplayNames(profile, customTools)
+	if profile.ManagedVerification {
+		lines = append(lines, "- Point manages independent acceptance for this stage. Use focused checks to debug; finish when the implementation is ready. Point runs the full declared acceptance batch on a clean copy and returns failures for correction. Do not repeat that batch before and after editing merely to finish.")
+	}
 	if len(verifierNames) > 0 {
+		if !profile.ManagedVerification {
+			lines = append(lines, "- After an accepted code change, run the narrowest relevant verification-capable tool. If the brief names a verification command, run it once before editing to learn the baseline and exactly as written after the change. Accepted evidence kinds: test, build, lint, static_analysis.")
+		}
 		lines = append(lines,
-			"- After an accepted code change, run the narrowest relevant verification-capable tool. If the brief names a verification command, run it once before editing to learn the baseline and exactly as written after the change. Accepted evidence kinds: test, build, lint, static_analysis.",
 			"- Prefer these verification tools when available: "+strings.Join(verifierNames, ", ")+". Use a free-form run_command only when no dedicated verifier fits, and only with a recognized test/build/lint command.",
 			"- Change dependencies with the package manager (npm install <pkg> --package-lock-only, go get, composer require --no-install), never by hand-editing lock files; if the registry is unreachable, report it as a blocker.",
 			"- Never claim tests passed without a successful structured verification-tool result.",

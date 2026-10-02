@@ -21,7 +21,8 @@ func (s *SQLite) ListExpiredQuestSandboxes(ctx context.Context, before time.Time
 SELECT sandbox.id,sandbox.workspace_id,sandbox.execution_id,sandbox.kind,sandbox.backend,sandbox.backend_version,
        sandbox.backend_image,sandbox.backend_image_digest,sandbox.path,sandbox.base_commit,sandbox.parent_sandbox_id,
        sandbox.parent_execution_id,sandbox.parent_sandbox_ids,sandbox.parent_execution_ids,sandbox.baseline_path,
-       sandbox.baseline_change_set_ids,sandbox.created_at,sandbox.closed_at,workspace.path
+       sandbox.baseline_change_set_ids,sandbox.created_at,sandbox.closed_at,workspace.path,
+       sandbox.storage_mode,sandbox.workspace_volume,sandbox.file_rules_version,sandbox.sandboxd_digest
 FROM sandboxes sandbox
 INNER JOIN executions execution ON execution.id=sandbox.execution_id
 INNER JOIN quests quest ON quest.id=execution.quest_id
@@ -43,7 +44,8 @@ ORDER BY sandbox.created_at`, formatTime(before), domain.QuestCancelled, domain.
 		if err = rows.Scan(&sandbox.ID, &sandbox.WorkspaceID, &sandbox.ExecutionID, &sandbox.Kind, &sandbox.Backend,
 			&sandbox.BackendVersion, &sandbox.BackendImage, &sandbox.BackendImageDigest, &sandbox.Path, &sandbox.BaseCommit,
 			&sandbox.ParentSandboxID, &sandbox.ParentExecutionID, &parentSandboxIDs, &parentExecutionIDs,
-			&sandbox.BaselinePath, &baselineChangeSetIDs, &created, &closed, &candidate.WorkspacePath); err != nil {
+			&sandbox.BaselinePath, &baselineChangeSetIDs, &created, &closed, &candidate.WorkspacePath,
+			&sandbox.StorageMode, &sandbox.WorkspaceVolume, &sandbox.FileRulesVersion, &sandbox.SandboxdDigest); err != nil {
 			return nil, err
 		}
 		unmarshalJSON(parentSandboxIDs, &sandbox.ParentSandboxIDs)

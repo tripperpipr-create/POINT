@@ -65,10 +65,13 @@ try {
   if ($LASTEXITCODE -ne 0) { throw 'Building the Point local core failed.' }
   & $goCommand.Source build -trimpath -ldflags '-s -w' -o (Join-Path $projectRoot 'vscode-extension\bin\point-db.exe') '.\cmd\point-db'
   if ($LASTEXITCODE -ne 0) { throw 'Building the Point database recovery utility failed.' }
+  & $goCommand.Source build -trimpath -ldflags '-s -w' -o (Join-Path $projectRoot 'vscode-extension\bin\point-runtime.exe') '.\cmd\point-runtime'
+  if ($LASTEXITCODE -ne 0) { throw 'Building the Point runtime bridge failed.' }
 } finally {
   Pop-Location
 }
 if ((Invoke-Node (Join-Path $PSScriptRoot 'generate-icons.mjs')) -ne 0) { throw 'Icon generation failed.' }
+if ((Invoke-Node (Join-Path $projectRoot 'scripts\build-sandboxd.mjs')) -ne 0) { throw 'Static sandbox helper build failed.' }
 if ((Invoke-Node (Join-Path $projectRoot 'vscode-extension\runtime\build.mjs')) -ne 0) { throw 'Extension runtime bundling failed.' }
 & (Join-Path $PSScriptRoot 'install-language-pack.ps1')
 if ($LASTEXITCODE -ne 0) { throw 'Russian language pack preparation failed.' }
@@ -106,7 +109,7 @@ function Invoke-Npm {
 }
 
 $extensionTarget = Join-Path $sourceRoot 'extensions\local-agent-workbench'
-foreach ($requiredBinary in @('point-core.exe', 'point-db.exe')) {
+foreach ($requiredBinary in @('point-core.exe', 'point-db.exe', 'point-runtime.exe')) {
   if (-not (Test-Path -LiteralPath (Join-Path $extensionTarget "bin\$requiredBinary"))) {
     throw "Built-in extension is missing required binary: $requiredBinary"
   }

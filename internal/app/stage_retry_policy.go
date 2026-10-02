@@ -30,6 +30,7 @@ import (
 
 const (
 	stageRetryProposalKey     = "stageRetryProposal"
+	dependencyAmendmentKey    = "approvedDependencyPlan"
 	stageAutoRetriesKey       = "stageAutoRetries"
 	maxAutoRetriesPerStage    = 2
 	maxAutoRetriesPerQuest    = 3
@@ -66,6 +67,7 @@ type StageRetryProposal struct {
 	FailureAt     string                      `json:"failureAt"`
 	Instruction   string                      `json:"instruction,omitempty"`
 	Criteria      []StageRetryCriterionChange `json:"criteria,omitempty"`
+	Dependencies  *domain.DependencyPlan      `json:"dependencyPlan,omitempty"`
 	Diagnosis     string                      `json:"diagnosis,omitempty"`
 	NeedsApproval bool                        `json:"needsApproval"`
 	AutoApply     bool                        `json:"autoApply"`
@@ -74,18 +76,20 @@ type StageRetryProposal struct {
 
 // StageRetryProposalInput — то, что предлагает Мастер.
 type StageRetryProposalInput struct {
-	QuestID     string                      `json:"questId"`
-	Instruction string                      `json:"instruction,omitempty"`
-	Criteria    []StageRetryCriterionChange `json:"criteria,omitempty"`
-	Diagnosis   string                      `json:"diagnosis,omitempty"`
+	QuestID      string                      `json:"questId"`
+	Instruction  string                      `json:"instruction,omitempty"`
+	Criteria     []StageRetryCriterionChange `json:"criteria,omitempty"`
+	Dependencies *domain.DependencyPlan      `json:"dependencyPlan,omitempty"`
+	Diagnosis    string                      `json:"diagnosis,omitempty"`
 }
 
 // stageRetryPlan — что применить при этом повторе.
 type stageRetryPlan struct {
-	Source      string
-	Instruction string
-	Criteria    []StageRetryCriterionChange
-	Proposal    string
+	Source       string
+	Instruction  string
+	Criteria     []StageRetryCriterionChange
+	Dependencies *domain.DependencyPlan
+	Proposal     string
 }
 
 func (p stageRetryPlan) journalNote() string {
@@ -95,6 +99,9 @@ func (p stageRetryPlan) journalNote() string {
 	}
 	for _, change := range p.Criteria {
 		parts = append(parts, "проверка "+change.CriterionID+" изменена")
+	}
+	if p.Dependencies != nil {
+		parts = append(parts, "dependency preparation amended")
 	}
 	if p.Proposal != "" {
 		parts = append(parts, "предложение "+p.Proposal[:min(len(p.Proposal), 19)])
@@ -194,10 +201,14 @@ func (a *App) ProposeStageRetryV2(ctx context.Context, workspaceID string, input
 		}
 		proposal.Criteria = changes
 	}
-	if proposal.Instruction == "" && len(proposal.Criteria) == 0 {
+	proposal.Dependencies = domain.NormalizeDependencyPlan(input.Dependencies)
+	if err := domain.ValidateDependencyPlan(proposal.Dependencies); err != nil {
+		return StageRetryProposal{}, err
+	}
+	if proposal.Instruction == "" && len(proposal.Criteria) == 0 && proposal.Dependencies == nil {
 		return StageRetryProposal{}, errors.New("в предложении нет правок: для повтора как есть хватит кнопки «Повторить этап»")
 	}
-	proposal.NeedsApproval = len(proposal.Criteria) > 0
+	proposal.NeedsApproval = len(proposal.Criteria) > 0 || proposal.Dependencies != nil
 	proposal.AutoApply = !proposal.NeedsApproval && stageAutoRetryAvailable(quest, nodeID)
 	proposal.Digest = stageRetryProposalDigest(proposal)
 	encoded, _ := json.Marshal(proposal)
@@ -260,10 +271,11 @@ func stageRetryProposalDigest(proposal StageRetryProposal) string {
 	payload, _ := json.Marshal(struct {
 		NodeID, FailureAt, Runtime, Instruction string
 		Criteria                                []StageRetryCriterionChange
+		Dependencies                            *domain.DependencyPlan `json:"dependencyPlan,omitempty"`
 		// Runtime остался в отпечатке пустым полем: прежде предложение могло
 		// нести выбор среды, и уже сохранённые предложения считали отпечаток с
 		// ним. Без поля они стали бы «устаревшими» посреди ожидания человека.
-	}{proposal.NodeID, proposal.FailureAt, "", proposal.Instruction, proposal.Criteria})
+	}{proposal.NodeID, proposal.FailureAt, "", proposal.Instruction, proposal.Criteria, proposal.Dependencies})
 	sum := sha256.Sum256(payload)
 	return "sha256:" + hex.EncodeToString(sum[:])
 }
@@ -301,6 +313,10 @@ func resolveStageRetryPlanV2(quest domain.Quest, request WorkOrderQuestControlRe
 		if source == StageRetrySourceAuto && (!proposal.AutoApply || proposal.NeedsApproval || !stageAutoRetryAvailable(quest, nodeID)) {
 			return stageRetryPlan{}, errStageRetryLimit
 		}
+		if err := domain.ValidateDependencyPlan(proposal.Dependencies); err != nil {
+			return stageRetryPlan{}, err
+		}
+		plan.Dependencies = proposal.Dependencies
 		plan.Instruction, plan.Criteria, plan.Proposal = proposal.Instruction, proposal.Criteria, proposal.Digest
 		return plan, nil
 	}
@@ -369,4 +385,22 @@ func amendedCriterionArguments(arguments json.RawMessage, amendment domain.Crite
 		return arguments
 	}
 	return encoded
+}
+
+// Overlay only a digest-checked, human-approved retry amendment. The signed
+// WorkOrder stays immutable and historical plans remain readable.
+func effectiveDependencyPlan(quest domain.Quest, original *domain.DependencyPlan) *domain.DependencyPlan {
+	raw, ok := quest.Controller[dependencyAmendmentKey]
+	if !ok {
+		return original
+	}
+	data, err := json.Marshal(raw)
+	if err != nil {
+		return original
+	}
+	var plan domain.DependencyPlan
+	if json.Unmarshal(data, &plan) != nil || domain.ValidateDependencyPlan(&plan) != nil {
+		return original
+	}
+	return &plan
 }

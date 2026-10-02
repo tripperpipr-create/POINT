@@ -37,6 +37,7 @@ var questCacheVolumes = []cacheVolume{
 	{kind: "npm", mount: "/cache/npm", env: "NPM_CONFIG_CACHE", verified: true},
 	{kind: "gomod", mount: "/cache/gomod", env: "GOMODCACHE", verified: true},
 	{kind: "gobuild", mount: "/cache/gobuild", env: "GOCACHE"},
+	{kind: "composer", mount: "/cache/composer", env: "COMPOSER_CACHE_DIR"},
 	{kind: "pip", mount: "/cache/pip", env: "PIP_CACHE_DIR"},
 }
 
@@ -52,6 +53,13 @@ func cacheVolumeName(scope, kind string) string {
 // переменные окружения, заменяющие tmpfs-кэши. Пустая область — кэша нет:
 // так работают команды вне квеста.
 func (b *ContainerBackend) cacheMounts(ctx context.Context, scope string, authoritative bool, image string) ([]string, []string, error) {
+	if b.disableDownloadCache {
+		// Installed Go modules are required by later offline commands. Keep them
+		// in this workspace, like node_modules/vendor, rather than the /tmp that
+		// the supervisor resets. Portable clones exclude .point, so an independent
+		// checker still installs its own modules; no shared cache is mounted.
+		return nil, []string{"GOMODCACHE=/workspace/.point/gomod"}, nil
+	}
 	scope = strings.TrimSpace(scope)
 	if scope == "" {
 		return nil, nil, nil

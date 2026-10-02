@@ -208,6 +208,7 @@ or a file under `ui/layers/`, then rebuild — direct edits are overwritten.
 | --- | --- | --- |
 | `make test-docs` | `docs` | три затвора документации и реестр качества |
 | `make test-go` | `go` | `go vet`, `go mod verify`, `go test ./... -count=1` |
+| `make test-runtime-tooling` | `runtime-tooling` | Python >=3.11: pinned-pack preparation, raw resource accounting and evidence-report boundaries; `POINT_METRICS_NATIVE=1` includes the Windows job test |
 | `make test-frontend` | `frontend` | сборка диагностического клиента |
 | `make test-extension` | `extension` | весь JS-контур: сборка ядра, CSS/JS/runtime, смоуки Хаба |
 | `make test` | четыре локальных job | полные локальные затворы без отдельного Docker job `sandbox` |

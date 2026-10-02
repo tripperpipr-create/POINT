@@ -1,0 +1,60 @@
+{
+  "schema": 1,
+  "assessedAt": "2026-10-02",
+  "securityProfile": "point-container-security-v2",
+  "candidates": [
+    {
+      "engine": "moby",
+      "engineVersion": "29.1.3",
+      "disposition": "native_parity_passed",
+      "proof": "build/point-runtime-local-20261002/matrix-packs/moby-parity-v2.json",
+      "nativeScenarios": 7
+    },
+    {
+      "engine": "podman",
+      "engineVersion": "4.9.3",
+      "disposition": "native_parity_passed",
+      "proof": "build/point-runtime-local-20261002/matrix-packs/podman-parity-v2.json",
+      "nativeScenarios": 7
+    },
+    {
+      "engine": "wsl-containers",
+      "disposition": "excluded_from_current_profile",
+      "assessmentKind": "documented_public_api",
+      "nativeTested": false,
+      "minimumWSL": "2.9.3",
+      "installedWSL": "2.3.24.0",
+      "unexposedRequiredControls": [
+        "per-container CPU quota",
+        "per-container memory limit",
+        "per-container PID limit",
+        "drop all capabilities",
+        "no-new-privileges",
+        "read-only container root"
+      ],
+      "reason": "Documented container settings do not expose these controls; session CPU/memory limits apply to a VM session. A safe equivalent adapter has not been established. Exclusion is an integration decision for this profile, not proof of a vulnerable engine or of impossibility in a future API.",
+      "sources": [
+        "https://learn.microsoft.com/en-us/windows/wsl/wsl-container",
+        "https://wsl.dev/api-reference/csharp/settings-classes/containersettings/",
+        "https://wsl.dev/api-reference/csharp/settings-classes/sessionsettings/",
+        "https://wsl.dev/api-reference/c/enumerations/wslccontainerflags/"
+      ],
+      "reconsiderWhen": "The supported API exposes the missing controls or an equivalent adapter passes independent native enforcement tests."
+    }
+  ],
+  "performanceWinner": null,
+  "accelerationConfirmed": false,
+  "defaults": "bind/shadow",
+  "selectedEngine": "moby",
+  "selectionBasis": "Explicit user decision, informed by local fixed-operation speed/memory measurements; full-task qualification remains open",
+  "selectedSettings": {
+    "cpu": 2,
+    "memoryGiB": 2,
+    "pids": 256,
+    "storage": "volume",
+    "warmContainers": true,
+    "verifiedDownloadCaches": true,
+    "verification": "shadow",
+    "idleShutdownMinutes": 10
+  }
+}

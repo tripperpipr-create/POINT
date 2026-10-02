@@ -18,7 +18,12 @@ import (
 )
 
 func (a *App) StartMasterTurnV2(ctx context.Context, req MasterTurnV2Request) (domain.MasterTurn, error) {
-	currentWorkspaceID := a.currentWorldID()
+	var scopeErr error
+	ctx, scopeErr = a.WithMasterWorkspace(ctx, req.WorkspaceID)
+	if scopeErr != nil {
+		return domain.MasterTurn{}, scopeErr
+	}
+	currentWorkspaceID := a.masterWorldID(ctx)
 	if req.WorkspaceID != "" && req.WorkspaceID != currentWorkspaceID {
 		return domain.MasterTurn{}, errors.New("requested project is not the open project")
 	}
@@ -53,9 +58,9 @@ func (a *App) StartMasterTurnV2(ctx context.Context, req MasterTurnV2Request) (d
 		})
 	}
 	return a.startMasterTurn(ctx, MasterChatRequest{
-		TurnID: req.TurnID, ConversationID: req.ConversationID, Message: req.Message,
+		WorkspaceID: currentWorkspaceID, TurnID: req.TurnID, ConversationID: req.ConversationID, Message: req.Message,
 		Attachments: attachments, Model: req.Model, TaskIntake: req.TaskIntake,
-		ProposalID: req.ProposalID, APIKey: req.APIKey,
+		ProposalID: req.ProposalID, APIKey: req.APIKey, FastAPIKey: req.FastAPIKey,
 		PreviousAnswerRejected: req.PreviousAnswerRejected,
 	}, func(finishCtx context.Context, result MasterChatView) (string, error) {
 		return a.saveMasterWorkOrderV2(finishCtx, result.Response.Proposal, sources, result.Sessions.Active, result.Response.AgentDraft, req.APIKey)
@@ -80,6 +85,11 @@ func (a *App) StartMasterTurn(ctx context.Context, req MasterChatRequest) (domai
 type masterTurnCompletion func(context.Context, MasterChatView) (string, error)
 
 func (a *App) startMasterTurn(ctx context.Context, req MasterChatRequest, complete masterTurnCompletion) (domain.MasterTurn, error) {
+	var scopeErr error
+	ctx, scopeErr = a.WithMasterWorkspace(ctx, req.WorkspaceID)
+	if scopeErr != nil {
+		return domain.MasterTurn{}, scopeErr
+	}
 	if strings.TrimSpace(req.Message) == "" || len(req.Message) > 32768 {
 		return domain.MasterTurn{}, errors.New("сообщение должно содержать от 1 до 32768 байт")
 	}
@@ -89,7 +99,7 @@ func (a *App) startMasterTurn(ctx context.Context, req MasterChatRequest, comple
 	if len(req.TurnID) > 128 {
 		return domain.MasterTurn{}, errors.New("неверный идентификатор хода")
 	}
-	w := a.currentWorldID()
+	w := a.masterWorldID(ctx)
 	cfg, err := a.masterConfig(ctx, w)
 	if err != nil {
 		return domain.MasterTurn{}, err
@@ -114,6 +124,7 @@ func (a *App) startMasterTurn(ctx context.Context, req MasterChatRequest, comple
 	}
 	hashReq := req
 	hashReq.APIKey = ""
+	hashReq.FastAPIKey = ""
 	raw, _ := json.Marshal(hashReq)
 	hash := fmt.Sprintf("%x", sha256.Sum256(raw))
 	a.masterTurnsMu.Lock()
@@ -126,12 +137,37 @@ func (a *App) startMasterTurn(ctx context.Context, req MasterChatRequest, comple
 		if existing.RequestHash != hash {
 			return existing, errors.New("идентификатор уже принадлежит другому запросу")
 		}
+		if domain.ConversationScope(w) == "point_chat" && !masterTurnTerminal(existing.Status) {
+			if unlock, e := scopeFileLock(ctx.Value(masterScopeKey{}).(masterScope).Workspace, "master-turns"); e == nil {
+				defer unlock()
+				if e = a.store.RecoverPointMasterTurns(ctx, w); e != nil {
+					return existing, e
+				}
+				return a.store.MasterTurn(ctx, w, req.TurnID)
+			}
+		}
 		return existing, nil
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		return existing, err
 	}
-	turn := domain.MasterTurn{ID: req.TurnID, ConversationID: req.ConversationID, WorkspaceID: w, Status: "preparing", RequestHash: hash}
+	unlock := func() {}
+	handedOff := false
+	defer func() {
+		if !handedOff {
+			unlock()
+		}
+	}()
+	if domain.ConversationScope(w) == "point_chat" {
+		unlock, err = scopeFileLock(ctx.Value(masterScopeKey{}).(masterScope).Workspace, "master-turns")
+		if err != nil {
+			return domain.MasterTurn{}, fmt.Errorf("another core is answering in this POINT chat: %w", err)
+		}
+		if err = a.store.RecoverPointMasterTurns(ctx, w); err != nil {
+			return domain.MasterTurn{}, err
+		}
+	}
+	turn := domain.MasterTurn{ScopeKind: domain.ConversationScope(w), ID: req.TurnID, ConversationID: req.ConversationID, WorkspaceID: w, Status: "preparing", RequestHash: hash}
 	if err = a.store.SaveMasterTurn(ctx, turn); err != nil {
 		return turn, errors.New("в этом разговоре уже идёт ответ; дождитесь его или остановите")
 	}
@@ -140,7 +176,7 @@ func (a *App) startMasterTurn(ctx context.Context, req MasterChatRequest, comple
 	// поток к модели обрывался на середине ответа, и ход записывался как
 	// остановленный человеком.
 	budget := masterTurnDeadline(cfg)
-	runCtx, cancel := context.WithTimeout(context.Background(), budget)
+	runCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), budget)
 	if a.masterTurnCancels == nil {
 		a.masterTurnCancels = map[string]context.CancelFunc{}
 	}
@@ -150,7 +186,9 @@ func (a *App) startMasterTurn(ctx context.Context, req MasterChatRequest, comple
 	// Ход после возврата принадлежит вызывающему коду. Горутина получает свою
 	// копию: иначе первая запись Status могла совпасть с копированием результата
 	// return и детектор гонок справедливо видел общий объект.
+	handedOff = true
 	go func(turn domain.MasterTurn) {
+		defer unlock()
 		defer a.masterTurnsWG.Done()
 		defer cancel()
 		defer func() {
@@ -242,7 +280,7 @@ func (a *App) startMasterTurn(ctx context.Context, req MasterChatRequest, comple
 				turn.Status = "failed"
 				turn.Error = result.Response.FallbackReason
 			} else if complete != nil {
-				workOrderID, completeErr := complete(context.Background(), result)
+				workOrderID, completeErr := complete(context.WithoutCancel(runCtx), result)
 				if completeErr != nil {
 					turn.Status = "failed"
 					turn.Error = "не удалось подготовить карточку запуска: " + completeErr.Error()
@@ -266,7 +304,7 @@ func (a *App) startMasterTurn(ctx context.Context, req MasterChatRequest, comple
 	return turn, nil
 }
 func (a *App) CancelMasterTurn(ctx context.Context, id string) error {
-	w := a.currentWorldID()
+	w := a.masterWorldID(ctx)
 	if _, err := a.store.MasterTurn(ctx, w, id); err != nil {
 		return err
 	}
@@ -278,7 +316,7 @@ func (a *App) CancelMasterTurn(ctx context.Context, id string) error {
 	return nil
 }
 func (a *App) MasterTurn(ctx context.Context, id string) (domain.MasterTurn, error) {
-	turn, err := a.store.MasterTurn(ctx, a.currentWorldID(), id)
+	turn, err := a.store.MasterTurn(ctx, a.masterWorldID(ctx), id)
 	if err != nil {
 		return turn, err
 	}
@@ -286,7 +324,7 @@ func (a *App) MasterTurn(ctx context.Context, id string) (domain.MasterTurn, err
 	return turn, err
 }
 func (a *App) MasterTurnEvents(ctx context.Context, id string, after int64) ([]domain.MasterTurnEvent, error) {
-	return a.store.MasterEvents(ctx, a.currentWorldID(), id, after)
+	return a.store.MasterEvents(ctx, a.masterWorldID(ctx), id, after)
 }
 
 // Bind an established stream to its original workspace even if the Hub switches projects.

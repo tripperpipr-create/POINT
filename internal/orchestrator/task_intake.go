@@ -24,6 +24,7 @@ type TaskReadTools interface {
 // что модель оформила инструментами разговора (master_actions.go). Из текста
 // ответа он больше не разбирается.
 type taskIntakeEnvelope struct {
+	FastTask            string
 	Clarifications      []domain.MasterQuestion
 	ConversationSummary string
 	MemorySuggestions   []string
@@ -79,6 +80,18 @@ func (s ChatService) DiscussTask(ctx context.Context, req ChatRequest) (ChatResp
 		return response, s.persistReply(ctx, req, response, "")
 	}
 	response := ChatResponse{Mode: "model", Model: req.Config.Model, Reply: strings.TrimSpace(envelope.Reply), Questions: cleanList(envelope.Questions, 2), MemorySuggestions: cleanList(envelope.MemorySuggestions, 3), ConversationSummary: envelope.ConversationSummary, Usage: usage, Reasoning: usage.Reasoning, Steps: usage.Steps}
+	response.Route = "answer"
+	if envelope.FastTask != "" && req.WorkMode == "auto" {
+		response.Route = "fast"
+		response.FastTask = envelope.FastTask
+	}
+	if envelope.Brief != nil {
+		response.Route = "plan"
+	}
+	if len(envelope.Clarifications) > 0 {
+		response.Route = "clarify"
+		response.FastTask = ""
+	}
 	// Откуда Мастер знал договорённости проекта — такое же основание ответа,
 	// как факты снимка: человек должен видеть, что правила были прочитаны.
 	if strings.TrimSpace(req.ProjectRules) != "" && len(req.RuleSources) > 0 {
@@ -382,6 +395,9 @@ func (s ChatService) discussWithModel(ctx context.Context, req ChatRequest, worl
 		readDefinitions = s.ReadTools.Definitions()
 	}
 	actionDefinitions := masterActionDefinitions()
+	if req.WorkMode == "auto" {
+		actionDefinitions = append(actionDefinitions, domain.ToolDefinition{Name: masterActionFastTask, Description: "Start the system Fast Agent for clear bounded local work requested by the user. Use propose_brief for complex work requiring plan approval; ask_clarifications for important unknowns. Never use this for questions or discussions.", InputSchema: json.RawMessage(`{"type":"object","properties":{"task":{"type":"string","description":"Complete bounded task with context, constraints and checks"}},"required":["task"],"additionalProperties":false}`)})
+	}
 	output := masterOutputBudget(req.Config, window)
 	seenTools := map[string]struct{}{}
 	trace := newMasterTrace(s)

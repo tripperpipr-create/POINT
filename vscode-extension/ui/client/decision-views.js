@@ -28,6 +28,7 @@ export function createDecisionViews({ ui, vscode, render, esc, data, state, shel
   // последствия несопоставимы — и понять, что именно произойдёт, можно было
   // только прочитав карточку целиком.
   const DECISION_VERBS = {
+    accepted: 'Принять аудит', rejected: 'Отклонить аудит',
     apply: 'Применить', approve: 'Разрешить', start: 'Запустить',
     deny: 'Запретить', reject: 'Отклонить', ignore: 'Пропустить',
     // Конфликт слияния не «применяют» — его разбирают, выбирая итоговые файлы.
@@ -45,6 +46,8 @@ export function createDecisionViews({ ui, vscode, render, esc, data, state, shel
   // нельзя: она уже выполнилась.
   function decisionReversibilityNote(kind) {
     switch (kind) {
+      case 'sandbox-audit':
+        return 'Решение сохраняется неизменяемо для этой ревизии. Доставка требует новой чистой проверки; неполная история остаётся в доказательстве.'
       // flow-gate — тот же approval, только внутри флоу: разрешение пускает узел
       // дальше, и выполненное им уже не отменить.
       case 'approval':

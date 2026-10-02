@@ -27,6 +27,7 @@ const (
 	masterActionProposeBrief      = "propose_brief"
 	masterActionAskClarifications = "ask_clarifications"
 	masterActionSuggestMemory     = "suggest_memory"
+	masterActionFastTask          = "dispatch_fast_task"
 )
 
 // IsMasterActionTool — вызов разговора, а не обращение к проекту. Реплей
@@ -34,7 +35,7 @@ const (
 // отработали, и их результаты едут в реплее записанным свидетельством.
 func IsMasterActionTool(name string) bool {
 	switch name {
-	case masterActionProposeBrief, masterActionAskClarifications, masterActionSuggestMemory:
+	case masterActionProposeBrief, masterActionAskClarifications, masterActionSuggestMemory, masterActionFastTask:
 		return true
 	}
 	return false
@@ -44,6 +45,7 @@ func IsMasterActionTool(name string) bool {
 // вызов побеждает: модель уточняет задание по замечаниям сервера, и в карточку
 // должна попасть исправленная версия, а не первая.
 type masterActions struct {
+	fastTask       string
 	title          string
 	proposalID     string
 	brief          *domain.TaskBrief
@@ -60,6 +62,19 @@ type masterActions struct {
 
 func (a *masterActions) execute(name string, arguments json.RawMessage) domain.ToolResult {
 	switch name {
+	case masterActionFastTask:
+		var input struct {
+			Task string `json:"task"`
+		}
+		if failure := workbenchtools.Decode(arguments, &input); failure != nil {
+			return *failure
+		}
+		input.Task = strings.TrimSpace(input.Task)
+		if input.Task == "" || len(input.Task) > 32768 || len(a.clarifications) > 0 || a.brief != nil {
+			return workbenchtools.Fail("invalid_fast_task", "Fast task requires clear bounded work without unresolved questions or a proposed plan")
+		}
+		a.fastTask = input.Task
+		return workbenchtools.OK(map[string]any{"route": "fast", "note": "The server will start the system Fast Agent in the pinned workspace."})
 	case masterActionProposeBrief:
 		return a.proposeBrief(arguments)
 	case masterActionAskClarifications:
@@ -219,6 +234,7 @@ func (a *masterActions) suggestMemory(arguments json.RawMessage) domain.ToolResu
 // что ниже по течению сохраняет карточку, вопросы и память, остаётся прежним.
 func (a *masterActions) envelope(reply string) taskIntakeEnvelope {
 	envelope := taskIntakeEnvelope{Intent: "chat", Reply: reply, Clarifications: a.clarifications, MemorySuggestions: a.memory}
+	envelope.FastTask = a.fastTask
 	if a.brief != nil {
 		envelope.Intent = "task"
 		envelope.Brief = a.brief
@@ -237,6 +253,8 @@ func (a *masterActions) envelope(reply string) taskIntakeEnvelope {
 // карточка под ответом и так говорит сама за себя.
 func (a *masterActions) silentReply() string {
 	switch {
+	case a.fastTask != "":
+		return "Передаю задачу Fast Agent для локального выполнения."
 	case a.brief != nil && len(a.clarifications) > 0:
 		return "Набросал задание; прежде чем его утверждать, нужно уточнить — вопросы ниже."
 	case a.brief != nil:
@@ -257,7 +275,7 @@ func (a *masterActions) silentReply() string {
 // или вопросы уже и есть ответ. Предложение запомнить — нет: модель зовёт его
 // попутно и ответ на сам вопрос ещё впереди.
 func masterActionConcludes(name string) bool {
-	return name == masterActionProposeBrief || name == masterActionAskClarifications
+	return name == masterActionProposeBrief || name == masterActionAskClarifications || name == masterActionFastTask
 }
 
 // Некоторые модели сериализуют вложенный объект строкой: "brief": "{...}".

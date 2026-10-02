@@ -11,7 +11,7 @@ import (
 )
 
 func (s *SQLite) MasterConversations(ctx context.Context, w string) ([]domain.MasterConversation, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id,title,archived,pinned,temporary,mode,work_mode,summary,parent_id,updated_at,model,branch_offer,branch_name,branch_base,branch_commit,branch_path FROM master_conversations WHERE workspace_id=? ORDER BY pinned DESC,updated_at DESC,id`, w)
+	rows, err := s.db.QueryContext(ctx, `SELECT id,title,archived,pinned,temporary,mode,work_mode,summary,parent_id,updated_at,model,branch_offer,branch_name,branch_base,branch_commit,branch_path,scope_kind,workspace_path FROM master_conversations WHERE workspace_id=? ORDER BY pinned DESC,updated_at DESC,id`, w)
 	if err != nil {
 		return nil, err
 	}
@@ -19,7 +19,7 @@ func (s *SQLite) MasterConversations(ctx context.Context, w string) ([]domain.Ma
 	out := []domain.MasterConversation{}
 	for rows.Next() {
 		v := domain.MasterConversation{WorkspaceID: w}
-		if err = rows.Scan(&v.ID, &v.Title, &v.Archived, &v.Pinned, &v.Temporary, &v.Mode, &v.WorkMode, &v.Summary, &v.ParentID, &v.UpdatedAt, &v.Model, &v.BranchOffer, &v.BranchName, &v.BranchBase, &v.BranchCommit, &v.BranchPath); err != nil {
+		if err = rows.Scan(&v.ID, &v.Title, &v.Archived, &v.Pinned, &v.Temporary, &v.Mode, &v.WorkMode, &v.Summary, &v.ParentID, &v.UpdatedAt, &v.Model, &v.BranchOffer, &v.BranchName, &v.BranchBase, &v.BranchCommit, &v.BranchPath, &v.ScopeKind, &v.WorkspacePath); err != nil {
 			return nil, err
 		}
 		out = append(out, v)
@@ -30,15 +30,19 @@ func (s *SQLite) SaveMasterConversation(ctx context.Context, v domain.MasterConv
 	if v.UpdatedAt == "" {
 		v.UpdatedAt = time.Now().UTC().Format(time.RFC3339Nano)
 	}
+	if v.ScopeKind == "" {
+		v.ScopeKind = "project"
+	}
 	if v.Mode == "" {
 		v.Mode = "auto"
 	}
 	if v.WorkMode == "" {
-		v.WorkMode = "plan"
+		v.WorkMode = "auto"
 	}
-	_, err := s.db.ExecContext(ctx, `INSERT INTO master_conversations(workspace_id,id,title,archived,pinned,temporary,mode,work_mode,summary,parent_id,updated_at,model,branch_offer,branch_name,branch_base,branch_commit,branch_path) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(workspace_id,id) DO UPDATE SET title=excluded.title,archived=excluded.archived,pinned=excluded.pinned,mode=excluded.mode,work_mode=excluded.work_mode,summary=excluded.summary,updated_at=excluded.updated_at,model=excluded.model`, v.WorkspaceID, v.ID, v.Title, v.Archived, v.Pinned, v.Temporary, v.Mode, v.WorkMode, v.Summary, v.ParentID, v.UpdatedAt, v.Model, v.BranchOffer, v.BranchName, v.BranchBase, v.BranchCommit, v.BranchPath)
+	_, err := s.db.ExecContext(ctx, `INSERT INTO master_conversations(workspace_id,id,title,archived,pinned,temporary,mode,work_mode,summary,parent_id,updated_at,model,branch_offer,branch_name,branch_base,branch_commit,branch_path,scope_kind,workspace_path) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(workspace_id,id) DO UPDATE SET title=excluded.title,archived=excluded.archived,pinned=excluded.pinned,mode=excluded.mode,work_mode=excluded.work_mode,summary=excluded.summary,updated_at=excluded.updated_at,model=excluded.model`, v.WorkspaceID, v.ID, v.Title, v.Archived, v.Pinned, v.Temporary, v.Mode, v.WorkMode, v.Summary, v.ParentID, v.UpdatedAt, v.Model, v.BranchOffer, v.BranchName, v.BranchBase, v.BranchCommit, v.BranchPath, v.ScopeKind, v.WorkspacePath)
 	return err
 }
+
 // TouchMasterConversation — след хода в записи разговора: время, заголовок
 // нового разговора и резюме, если ход его принёс. Остальные колонки не
 // трогаются: за время хода человек мог переименовать или закрепить беседу, а
@@ -170,6 +174,7 @@ func (s *SQLite) SaveMasterMemory(ctx context.Context, w string, v domain.Master
 	_, err := s.db.ExecContext(ctx, `INSERT INTO master_memory(workspace_id,id,content,source_id,status,updated_at) VALUES(?,?,?,?,?,?) ON CONFLICT(workspace_id,id) DO UPDATE SET content=excluded.content,status=excluded.status,updated_at=excluded.updated_at`, w, v.ID, v.Content, v.SourceID, v.Status, time.Now().UTC().Format(time.RFC3339Nano))
 	return err
 }
+
 // DeleteStaleMasterMemoryProposals removes proposals nobody decided on
 // before the cutoff. Accepted memory is never touched.
 func (s *SQLite) DeleteStaleMasterMemoryProposals(ctx context.Context, w string, cutoff time.Time) (int64, error) {
@@ -283,7 +288,7 @@ func (s *SQLite) SaveMasterTurn(ctx context.Context, t domain.MasterTurn) error 
 	return err
 }
 func (s *SQLite) MasterTurn(ctx context.Context, w, id string) (domain.MasterTurn, error) {
-	v := domain.MasterTurn{ID: id, WorkspaceID: w}
+	v := domain.MasterTurn{ID: id, WorkspaceID: w, ScopeKind: domain.ConversationScope(w)}
 	err := s.db.QueryRowContext(ctx, `SELECT conversation_id,work_order_id,status,reply,error,request_hash,updated_at FROM master_turns WHERE workspace_id=? AND id=?`, w, id).Scan(&v.ConversationID, &v.WorkOrderID, &v.Status, &v.Reply, &v.Error, &v.RequestHash, &v.UpdatedAt)
 	return v, err
 }
@@ -295,7 +300,7 @@ func (s *SQLite) MasterActiveTurns(ctx context.Context, w string) ([]domain.Mast
 	defer rows.Close()
 	out := []domain.MasterTurn{}
 	for rows.Next() {
-		v := domain.MasterTurn{WorkspaceID: w}
+		v := domain.MasterTurn{WorkspaceID: w, ScopeKind: domain.ConversationScope(w)}
 		if err = rows.Scan(&v.ID, &v.ConversationID, &v.WorkOrderID, &v.Status, &v.Reply, &v.Error, &v.UpdatedAt); err != nil {
 			return nil, err
 		}
@@ -304,6 +309,8 @@ func (s *SQLite) MasterActiveTurns(ctx context.Context, w string) ([]domain.Mast
 	return out, rows.Err()
 }
 func (s *SQLite) AppendMasterEvent(ctx context.Context, w string, e domain.MasterTurnEvent) (domain.MasterTurnEvent, error) {
+	e.WorkspaceID = w
+	e.ScopeKind = domain.ConversationScope(w)
 	r, err := s.db.ExecContext(ctx, `INSERT INTO master_turn_events(workspace_id,turn_id,conversation_id,type,text,detail) VALUES(?,?,?,?,?,?)`, w, e.TurnID, e.ConversationID, e.Type, e.Text, e.Detail)
 	if err == nil {
 		e.Sequence, err = r.LastInsertId()
@@ -319,6 +326,8 @@ func (s *SQLite) MasterEvents(ctx context.Context, w, id string, after int64) ([
 	out := []domain.MasterTurnEvent{}
 	for rows.Next() {
 		var e domain.MasterTurnEvent
+		e.WorkspaceID = w
+		e.ScopeKind = domain.ConversationScope(w)
 		if err = rows.Scan(&e.Sequence, &e.TurnID, &e.ConversationID, &e.Type, &e.Text, &e.Detail); err != nil {
 			return nil, err
 		}
@@ -328,6 +337,13 @@ func (s *SQLite) MasterEvents(ctx context.Context, w, id string, after int64) ([
 }
 func (s *SQLite) InterruptMasterTurns(ctx context.Context) error {
 	return s.interruptMasterTurns(ctx, "")
+}
+
+func (s *SQLite) RecoverPointMasterTurns(ctx context.Context, w string) error {
+	if domain.ConversationScope(w) != "point_chat" {
+		return errors.New("POINT scope required")
+	}
+	return s.interruptMasterTurns(ctx, w)
 }
 
 // interruptMasterTurns закрывает ходы, брошенные остановленным ядром. Пустой

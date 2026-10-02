@@ -6,6 +6,7 @@
 // через main.js значило бы расти файлу, который стоит у своего потолка.
 import { createQuestJournal } from './quest-journal-views.js'
 import { diffHtml } from './diff-view.js'
+import { completionStatus, pendingAcceptanceText, verificationReuseText } from './completion-verdict.js'
 
 const SKIP_TOOL_FAIL = new Set([
   'inspection_required',
@@ -83,7 +84,13 @@ export function createAgentWorkTranscript(dependencies) {
     }
     let anchoredPending = false
     for (const event of visibleEvents) {
-      const payload = data(event.data)
+      const payload = { ...data(event.data) }
+      if (event.type === 'completion.checked') {
+        payload.status = completionStatus(payload)
+        if (payload.status === 'needs_review') items.push(`<div class="notice warning agent-work-notice">${esc(pendingAcceptanceText(payload))}</div>`)
+        const reuse = verificationReuseText(payload)
+        if (reuse) items.push(`<div class="notice agent-work-notice">${esc(reuse)}</div>`)
+      }
       if (event.type === 'run.message_injected' && payload.content) {
         const learningBadge = payload.learningIntent === 'correction'
           ? '<div class="run-context"><span title="Это уточнение явно разрешено использовать как проверяемый обучающий сигнал">◎ разрешено как урок</span></div>'
@@ -105,6 +112,7 @@ export function createAgentWorkTranscript(dependencies) {
       if (event.type === 'completion.checked' && payload.status === 'accepted_after_revision') {
         items.push('<div class="notice success agent-work-notice">✓ Финал принят после подтверждения инструментом</div>')
       }
+      if (event.type === 'completion.checked' && ['implementation_ready','preparation_failed'].includes(payload.status)) { items.push('<div class="notice warning agent-work-notice">Реализация сохранена. Независимая приёмка не подтверждена; подробности — в журнале проверок.</div>') }
       if (event.type === 'completion.checked' && payload.status === 'rejected') {
         items.push('<div class="notice danger agent-work-notice">! Финал отклонён · доказательство готовности не получено</div>')
       }

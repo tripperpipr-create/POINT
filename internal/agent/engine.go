@@ -65,6 +65,7 @@ type ModelBudgetController interface {
 }
 
 type activeRun struct {
+	processExecutor   sandbox.ProcessExecutor
 	taskBrief         *domain.TaskBrief
 	mu                sync.RWMutex
 	run               domain.Run

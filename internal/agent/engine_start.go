@@ -79,12 +79,13 @@ func (e *Engine) Start(input StartInput) (domain.Run, error) {
 	if err := ValidateTaskVerification(profile, input.TaskBrief, input.Configuration.CustomTools); err != nil {
 		return domain.Run{}, err
 	}
-	if input.TaskBrief != nil && input.TaskBrief.Mode == domain.TaskModeProject && (input.SandboxPath == "" || !e.strongTaskSandbox()) {
+	if input.TaskBrief != nil && input.TaskBrief.Mode == domain.TaskModeProject && !domain.HostLiveFastAgent(profile, input.TaskBrief) && (input.SandboxPath == "" || !e.strongTaskSandbox()) {
 		return domain.Run{}, errors.New("autonomous execution requires a strong Docker process boundary")
 	}
 	if input.TaskBrief != nil {
 		input.Configuration = domain.NewRunConfigurationSnapshot(input.Configuration.ApplicationVersion, profile, input.Configuration.CustomTools, input.Configuration.CapturedAt)
 	}
+	input.Configuration = input.Configuration.WithTargetWorkspace(input.Workspace)
 	// v1/v2 remain readable from storage, but Start always creates a new Run.
 	// Accepting a legacy snapshot here would silently reintroduce mutable or
 	// incomplete execution evidence through an alternate caller.
@@ -103,7 +104,7 @@ func (e *Engine) Start(input StartInput) (domain.Run, error) {
 	if startedAt.IsZero() {
 		startedAt = time.Now().UTC()
 	}
-	run := domain.Run{ID: runID, AgentID: agentID, ProfileID: profile.ID, WorkspaceID: input.Workspace.ID, Task: input.Task, ContextItems: input.ContextItems, ConfigurationSnapshot: input.Configuration, Provider: string(profile.Provider), Model: profile.Model, Status: domain.RunRunning, ToolsUsed: []string{}, ChangedFiles: []string{}, StartedAt: startedAt}
+	run := domain.Run{ScopeKind: domain.ConversationScope(input.Workspace.ID), ID: runID, AgentID: agentID, ProfileID: profile.ID, WorkspaceID: input.Workspace.ID, Task: input.Task, ContextItems: input.ContextItems, ConfigurationSnapshot: input.Configuration, Provider: string(profile.Provider), Model: profile.Model, Status: domain.RunRunning, ToolsUsed: []string{}, ChangedFiles: []string{}, StartedAt: startedAt}
 	activeBudget := 0
 	if input.TaskBrief != nil && input.TaskBrief.Budget.ActiveSeconds > 0 {
 		activeBudget = input.TaskBrief.Budget.ActiveSeconds
@@ -112,7 +113,8 @@ func (e *Engine) Start(input StartInput) (domain.Run, error) {
 	maxDuration := wallClockLimit(profile.MaxDurationSeconds, activeBudget)
 	ctx, cancel := context.WithTimeout(context.Background(), maxDuration)
 	active := &activeRun{
-		run: run, cancel: cancel, onFinished: input.OnFinished, finalized: make(chan struct{}), taskBrief: input.TaskBrief,
+		processExecutor: e.executorForProfile(profile, input.TaskBrief),
+		run:             run, cancel: cancel, onFinished: input.OnFinished, finalized: make(chan struct{}), taskBrief: input.TaskBrief,
 		clock: newActiveClock(activeBudget), steps: newStepBudget(profile.MaxSteps, input.TaskBrief),
 		sandboxPath: input.SandboxPath, sandboxImage: input.SandboxImage, apiKey: input.APIKey,
 		initialBudgetReservationID: strings.TrimSpace(input.InitialBudgetReservationID),
@@ -184,7 +186,7 @@ func (e *Engine) Start(input StartInput) (domain.Run, error) {
 		"execution_id", input.ExecutionID,
 		"quest_id", input.QuestID,
 	)
-	registry, patches := buildToolRegistryWithExecution(fs, input.Configuration.CustomTools, input.ServerProfiles, input.DBSource, e.processExecutor, run.ID, input.SandboxImage, confirmedRemotesFromBrief(input.TaskBrief), e.networkGrants, input.TeamBus, active.correlation, profile)
+	registry, patches := buildToolRegistryWithExecution(fs, input.Configuration.CustomTools, input.ServerProfiles, input.DBSource, active.processExecutor, run.ID, input.SandboxImage, confirmedRemotesFromBrief(input.TaskBrief), e.networkGrants, input.TeamBus, active.correlation, profile)
 	var model providers.Model
 	var modelErr error
 	if executors.KindForProvider(profile.Provider) == executors.KindPoint {
@@ -265,7 +267,8 @@ func (e *Engine) ContinueFromCheckpoint(input StartInput, existing domain.Run, c
 	existing.Controller.ActiveElapsedMs = checkpoint.ActiveElapsedMs
 	existing.Controller.ActiveTimeExtensions = checkpoint.ActiveTimeExtensions
 	active := &activeRun{
-		run: existing, cancel: cancel, onFinished: input.OnFinished, finalized: make(chan struct{}), taskBrief: input.TaskBrief,
+		processExecutor: e.executorForProfile(profile, input.TaskBrief),
+		run:             existing, cancel: cancel, onFinished: input.OnFinished, finalized: make(chan struct{}), taskBrief: input.TaskBrief,
 		clock: newActiveClock(activeBudget), steps: newStepBudget(profile.MaxSteps, input.TaskBrief),
 		sandboxPath: fsRoot, sandboxImage: input.SandboxImage, apiKey: input.APIKey,
 		serverProfiles: input.ServerProfiles, dbSource: input.DBSource, teamBus: input.TeamBus, checkpointSeq: checkpoint.Seq,
@@ -295,7 +298,7 @@ func (e *Engine) ContinueFromCheckpoint(input StartInput, existing domain.Run, c
 		e.discardUnstarted(existing.ID)
 		return domain.Run{}, err
 	}
-	registry, patches := buildToolRegistryWithExecution(fs, input.Configuration.CustomTools, input.ServerProfiles, input.DBSource, e.processExecutor, existing.ID, input.SandboxImage, confirmedRemotesFromBrief(input.TaskBrief), e.networkGrants, input.TeamBus, active.correlation, profile)
+	registry, patches := buildToolRegistryWithExecution(fs, input.Configuration.CustomTools, input.ServerProfiles, input.DBSource, active.processExecutor, existing.ID, input.SandboxImage, confirmedRemotesFromBrief(input.TaskBrief), e.networkGrants, input.TeamBus, active.correlation, profile)
 	modelTimeout := profile.MaxDurationSeconds
 	if modelTimeout <= 0 {
 		modelTimeout = 600

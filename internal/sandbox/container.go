@@ -43,6 +43,10 @@ var containerUserPattern = regexp.MustCompile(`^[1-9][0-9]{0,9}(?::[1-9][0-9]{0,
 // are isolated; file mutation mode is decided at Create time.
 type ContainerBackend struct {
 	*Manager
+	Engine               ContainerEngine
+	coldContainers       bool
+	disableDownloadCache bool
+	optimizationError    error
 	DockerBinary         string
 	Image                string
 	MemoryLimit          string
@@ -52,6 +56,7 @@ type ContainerBackend struct {
 	DockerVersion        string
 	APIVersion           string
 	ImageDigest          string
+	LinuxVersion         string
 	command              func(context.Context, string, ...string) *exec.Cmd
 	infrastructure       func(context.Context, ...string) error
 	infrastructureOutput func(context.Context, ...string) (string, error)
@@ -67,7 +72,13 @@ type ContainerBackend struct {
 	cacheVolumes sync.Map
 	// runtimeProbes — удачные пробы команд и версий в образах-дайджестах
 	// (container_runtime.go).
-	runtimeProbes sync.Map
+	runtimeProbes   sync.Map
+	workspaceStates sync.Map
+	runtimeLeasesMu sync.Mutex
+	runtimeLeases   map[string]func()
+	helperMu        sync.Mutex
+	helperVolumes   map[string]string
+	diskWarnings    sync.Map
 }
 
 // deferredProbe guards a backend whose daemon was down at startup. Point used
@@ -86,7 +97,7 @@ type deferredProbe struct {
 const dockerReprobeInterval = 15 * time.Second
 
 func NewContainerBackend(root string) *ContainerBackend {
-	return &ContainerBackend{
+	b := &ContainerBackend{
 		Manager:      &Manager{Root: root},
 		DockerBinary: "docker",
 		Image:        defaultContainerImage,
@@ -96,16 +107,27 @@ func NewContainerBackend(root string) *ContainerBackend {
 		User:         defaultContainerUser(),
 		command:      osproc.CommandContext,
 	}
+	for key, target := range map[string]*bool{"POINT_SANDBOX_WARM_CONTAINER": &b.coldContainers, "POINT_SANDBOX_DOWNLOAD_CACHE": &b.disableDownloadCache} {
+		switch os.Getenv(key) {
+		case "", "on":
+		case "off":
+			*target = true
+		default:
+			b.optimizationError = fmt.Errorf("%s requires on or off", key)
+		}
+	}
+	return b
 }
 
 func (b *ContainerBackend) Capabilities() Capabilities {
-	return Capabilities{
+	capabilities := Capabilities{
 		Unavailable:                   b.Unavailable(),
-		Backend:                       "docker",
-		Version:                       b.DockerVersion,
+		Backend:                       b.engineName(),
+		Version:                       b.engineVersion(),
 		APIVersion:                    b.APIVersion,
 		Image:                         b.Image,
 		ImageDigest:                   b.ImageDigest,
+		SecurityProfileVersion:        SecurityProfileVersion,
 		LiveWorkspaceIsolation:        true,
 		ProcessIsolation:              true,
 		NetworkIsolation:              true,
@@ -113,16 +135,51 @@ func (b *ContainerBackend) Capabilities() Capabilities {
 		SymlinkIsolation:              true,
 		StrongOSBoundary:              true,
 		Notes: []string{
-			"Executable tools run in one short-lived container with only the execution sandbox mounted read-write.",
+			"Executable tools use isolated bind containers or a volume-backed stage container with process reset between commands.",
 			"The container root is read-only; Linux capabilities are dropped and no-new-privileges is enforced.",
 			"Outbound networking is deny-all by default; selective TLS egress uses an isolated internal network and policy gateway.",
 		},
 	}
+	if e, ok := b.Engine.(*WSLEngine); ok {
+		capabilities.RuntimeDigest = e.RuntimeDigest
+		capabilities.LinuxVersion = b.LinuxVersion
+		if capabilities.Unavailable != "" {
+			capabilities.StrongOSBoundary = false
+			capabilities.ProcessIsolation = false
+			capabilities.NetworkIsolation = false
+		}
+	}
+	return capabilities
 }
 
 func (*ContainerBackend) EnforcesControlledEgress() bool { return true }
 
 func (b *ContainerBackend) Create(ctx context.Context, request CreateRequest) (domain.SandboxRecord, error) {
+	if b.Engine != nil {
+		if request.LiveWorkspace || (request.StorageMode != "" && request.StorageMode != "volume") {
+			return domain.SandboxRecord{}, errors.New("embedded runtime requires a portable Linux volume")
+		}
+		request.StorageMode = "volume"
+	}
+	if !request.LiveWorkspace && request.StorageMode == "" {
+		if mode := strings.TrimSpace(os.Getenv("POINT_SANDBOX_WORKSPACE")); mode != "" && mode != "bind" && mode != "volume" {
+			return domain.SandboxRecord{}, fmt.Errorf("POINT_SANDBOX_WORKSPACE must be bind or volume, got %q", mode)
+		}
+	}
+	if !request.LiveWorkspace {
+		if request.StorageMode == "" {
+			request.StorageMode = workspaceMode()
+		}
+		if request.FileRulesVersion == "" {
+			request.FileRulesVersion = "portable-v2"
+		}
+	}
+	if request.StorageMode != "" && request.StorageMode != "bind" && request.StorageMode != "volume" {
+		return domain.SandboxRecord{}, fmt.Errorf("invalid sandbox storage mode %q", request.StorageMode)
+	}
+	if request.StorageMode == "volume" && request.FileRulesVersion != "portable-v2" {
+		return domain.SandboxRecord{}, fmt.Errorf("volume sandboxes require portable-v2 file rules")
+	}
 	if err := b.validate(); err != nil {
 		return domain.SandboxRecord{}, err
 	}
@@ -137,14 +194,60 @@ func (b *ContainerBackend) Create(ctx context.Context, request CreateRequest) (d
 	if err != nil {
 		return domain.SandboxRecord{}, err
 	}
-	record.Backend = "docker"
-	record.BackendVersion = b.DockerVersion
+	record.Backend = b.engineName()
+	record.BackendVersion = b.engineVersion()
 	record.BackendImage = image
 	record.BackendImageDigest = digest
+	record.StorageMode = request.StorageMode
+	record.QuestID = request.QuestID
+	record.FileRulesVersion = request.FileRulesVersion
+	if record.Kind == "live" {
+		record.StorageMode = "bind"
+		record.FileRulesVersion = "legacy-v1"
+	}
+	if record.StorageMode == "volume" {
+		if err = b.initializeWorkspace(ctx, &record, request); err != nil {
+			_ = b.Close(context.Background(), record, request.WorkspacePath)
+			return domain.SandboxRecord{}, err
+		}
+	} else if err = writeWorkspaceRecord(record); err != nil {
+		_ = b.Manager.Close(context.Background(), record, request.WorkspacePath)
+		return domain.SandboxRecord{}, err
+	}
+	if warning, ok := b.diskWarnings.Load(record.WorkspaceVolume); ok && request.Runtime.Progress != nil {
+		request.Runtime.Progress("runtime_warning", warning.(string))
+	}
 	return record, nil
 }
 
 func (b *ContainerBackend) Merge(ctx context.Context, request MergeRequest) (MergeResult, error) {
+	incomplete := false
+	for _, seed := range request.Seeds {
+		if s, err := b.stateFor(seed.Path); err == nil {
+			status, err := b.CheckWorkspace(ctx, s.Record)
+			if err != nil {
+				return MergeResult{}, err
+			}
+			incomplete = incomplete || status.Incomplete
+			if request.StorageMode == "" {
+				request.StorageMode = s.Record.StorageMode
+				request.FileRulesVersion = s.Record.FileRulesVersion
+			} else if request.StorageMode != s.Record.StorageMode || request.FileRulesVersion != s.Record.FileRulesVersion {
+				return MergeResult{}, errors.New("cannot join sandboxes with different pinned storage or file rules")
+			}
+		} else if !os.IsNotExist(err) {
+			return MergeResult{}, err
+		}
+	}
+	if request.StorageMode == "" {
+		request.StorageMode = "bind"
+	}
+	if b.Engine != nil && request.StorageMode != "volume" {
+		return MergeResult{}, errors.New("embedded runtime requires Linux volumes for every merged sandbox")
+	}
+	if request.FileRulesVersion == "" {
+		request.FileRulesVersion = "legacy-v1"
+	}
 	if err := b.validate(); err != nil {
 		return MergeResult{}, err
 	}
@@ -159,10 +262,31 @@ func (b *ContainerBackend) Merge(ctx context.Context, request MergeRequest) (Mer
 	if err != nil || result.Record.ID == "" {
 		return result, err
 	}
-	result.Record.Backend = "docker"
-	result.Record.BackendVersion = b.DockerVersion
+	result.Record.Backend = b.engineName()
+	result.Record.BackendVersion = b.engineVersion()
 	result.Record.BackendImage = image
 	result.Record.BackendImageDigest = digest
+	result.Record.StorageMode = request.StorageMode
+	result.Record.FileRulesVersion = request.FileRulesVersion
+	result.Record.QuestID = request.QuestID
+	if request.StorageMode == "volume" {
+		if err = b.initializeWorkspace(ctx, &result.Record, CreateRequest{PortableOnly: true, Runtime: request.Runtime}); err != nil {
+			_ = b.Close(context.Background(), result.Record, request.BasePath)
+			return MergeResult{}, err
+		}
+		if incomplete {
+			s, err := b.stateFor(result.Record.Path)
+			if err != nil {
+				return MergeResult{}, err
+			}
+			s.taint("Joined sandbox includes a parent with incomplete audit")
+			if err = saveVolumeState(s); err != nil {
+				return MergeResult{}, err
+			}
+		}
+	} else if err = writeWorkspaceRecord(result.Record); err != nil {
+		return MergeResult{}, err
+	}
 	return result, nil
 }
 
@@ -191,10 +315,19 @@ func (b *ContainerBackend) Probe(ctx context.Context) error {
 	if b.DockerVersion == "" || b.APIVersion == "" || b.ImageDigest == "" {
 		return errors.New("docker sandbox probe returned empty version attribution")
 	}
+	if err := b.probeEmbeddedSecurity(ctx); err != nil {
+		return err
+	}
 	return nil
 }
 
 func (b *ContainerBackend) PrepareProcess(ctx context.Context, request ProcessRequest) (PreparedProcess, error) {
+	if b.Engine != nil {
+		return PreparedProcess{}, errors.New("embedded runtime forbids Windows bind execution; register a clean volume workspace")
+	}
+	if b.UsesVolume(request.WorkspaceRoot) {
+		return PreparedProcess{}, errors.New("volume workspaces require the delta process executor")
+	}
 	if err := b.validate(); err != nil {
 		return PreparedProcess{}, err
 	}
@@ -202,6 +335,10 @@ func (b *ContainerBackend) PrepareProcess(ctx context.Context, request ProcessRe
 		return PreparedProcess{}, err
 	}
 	root, workdir, err := containerPaths(request.WorkspaceRoot, request.WorkingDirectory)
+	if err != nil {
+		return PreparedProcess{}, err
+	}
+	request.Program, err = workspaceProgram(root, request.Program)
 	if err != nil {
 		return PreparedProcess{}, err
 	}
@@ -245,7 +382,7 @@ func (b *ContainerBackend) PrepareProcess(ctx context.Context, request ProcessRe
 		"--security-opt", "no-new-privileges=true", "--pids-limit", strconv.Itoa(b.PIDsLimit),
 		"--memory", b.MemoryLimit, "--cpus", b.CPULimit,
 		"--ipc", "none", "--hostname", "point-sandbox",
-		"--tmpfs", "/tmp:rw,nosuid,nodev,size=512m",
+		"--tmpfs", commandTemporaryMount,
 		"--volume", root + ":/workspace:rw", "--workdir", workdir,
 	}
 	cacheArgs, cacheEnvironment, err := b.cacheMounts(ctx, request.CacheScope, request.Authoritative, executionImage)
@@ -360,6 +497,9 @@ func parseEgressDecisions(output, digest, runID string) ([]EgressDecision, error
 }
 
 func (b *ContainerBackend) validate() error {
+	if b.optimizationError != nil {
+		return b.optimizationError
+	}
 	if b.Manager == nil || strings.TrimSpace(b.Manager.Root) == "" {
 		return errors.New("docker sandbox root is required")
 	}
@@ -393,6 +533,9 @@ func (b *ContainerBackend) output(ctx context.Context, args ...string) (string, 
 }
 
 func (b *ContainerBackend) commandFor(ctx context.Context, args ...string) *exec.Cmd {
+	if b.Engine != nil {
+		return b.Engine.Command(ctx, args...)
+	}
 	factory := b.command
 	if factory == nil {
 		factory = osproc.CommandContext
@@ -616,7 +759,10 @@ func dockerClientEnvironment() []string {
 	allowed := map[string]bool{
 		"PATH": true, "PATHEXT": true, "SYSTEMROOT": true, "WINDIR": true,
 		"TEMP": true, "TMP": true, "TMPDIR": true,
-		"DOCKER_HOST": true, "DOCKER_CONTEXT": true, "DOCKER_TLS_VERIFY": true,
+		// Infrastructure bridge resolves its Point-owned control directory.
+		// This host path is not forwarded into the Linux command environment.
+		"LOCALAPPDATA": true,
+		"DOCKER_HOST":  true, "DOCKER_CONTEXT": true, "DOCKER_TLS_VERIFY": true,
 		"DOCKER_CERT_PATH": true,
 	}
 	result := make([]string, 0, len(allowed))
@@ -643,6 +789,8 @@ func containerIdentity() (string, error) {
 func BackendFromEnvironment(root string) (Backend, error) {
 	mode := strings.ToLower(strings.TrimSpace(os.Getenv("POINT_SANDBOX_BACKEND")))
 	switch mode {
+	case "embedded":
+		return NewEmbeddedBackend(root)
 	case "", "local", "filtered-copy":
 		if environmentTrue("POINT_SANDBOX_REQUIRE_STRONG") {
 			return nil, errors.New("strong sandbox is required but POINT_SANDBOX_BACKEND is not docker")
@@ -730,7 +878,7 @@ func (b *ContainerBackend) ensureAvailable(ctx context.Context) error {
 		return nil
 	}
 	if b.availability.lastErr != nil && time.Since(b.availability.lastAt) < dockerReprobeInterval {
-		return dockerUnavailableError(b.availability.lastErr)
+		return b.unavailableError(b.availability.lastErr)
 	}
 	probeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
@@ -738,7 +886,7 @@ func (b *ContainerBackend) ensureAvailable(ctx context.Context) error {
 	b.availability.lastAt = time.Now()
 	if err != nil {
 		b.availability.lastErr = err
-		return dockerUnavailableError(err)
+		return b.unavailableError(err)
 	}
 	b.availability.pending, b.availability.lastErr = false, nil
 	return nil
@@ -751,7 +899,7 @@ func (b *ContainerBackend) Unavailable() string {
 	if !b.availability.pending {
 		return ""
 	}
-	return dockerUnavailableError(b.availability.lastErr).Error()
+	return b.unavailableError(b.availability.lastErr).Error()
 }
 
 // Recheck asks the daemon again when the backend is waiting for it. It is the
@@ -768,10 +916,17 @@ type Rechecker interface {
 	Recheck(context.Context) error
 }
 
-type unavailableError struct{ cause error }
+type unavailableError struct {
+	cause  error
+	prefix string
+}
 
 func (e *unavailableError) Error() string {
-	return unavailablePrefix + ": " + fmt.Sprint(e.cause)
+	prefix := e.prefix
+	if prefix == "" {
+		prefix = unavailablePrefix
+	}
+	return prefix + ": " + fmt.Sprint(e.cause)
 }
 func (e *unavailableError) Unwrap() error        { return e.cause }
 func (e *unavailableError) Is(target error) bool { return target == ErrUnavailable }
@@ -780,6 +935,15 @@ const unavailablePrefix = "Docker недоступен — запустите Do
 
 func dockerUnavailableError(err error) error {
 	return &unavailableError{cause: err}
+}
+
+const embeddedUnavailablePrefix = "Embedded Point runtime unavailable; inspect its pinned pack and WSL readiness"
+
+func (b *ContainerBackend) unavailableError(err error) error {
+	if b.Engine != nil {
+		return &unavailableError{cause: err, prefix: embeddedUnavailablePrefix}
+	}
+	return dockerUnavailableError(err)
 }
 
 // IsUnavailable recognises the refusal also after it crossed a boundary as
@@ -791,5 +955,5 @@ func IsUnavailable(err error) bool {
 // MentionsUnavailable is IsUnavailable for a reason that survives only as
 // text, such as a Flow node's start error.
 func MentionsUnavailable(text string) bool {
-	return strings.Contains(text, unavailablePrefix)
+	return strings.Contains(text, unavailablePrefix) || strings.Contains(text, embeddedUnavailablePrefix)
 }

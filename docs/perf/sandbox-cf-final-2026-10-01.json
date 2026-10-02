@@ -1,0 +1,596 @@
+{
+  "createdAt": "2026-10-01T06:36:04.2183518Z",
+  "project": "C:\\Users\\Rif\\PhpstormProjects\\фронт cf\\cf-vue-apps",
+  "revision": "2fad8ed804a28cc00d8250dbf973c1a5e09cfc68",
+  "image": "point-agent-sandbox-node20:1.0.0",
+  "imageDigest": "sha256:e275fe9b63da3b04b78fcc8b90036215971cc27cc7e648f87d3f79e741332874",
+  "dockerVersion": "27.2.0",
+  "rules": "portable-v2",
+  "audit": "SHA-256 snapshots, patch diff and durable JSON journal; excludes LLM and app event bus",
+  "samples": [
+    {
+      "mode": "bind",
+      "command": "true",
+      "setupMs": 21913,
+      "preparationMs": 0,
+      "durationMs": 3768,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "bind",
+      "command": "true",
+      "setupMs": 21913,
+      "preparationMs": 0,
+      "durationMs": 3859,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "bind",
+      "command": "true",
+      "setupMs": 21913,
+      "preparationMs": 0,
+      "durationMs": 4446,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "bind",
+      "command": "true",
+      "setupMs": 21913,
+      "preparationMs": 0,
+      "durationMs": 4283,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "bind",
+      "command": "true",
+      "setupMs": 21913,
+      "preparationMs": 0,
+      "durationMs": 4321,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "bind",
+      "command": "true",
+      "setupMs": 21913,
+      "preparationMs": 0,
+      "durationMs": 3870,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "bind",
+      "command": "true",
+      "setupMs": 21913,
+      "preparationMs": 0,
+      "durationMs": 4020,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "bind",
+      "command": "true",
+      "setupMs": 21913,
+      "preparationMs": 0,
+      "durationMs": 4288,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "bind",
+      "command": "true",
+      "setupMs": 21913,
+      "preparationMs": 0,
+      "durationMs": 4373,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "bind",
+      "command": "true",
+      "setupMs": 21913,
+      "preparationMs": 0,
+      "durationMs": 4547,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "bind",
+      "command": "true",
+      "setupMs": 21913,
+      "preparationMs": 0,
+      "durationMs": 4736,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "bind",
+      "command": "true",
+      "setupMs": 21913,
+      "preparationMs": 0,
+      "durationMs": 3985,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "bind",
+      "command": "true",
+      "setupMs": 21913,
+      "preparationMs": 0,
+      "durationMs": 3758,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "bind",
+      "command": "true",
+      "setupMs": 21913,
+      "preparationMs": 0,
+      "durationMs": 3922,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "bind",
+      "command": "true",
+      "setupMs": 21913,
+      "preparationMs": 0,
+      "durationMs": 3789,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "bind",
+      "command": "true",
+      "setupMs": 21913,
+      "preparationMs": 0,
+      "durationMs": 3913,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "bind",
+      "command": "true",
+      "setupMs": 21913,
+      "preparationMs": 0,
+      "durationMs": 3890,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "bind",
+      "command": "true",
+      "setupMs": 21913,
+      "preparationMs": 0,
+      "durationMs": 3813,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "bind",
+      "command": "true",
+      "setupMs": 21913,
+      "preparationMs": 0,
+      "durationMs": 3876,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "bind",
+      "command": "true",
+      "setupMs": 21913,
+      "preparationMs": 0,
+      "durationMs": 3977,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "bind",
+      "command": "npm ci",
+      "setupMs": 18570,
+      "preparationMs": 0,
+      "durationMs": 26922,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "bind",
+      "command": "npm ci",
+      "setupMs": 18801,
+      "preparationMs": 0,
+      "durationMs": 25237,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "bind",
+      "command": "npm ci",
+      "setupMs": 19208,
+      "preparationMs": 0,
+      "durationMs": 23722,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "bind",
+      "command": "npm ci",
+      "setupMs": 17307,
+      "preparationMs": 0,
+      "durationMs": 21899,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "bind",
+      "command": "npm ci",
+      "setupMs": 18713,
+      "preparationMs": 0,
+      "durationMs": 24123,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "bind",
+      "command": "npm run verify",
+      "setupMs": 17574,
+      "preparationMs": 29670,
+      "durationMs": 333249,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "bind",
+      "command": "npm run verify",
+      "setupMs": 20089,
+      "preparationMs": 35032,
+      "durationMs": 314533,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "bind",
+      "command": "npm run verify",
+      "setupMs": 16820,
+      "preparationMs": 26333,
+      "durationMs": 301135,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "bind",
+      "command": "npm run verify",
+      "setupMs": 18123,
+      "preparationMs": 29906,
+      "durationMs": 292511,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "bind",
+      "command": "npm run verify",
+      "setupMs": 16053,
+      "preparationMs": 26931,
+      "durationMs": 276668,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "volume",
+      "command": "true",
+      "setupMs": 35372,
+      "preparationMs": 0,
+      "durationMs": 241,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "volume",
+      "command": "true",
+      "setupMs": 35372,
+      "preparationMs": 0,
+      "durationMs": 211,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "volume",
+      "command": "true",
+      "setupMs": 35372,
+      "preparationMs": 0,
+      "durationMs": 199,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "volume",
+      "command": "true",
+      "setupMs": 35372,
+      "preparationMs": 0,
+      "durationMs": 200,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "volume",
+      "command": "true",
+      "setupMs": 35372,
+      "preparationMs": 0,
+      "durationMs": 219,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "volume",
+      "command": "true",
+      "setupMs": 35372,
+      "preparationMs": 0,
+      "durationMs": 232,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "volume",
+      "command": "true",
+      "setupMs": 35372,
+      "preparationMs": 0,
+      "durationMs": 230,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "volume",
+      "command": "true",
+      "setupMs": 35372,
+      "preparationMs": 0,
+      "durationMs": 245,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "volume",
+      "command": "true",
+      "setupMs": 35372,
+      "preparationMs": 0,
+      "durationMs": 285,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "volume",
+      "command": "true",
+      "setupMs": 35372,
+      "preparationMs": 0,
+      "durationMs": 219,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "volume",
+      "command": "true",
+      "setupMs": 35372,
+      "preparationMs": 0,
+      "durationMs": 216,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "volume",
+      "command": "true",
+      "setupMs": 35372,
+      "preparationMs": 0,
+      "durationMs": 203,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "volume",
+      "command": "true",
+      "setupMs": 35372,
+      "preparationMs": 0,
+      "durationMs": 364,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "volume",
+      "command": "true",
+      "setupMs": 35372,
+      "preparationMs": 0,
+      "durationMs": 226,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "volume",
+      "command": "true",
+      "setupMs": 35372,
+      "preparationMs": 0,
+      "durationMs": 242,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "volume",
+      "command": "true",
+      "setupMs": 35372,
+      "preparationMs": 0,
+      "durationMs": 235,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "volume",
+      "command": "true",
+      "setupMs": 35372,
+      "preparationMs": 0,
+      "durationMs": 263,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "volume",
+      "command": "true",
+      "setupMs": 35372,
+      "preparationMs": 0,
+      "durationMs": 250,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "volume",
+      "command": "true",
+      "setupMs": 35372,
+      "preparationMs": 0,
+      "durationMs": 207,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "volume",
+      "command": "true",
+      "setupMs": 35372,
+      "preparationMs": 0,
+      "durationMs": 212,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "volume",
+      "command": "npm ci",
+      "setupMs": 31764,
+      "preparationMs": 0,
+      "durationMs": 3789,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "volume",
+      "command": "npm ci",
+      "setupMs": 30016,
+      "preparationMs": 0,
+      "durationMs": 3915,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "volume",
+      "command": "npm ci",
+      "setupMs": 34226,
+      "preparationMs": 0,
+      "durationMs": 3685,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "volume",
+      "command": "npm ci",
+      "setupMs": 27331,
+      "preparationMs": 0,
+      "durationMs": 3862,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "volume",
+      "command": "npm ci",
+      "setupMs": 29336,
+      "preparationMs": 0,
+      "durationMs": 4123,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "volume",
+      "command": "npm run verify",
+      "setupMs": 37790,
+      "preparationMs": 7146,
+      "durationMs": 115325,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "volume",
+      "command": "npm run verify",
+      "setupMs": 28223,
+      "preparationMs": 7351,
+      "durationMs": 118928,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "volume",
+      "command": "npm run verify",
+      "setupMs": 30738,
+      "preparationMs": 6745,
+      "durationMs": 121025,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "volume",
+      "command": "npm run verify",
+      "setupMs": 29606,
+      "preparationMs": 8640,
+      "durationMs": 119402,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    },
+    {
+      "mode": "volume",
+      "command": "npm run verify",
+      "setupMs": 27706,
+      "preparationMs": 6527,
+      "durationMs": 118163,
+      "exitCode": 0,
+      "digest": "sha256:819a653a49a4e221a5649ed22476e2001e8db63d4e2caf86a29373b4bda5c7d5"
+    }
+  ],
+  "aggregates": [
+    {
+      "mode": "bind",
+      "command": "true",
+      "count": 20,
+      "medianMs": 3949,
+      "p95Ms": 4547
+    },
+    {
+      "mode": "bind",
+      "command": "npm ci",
+      "count": 5,
+      "medianMs": 24123,
+      "p95Ms": 26922
+    },
+    {
+      "mode": "bind",
+      "command": "npm run verify",
+      "count": 5,
+      "medianMs": 301135,
+      "p95Ms": 333249
+    },
+    {
+      "mode": "volume",
+      "command": "true",
+      "count": 20,
+      "medianMs": 228,
+      "p95Ms": 285
+    },
+    {
+      "mode": "volume",
+      "command": "npm ci",
+      "count": 5,
+      "medianMs": 3862,
+      "p95Ms": 4123
+    },
+    {
+      "mode": "volume",
+      "command": "npm run verify",
+      "count": 5,
+      "medianMs": 118928,
+      "p95Ms": 121025
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "createdAt": "2026-10-01T09:23:11.0470033Z",
+  "project": "C:\\Users\\Rif\\PhpstormProjects\\фронт cf\\cf-vue-apps",
+  "revision": "2fad8ed804a28cc00d8250dbf973c1a5e09cfc68",
+  "sourceSubdir": "cf-vue-apps",
+  "image": "point-agent-sandbox-node20:1.0.0",
+  "imageDigest": "sha256:e275fe9b63da3b04b78fcc8b90036215971cc27cc7e648f87d3f79e741332874",
+  "dockerVersion": "27.2.0",
+  "rules": "portable-v2",
+  "audit": "SHA-256 snapshots, patch diff and durable JSON journal; excludes LLM and app event bus",
+  "samples": [
+    {
+      "mode": "volume",
+      "command": "cd cf-vue-apps \u0026\u0026 npm run verify \u0026\u0026 npm pack \u0026\u0026 tar -tzf cf-cf-vue-apps-*.tgz | grep -q '^package/dist/embed/' \u0026\u0026 rm -f cf-cf-vue-apps-*.tgz",
+      "setupMs": 60505,
+      "preparationMs": 11478,
+      "durationMs": 191021,
+      "exitCode": 0,
+      "digest": "sha256:3f847ef607597712b57ea3578c433edd52444543772df623dd0943831826ea37"
+    }
+  ],
+  "aggregates": [
+    {
+      "mode": "volume",
+      "command": "cd cf-vue-apps \u0026\u0026 npm run verify \u0026\u0026 npm pack \u0026\u0026 tar -tzf cf-cf-vue-apps-*.tgz | grep -q '^package/dist/embed/' \u0026\u0026 rm -f cf-cf-vue-apps-*.tgz",
+      "count": 1,
+      "medianMs": 191021,
+      "p95Ms": 191021
+    }
+  ]
+}

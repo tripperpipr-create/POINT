@@ -1,0 +1,886 @@
+{
+  "schema": 1,
+  "rawSamplesDigest": "sha256:5871f30fd24193ff42496c1204df3d29e34d94fb60bd71cf2832256c2f44a444",
+  "cells": {
+    "moby-cold-containers/node-typescript/cold": {
+      "kind": "operation_replay",
+      "regimeDefinition": "fresh project/database/dependencies; provisioned engine ready before approval",
+      "count": 1,
+      "metrics": {
+        "taskMs": {
+          "median": 54760.751,
+          "min": 54760.751,
+          "max": 54760.751
+        },
+        "cpuTimeMs": {
+          "median": 65406.25,
+          "min": 65406.25,
+          "max": 65406.25
+        },
+        "peakMemoryBytes": {
+          "median": 1939333120,
+          "min": 1939333120,
+          "max": 1939333120
+        },
+        "idleMemoryBytes": {
+          "median": 1490538496,
+          "min": 1490538496,
+          "max": 1490538496
+        },
+        "diskReadBytes": {
+          "median": 106213425,
+          "min": 106213425,
+          "max": 106213425
+        },
+        "diskWriteBytes": {
+          "median": 110749590,
+          "min": 110749590,
+          "max": 110749590
+        },
+        "networkBytes": {
+          "median": 4936834,
+          "min": 4936834,
+          "max": 4936834
+        },
+        "storageBytes": {
+          "median": 6356351604,
+          "min": 6356351604,
+          "max": 6356351604
+        }
+      }
+    },
+    "moby-cold-containers/node-typescript/warm": {
+      "kind": "operation_replay",
+      "regimeDefinition": "running guest + fresh project/database; per-quest verified caches",
+      "count": 1,
+      "metrics": {
+        "taskMs": {
+          "median": 49053.833,
+          "min": 49053.833,
+          "max": 49053.833
+        },
+        "cpuTimeMs": {
+          "median": 53625.0,
+          "min": 53625.0,
+          "max": 53625.0
+        },
+        "peakMemoryBytes": {
+          "median": 1993035776,
+          "min": 1993035776,
+          "max": 1993035776
+        },
+        "idleMemoryBytes": {
+          "median": 1710706688,
+          "min": 1710706688,
+          "max": 1710706688
+        },
+        "diskReadBytes": {
+          "median": 26472818,
+          "min": 26472818,
+          "max": 26472818
+        },
+        "diskWriteBytes": {
+          "median": 112531354,
+          "min": 112531354,
+          "max": 112531354
+        },
+        "networkBytes": {
+          "median": 4936870,
+          "min": 4936870,
+          "max": 4936870
+        },
+        "storageBytes": {
+          "median": 6389902430,
+          "min": 6389902430,
+          "max": 6389902430
+        }
+      }
+    },
+    "moby-no-download-cache/node-typescript/cold": {
+      "kind": "operation_replay",
+      "regimeDefinition": "fresh project/database/dependencies; provisioned engine ready before approval",
+      "count": 1,
+      "metrics": {
+        "taskMs": {
+          "median": 17450.069,
+          "min": 17450.069,
+          "max": 17450.069
+        },
+        "cpuTimeMs": {
+          "median": 23218.75,
+          "min": 23218.75,
+          "max": 23218.75
+        },
+        "peakMemoryBytes": {
+          "median": 1957462016,
+          "min": 1957462016,
+          "max": 1957462016
+        },
+        "idleMemoryBytes": {
+          "median": 1738194944,
+          "min": 1738194944,
+          "max": 1738194944
+        },
+        "diskReadBytes": {
+          "median": 104275436,
+          "min": 104275436,
+          "max": 104275436
+        },
+        "diskWriteBytes": {
+          "median": 68215925,
+          "min": 68215925,
+          "max": 68215925
+        },
+        "networkBytes": {
+          "median": 5579916,
+          "min": 5579916,
+          "max": 5579916
+        },
+        "storageBytes": {
+          "median": 6389872751,
+          "min": 6389872751,
+          "max": 6389872751
+        }
+      }
+    },
+    "moby-no-download-cache/node-typescript/warm": {
+      "kind": "operation_replay",
+      "regimeDefinition": "running guest + fresh project/database; per-quest verified caches",
+      "count": 1,
+      "metrics": {
+        "taskMs": {
+          "median": 17452.328999999998,
+          "min": 17452.328999999998,
+          "max": 17452.328999999998
+        },
+        "cpuTimeMs": {
+          "median": 23234.375,
+          "min": 23234.375,
+          "max": 23234.375
+        },
+        "peakMemoryBytes": {
+          "median": 2018775040,
+          "min": 2018775040,
+          "max": 2018775040
+        },
+        "idleMemoryBytes": {
+          "median": 1752006656,
+          "min": 1752006656,
+          "max": 1752006656
+        },
+        "diskReadBytes": {
+          "median": 25530199,
+          "min": 25530199,
+          "max": 25530199
+        },
+        "diskWriteBytes": {
+          "median": 68707628,
+          "min": 68707628,
+          "max": 68707628
+        },
+        "networkBytes": {
+          "median": 5579412,
+          "min": 5579412,
+          "max": 5579412
+        },
+        "storageBytes": {
+          "median": 6389872361,
+          "min": 6389872361,
+          "max": 6389872361
+        }
+      }
+    },
+    "moby-control/node-typescript/cold": {
+      "kind": "operation_replay",
+      "regimeDefinition": "fresh project/database/dependencies; provisioned engine ready before approval",
+      "count": 1,
+      "metrics": {
+        "taskMs": {
+          "median": 20512.655,
+          "min": 20512.655,
+          "max": 20512.655
+        },
+        "cpuTimeMs": {
+          "median": 26718.75,
+          "min": 26718.75,
+          "max": 26718.75
+        },
+        "peakMemoryBytes": {
+          "median": 1979543552,
+          "min": 1979543552,
+          "max": 1979543552
+        },
+        "idleMemoryBytes": {
+          "median": 1616551936,
+          "min": 1616551936,
+          "max": 1616551936
+        },
+        "diskReadBytes": {
+          "median": 104410676,
+          "min": 104410676,
+          "max": 104410676
+        },
+        "diskWriteBytes": {
+          "median": 77948081,
+          "min": 77948081,
+          "max": 77948081
+        },
+        "networkBytes": {
+          "median": 4935796,
+          "min": 4935796,
+          "max": 4935796
+        },
+        "storageBytes": {
+          "median": 6423429547,
+          "min": 6423429547,
+          "max": 6423429547
+        }
+      }
+    },
+    "moby-control/node-typescript/warm": {
+      "kind": "operation_replay",
+      "regimeDefinition": "running guest + fresh project/database; per-quest verified caches",
+      "count": 1,
+      "metrics": {
+        "taskMs": {
+          "median": 16364.923,
+          "min": 16364.923,
+          "max": 16364.923
+        },
+        "cpuTimeMs": {
+          "median": 21015.625,
+          "min": 21015.625,
+          "max": 21015.625
+        },
+        "peakMemoryBytes": {
+          "median": 1995571200,
+          "min": 1995571200,
+          "max": 1995571200
+        },
+        "idleMemoryBytes": {
+          "median": 1792540672,
+          "min": 1792540672,
+          "max": 1792540672
+        },
+        "diskReadBytes": {
+          "median": 25565495,
+          "min": 25565495,
+          "max": 25565495
+        },
+        "diskWriteBytes": {
+          "median": 77406771,
+          "min": 77406771,
+          "max": 77406771
+        },
+        "networkBytes": {
+          "median": 4935309,
+          "min": 4935309,
+          "max": 4935309
+        },
+        "storageBytes": {
+          "median": 6423424734,
+          "min": 6423424734,
+          "max": 6423424734
+        }
+      }
+    },
+    "moby-no-download-cache/go/cold": {
+      "kind": "operation_replay",
+      "regimeDefinition": "fresh project/database/dependencies; provisioned engine ready before approval",
+      "count": 1,
+      "metrics": {
+        "taskMs": {
+          "median": 39180.602999999996,
+          "min": 39180.602999999996,
+          "max": 39180.602999999996
+        },
+        "cpuTimeMs": {
+          "median": 68484.375,
+          "min": 68484.375,
+          "max": 68484.375
+        },
+        "peakMemoryBytes": {
+          "median": 2136596480,
+          "min": 2136596480,
+          "max": 2136596480
+        },
+        "idleMemoryBytes": {
+          "median": 1636491264,
+          "min": 1636491264,
+          "max": 1636491264
+        },
+        "diskReadBytes": {
+          "median": 161598427,
+          "min": 161598427,
+          "max": 161598427
+        },
+        "diskWriteBytes": {
+          "median": 45886992,
+          "min": 45886992,
+          "max": 45886992
+        },
+        "networkBytes": {
+          "median": 55192,
+          "min": 55192,
+          "max": 55192
+        },
+        "storageBytes": {
+          "median": 6457007129,
+          "min": 6457007129,
+          "max": 6457007129
+        }
+      }
+    },
+    "moby-no-download-cache/go/warm": {
+      "kind": "operation_replay",
+      "regimeDefinition": "running guest + fresh project/database; per-quest verified caches",
+      "count": 1,
+      "metrics": {
+        "taskMs": {
+          "median": 38208.763,
+          "min": 38208.763,
+          "max": 38208.763
+        },
+        "cpuTimeMs": {
+          "median": 64437.5,
+          "min": 64437.5,
+          "max": 64437.5
+        },
+        "peakMemoryBytes": {
+          "median": 2193203200,
+          "min": 2193203200,
+          "max": 2193203200
+        },
+        "idleMemoryBytes": {
+          "median": 1868308480,
+          "min": 1868308480,
+          "max": 1868308480
+        },
+        "diskReadBytes": {
+          "median": 25705433,
+          "min": 25705433,
+          "max": 25705433
+        },
+        "diskWriteBytes": {
+          "median": 45993485,
+          "min": 45993485,
+          "max": 45993485
+        },
+        "networkBytes": {
+          "median": 54772,
+          "min": 54772,
+          "max": 54772
+        },
+        "storageBytes": {
+          "median": 6457006180,
+          "min": 6457006180,
+          "max": 6457006180
+        }
+      }
+    },
+    "moby-control/go/cold": {
+      "kind": "operation_replay",
+      "regimeDefinition": "fresh project/database/dependencies; provisioned engine ready before approval",
+      "count": 1,
+      "metrics": {
+        "taskMs": {
+          "median": 41496.163,
+          "min": 41496.163,
+          "max": 41496.163
+        },
+        "cpuTimeMs": {
+          "median": 68515.625,
+          "min": 68515.625,
+          "max": 68515.625
+        },
+        "peakMemoryBytes": {
+          "median": 2165116928,
+          "min": 2165116928,
+          "max": 2165116928
+        },
+        "idleMemoryBytes": {
+          "median": 1706008576,
+          "min": 1706008576,
+          "max": 1706008576
+        },
+        "diskReadBytes": {
+          "median": 160834223,
+          "min": 160834223,
+          "max": 160834223
+        },
+        "diskWriteBytes": {
+          "median": 50781995,
+          "min": 50781995,
+          "max": 50781995
+        },
+        "networkBytes": {
+          "median": 55373,
+          "min": 55373,
+          "max": 55373
+        },
+        "storageBytes": {
+          "median": 6457010995,
+          "min": 6457010995,
+          "max": 6457010995
+        }
+      }
+    },
+    "moby-control/go/warm": {
+      "kind": "operation_replay",
+      "regimeDefinition": "running guest + fresh project/database; per-quest verified caches",
+      "count": 1,
+      "metrics": {
+        "taskMs": {
+          "median": 38991.501,
+          "min": 38991.501,
+          "max": 38991.501
+        },
+        "cpuTimeMs": {
+          "median": 64703.125,
+          "min": 64703.125,
+          "max": 64703.125
+        },
+        "peakMemoryBytes": {
+          "median": 2203152384,
+          "min": 2203152384,
+          "max": 2203152384
+        },
+        "idleMemoryBytes": {
+          "median": 1887813632,
+          "min": 1887813632,
+          "max": 1887813632
+        },
+        "diskReadBytes": {
+          "median": 25666229,
+          "min": 25666229,
+          "max": 25666229
+        },
+        "diskWriteBytes": {
+          "median": 51568412,
+          "min": 51568412,
+          "max": 51568412
+        },
+        "networkBytes": {
+          "median": 55217,
+          "min": 55217,
+          "max": 55217
+        },
+        "storageBytes": {
+          "median": 6457006626,
+          "min": 6457006626,
+          "max": 6457006626
+        }
+      }
+    },
+    "moby-cold-containers/go/cold": {
+      "kind": "operation_replay",
+      "regimeDefinition": "fresh project/database/dependencies; provisioned engine ready before approval",
+      "count": 1,
+      "metrics": {
+        "taskMs": {
+          "median": 70393.792,
+          "min": 70393.792,
+          "max": 70393.792
+        },
+        "cpuTimeMs": {
+          "median": 102109.375,
+          "min": 102109.375,
+          "max": 102109.375
+        },
+        "peakMemoryBytes": {
+          "median": 2152079360,
+          "min": 2152079360,
+          "max": 2152079360
+        },
+        "idleMemoryBytes": {
+          "median": 1697132544,
+          "min": 1697132544,
+          "max": 1697132544
+        },
+        "diskReadBytes": {
+          "median": 161764980,
+          "min": 161764980,
+          "max": 161764980
+        },
+        "diskWriteBytes": {
+          "median": 83522419,
+          "min": 83522419,
+          "max": 83522419
+        },
+        "networkBytes": {
+          "median": 56667,
+          "min": 56667,
+          "max": 56667
+        },
+        "storageBytes": {
+          "median": 6490595233,
+          "min": 6490595233,
+          "max": 6490595233
+        }
+      }
+    },
+    "moby-cold-containers/go/warm": {
+      "kind": "operation_replay",
+      "regimeDefinition": "running guest + fresh project/database; per-quest verified caches",
+      "count": 1,
+      "metrics": {
+        "taskMs": {
+          "median": 63466.473999999995,
+          "min": 63466.473999999995,
+          "max": 63466.473999999995
+        },
+        "cpuTimeMs": {
+          "median": 87734.375,
+          "min": 87734.375,
+          "max": 87734.375
+        },
+        "peakMemoryBytes": {
+          "median": 2210861056,
+          "min": 2210861056,
+          "max": 2210861056
+        },
+        "idleMemoryBytes": {
+          "median": 1799192576,
+          "min": 1799192576,
+          "max": 1799192576
+        },
+        "diskReadBytes": {
+          "median": 26297967,
+          "min": 26297967,
+          "max": 26297967
+        },
+        "diskWriteBytes": {
+          "median": 84112229,
+          "min": 84112229,
+          "max": 84112229
+        },
+        "networkBytes": {
+          "median": 56417,
+          "min": 56417,
+          "max": 56417
+        },
+        "storageBytes": {
+          "median": 6490587453,
+          "min": 6490587453,
+          "max": 6490587453
+        }
+      }
+    },
+    "moby-control/php/cold": {
+      "kind": "operation_replay",
+      "regimeDefinition": "fresh project/database/dependencies; provisioned engine ready before approval",
+      "count": 1,
+      "metrics": {
+        "taskMs": {
+          "median": 22569.040999999997,
+          "min": 22569.040999999997,
+          "max": 22569.040999999997
+        },
+        "cpuTimeMs": {
+          "median": 27828.125,
+          "min": 27828.125,
+          "max": 27828.125
+        },
+        "peakMemoryBytes": {
+          "median": 1792466944,
+          "min": 1792466944,
+          "max": 1792466944
+        },
+        "idleMemoryBytes": {
+          "median": 1674747904,
+          "min": 1674747904,
+          "max": 1674747904
+        },
+        "diskReadBytes": {
+          "median": 72753960,
+          "min": 72753960,
+          "max": 72753960
+        },
+        "diskWriteBytes": {
+          "median": 50093761,
+          "min": 50093761,
+          "max": 50093761
+        },
+        "networkBytes": {
+          "median": 37101,
+          "min": 37101,
+          "max": 37101
+        },
+        "storageBytes": {
+          "median": 6490539759,
+          "min": 6490539759,
+          "max": 6490539759
+        }
+      }
+    },
+    "moby-control/php/warm": {
+      "kind": "operation_replay",
+      "regimeDefinition": "running guest + fresh project/database; per-quest verified caches",
+      "count": 1,
+      "metrics": {
+        "taskMs": {
+          "median": 17300.57,
+          "min": 17300.57,
+          "max": 17300.57
+        },
+        "cpuTimeMs": {
+          "median": 17859.375,
+          "min": 17859.375,
+          "max": 17859.375
+        },
+        "peakMemoryBytes": {
+          "median": 1799815168,
+          "min": 1799815168,
+          "max": 1799815168
+        },
+        "idleMemoryBytes": {
+          "median": 1712812032,
+          "min": 1712812032,
+          "max": 1712812032
+        },
+        "diskReadBytes": {
+          "median": 25796360,
+          "min": 25796360,
+          "max": 25796360
+        },
+        "diskWriteBytes": {
+          "median": 49602243,
+          "min": 49602243,
+          "max": 49602243
+        },
+        "networkBytes": {
+          "median": 36738,
+          "min": 36738,
+          "max": 36738
+        },
+        "storageBytes": {
+          "median": 6490535202,
+          "min": 6490535202,
+          "max": 6490535202
+        }
+      }
+    },
+    "moby-cold-containers/php/cold": {
+      "kind": "operation_replay",
+      "regimeDefinition": "fresh project/database/dependencies; provisioned engine ready before approval",
+      "count": 1,
+      "metrics": {
+        "taskMs": {
+          "median": 45908.596000000005,
+          "min": 45908.596000000005,
+          "max": 45908.596000000005
+        },
+        "cpuTimeMs": {
+          "median": 48218.75,
+          "min": 48218.75,
+          "max": 48218.75
+        },
+        "peakMemoryBytes": {
+          "median": 1794052096,
+          "min": 1794052096,
+          "max": 1794052096
+        },
+        "idleMemoryBytes": {
+          "median": 1604403200,
+          "min": 1604403200,
+          "max": 1604403200
+        },
+        "diskReadBytes": {
+          "median": 74220234,
+          "min": 74220234,
+          "max": 74220234
+        },
+        "diskWriteBytes": {
+          "median": 81687307,
+          "min": 81687307,
+          "max": 81687307
+        },
+        "networkBytes": {
+          "median": 37693,
+          "min": 37693,
+          "max": 37693
+        },
+        "storageBytes": {
+          "median": 6524120163,
+          "min": 6524120163,
+          "max": 6524120163
+        }
+      }
+    },
+    "moby-cold-containers/php/warm": {
+      "kind": "operation_replay",
+      "regimeDefinition": "running guest + fresh project/database; per-quest verified caches",
+      "count": 1,
+      "metrics": {
+        "taskMs": {
+          "median": 40375.006,
+          "min": 40375.006,
+          "max": 40375.006
+        },
+        "cpuTimeMs": {
+          "median": 38859.375,
+          "min": 38859.375,
+          "max": 38859.375
+        },
+        "peakMemoryBytes": {
+          "median": 1820114944,
+          "min": 1820114944,
+          "max": 1820114944
+        },
+        "idleMemoryBytes": {
+          "median": 1729519616,
+          "min": 1729519616,
+          "max": 1729519616
+        },
+        "diskReadBytes": {
+          "median": 26075852,
+          "min": 26075852,
+          "max": 26075852
+        },
+        "diskWriteBytes": {
+          "median": 83223315,
+          "min": 83223315,
+          "max": 83223315
+        },
+        "networkBytes": {
+          "median": 38071,
+          "min": 38071,
+          "max": 38071
+        },
+        "storageBytes": {
+          "median": 6524114664,
+          "min": 6524114664,
+          "max": 6524114664
+        }
+      }
+    },
+    "moby-no-download-cache/php/cold": {
+      "kind": "operation_replay",
+      "regimeDefinition": "fresh project/database/dependencies; provisioned engine ready before approval",
+      "count": 1,
+      "metrics": {
+        "taskMs": {
+          "median": 14988.024,
+          "min": 14988.024,
+          "max": 14988.024
+        },
+        "cpuTimeMs": {
+          "median": 14296.875,
+          "min": 14296.875,
+          "max": 14296.875
+        },
+        "peakMemoryBytes": {
+          "median": 1816784896,
+          "min": 1816784896,
+          "max": 1816784896
+        },
+        "idleMemoryBytes": {
+          "median": 1642610688,
+          "min": 1642610688,
+          "max": 1642610688
+        },
+        "diskReadBytes": {
+          "median": 73136179,
+          "min": 73136179,
+          "max": 73136179
+        },
+        "diskWriteBytes": {
+          "median": 44002727,
+          "min": 44002727,
+          "max": 44002727
+        },
+        "networkBytes": {
+          "median": 36981,
+          "min": 36981,
+          "max": 36981
+        },
+        "storageBytes": {
+          "median": 6524087446,
+          "min": 6524087446,
+          "max": 6524087446
+        }
+      }
+    },
+    "moby-no-download-cache/php/warm": {
+      "kind": "operation_replay",
+      "regimeDefinition": "running guest + fresh project/database; per-quest verified caches",
+      "count": 1,
+      "metrics": {
+        "taskMs": {
+          "median": 14380.07,
+          "min": 14380.07,
+          "max": 14380.07
+        },
+        "cpuTimeMs": {
+          "median": 13703.125,
+          "min": 13703.125,
+          "max": 13703.125
+        },
+        "peakMemoryBytes": {
+          "median": 1812938752,
+          "min": 1812938752,
+          "max": 1812938752
+        },
+        "idleMemoryBytes": {
+          "median": 1734045696,
+          "min": 1734045696,
+          "max": 1734045696
+        },
+        "diskReadBytes": {
+          "median": 25942063,
+          "min": 25942063,
+          "max": 25942063
+        },
+        "diskWriteBytes": {
+          "median": 43953576,
+          "min": 43953576,
+          "max": 43953576
+        },
+        "networkBytes": {
+          "median": 36428,
+          "min": 36428,
+          "max": 36428
+        },
+        "storageBytes": {
+          "median": 6524086527,
+          "min": 6524086527,
+          "max": 6524086527
+        }
+      }
+    }
+  },
+  "failures": [
+    {
+      "configuration": "docker-bind-shadow",
+      "reason": "Docker baseline daemon unavailable"
+    }
+  ],
+  "fullQuestCount": 0,
+  "replayCount": 18,
+  "failedQualityTrials": [],
+  "failedReplayTrials": [],
+  "qualification": "not_evaluated; use the strict full-quest comparator with a complete Docker bind/shadow baseline",
+  "performanceWinner": null,
+  "accelerationConfirmed": false,
+  "limits": [
+    "operation replay excludes the model and cannot qualify full-task acceleration",
+    "working-set peaks are sampled at 750 ms",
+    "host logical IO and guest block IO have different meanings; inspect raw counters",
+    "installation and human decision wait are separate from task cost"
+  ],
+  "defaults": "bind/shadow; opt-in only",
+  "date": "2026-10-02",
+  "purpose": "Optimization diagnostic pilot; one repetition per cell; not qualification",
+  "rawDirectory": "build\\point-runtime-local-20261002\\ablation-v2-matrix-1",
+  "rawProofsFile": "build\\point-runtime-local-20261002\\ablation-v2-matrix-1\\summary.json",
+  "rawProofsDigest": "sha256:76b679ff653e4a4057dd07c996d17745824a7502cbb7debde42f1e9c96e808ee",
+  "questBinaryDigest": "sha256:ed22819caf56ed24a7a0f9c409deef61ba71efeb684225b0a575a01509662c91",
+  "securityProfile": "point-container-security-v2",
+  "configuration": "Moby 29.1.3; control on/on, warm containers off/on, download caches on/off",
+  "interpretation": [
+    "Cold-container warm times were larger than control in all three projects",
+    "Download-cache benefit is unconfirmed: only one installation per replay and one observation per cell",
+    "Verification evidence reuse is excluded from operation replay",
+    "No Docker or full-model baseline, winner or 30% acceleration claim"
+  ]
+}

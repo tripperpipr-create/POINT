@@ -101,7 +101,7 @@ func TestResolveModelRouteFallbacksAndRunOverride(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = application.StartFastAgent(FastAgentRequest{ProfileID: "default", Task: "Change one file"}); err == nil || !strings.Contains(err.Error(), "coding-маршрут") {
+	if _, err = application.startFastAgentV2(FastAgentRequest{ProfileID: "default", Task: "Change one file"}); err == nil || !strings.Contains(err.Error(), "coding-маршрут") {
 		t.Fatalf("FastAgent молча использовал fallback: %v", err)
 	}
 	after, err := application.store.ListQuests(context.Background(), workspaceView.Workspace.ID)

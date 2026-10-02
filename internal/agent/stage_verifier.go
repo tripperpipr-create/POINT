@@ -16,6 +16,11 @@ type StageVerifier interface {
 	VerifyBeforeCompletion(ctx context.Context, request StageVerifyRequest) StageVerifyOutcome
 }
 
+// StageVerificationPlanner is trusted core state, never a promise in model text.
+type StageVerificationPlanner interface {
+	WillVerifyBeforeCompletion(context.Context, StageVerifyRequest) bool
+}
+
 type StageVerifyRequest struct {
 	RunID       string
 	ExecutionID string
@@ -28,8 +33,12 @@ type StageVerifyRequest struct {
 type StageVerifyOutcome struct {
 	// Ran — проверка была (или её исход взят из уже сделанной на том же
 	// дереве). Нет — этап завершается как раньше.
-	Ran    bool `json:"ran"`
-	Passed bool `json:"passed"`
+	Ran                 bool                `json:"ran"`
+	Passed              bool                `json:"passed"`
+	NeedsReview         bool                `json:"needsReview,omitempty"`
+	PendingCriterionIDs []string            `json:"pendingCriterionIds,omitempty"`
+	Criteria            []CriterionEvidence `json:"criteria,omitempty"`
+	PreparationFailed   bool                `json:"preparationFailed,omitempty"`
 	// Reused — исход взят из прежнего прогона на том же дереве и образе.
 	Reused     bool     `json:"reused,omitempty"`
 	ResultID   string   `json:"resultId,omitempty"`
@@ -45,3 +54,23 @@ type StageVerifyOutcome struct {
 const maxPreAcceptChecks = 2
 
 func (e *Engine) SetStageVerifier(verifier StageVerifier) { e.stageVerifier = verifier }
+
+func completionStatusAfterPreAccept(observed, passed, needsReview bool) string {
+	if !observed || !passed {
+		return "implementation_ready"
+	}
+	if needsReview {
+		return "needs_review"
+	}
+	return "accepted_after_revision"
+}
+
+func PendingCriterionIDs(criteria []CriterionEvidence) []string {
+	var ids []string
+	for _, criterion := range criteria {
+		if criterion.Status != "satisfied" {
+			ids = append(ids, criterion.CriterionID)
+		}
+	}
+	return ids
+}

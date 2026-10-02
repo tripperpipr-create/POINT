@@ -1,3 +1,4 @@
+const {masterWorkspaceId,setMasterScope,followFastRun}=require('./master-scope')
 // Hub runtime: runs, quests, flows, change sets, approvals, and proposal decisions.
 const vscode = require('vscode')
 const { decisionResolvePath } = require('./extension-utils')
@@ -47,14 +48,13 @@ async function handleHubRuntimeMessage(message) {
       break
     }
     case 'startFastAgent': {
-      this.service.hostLog('info', `[agent] fast-agent profile=${message.profileId || '-'} task_bytes=${String(message.task || '').length}`)
-      const agent = (this.boot?.projectAgents || []).find(item => item.id === message.profileId)
-        || (this.boot?.profiles || []).find(item => item.id === message.profileId)
+      const config=await this.service.request('/api/system/fast-agent')
+      const agent=config.profile
       const apiKey = agent
         ? await this.credentialFor(agent, `агента «${agent.name || agent.id}»`, message.apiKey || '')
         : (message.apiKey || '')
       const run = await this.service.request('/api/runs/fast-agent', { method: 'POST', body: JSON.stringify({
-        profileId: message.profileId,
+        profileId:'system-fast',workspaceId:masterWorkspaceId(this,message.workspaceId),requestId:message.requestId,
         task: message.task,
         apiKey,
         contextItems: Array.isArray(message.contextItems) ? message.contextItems : [],
@@ -62,6 +62,8 @@ async function handleHubRuntimeMessage(message) {
         // Итог квеста агента пишется в беседу, из которой его запустили.
         conversationId: String(message.conversationId || ''),
       }) })
+      await setMasterScope(this,run.workspaceId)
+      void followFastRun(this,run.id,run.workspaceId,String(message.conversationId || ''))
       this.activeRunId = run.id
       this.service.hostLog('info', `[agent] fast-agent run_id=${run.id} status=${run.status || '-'}`)
       this.details = { run, events: [], approvals: [], patches: [] }

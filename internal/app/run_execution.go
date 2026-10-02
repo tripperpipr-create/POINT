@@ -23,6 +23,7 @@ import (
 	"local-agent-workbench/internal/policy"
 	"local-agent-workbench/internal/sandbox"
 	"local-agent-workbench/internal/security"
+	"local-agent-workbench/internal/tools"
 	"local-agent-workbench/internal/workspace"
 )
 
@@ -442,6 +443,7 @@ func (a *App) StartRun(request StartRunRequest) (domain.Run, error) {
 			liveWorkspace = false
 		}
 		created, sandboxErr := a.sandboxBackend.Create(context.Background(), sandbox.CreateRequest{
+			QuestID:     questID,
 			WorkspaceID: prepared.workspace.ID, WorkspacePath: prepared.workspace.Path, ExecutionID: execID,
 			Runtime: runtimeRequirements, PreferWorktree: true, LiveWorkspace: liveWorkspace,
 		})
@@ -478,6 +480,13 @@ func (a *App) StartRun(request StartRunRequest) (domain.Run, error) {
 		}
 	}
 	sandboxImage := sandbox.ExecutionImageForRecord(sandboxRecord)
+	if backend, ok := a.sandboxBackend.(interface {
+		RegisterWorkspace(domain.SandboxRecord) error
+	}); ok {
+		if err := backend.RegisterWorkspace(sandboxRecord); err != nil {
+			return domain.Run{}, err
+		}
+	}
 	createdDirectQuest := false
 	if questID == "" && flowRunID == "" {
 		title := strings.TrimSpace(request.Task)
@@ -515,6 +524,40 @@ func (a *App) StartRun(request StartRunRequest) (domain.Run, error) {
 	if err := a.store.SaveExecution(context.Background(), execution); err != nil {
 		return domain.Run{}, err
 	}
+	if brief != nil && brief.WorkOrder != nil && sandboxRecord.Kind != "live" && (request.StageRole == "" || request.StageRole == domain.StageRoleImplement || request.StageRole == domain.StageRoleIntegrate) {
+		dependencies := brief.WorkOrder.Dependencies
+		if parent, loadErr := a.store.GetQuest(context.Background(), questID); loadErr == nil {
+			if parent.ParentID != "" {
+				if rootQuest, err := a.store.GetQuest(context.Background(), parent.ParentID); err == nil {
+					parent = rootQuest
+				}
+			}
+			dependencies = effectiveDependencyPlan(parent, dependencies)
+		}
+		input := criteriaBatchInput{Phase: "writer", QuestID: questID, RunID: request.preparedRunID, FlowRunID: flowRunID, FlowNodeID: flowNodeID, Sandbox: sandboxRecord, WorkOrder: &domain.WorkOrder{Dependencies: dependencies}}
+		hosts := append([]string(nil), brief.Permissions.NetworkHosts...)
+		for _, grant := range brief.WorkOrder.Network {
+			hosts = appendUniqueStrings(hosts, grant.Host)
+		}
+		policy := "DENY"
+		if len(hosts) > 0 {
+			policy = "ALLOWLIST"
+		}
+		dependencyFS, openErr := workspace.Open(sandboxRecord.Path)
+		if openErr != nil {
+			return domain.Run{}, openErr
+		}
+		tool := tools.RunCommand{FS: dependencyFS, Executor: a.sandboxProcessExecutor(), SandboxImage: sandboxImage, NetworkPolicy: policy, AllowedNetworkHosts: hosts, RunID: input.RunID, QuestID: questID, DefaultTimeout: 10 * time.Minute, MaxOutput: 256 * 1024}
+		if failure := a.prepareDependencies(context.Background(), input, sandboxRecord.Path, tool); failure != nil {
+			execution.Status = domain.RunFailed
+			execution.Error = failure.Error()
+			now := time.Now().UTC()
+			execution.FinishedAt = &now
+			execution.DurationMs = now.Sub(execution.StartedAt).Milliseconds()
+			_ = a.store.SaveExecution(context.Background(), execution)
+			return domain.Run{}, failure
+		}
+	}
 	run, err := a.engine.Start(agent.StartInput{
 		TaskBrief:     brief,
 		Configuration: snapshot, Workspace: prepared.workspace, SandboxPath: sandboxRecord.Path,
@@ -542,6 +585,17 @@ func (a *App) StartRun(request StartRunRequest) (domain.Run, error) {
 				slog.Warn("terminal run budget release unavailable", "run_id", finished.ID, "error", security.Redact(releaseErr.Error()))
 			}
 			if finished.Status == domain.RunCompleted || finished.Status == domain.RunFailed || finished.Status == domain.RunCancelled || finished.Status == domain.RunInterrupted {
+				if _, err := a.sandboxIntegrity(context.Background(), sandboxRecord); err != nil {
+					success = false
+					execution.Status = domain.RunFailed
+					execution.Error = err.Error()
+					_ = a.store.SaveExecution(context.Background(), execution)
+				}
+				if backend, ok := a.sandboxBackend.(interface {
+					StopWorkspace(context.Context, domain.SandboxRecord) error
+				}); ok {
+					defer backend.StopWorkspace(context.Background(), sandboxRecord)
+				}
 				baselinePath, dependencies, lineageErr := a.changeSetLineage(prepared.workspace.ID, sandboxRecord)
 				if lineageErr != nil {
 					slog.Warn("execution change set lineage unavailable", "execution_id", execID, "error", lineageErr)
@@ -550,7 +604,7 @@ func (a *App) StartRun(request StartRunRequest) (domain.Run, error) {
 					built, buildErr := applier.BuildFromSandbox(context.Background(), changesets.BuildRequest{
 						WorkspaceID: prepared.workspace.ID, ExecutionID: execID, QuestID: questID,
 						Title: "Changes from " + finished.ID, WorkspacePath: prepared.workspace.Path,
-						BaselinePath: baselinePath, SandboxPath: sandboxRecord.Path, DependsOn: dependencies,
+						BaselinePath: baselinePath, SandboxPath: sandboxRecord.Path, DependsOn: dependencies, FileRulesVersion: sandboxRecord.FileRulesVersion,
 					})
 					if buildErr != nil {
 						slog.Warn("execution change set build failed", "execution_id", execID, "error", buildErr)

@@ -175,7 +175,7 @@ func (a *App) CompleteCursorExecution(ctx context.Context, executionID string, c
 			if _, buildErr := applier.BuildFromSandbox(ctx, changesets.BuildRequest{
 				WorkspaceID: exec.WorkspaceID, ExecutionID: exec.ID, QuestID: exec.QuestID,
 				Title: "Changes from Cursor · " + exec.ID, WorkspacePath: ws.Path,
-				BaselinePath: baselinePath, SandboxPath: sandboxRecord.Path, DependsOn: dependencies,
+				BaselinePath: baselinePath, SandboxPath: sandboxRecord.Path, DependsOn: dependencies, FileRulesVersion: sandboxRecord.FileRulesVersion,
 			}); buildErr != nil {
 				slog.Warn("Cursor execution change set unavailable", "execution_id", exec.ID, "error", buildErr)
 			}

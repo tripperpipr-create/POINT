@@ -17,16 +17,19 @@ import (
 // physical sandbox is created first; none of its metadata becomes visible
 // unless every record below commits together.
 type FastAgentLaunchV2 struct {
-	Order          domain.WorkOrder
-	Snapshots      []domain.SourceSnapshot
-	Brief          *domain.TaskBrief
-	QuestID        string
-	Sandbox        domain.SandboxRecord
-	Execution      domain.ExecutionInstance
-	Run            domain.Run
-	Reservation    domain.BudgetReservation
-	BudgetLimits   domain.BudgetReserveLimits
-	IdempotencyKey string
+	Order                 domain.WorkOrder
+	Snapshots             []domain.SourceSnapshot
+	Brief                 *domain.TaskBrief
+	QuestID               string
+	Sandbox               domain.SandboxRecord
+	Execution             domain.ExecutionInstance
+	Run                   domain.Run
+	Reservation           domain.BudgetReservation
+	BudgetLimits          domain.BudgetReserveLimits
+	IdempotencyKey        string
+	HostRequestKey        string
+	HostFingerprint       string
+	HostRecordUserMessage bool
 }
 
 // CreateApprovedWorkOrderV2 atomically creates a brand-new ready WorkOrder and
@@ -41,6 +44,12 @@ func (s *SQLite) CreateApprovedWorkOrderV2(ctx context.Context, order domain.Wor
 func (s *SQLite) CommitFastAgentLaunchV2(ctx context.Context, launch FastAgentLaunchV2) (domain.WorkOrderApproval, error) {
 	if launch.Brief == nil || !domain.IsTaskBriefApproved(*launch.Brief) {
 		return domain.WorkOrderApproval{}, errors.New("approved fast-agent task brief is required")
+	}
+	if domain.HostLiveFastAgent(launch.Run.ConfigurationSnapshot.Profile, launch.Brief) && launch.Order.Workspace.Isolation == "host_live" {
+		if launch.Execution.SandboxID != "" || launch.Sandbox.ID != "" || launch.Execution.QuestID != launch.QuestID || launch.Execution.RunID != launch.Run.ID || launch.Run.WorkspaceID != launch.Order.WorkspaceID || launch.Execution.WorkspaceID != launch.Order.WorkspaceID || launch.Reservation.WorkspaceID != launch.Order.WorkspaceID || launch.Reservation.RunID != launch.Run.ID || launch.Reservation.ExecutionID != launch.Execution.ID || launch.Reservation.QuestID != launch.QuestID || launch.HostRequestKey == "" || launch.HostFingerprint == "" {
+			return domain.WorkOrderApproval{}, errors.New("invalid host launch linkage")
+		}
+		return s.commitApprovedWorkOrderV2(ctx, launch)
 	}
 	if strings.TrimSpace(launch.QuestID) == "" || strings.TrimSpace(launch.Sandbox.ID) == "" || strings.TrimSpace(launch.Execution.ID) == "" || strings.TrimSpace(launch.Run.ID) == "" || strings.TrimSpace(launch.Reservation.ID) == "" {
 		return domain.WorkOrderApproval{}, errors.New("fast-agent launch identifiers are required")
@@ -129,7 +138,13 @@ func (s *SQLite) commitApprovedWorkOrderV2(ctx context.Context, launch FastAgent
 		order.WorkspaceID, order.Workspace.Path, filepath.Base(order.Workspace.Path), nowText); err != nil {
 		return domain.WorkOrderApproval{}, err
 	}
-	agentIDs, err := materializeWorkOrderRosterV2(ctx, tx, approved, now, false)
+	agentIDs := []string{domain.SystemFastAgentID}
+	if order.Workspace.Isolation == "host_live" && !domain.HostLiveFastAgent(launch.Run.ConfigurationSnapshot.Profile, launch.Brief) {
+		return domain.WorkOrderApproval{}, errors.New("host_live requires an approved system fast launch")
+	}
+	if order.Workspace.Isolation != "host_live" {
+		agentIDs, err = materializeWorkOrderRosterV2(ctx, tx, approved, now, false)
+	}
 	if err != nil {
 		return domain.WorkOrderApproval{}, err
 	}
@@ -169,6 +184,9 @@ WHERE writer_leases_v2.state='released'`, order.WorkspaceID, questID, leaseToken
 		controllerState = "running"
 		briefJSON = marshalJSON(*launch.Brief)
 		controller["launchMode"] = "fast_agent_v2"
+		if order.Workspace.Isolation == "host_live" {
+			controller["launchMode"] = "host_live"
+		}
 		controller["statusMessage"] = "FastAgent выполняет утверждённый короткий WorkOrder"
 	}
 	if _, err = tx.ExecContext(ctx, `INSERT INTO quests(id,workspace_id,parent_id,title,description,objectives,constraints_json,definition_of_done,importance,status,team_id,flow_id,flow_run_id,flow_node_id,assigned_agent_id,budget_tokens,budget_cents,created_at,updated_at,finished_at,brief_json,kind,controller_state,controller_json,prerequisite_ids_json)
@@ -195,8 +213,10 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		if affected, _ := result.RowsAffected(); affected != 1 {
 			return domain.WorkOrderApproval{}, errors.New("fast-agent launch requires exactly one milestone runtime")
 		}
-		if err = saveSandboxWith(ctx, tx, launch.Sandbox); err != nil {
-			return domain.WorkOrderApproval{}, fmt.Errorf("save launch sandbox: %w", err)
+		if launch.Sandbox.ID != "" {
+			if err = saveSandboxWith(ctx, tx, launch.Sandbox); err != nil {
+				return domain.WorkOrderApproval{}, fmt.Errorf("save launch sandbox: %w", err)
+			}
 		}
 		if err = saveExecutionWith(ctx, tx, launch.Execution); err != nil {
 			return domain.WorkOrderApproval{}, fmt.Errorf("save launch execution: %w", err)
@@ -209,6 +229,16 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		}
 	}
 	response := domain.WorkOrderApproval{WorkOrder: approved, QuestID: questID, AgentIDs: agentIDs, Status: string(questStatus)}
+	if launch.HostRequestKey != "" {
+		if _, err = tx.ExecContext(ctx, `INSERT INTO host_fast_requests(request_key,fingerprint,run_id) VALUES(?,?,?)`, launch.HostRequestKey, launch.HostFingerprint, launch.Run.ID); err != nil {
+			return domain.WorkOrderApproval{}, err
+		}
+	}
+	if launch.HostRecordUserMessage && order.ConversationID != "" {
+		if _, err = tx.ExecContext(ctx, `INSERT INTO companion_messages(id,workspace_id,conversation_id,speaker,role,content,created_at,search_text) VALUES(?,?,?,'master','user',?,?,?)`, "host-task-"+launch.Run.ID, order.WorkspaceID, order.ConversationID, launch.Run.Task, formatTime(time.Now().UTC()), strings.ToLower(launch.Run.Task)); err != nil {
+			return domain.WorkOrderApproval{}, err
+		}
+	}
 	if _, err = tx.ExecContext(ctx, `INSERT INTO work_order_approvals_v2(idempotency_key,work_order_id,version,digest,quest_id,response_json,created_at) VALUES(?,?,?,?,?,?,?)`,
 		idempotencyKey, order.ID, order.Version, digest, questID, marshalJSON(response), nowText); err != nil {
 		return domain.WorkOrderApproval{}, err

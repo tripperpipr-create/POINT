@@ -12,18 +12,11 @@ import (
 	"runtime"
 	"strings"
 
+	"local-agent-workbench/internal/filepolicy"
 	"local-agent-workbench/internal/osproc"
-	"local-agent-workbench/internal/workspace"
 )
 
 // File filtering and secret removal belong to the filtered-copy backend.
-
-var skippedDirectories = map[string]struct{}{
-	// vendor/ is intentionally NOT skipped: Composer PHP stages inherit the
-	// bootstrap tip and must keep installed packages (autoload + libraries).
-	".git": {}, "node_modules": {}, ".cache": {}, "dist": {}, "build": {},
-	".venv": {}, "venv": {}, "__pycache__": {}, ".idea": {}, ".vscode": {},
-}
 
 func copyFiltered(src, dst string) error {
 	return filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
@@ -56,64 +49,18 @@ func copyFiltered(src, dst string) error {
 	})
 }
 
+// Legacy delegates only after TestSharedPolicyPreservesEveryLegacySecretVariant
+// proves the original SSH-key and secret filename checks are identical.
 func shouldSkipFile(name string) bool {
-	lower := strings.ToLower(name)
-	// Linked Git worktrees use a .git *file* instead of a directory. Copying it
-	// would make an otherwise isolated child sandbox point back to the parent
-	// worktree's administrative directory.
-	if lower == ".git" {
-		return true
-	}
-	if strings.HasSuffix(lower, ".exe") || strings.HasSuffix(lower, ".dll") || strings.HasSuffix(lower, ".so") {
-		return true
-	}
-	if strings.HasSuffix(lower, ".png") || strings.HasSuffix(lower, ".jpg") || strings.HasSuffix(lower, ".jpeg") {
-		return true
-	}
-	return isSecretFile(name)
+	return filepolicy.SkipFileLegacy(name, runtime.GOOS == "windows")
 }
 
-// isSecretFile — файл секретов, которому не место в рабочей копии. Список
-// тот же, что закрывает файлы для чтения агентом (собственный узкий список
-// пропускал .npmrc, credentials и ключи SSH), но ключи SSH узнаются по имени
-// целиком: подстрока задела бы исходники вроде id_rsa_parser.go, и сборка
-// в песочнице ломалась бы.
 func isSecretFile(name string) bool {
-	base := strings.ToLower(name)
-	if runtime.GOOS == "windows" {
-		base = strings.TrimRight(base, ". ")
-	}
-	// Ключ SSH узнаётся по подстроке (id_rsa_deploy, deploy_id_rsa,
-	// id_ed25519_sk). Ключ с любым расширением (id_rsa.pub, id_rsa.txt) —
-	// тоже ключ; исключение для исходников действует, только когда ключ —
-	// часть более длинного имени: id_rsa_parser.go — код, а не ключ.
-	for _, key := range []string{"id_rsa", "id_ed25519", "id_ecdsa", "id_dsa"} {
-		if !strings.Contains(base, key) {
-			continue
-		}
-		stem := strings.TrimSuffix(base, filepath.Ext(base))
-		if stem == key || stem == key+"_sk" {
-			return true
-		}
-		return !hasSourceExtension(base)
-	}
-	return workspace.IsSensitive(name)
-}
-
-var sourceExtensions = map[string]bool{
-	".go": true, ".py": true, ".js": true, ".mjs": true, ".cjs": true, ".ts": true, ".tsx": true, ".jsx": true,
-	".java": true, ".kt": true, ".rs": true, ".rb": true, ".php": true, ".cs": true, ".c": true, ".h": true,
-	".cpp": true, ".hpp": true, ".swift": true, ".sh": true, ".ps1": true, ".md": true, ".txt": true,
-	".json": true, ".yaml": true, ".yml": true, ".toml": true, ".html": true, ".css": true, ".sql": true,
-}
-
-func hasSourceExtension(name string) bool {
-	return sourceExtensions[strings.ToLower(filepath.Ext(name))]
+	return filepolicy.CopySensitiveLegacy(name, runtime.GOOS == "windows")
 }
 
 func shouldSkipDirectory(name string) bool {
-	_, skip := skippedDirectories[strings.ToLower(name)]
-	return skip
+	return filepolicy.SkipDirectory(filepolicy.Legacy, name, false)
 }
 
 // stripWorktreeSecrets убирает секреты из свежего worktree и прячет их
@@ -227,14 +174,18 @@ func copyFile(src, dst string) error {
 	return os.Chmod(dst, mode)
 }
 
-func listTextFiles(root string) (map[string]string, error) {
+func listTextFilesWithRules(root, rules string) (map[string]string, error) {
 	result := map[string]string{}
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		if d.IsDir() {
-			if shouldSkipDirectory(d.Name()) {
+			rel, relErr := filepath.Rel(root, path)
+			if relErr != nil {
+				return relErr
+			}
+			if rel != "." && filepolicy.SkipDirectoryPath(rules, filepath.ToSlash(rel), false) {
 				return filepath.SkipDir
 			}
 			return nil

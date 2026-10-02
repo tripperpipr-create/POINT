@@ -213,6 +213,9 @@ func (a *App) retryFailedWorkOrderStageV2(ctx context.Context, quest domain.Ques
 	if latest, loadErr := a.workOrderQuestV2(ctx, quest.WorkspaceID, quest.ID); loadErr == nil {
 		failure, _ := latest.Controller[stageFailureKey].(map[string]any)
 		name, _ := failure["nodeName"].(string)
+		if plan.Dependencies != nil {
+			latest.Controller[dependencyAmendmentKey] = plan.Dependencies
+		}
 		delete(latest.Controller, stageFailureKey)
 		delete(latest.Controller, stageRetryProposalKey)
 		if plan.Source == StageRetrySourceAuto {
@@ -220,7 +223,9 @@ func (a *App) retryFailedWorkOrderStageV2(ctx context.Context, quest domain.Ques
 		}
 		latest.Controller["statusMessage"] = stageRetryStatusMessage(name, plan)
 		latest.UpdatedAt = time.Now().UTC()
-		_ = a.saveLoadedQuest(ctx, latest, latest.Status, "stage_retry")
+		if err := a.saveLoadedQuest(ctx, latest, latest.Status, "stage_retry"); err != nil {
+			return status, err
+		}
 	}
 	runtime := flowruntime.Runtime{Store: a.store}
 	ticked, err := runtime.Tick(ctx, run.ID)

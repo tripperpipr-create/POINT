@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"local-agent-workbench/internal/domain"
 	"strings"
 	"testing"
 )
@@ -113,5 +114,39 @@ func TestStageRetryProposalRejectsUnsafeChanges(t *testing.T) {
 		if _, err := application.ProposeStageRetryV2(ctx, quest.WorkspaceID, input); err == nil {
 			t.Fatalf("%s: unsafe proposal accepted", name)
 		}
+	}
+}
+
+func TestDependencyRetryRequiresApprovalAndPreservesCompletedStages(t *testing.T) {
+	a, q, run := failedStageQuestWithErrorForTest(t, "dependency preparation: lock missing")
+	ctx := context.Background()
+	a.finalizeQuestAfterFlow(q.ID, false)
+	plan := &domain.DependencyPlan{Version: "1", Projects: []domain.DependencyProject{{Cwd: "lk-backend/source", Manager: "npm", Commands: []domain.SetupCommand{{Command: "npm ci --include=dev", TimeoutSeconds: 600}}, ManifestPaths: []string{"lk-backend/source/package.json", "lk-backend/source/package-lock.json"}}}}
+	proposal, err := a.ProposeStageRetryV2(ctx, q.WorkspaceID, StageRetryProposalInput{QuestID: q.ID, Dependencies: plan, Diagnosis: "Prepare once before original criteria"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !proposal.NeedsApproval || proposal.AutoApply {
+		t.Fatal("dependency plan changed without approval")
+	}
+	if _, err = a.ControlWorkOrderQuestV2(ctx, q.ID, "retry", WorkOrderQuestControlRequest{Source: StageRetrySourceAuto, ProposalDigest: proposal.Digest}); err == nil {
+		t.Fatal("automatic amendment accepted")
+	}
+	if _, err = a.ControlWorkOrderQuestV2(ctx, q.ID, "retry", WorkOrderQuestControlRequest{ProposalDigest: proposal.Digest}); err != nil && !strings.Contains(err.Error(), "agent") {
+		t.Fatal(err)
+	}
+	latest, _ := a.workOrderQuestV2(ctx, q.WorkspaceID, q.ID)
+	if effectiveDependencyPlan(latest, nil) == nil {
+		t.Fatal("approved amendment not applied")
+	}
+	after, _ := a.store.GetFlowRun(ctx, run.ID)
+	for id, node := range run.NodeStates {
+		if node.Status == "completed" && after.NodeStates[id].Status != "completed" {
+			t.Fatal("completed writer restarted")
+		}
+	}
+	proposal.Dependencies.Projects[0].Commands[0].Command += " --ignore-scripts"
+	if stageRetryProposalDigest(proposal) == proposal.Digest {
+		t.Fatal("dependency command excluded from digest")
 	}
 }

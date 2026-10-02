@@ -1,0 +1,222 @@
+{
+  "createdAt": "2026-10-01T15:29:06.3172978Z",
+  "project": "C:\\Users\\Rif\\AppData\\Local\\Temp\\point-sandboxes\\sandbox_b6df33c49e32214a3c69dff4",
+  "revision": "",
+  "image": "sha256:cdbf49d1d93902496539b3054c3f02b565f8690972229c0fd221f9e17cb77add",
+  "imageDigest": "sha256:cdbf49d1d93902496539b3054c3f02b565f8690972229c0fd221f9e17cb77add",
+  "dockerVersion": "27.2.0",
+  "rules": "portable-v2",
+  "audit": "SHA-256 snapshots, patch diff and durable JSON journal; excludes LLM and app event bus",
+  "samples": [
+    {
+      "mode": "bind",
+      "command": "cd lk-backend/source \u0026\u0026 npm ci --include=dev --no-audit --no-fund \u0026\u0026 npm run typecheck \u0026\u0026 npx jest src/modules/feature-flags/feature-flags.controller.spec.ts src/modules/feature-flags/feature-flags.service.spec.ts src/modules/feature-flags/feature-flags.e2e.spec.ts --runInBand \u0026\u0026 npx eslint src/modules/feature-flags/feature-flags.controller.ts src/modules/feature-flags/feature-flags.service.ts src/modules/feature-flags/feature-flags.controller.spec.ts src/modules/feature-flags/feature-flags.service.spec.ts src/modules/feature-flags/feature-flags.e2e.spec.ts",
+      "setupMs": 17345,
+      "preparationMs": 0,
+      "durationMs": 575240,
+      "exitCode": 0,
+      "digest": "sha256:6d803bad41e3f392539776acd4b3e01bf45c50669a9b11e8c16268e1250a2c5b"
+    },
+    {
+      "mode": "bind",
+      "command": "cd lk-backend/source \u0026\u0026 npm ci --include=dev --no-audit --no-fund \u0026\u0026 npm run typecheck \u0026\u0026 npx jest src/modules/feature-flags/feature-flags.controller.spec.ts src/modules/feature-flags/feature-flags.service.spec.ts src/modules/feature-flags/feature-flags.e2e.spec.ts --runInBand \u0026\u0026 npx eslint src/modules/feature-flags/feature-flags.controller.ts src/modules/feature-flags/feature-flags.service.ts src/modules/feature-flags/feature-flags.controller.spec.ts src/modules/feature-flags/feature-flags.service.spec.ts src/modules/feature-flags/feature-flags.e2e.spec.ts",
+      "setupMs": 24281,
+      "preparationMs": 0,
+      "durationMs": 600611,
+      "exitCode": 0,
+      "digest": "sha256:6d803bad41e3f392539776acd4b3e01bf45c50669a9b11e8c16268e1250a2c5b"
+    },
+    {
+      "mode": "bind",
+      "command": "cd lk-backend/source \u0026\u0026 npm ci --include=dev --no-audit --no-fund \u0026\u0026 npm run typecheck \u0026\u0026 npx jest src/modules/feature-flags/feature-flags.controller.spec.ts src/modules/feature-flags/feature-flags.service.spec.ts src/modules/feature-flags/feature-flags.e2e.spec.ts --runInBand \u0026\u0026 npx eslint src/modules/feature-flags/feature-flags.controller.ts src/modules/feature-flags/feature-flags.service.ts src/modules/feature-flags/feature-flags.controller.spec.ts src/modules/feature-flags/feature-flags.service.spec.ts src/modules/feature-flags/feature-flags.e2e.spec.ts",
+      "setupMs": 15719,
+      "preparationMs": 0,
+      "durationMs": 599201,
+      "exitCode": 0,
+      "digest": "sha256:6d803bad41e3f392539776acd4b3e01bf45c50669a9b11e8c16268e1250a2c5b"
+    },
+    {
+      "mode": "bind",
+      "command": "cd lk-backend/source \u0026\u0026 npm ci --include=dev --no-audit --no-fund \u0026\u0026 npm run typecheck \u0026\u0026 npx jest src/modules/feature-flags/feature-flags.controller.spec.ts src/modules/feature-flags/feature-flags.service.spec.ts src/modules/feature-flags/feature-flags.e2e.spec.ts --runInBand \u0026\u0026 npx eslint src/modules/feature-flags/feature-flags.controller.ts src/modules/feature-flags/feature-flags.service.ts src/modules/feature-flags/feature-flags.controller.spec.ts src/modules/feature-flags/feature-flags.service.spec.ts src/modules/feature-flags/feature-flags.e2e.spec.ts",
+      "setupMs": 22442,
+      "preparationMs": 0,
+      "durationMs": 598593,
+      "exitCode": 0,
+      "digest": "sha256:6d803bad41e3f392539776acd4b3e01bf45c50669a9b11e8c16268e1250a2c5b"
+    },
+    {
+      "mode": "bind",
+      "command": "cd lk-backend/source \u0026\u0026 npm ci --include=dev --no-audit --no-fund \u0026\u0026 npm run typecheck \u0026\u0026 npx jest src/modules/feature-flags/feature-flags.controller.spec.ts src/modules/feature-flags/feature-flags.service.spec.ts src/modules/feature-flags/feature-flags.e2e.spec.ts --runInBand \u0026\u0026 npx eslint src/modules/feature-flags/feature-flags.controller.ts src/modules/feature-flags/feature-flags.service.ts src/modules/feature-flags/feature-flags.controller.spec.ts src/modules/feature-flags/feature-flags.service.spec.ts src/modules/feature-flags/feature-flags.e2e.spec.ts",
+      "setupMs": 23141,
+      "preparationMs": 0,
+      "durationMs": 418767,
+      "exitCode": 0,
+      "digest": "sha256:6d803bad41e3f392539776acd4b3e01bf45c50669a9b11e8c16268e1250a2c5b"
+    },
+    {
+      "mode": "bind",
+      "command": "true",
+      "setupMs": 25119,
+      "preparationMs": 0,
+      "durationMs": 4809,
+      "exitCode": 0,
+      "digest": "sha256:6d803bad41e3f392539776acd4b3e01bf45c50669a9b11e8c16268e1250a2c5b"
+    },
+    {
+      "mode": "bind",
+      "command": "true",
+      "setupMs": 25119,
+      "preparationMs": 0,
+      "durationMs": 4114,
+      "exitCode": 0,
+      "digest": "sha256:6d803bad41e3f392539776acd4b3e01bf45c50669a9b11e8c16268e1250a2c5b"
+    },
+    {
+      "mode": "bind",
+      "command": "true",
+      "setupMs": 25119,
+      "preparationMs": 0,
+      "durationMs": 4030,
+      "exitCode": 0,
+      "digest": "sha256:6d803bad41e3f392539776acd4b3e01bf45c50669a9b11e8c16268e1250a2c5b"
+    },
+    {
+      "mode": "bind",
+      "command": "true",
+      "setupMs": 25119,
+      "preparationMs": 0,
+      "durationMs": 4052,
+      "exitCode": 0,
+      "digest": "sha256:6d803bad41e3f392539776acd4b3e01bf45c50669a9b11e8c16268e1250a2c5b"
+    },
+    {
+      "mode": "bind",
+      "command": "true",
+      "setupMs": 25119,
+      "preparationMs": 0,
+      "durationMs": 3925,
+      "exitCode": 0,
+      "digest": "sha256:6d803bad41e3f392539776acd4b3e01bf45c50669a9b11e8c16268e1250a2c5b"
+    },
+    {
+      "mode": "volume",
+      "command": "cd lk-backend/source \u0026\u0026 npm ci --include=dev --no-audit --no-fund \u0026\u0026 npm run typecheck \u0026\u0026 npx jest src/modules/feature-flags/feature-flags.controller.spec.ts src/modules/feature-flags/feature-flags.service.spec.ts src/modules/feature-flags/feature-flags.e2e.spec.ts --runInBand \u0026\u0026 npx eslint src/modules/feature-flags/feature-flags.controller.ts src/modules/feature-flags/feature-flags.service.ts src/modules/feature-flags/feature-flags.controller.spec.ts src/modules/feature-flags/feature-flags.service.spec.ts src/modules/feature-flags/feature-flags.e2e.spec.ts",
+      "setupMs": 37441,
+      "preparationMs": 0,
+      "durationMs": 32887,
+      "exitCode": 0,
+      "digest": "sha256:6d803bad41e3f392539776acd4b3e01bf45c50669a9b11e8c16268e1250a2c5b"
+    },
+    {
+      "mode": "volume",
+      "command": "cd lk-backend/source \u0026\u0026 npm ci --include=dev --no-audit --no-fund \u0026\u0026 npm run typecheck \u0026\u0026 npx jest src/modules/feature-flags/feature-flags.controller.spec.ts src/modules/feature-flags/feature-flags.service.spec.ts src/modules/feature-flags/feature-flags.e2e.spec.ts --runInBand \u0026\u0026 npx eslint src/modules/feature-flags/feature-flags.controller.ts src/modules/feature-flags/feature-flags.service.ts src/modules/feature-flags/feature-flags.controller.spec.ts src/modules/feature-flags/feature-flags.service.spec.ts src/modules/feature-flags/feature-flags.e2e.spec.ts",
+      "setupMs": 49160,
+      "preparationMs": 0,
+      "durationMs": 33019,
+      "exitCode": 0,
+      "digest": "sha256:6d803bad41e3f392539776acd4b3e01bf45c50669a9b11e8c16268e1250a2c5b"
+    },
+    {
+      "mode": "volume",
+      "command": "cd lk-backend/source \u0026\u0026 npm ci --include=dev --no-audit --no-fund \u0026\u0026 npm run typecheck \u0026\u0026 npx jest src/modules/feature-flags/feature-flags.controller.spec.ts src/modules/feature-flags/feature-flags.service.spec.ts src/modules/feature-flags/feature-flags.e2e.spec.ts --runInBand \u0026\u0026 npx eslint src/modules/feature-flags/feature-flags.controller.ts src/modules/feature-flags/feature-flags.service.ts src/modules/feature-flags/feature-flags.controller.spec.ts src/modules/feature-flags/feature-flags.service.spec.ts src/modules/feature-flags/feature-flags.e2e.spec.ts",
+      "setupMs": 41645,
+      "preparationMs": 0,
+      "durationMs": 39267,
+      "exitCode": 0,
+      "digest": "sha256:6d803bad41e3f392539776acd4b3e01bf45c50669a9b11e8c16268e1250a2c5b"
+    },
+    {
+      "mode": "volume",
+      "command": "cd lk-backend/source \u0026\u0026 npm ci --include=dev --no-audit --no-fund \u0026\u0026 npm run typecheck \u0026\u0026 npx jest src/modules/feature-flags/feature-flags.controller.spec.ts src/modules/feature-flags/feature-flags.service.spec.ts src/modules/feature-flags/feature-flags.e2e.spec.ts --runInBand \u0026\u0026 npx eslint src/modules/feature-flags/feature-flags.controller.ts src/modules/feature-flags/feature-flags.service.ts src/modules/feature-flags/feature-flags.controller.spec.ts src/modules/feature-flags/feature-flags.service.spec.ts src/modules/feature-flags/feature-flags.e2e.spec.ts",
+      "setupMs": 62657,
+      "preparationMs": 0,
+      "durationMs": 33169,
+      "exitCode": 0,
+      "digest": "sha256:6d803bad41e3f392539776acd4b3e01bf45c50669a9b11e8c16268e1250a2c5b"
+    },
+    {
+      "mode": "volume",
+      "command": "cd lk-backend/source \u0026\u0026 npm ci --include=dev --no-audit --no-fund \u0026\u0026 npm run typecheck \u0026\u0026 npx jest src/modules/feature-flags/feature-flags.controller.spec.ts src/modules/feature-flags/feature-flags.service.spec.ts src/modules/feature-flags/feature-flags.e2e.spec.ts --runInBand \u0026\u0026 npx eslint src/modules/feature-flags/feature-flags.controller.ts src/modules/feature-flags/feature-flags.service.ts src/modules/feature-flags/feature-flags.controller.spec.ts src/modules/feature-flags/feature-flags.service.spec.ts src/modules/feature-flags/feature-flags.e2e.spec.ts",
+      "setupMs": 38166,
+      "preparationMs": 0,
+      "durationMs": 30988,
+      "exitCode": 0,
+      "digest": "sha256:6d803bad41e3f392539776acd4b3e01bf45c50669a9b11e8c16268e1250a2c5b"
+    },
+    {
+      "mode": "volume",
+      "command": "true",
+      "setupMs": 38169,
+      "preparationMs": 0,
+      "durationMs": 290,
+      "exitCode": 0,
+      "digest": "sha256:6d803bad41e3f392539776acd4b3e01bf45c50669a9b11e8c16268e1250a2c5b"
+    },
+    {
+      "mode": "volume",
+      "command": "true",
+      "setupMs": 38169,
+      "preparationMs": 0,
+      "durationMs": 312,
+      "exitCode": 0,
+      "digest": "sha256:6d803bad41e3f392539776acd4b3e01bf45c50669a9b11e8c16268e1250a2c5b"
+    },
+    {
+      "mode": "volume",
+      "command": "true",
+      "setupMs": 38169,
+      "preparationMs": 0,
+      "durationMs": 365,
+      "exitCode": 0,
+      "digest": "sha256:6d803bad41e3f392539776acd4b3e01bf45c50669a9b11e8c16268e1250a2c5b"
+    },
+    {
+      "mode": "volume",
+      "command": "true",
+      "setupMs": 38169,
+      "preparationMs": 0,
+      "durationMs": 264,
+      "exitCode": 0,
+      "digest": "sha256:6d803bad41e3f392539776acd4b3e01bf45c50669a9b11e8c16268e1250a2c5b"
+    },
+    {
+      "mode": "volume",
+      "command": "true",
+      "setupMs": 38169,
+      "preparationMs": 0,
+      "durationMs": 425,
+      "exitCode": 0,
+      "digest": "sha256:6d803bad41e3f392539776acd4b3e01bf45c50669a9b11e8c16268e1250a2c5b"
+    }
+  ],
+  "aggregates": [
+    {
+      "mode": "bind",
+      "command": "cd lk-backend/source \u0026\u0026 npm ci --include=dev --no-audit --no-fund \u0026\u0026 npm run typecheck \u0026\u0026 npx jest src/modules/feature-flags/feature-flags.controller.spec.ts src/modules/feature-flags/feature-flags.service.spec.ts src/modules/feature-flags/feature-flags.e2e.spec.ts --runInBand \u0026\u0026 npx eslint src/modules/feature-flags/feature-flags.controller.ts src/modules/feature-flags/feature-flags.service.ts src/modules/feature-flags/feature-flags.controller.spec.ts src/modules/feature-flags/feature-flags.service.spec.ts src/modules/feature-flags/feature-flags.e2e.spec.ts",
+      "count": 5,
+      "medianMs": 598593,
+      "p95Ms": 600611
+    },
+    {
+      "mode": "bind",
+      "command": "true",
+      "count": 5,
+      "medianMs": 4052,
+      "p95Ms": 4809
+    },
+    {
+      "mode": "volume",
+      "command": "cd lk-backend/source \u0026\u0026 npm ci --include=dev --no-audit --no-fund \u0026\u0026 npm run typecheck \u0026\u0026 npx jest src/modules/feature-flags/feature-flags.controller.spec.ts src/modules/feature-flags/feature-flags.service.spec.ts src/modules/feature-flags/feature-flags.e2e.spec.ts --runInBand \u0026\u0026 npx eslint src/modules/feature-flags/feature-flags.controller.ts src/modules/feature-flags/feature-flags.service.ts src/modules/feature-flags/feature-flags.controller.spec.ts src/modules/feature-flags/feature-flags.service.spec.ts src/modules/feature-flags/feature-flags.e2e.spec.ts",
+      "count": 5,
+      "medianMs": 33019,
+      "p95Ms": 39267
+    },
+    {
+      "mode": "volume",
+      "command": "true",
+      "count": 5,
+      "medianMs": 312,
+      "p95Ms": 425
+    }
+  ]
+}

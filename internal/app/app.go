@@ -31,6 +31,7 @@ import (
 const Version = "1.2.3"
 
 type App struct {
+	hostLaunchMu        sync.Mutex
 	masterTurnsMu       sync.Mutex
 	masterTurnCancels   map[string]context.CancelFunc
 	masterTurnsWG       sync.WaitGroup
@@ -111,6 +112,9 @@ type App struct {
 	sandboxWatchMu        sync.Mutex
 	sandboxWatchCancel    context.CancelFunc
 	sandboxWatchWG        sync.WaitGroup
+	sandboxCleanupMu      sync.Mutex
+	sandboxCleanupCancel  context.CancelFunc
+	sandboxCleanupWG      sync.WaitGroup
 	// flowOrchestratorKeys keeps the credential used to start a FlowRun so later
 	// stages can auto-start after scheduleFlowAgentExecutionsFromRun (which has no
 	// request body). Never persisted; cleared when the FlowRun reaches a terminal status.
@@ -119,6 +123,7 @@ type App struct {
 }
 
 type Bootstrap struct {
+	FastAgent           FastAgentConfig               `json:"fastAgent"`
 	Version             string                        `json:"version"`
 	Profiles            []domain.AgentProfile         `json:"profiles"`
 	ProfileTemplates    []domain.AgentProfileTemplate `json:"profileTemplates"`
@@ -315,7 +320,7 @@ func New(dataDir string, options ...Option) (*App, error) {
 		option(application)
 	}
 	if application.sandboxBackend == nil {
-		application.sandboxBackend, err = sandbox.BackendFromEnvironment(filepath.Join(os.TempDir(), "point-sandboxes"))
+		application.sandboxBackend, err = sandbox.BackendFromEnvironment(sandboxRoot())
 		if err != nil {
 			learningCancel()
 			backupCancel()
@@ -441,6 +446,7 @@ func (a *App) Shutdown(ctx context.Context) {
 	a.stopMCPServers()
 	a.stopMasterWatch()
 	a.stopSandboxWatchV2()
+	a.stopSandboxCleanup()
 	a.externalMu.Lock()
 	for _, cancel := range a.externalCancels {
 		cancel()
@@ -509,6 +515,10 @@ func (a *App) currentWorldID() string {
 }
 
 func (a *App) guardWorld(workspaceID string) error {
+	if strings.HasPrefix(workspaceID, "point-chat-") {
+		_, err := a.WithMasterWorkspace(context.Background(), workspaceID)
+		return err
+	}
 	current := a.currentWorldID()
 	if current == "" {
 		return errors.New("workspace is not open")
@@ -646,8 +656,13 @@ func (a *App) Bootstrap() (Bootstrap, error) {
 	if err != nil {
 		return Bootstrap{}, err
 	}
+	fastAgent, err := a.FastAgentConfig(ctx)
+	if err != nil {
+		return Bootstrap{}, err
+	}
+	workspaces = projectWorkspaces(workspaces)
 	return Bootstrap{
-		Version: Version, Profiles: profiles,
+		FastAgent: fastAgent, Version: Version, Profiles: profiles,
 		ProfileTemplates: domain.BuiltInAgentTemplates(), ToolCatalog: toolCatalog, CustomTools: customTools, CustomToolTemplates: domain.BuiltInCustomToolTemplates(),
 		Workspaces: workspaces, Runs: runs, RunDiagnostics: runDiagnostics, Workflows: workflowDefinitions, WorkflowRuns: workflowRuns, CurrentWorkspace: current,
 		ProviderCatalog: domain.BuiltInProviderCatalog(), IndexStatus: indexStatus, Changes: changes,

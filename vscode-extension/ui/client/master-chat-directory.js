@@ -25,7 +25,7 @@ export function createMasterChatDirectory(dependencies) {
   // умолчания. Умолчание разное — активный мир раскрыт, прочие свёрнуты, — и
   // хранить «свёрнутые» пришлось бы вместе со «развёрнутыми».
   const toggled = new Set()
-  const isOpen = world => (world.own ? !toggled.has(world.workspaceId) : toggled.has(world.workspaceId))
+  const isOpen = world => (world.own || world.scopeKind==='point_chat' ? !toggled.has(world.workspaceId) : toggled.has(world.workspaceId))
 
   function receiveChatDirectory(message) {
     const value = message?.directory
@@ -91,13 +91,13 @@ export function createMasterChatDirectory(dependencies) {
   function rowHtml(chat, world) {
     const own = Boolean(world.own)
     const classes = ['hall-chat-row']
-    if (chat.current && own) classes.push('is-current')
+    if (chat.current && (own || world.scopeKind==='point_chat')) classes.push('is-current')
     if (chat.running) classes.push('is-running')
     if (!own && openingChat === chat.id) classes.push('is-loading')
     const live = chat.running ? '<span class="hall-chat-live" aria-label="Идёт ответ"><i></i></span>' : ''
     const when = chatWhen(chat.updatedAt)
     return `<div class="${classes.join(' ')}">
-      <button type="button" data-action="chat-open" data-world="${esc(world.workspaceId)}" data-path="${esc(world.path || '')}" data-chat="${esc(chat.id)}"${chat.current && own ? ' aria-current="true"' : ''} title="${esc(chat.title)}${chat.branchName ? ' · '+esc(chat.branchName) : ''}">
+      <button type="button" data-action="chat-open" data-world="${esc(chat.workspaceId || world.workspaceId)}" data-path="${esc(world.path || '')}" data-chat="${esc(chat.id)}"${chat.current && own ? ' aria-current="true"' : ''} title="${esc(chat.title)}${chat.branchName ? ' · '+esc(chat.branchName) : ''}">
         <span class="hall-chat-title">${esc(chat.title)}</span>${live}<time class="hall-chat-when">${esc(when)}</time>
       </button>
       ${own ? `<button type="button" class="hall-chat-drop" data-keynav-skip data-action="master-session-delete" data-id="${esc(chat.id)}" aria-label="Удалить разговор «${esc(chat.title)}»" title="Удалить разговор">${icon('x')}</button>` : ''}
@@ -112,7 +112,7 @@ export function createMasterChatDirectory(dependencies) {
     // найденное за закрытым заголовком — то же, что не найти.
     const expanded = open || (Boolean(query.trim()) && visible.length > 0)
     if (query.trim() && !visible.length) return ''
-    const add = world.own
+    const add = world.own && world.scopeKind!=='point_chat'
       ? '<button type="button" class="hall-chats-add" data-action="master-session-new" aria-label="Новый чат в этом проекте" title="Новый чат">' + icon('plus') + '</button>'
       : `<button type="button" class="hall-chats-add" data-action="chat-new" data-world="${esc(world.workspaceId)}" data-path="${esc(world.path || '')}" aria-label="Новый чат в проекте «${esc(world.name)}»" title="Новый чат в этом проекте">${icon('plus')}</button>`
     const body = expanded
@@ -123,10 +123,10 @@ export function createMasterChatDirectory(dependencies) {
       : ''
     // Шестерёнка — вход в настройки именно этого проекта. У чужого мира он
     // сначала переключает мир (openProjectChat c tab), у своего — просто вкладка.
-    const settings = world.own
+    const settings = world.scopeKind==='point_chat' ? '' : world.own
       ? `<button type="button" class="hall-chats-gear" data-action="tab" data-tab="overview" aria-label="Настройки проекта «${esc(world.name)}»" title="Настройки проекта">${icon('settings')}</button>`
       : `<button type="button" class="hall-chats-gear" data-action="chat-settings" data-path="${esc(world.path || '')}" aria-label="Настройки проекта «${esc(world.name)}»" title="Настройки проекта">${icon('settings')}</button>`
-    const unreachable = !world.own && !world.path
+    const unreachable = world.scopeKind!=='point_chat' && !world.own && !world.path
     return `<section class="hall-chats-group${expanded ? ' is-open' : ''}${world.own ? ' is-own' : ''}">
       <h3 class="hall-chats-world">
         <button type="button" data-action="chat-group" data-world="${esc(world.workspaceId)}" aria-expanded="${expanded ? 'true' : 'false'}">
@@ -147,7 +147,7 @@ export function createMasterChatDirectory(dependencies) {
         name: currentName,
         path: String(ui.state.workspacePath || ''),
         own: true,
-        chats: currentWorldChats(),
+        chats: (!ui.masterData?.sessions?.workspaceId || ui.masterData.sessions.workspaceId===directory.currentWorkspaceId) ? currentWorldChats() : (directory.worlds.find(w=>w.current)?.chats || []),
       })
     }
     for (const world of directory.worlds) {
@@ -156,15 +156,17 @@ export function createMasterChatDirectory(dependencies) {
         workspaceId: String(world.workspaceId || ''),
         name: String(world.name || ''),
         // Путь чужого мира приходит не от ядра, а из реестра хоста по отпечатку.
-        path: projectPathByHash(String(world.hash || '')),
+        path: world.scopeKind==='point_chat' ? '' : projectPathByHash(String(world.hash || '')),
+        scopeKind:world.scopeKind,
         own: false,
         chats: (world.chats || []).map(chat => ({
-          id: chat.id, title: chat.title, updatedAt: chat.updatedAt,
+          workspaceId:chat.workspaceId,id: chat.id, title: chat.title, updatedAt: chat.updatedAt,
           pinned: Boolean(chat.pinned), archived: false, temporary: false,
-          running: Boolean(chat.running), current: false,
+          running: Boolean(chat.running), current: chat.id===ui.masterData?.sessions?.active,
         })),
       })
     }
+    if(!out.some(w=>w.scopeKind==='point_chat'))out.push({workspaceId:'point-chats',name:'Без проекта',scopeKind:'point_chat',own:false,chats:[]})
     return out
   }
 
@@ -175,13 +177,13 @@ export function createMasterChatDirectory(dependencies) {
     // «Временный чат» — рядом с «Новым чатом» и поиском, а не под проектами:
     // это способ начать разговор, и под списком миров его приходилось искать
     // (замечание владельца по живой IDE, 29 сентября 2026).
-    const temporary = `<button type="button" class="hall-chats-temporary" data-action="master-session-temporary"${ui.state.workspace ? '' : ' disabled'}>${icon('chat-temp')}<span>Временный чат</span></button>`
+    const temporary = `<button type="button" class="hall-chats-temporary" data-action="master-session-temporary">${icon('chat-temp')}<span>Временный чат</span></button>`
     const empty = !list.length
       ? '<div class="hall-chats-empty"><strong>Миров пока нет</strong><p>Откройте папку — она станет миром для мастера и гильдии.</p><button type="button" class="hall-chats-new" data-action="gallery-open-folder">Открыть папку</button></div>'
       : ''
     return `<aside class="hall-chats" aria-label="Чаты по проектам">
       <header class="hall-chats-head">
-        <button type="button" class="hall-chats-new" data-action="master-session-new"${ui.state.workspace ? '' : ' disabled'}>Новый чат</button>
+        <button type="button" class="hall-chats-new" data-action="master-session-new">Новый чат</button>
         <button type="button" class="hall-chats-world-new" data-action="gallery-toggle" aria-label="Все проекты" title="Все проекты">${icon('folder')}</button>
       </header>
       <input type="search" id="chat-directory-search" data-master-sidebar-search placeholder="Поиск по всем чатам" aria-label="Поиск по чатам всех проектов" value="${esc(query)}">
@@ -197,9 +199,9 @@ export function createMasterChatDirectory(dependencies) {
   function masterWithoutWorldHtml() {
     return `<main class="hall-chat-blank">
       <div class="hall-chat-blank-copy">
-        <h2>Выберите папку проекта</h2>
-        <p>Она станет миром: мастер получит контекст, гильдия — место для работы, а разговоры начнут храниться рядом с кодом.</p>
-        <button type="button" class="hall-chats-new" data-action="gallery-open-folder">Открыть папку</button>
+        <h2>Разговор без проекта</h2>
+        <p>Файлы и результаты сохраняются в POINT/Chats.</p>
+        <button type="button" class="hall-chats-new" data-action="chat-new" data-world="point-chats">Новый чат</button>
       </div>
       <form class="hall-compose is-sealed" aria-hidden="true">
         <textarea rows="3" disabled placeholder="Что хотите сделать в проекте?"></textarea>
@@ -220,7 +222,7 @@ export function createMasterChatDirectory(dependencies) {
     const globalSettings = wide && ['general', 'model-connections', 'integrations'].includes(ui.state.selectedTab)
     if (!ui.state.workspace && !onChat && !globalSettings) return dependencies.projectRequired()
     // Первый запуск: та же раскладка, что и всегда.
-    if (!ui.state.workspace && onChat) return dependencies.shell(masterWithoutWorldHtml())
+    if (!ui.state.workspace && onChat && !ui.masterData && ui.state.service?.state!=='running') return dependencies.shell(masterWithoutWorldHtml())
     const switching = dependencies.projectSwitchInfo()
     if (!switching) return undefined
     // Переключение мира не убирает список чатов: он не про тот мир, который
@@ -239,9 +241,10 @@ export function createMasterChatDirectory(dependencies) {
     if (action === 'chat-open') {
       const world = target?.dataset?.world || ''
       const chat = target?.dataset?.chat || ''
+      if(world.startsWith('point-chat-')) {vscode.postMessage({type:'openProjectChat',workspaceId:world,conversationId:chat});return true}
       const own = world === (directory.currentWorkspaceId || 'current') || world === 'current'
       if (own) {
-        vscode.postMessage({ type: 'masterSession', action: 'select', id: chat })
+        vscode.postMessage({ type: 'masterSession', action: 'select', id: chat,workspaceId:world })
         return true
       }
       const path = target?.dataset?.path || ''
@@ -257,6 +260,7 @@ export function createMasterChatDirectory(dependencies) {
       return true
     }
     if (action === 'chat-new') {
+      if(target?.dataset?.world==='point-chats'){vscode.postMessage({type:'masterSession',action:'new',scopeKind:'point_chat'});return true}
       const path = target?.dataset?.path || ''
       if (!path) return true
       vscode.postMessage({ type: 'openProjectChat', path, newChat: true })

@@ -15,6 +15,7 @@ import (
 
 	"local-agent-workbench/internal/agent"
 	"local-agent-workbench/internal/domain"
+	"local-agent-workbench/internal/filepolicy"
 	"local-agent-workbench/internal/flowruntime"
 	"local-agent-workbench/internal/sandbox"
 	"local-agent-workbench/internal/security"
@@ -50,13 +51,17 @@ func verifyServiceMode() string {
 	return verifyServiceShadow
 }
 
-const verificationBatchKeyVersion = "point-verification-batch-v1"
+const verificationBatchKeyVersion = "point-verification-batch-v4"
 
 // verificationBatchKey связывает всё, от чего зависит исход: дерево, образ,
 // исполненные команды с ожидаемым кодом и сетевую политику. Порядок команд
 // входит в ключ — критерии идут в одной песочнице подряд, и поздний может
 // опираться на след раннего (`npm ci`, затем тест).
-func verificationBatchKey(treeDigest, imageDigest, networkPolicy string, hosts []string, commands []executedCriterion) string {
+func verificationBatchKey(treeDigest, imageDigest, networkPolicy string, hosts []string, commands []executedCriterion, fileRules ...string) string {
+	rules := filepolicy.Legacy
+	if len(fileRules) > 0 && fileRules[0] != "" {
+		rules = fileRules[0]
+	}
 	sortedHosts := append([]string(nil), hosts...)
 	sort.Strings(sortedHosts)
 	hash := sha256.New()
@@ -66,7 +71,7 @@ func verificationBatchKey(treeDigest, imageDigest, networkPolicy string, hosts [
 			hash.Write([]byte{0})
 		}
 	}
-	write(verificationBatchKeyVersion, treeDigest, imageDigest, strings.ToUpper(strings.TrimSpace(networkPolicy)), strings.Join(sortedHosts, ","))
+	write(verificationBatchKeyVersion, rules, treeDigest, imageDigest, strings.ToUpper(strings.TrimSpace(networkPolicy)), strings.Join(sortedHosts, ","))
 	for _, command := range commands {
 		write(command.CriterionID, verification.CheckIdentity(command.Tool, command.Arguments), fmt.Sprint(command.ExpectedExitCode))
 	}
@@ -81,6 +86,14 @@ type preAcceptPlan struct {
 	workOrder  *domain.WorkOrder
 	policy     string
 	hosts      []string
+}
+
+func (a *App) WillVerifyBeforeCompletion(ctx context.Context, request agent.StageVerifyRequest) bool {
+	if verifyServiceMode() == verifyServiceOff || request.FlowRunID == "" || request.FlowNodeID == "" {
+		return false
+	}
+	_, ok := a.preAcceptPlanFor(ctx, request.FlowRunID, request.FlowNodeID)
+	return ok
 }
 
 // lastWriterBeforeAccept находит узел приёмки, если nodeID — последний пишущий
@@ -163,6 +176,7 @@ func (a *App) preAcceptPlanFor(ctx context.Context, flowRunID, nodeID string) (p
 		return preAcceptPlan{}, false
 	}
 	if approvalErr == nil {
+		approval.WorkOrder.Dependencies = effectiveDependencyPlan(quest, approval.WorkOrder.Dependencies)
 		plan.workOrder = &approval.WorkOrder
 	}
 	agentID := acceptNode.AgentID
@@ -205,21 +219,32 @@ func (a *App) VerifyBeforeCompletion(ctx context.Context, request agent.StageVer
 	}
 	skipped := func(stage string, err error) agent.StageVerifyOutcome {
 		slog.Warn("pre-accept verification skipped", "stage", stage, "flow_run_id", request.FlowRunID, "node_id", request.FlowNodeID, "error", security.Redact(err.Error()))
-		return agent.StageVerifyOutcome{}
+		return agent.StageVerifyOutcome{Ran: true, PreparationFailed: true, Feedback: "Verification environment: " + security.Redact(err.Error())}
+	}
+	integrity, integrityErr := a.sandboxIntegrity(ctx, record)
+	if integrityErr != nil {
+		return agent.StageVerifyOutcome{Ran: true, Passed: false, Feedback: "Sandbox integrity: " + integrityErr.Error()}
 	}
 	clean, err := os.MkdirTemp(filepath.Dir(record.Path), "verify-")
 	if err != nil {
 		return skipped("copy", err)
 	}
 	defer os.RemoveAll(clean)
-	if err = sandbox.CopyCarried(record.Path, clean); err != nil {
+	if record.FileRulesVersion == filepolicy.Current {
+		err = sandbox.CopyPortable(ctx, record.Path, clean, record.FileRulesVersion)
+	} else {
+		err = sandbox.CopyCarried(record.Path, clean)
+	}
+	if err != nil {
 		return skipped("copy", err)
 	}
-	tree, err := sandbox.TreeDigest(clean)
+	tree, err := sandbox.TreeDigestWithRules(clean, record.FileRulesVersion)
 	if err != nil {
 		return skipped("digest", err)
 	}
 	input := criteriaBatchInput{
+		Phase:   "pre_accept",
+		Context: ctx, FlowRunID: request.FlowRunID, FlowNodeID: request.FlowNodeID,
 		QuestID: plan.flowRun.QuestID, RunID: request.RunID, Criteria: plan.criteria, Sandbox: record, Root: clean,
 		NetworkPolicy: plan.policy, NetworkHosts: plan.hosts, WorkOrder: plan.workOrder,
 	}
@@ -230,9 +255,20 @@ func (a *App) VerifyBeforeCompletion(ctx context.Context, request agent.StageVer
 	image := sandbox.ExecutionImageForRecord(record)
 	// Ключ считается по командам, какими их увидит приёмка в своей песочнице,
 	// а не по временной копии: подстановка PHP зависит только от содержимого.
-	key := verificationBatchKey(tree, image, plan.policy, plan.hosts, planned)
-	if stored, found, lookupErr := a.store.PassedVerificationResultV2(ctx, plan.flowRun.QuestID, key); lookupErr == nil && found {
-		return agent.StageVerifyOutcome{Ran: true, Passed: true, Reused: true, ResultID: stored.ID, TreeDigest: tree, Summaries: []string{"проверки уже прошли на этой ревизии"}}
+	key := verificationBatchKey(tree, image, plan.policy, plan.hosts, planned, record.FileRulesVersion)
+	if plan.workOrder != nil && plan.workOrder.Dependencies != nil {
+		fingerprint, err := dependencyFingerprint(clean, plan.workOrder.Dependencies)
+		if err != nil {
+			return skipped("dependency_fingerprint", err)
+		}
+		key += ":" + fingerprint
+	}
+	key += ":" + verificationInputsDigest(input)
+	if stored, found, lookupErr := a.store.PassedVerificationResultV2(ctx, plan.flowRun.QuestID, key); lookupErr == nil && found && criteriaReuseEligible(plan.criteria) && !integrity.Incomplete {
+		if batch, valid := reusedCriteriaBatch(stored, tree, input.Criteria); valid && reusedProofMatchesCommands(batch, planned) {
+			return agent.StageVerifyOutcome{Ran: true, Passed: true, Reused: true, ResultID: stored.ID, TreeDigest: tree,
+				NeedsReview: batch.NeedsReview, PendingCriterionIDs: agent.PendingCriterionIDs(batch.Criteria), Criteria: batch.Criteria, Summaries: batch.Summaries}
+		}
 	}
 	batch, err := a.runCriteriaBatch(input)
 	if err != nil {
@@ -244,7 +280,19 @@ func (a *App) VerifyBeforeCompletion(ctx context.Context, request agent.StageVer
 		passed = false
 		summaries = append(summaries, lockfileSyncCriterionID+": "+drift.summary())
 	}
-	evidence, _ := json.Marshal(map[string]any{"criteria": batch.Criteria, "summaries": summaries, "commands": batch.Commands})
+	if passed {
+		checkedTree, digestErr := sandbox.TreeDigestWithRules(clean, record.FileRulesVersion)
+		if digestErr != nil || checkedTree != tree {
+			passed = false
+			summaries = append(summaries, "integrity: clean verification changed portable sources")
+		} else if err = a.recordCleanVerification(ctx, record, tree); err != nil {
+			passed = false
+			summaries = append(summaries, "integrity: "+err.Error())
+		}
+	}
+	proofBatch := batch
+	proofBatch.Summaries = summaries
+	evidence := sealedVerificationEvidence(proofBatch)
 	result := domain.VerificationResult{
 		ID: domain.NewID("verification"), WorkspaceID: plan.flowRun.WorkspaceID, QuestID: plan.flowRun.QuestID,
 		FlowRunID: plan.flowRun.ID, ExecutionID: exec.ID, RunID: request.RunID, BatchKey: key, TreeDigest: tree,
@@ -254,7 +302,8 @@ func (a *App) VerifyBeforeCompletion(ctx context.Context, request agent.StageVer
 		slog.Warn("pre-accept verification result not saved", "quest_id", result.QuestID, "error", security.Redact(err.Error()))
 		result.ID = ""
 	}
-	outcome := agent.StageVerifyOutcome{Ran: true, Passed: passed, ResultID: result.ID, TreeDigest: tree, Summaries: summaries}
+	outcome := agent.StageVerifyOutcome{Ran: true, Passed: passed, ResultID: result.ID, TreeDigest: tree, Summaries: summaries, PreparationFailed: batch.PreparationFailed,
+		NeedsReview: batch.NeedsReview, PendingCriterionIDs: agent.PendingCriterionIDs(batch.Criteria), Criteria: batch.Criteria}
 	if !passed {
 		outcome.Feedback = preAcceptFeedback(batch, summaries)
 	}
@@ -302,33 +351,62 @@ func tailRunes(text string, limit int) string {
 // shadow приёмка гоняет всё сама и записывает, совпал бы взятый исход.
 // Провал не переиспользуется никогда: он всегда перепроверяется.
 func (a *App) acceptCriteriaBatch(ctx context.Context, input criteriaBatchInput, flowRun domain.FlowRun, executionID string) (criteriaBatchResult, map[string]any, error) {
+	integrity, integrityErr := a.sandboxIntegrity(ctx, input.Sandbox)
+	if integrityErr != nil {
+		return criteriaBatchResult{}, nil, integrityErr
+	}
 	mode := verifyServiceMode()
 	if mode == verifyServiceOff {
 		batch, err := a.runCriteriaBatch(input)
+		if err == nil && batch.AllOK {
+			err = a.recordCleanVerification(ctx, input.Sandbox, integrity.Digest)
+		}
 		return batch, nil, err
 	}
 	note := map[string]any{"mode": mode}
-	tree, digestErr := sandbox.TreeDigest(input.Sandbox.Path)
+	tree, digestErr := sandbox.TreeDigestWithRules(input.Sandbox.Path, input.Sandbox.FileRulesVersion)
 	planned := a.plannedCriteriaCommands(input)
 	if digestErr != nil || len(planned) == 0 {
 		batch, err := a.runCriteriaBatch(input)
 		return batch, note, err
 	}
 	image := sandbox.ExecutionImageForRecord(input.Sandbox)
-	key := verificationBatchKey(tree, image, input.NetworkPolicy, input.NetworkHosts, planned)
+	key := verificationBatchKey(tree, image, input.NetworkPolicy, input.NetworkHosts, planned, input.Sandbox.FileRulesVersion)
+	key += ":" + verificationInputsDigest(input)
+	if input.WorkOrder != nil && input.WorkOrder.Dependencies != nil {
+		fingerprint, err := dependencyFingerprint(input.Sandbox.Path, input.WorkOrder.Dependencies)
+		if err != nil {
+			batch, runErr := a.runCriteriaBatch(input)
+			return batch, note, runErr
+		}
+		key += ":" + fingerprint
+	}
 	note["treeDigest"] = tree
 	stored, found, lookupErr := a.store.PassedVerificationResultV2(ctx, flowRun.QuestID, key)
-	found = found && lookupErr == nil
+	found = found && lookupErr == nil && criteriaReuseEligible(input.Criteria) && !integrity.Incomplete
+	if found {
+		cached, valid := reusedCriteriaBatch(stored, tree, input.Criteria)
+		found = valid && reusedProofMatchesCommands(cached, planned)
+	}
+	note["reuseEligible"] = criteriaReuseEligible(input.Criteria) && !integrity.Incomplete
 	note["found"] = found
-	if found && mode == verifyServiceOn {
-		if batch, ok := reusedCriteriaBatch(stored, tree); ok {
+	if found && mode == verifyServiceOn && a.canReuseSandboxVerification(ctx, input.Sandbox, integrity) {
+		if batch, ok := reusedCriteriaBatch(stored, tree, input.Criteria); ok {
 			note["reusedFrom"] = stored.ID
 			return batch, note, nil
 		}
 	}
+	if found && mode == verifyServiceShadow {
+		input.Phase = "accept_shadow"
+	}
 	batch, err := a.runCriteriaBatch(input)
 	if err != nil {
 		return batch, note, err
+	}
+	if batch.AllOK {
+		if err = a.recordCleanVerification(ctx, input.Sandbox, tree); err != nil {
+			return batch, note, err
+		}
 	}
 	for index := range batch.Criteria {
 		if batch.Criteria[index].Check != nil {
@@ -340,7 +418,7 @@ func (a *App) acceptCriteriaBatch(ctx context.Context, input criteriaBatchInput,
 		note["wouldReuse"] = stored.ID
 		note["agrees"] = batch.AllOK
 	}
-	evidence, _ := json.Marshal(map[string]any{"criteria": batch.Criteria, "summaries": batch.Summaries, "commands": batch.Commands})
+	evidence := sealedVerificationEvidence(batch)
 	if saveErr := a.store.SaveVerificationResultV2(ctx, domain.VerificationResult{
 		ID: domain.NewID("verification"), WorkspaceID: flowRun.WorkspaceID, QuestID: flowRun.QuestID, FlowRunID: flowRun.ID,
 		ExecutionID: executionID, RunID: input.RunID, BatchKey: key, TreeDigest: tree, ImageDigest: image,
@@ -351,24 +429,80 @@ func (a *App) acceptCriteriaBatch(ctx context.Context, input criteriaBatchInput,
 	return batch, note, nil
 }
 
+func reusedProofMatchesCommands(batch criteriaBatchResult, planned []executedCriterion) bool {
+	if len(batch.Commands) != len(planned) {
+		return false
+	}
+	for i, command := range planned {
+		stored := batch.Commands[i]
+		identity := verification.CheckIdentity(command.Tool, command.Arguments)
+		if stored.CriterionID != command.CriterionID || stored.ExpectedExitCode != command.ExpectedExitCode || verification.CheckIdentity(stored.Tool, stored.Arguments) != identity {
+			return false
+		}
+		found := false
+		for _, criterion := range batch.Criteria {
+			if criterion.CriterionID == command.CriterionID && criterion.Status == "satisfied" && criterion.Check != nil && criterion.Check.ExitCode != nil && *criterion.Check.ExitCode == command.ExpectedExitCode && verification.CheckIdentity(criterion.Check.Tool, criterion.Check.Arguments) == identity {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return len(planned) > 0
+}
+
 // reusedCriteriaBatch строит исход приёмки из сохранённого прогона. Каждая
 // проверка несёт, откуда она взята: доказательство не выдаёт её за свежую.
-func reusedCriteriaBatch(stored domain.VerificationResult, tree string) (criteriaBatchResult, bool) {
+func reusedCriteriaBatch(stored domain.VerificationResult, tree string, expected ...[]domain.AcceptanceCriterion) (criteriaBatchResult, bool) {
 	var payload struct {
-		Criteria  []agent.CriterionEvidence `json:"criteria"`
-		Summaries []string                  `json:"summaries"`
-		Commands  []executedCriterion       `json:"commands"`
+		ProofDigest string                    `json:"proofDigest"`
+		Criteria    []agent.CriterionEvidence `json:"criteria"`
+		Summaries   []string                  `json:"summaries"`
+		Commands    []executedCriterion       `json:"commands"`
 	}
-	if !stored.AllPassed || stored.TreeDigest != tree || json.Unmarshal(stored.Evidence, &payload) != nil || len(payload.Criteria) == 0 {
+	if !stored.AllPassed || (stored.Source != "pre_accept" && stored.Source != "accept") || stored.TreeDigest != tree || json.Unmarshal(stored.Evidence, &payload) != nil || len(payload.Criteria) == 0 {
 		return criteriaBatchResult{}, false
+	}
+	if payload.ProofDigest == "" || payload.ProofDigest != verificationEvidenceDigest(payload.Criteria, payload.Summaries, payload.Commands) {
+		return criteriaBatchResult{}, false
+	}
+	if len(expected) > 0 {
+		if len(payload.Criteria) != len(expected[0]) {
+			return criteriaBatchResult{}, false
+		}
+		for i, criterion := range expected[0] {
+			proof := payload.Criteria[i]
+			if proof.CriterionID != criterion.ID || proof.Kind != criterion.Kind {
+				return criteriaBatchResult{}, false
+			}
+			if criterion.Kind == "manual" {
+				continue
+			}
+			if proof.Check == nil || proof.Check.ExitCode == nil || *proof.Check.ExitCode != 0 || proof.Check.Tool != criterion.Tool {
+				return criteriaBatchResult{}, false
+			}
+		}
 	}
 	batch := criteriaBatchResult{AllOK: true, Commands: payload.Commands}
 	for _, criterion := range payload.Criteria {
+		if criterion.Kind == "manual" {
+			criterion.Status = "needs_review"
+			criterion.Check = nil
+		}
 		switch criterion.Status {
-		case "failed":
-			return criteriaBatchResult{}, false
 		case "needs_review", "unavailable":
+			if criterion.Kind != "manual" {
+				return criteriaBatchResult{}, false
+			}
 			batch.NeedsReview = true
+		case "satisfied":
+			if criterion.Check == nil || criterion.Check.ExitCode == nil || criterion.Check.TimedOut || criterion.Check.Status != "passed" {
+				return criteriaBatchResult{}, false
+			}
+		default:
+			return criteriaBatchResult{}, false
 		}
 		if criterion.Check != nil && criterion.Status == "satisfied" {
 			check := *criterion.Check

@@ -140,6 +140,9 @@ func (f *FS) IndexStatus() IndexStatus {
 }
 
 func (f *FS) InvalidateIndex() {
+	if f.MutationHook != nil {
+		f.MutationHook()
+	}
 	slot := f.indexSlot()
 	slot.mu.Lock()
 	defer slot.mu.Unlock()

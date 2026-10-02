@@ -62,10 +62,13 @@ type RetrievalMetrics struct {
 }
 
 type CompletionMetrics struct {
-	Checks                int  `json:"checks"`
-	RevisionRequests      int  `json:"revisionRequests"`
-	AcceptedAfterRevision bool `json:"acceptedAfterRevision"`
-	Rejected              bool `json:"rejected"`
+	Status                string   `json:"status,omitempty"`
+	NeedsReview           bool     `json:"needsReview,omitempty"`
+	PendingCriterionIDs   []string `json:"pendingCriterionIds,omitempty"`
+	Checks                int      `json:"checks"`
+	RevisionRequests      int      `json:"revisionRequests"`
+	AcceptedAfterRevision bool     `json:"acceptedAfterRevision"`
+	Rejected              bool     `json:"rejected"`
 }
 
 type ToolMetric struct {
@@ -231,7 +234,14 @@ func Analyze(run domain.Run, events []domain.Event, approvals []domain.Approval,
 			result.Context.ReducedToolMessages += payload.ReducedToolMessages
 		case domain.EventCompletionChecked:
 			result.Completion.Checks++
-			switch payload.Status {
+			verdict := readCompletionVerdict(event.Data)
+			result.Completion.Status = verdict.Status
+			result.Completion.NeedsReview = verdict.Status == "needs_review"
+			result.Completion.PendingCriterionIDs = verdict.PendingCriterionIDs
+			if verdict.Status == "needs_review" || verdict.Status == "implementation_ready" || verdict.Status == "rejected" {
+				result.Completion.AcceptedAfterRevision = false
+			}
+			switch verdict.Status {
 			case "revision_required":
 				result.Completion.RevisionRequests++
 			case "accepted_after_revision":
@@ -570,6 +580,8 @@ func signals(run domain.Run, diagnostics RunDiagnostics) []Signal {
 	}
 	if diagnostics.Completion.AcceptedAfterRevision {
 		result = append(result, Signal{Code: "completion_revised", Severity: "success", Value: int64(diagnostics.Completion.RevisionRequests)})
+	} else if diagnostics.Completion.NeedsReview {
+		result = append(result, Signal{Code: "completion_needs_review", Severity: "warning", Value: int64(len(diagnostics.Completion.PendingCriterionIDs))})
 	} else if diagnostics.Completion.Rejected {
 		result = append(result, Signal{Code: "completion_evidence_missing", Severity: "error"})
 	} else if diagnostics.Completion.RevisionRequests > 0 {

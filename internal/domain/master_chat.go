@@ -1,23 +1,25 @@
 package domain
 
 type MasterConversation struct {
-	Model       string `json:"model,omitempty"`
-	ID          string `json:"id"`
-	WorkspaceID string `json:"workspaceId"`
-	Title       string `json:"title"`
-	Archived    bool   `json:"archived,omitempty"`
-	Pinned      bool   `json:"pinned,omitempty"`
-	Temporary   bool   `json:"temporary,omitempty"`
-	Mode        string `json:"mode"`
-	WorkMode    string `json:"workMode"`
-	Summary     string `json:"summary,omitempty"`
-	UpdatedAt   string `json:"updatedAt"`
-	ParentID    string `json:"parentId,omitempty"`
-	BranchOffer string `json:"branchOffer,omitempty"`
-	BranchName string `json:"branchName,omitempty"`
-	BranchBase string `json:"branchBase,omitempty"`
-	BranchCommit string `json:"branchCommit,omitempty"`
-	BranchPath string `json:"branchPath,omitempty"`
+	ScopeKind     string `json:"scopeKind"`
+	WorkspacePath string `json:"workspacePath,omitempty"`
+	Model         string `json:"model,omitempty"`
+	ID            string `json:"id"`
+	WorkspaceID   string `json:"workspaceId"`
+	Title         string `json:"title"`
+	Archived      bool   `json:"archived,omitempty"`
+	Pinned        bool   `json:"pinned,omitempty"`
+	Temporary     bool   `json:"temporary,omitempty"`
+	Mode          string `json:"mode"`
+	WorkMode      string `json:"workMode"`
+	Summary       string `json:"summary,omitempty"`
+	UpdatedAt     string `json:"updatedAt"`
+	ParentID      string `json:"parentId,omitempty"`
+	BranchOffer   string `json:"branchOffer,omitempty"`
+	BranchName    string `json:"branchName,omitempty"`
+	BranchBase    string `json:"branchBase,omitempty"`
+	BranchCommit  string `json:"branchCommit,omitempty"`
+	BranchPath    string `json:"branchPath,omitempty"`
 }
 
 // Строка каталога чатов Чертога — разговор из любого мира.
@@ -32,13 +34,14 @@ type MasterConversation struct {
 // пути чужих проектов всё равно нельзя, поэтому их место занимает WorkspaceHash:
 // по нему хост сшивает строку со своим реестром миров и берёт путь оттуда.
 type MasterConversationRef struct {
+	ScopeKind     string `json:"scopeKind"`
 	WorkspaceID   string `json:"workspaceId"`
 	WorkspaceName string `json:"workspaceName"`
 	WorkspaceHash string `json:"workspaceHash,omitempty"`
 	WorkspacePath string `json:"workspacePath,omitempty"`
 	ID            string `json:"id"`
 	Title         string `json:"title"`
-	BranchName string `json:"branchName,omitempty"`
+	BranchName    string `json:"branchName,omitempty"`
 	UpdatedAt     string `json:"updatedAt"`
 	Pinned        bool   `json:"pinned,omitempty"`
 	Running       bool   `json:"running,omitempty"`
@@ -64,18 +67,21 @@ type MasterMemoryEntry struct {
 	UpdatedAt string `json:"updatedAt"`
 }
 type MasterTurn struct {
-	Skills []SkillAttribution `json:"skills,omitempty"`
-	ID             string `json:"id"`
-	ConversationID string `json:"conversationId"`
-	WorkspaceID    string `json:"workspaceId"`
-	WorkOrderID    string `json:"workOrderId,omitempty"`
-	Status         string `json:"status"`
-	Reply          string `json:"reply"`
-	Error          string `json:"error,omitempty"`
-	RequestHash    string `json:"-"`
-	UpdatedAt      string `json:"updatedAt"`
+	ScopeKind      string             `json:"scopeKind"`
+	Skills         []SkillAttribution `json:"skills,omitempty"`
+	ID             string             `json:"id"`
+	ConversationID string             `json:"conversationId"`
+	WorkspaceID    string             `json:"workspaceId"`
+	WorkOrderID    string             `json:"workOrderId,omitempty"`
+	Status         string             `json:"status"`
+	Reply          string             `json:"reply"`
+	Error          string             `json:"error,omitempty"`
+	RequestHash    string             `json:"-"`
+	UpdatedAt      string             `json:"updatedAt"`
 }
 type MasterTurnEvent struct {
+	ScopeKind      string `json:"scopeKind"`
+	WorkspaceID    string `json:"workspaceId"`
 	Sequence       int64  `json:"sequence"`
 	TurnID         string `json:"turnId"`
 	ConversationID string `json:"conversationId"`

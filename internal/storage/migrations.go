@@ -130,5 +130,7 @@ func hubMigrations() []migration {
 		{75, "master_memory_declined_v1", migrationMasterMemoryDeclinedV1},
 		{76, "work_order_criterion_amendments_v2", migrationWorkOrderCriterionAmendmentsV2},
 		{77, "verification_results_v2", migrationVerificationResultsV2},
+		{78, "sandbox_volume_workspace_v1", migrationSandboxVolumeWorkspaceV1},
+		{79, "master_host_v1", migrationMasterHostV1},
 	}
 }

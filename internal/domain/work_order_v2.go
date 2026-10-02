@@ -41,6 +41,7 @@ type WorkOrder struct {
 	Stack           StackPresetRef        `json:"stack"`
 	Sandbox         RuntimeSpec           `json:"sandbox,omitempty"`
 	Setup           SetupPlan             `json:"setupPlan,omitempty"`
+	Dependencies    *DependencyPlan       `json:"dependencyPlan,omitempty"`
 	Roster          AgentRosterPlan       `json:"roster"`
 	Routing         ModelRoutingPolicy    `json:"routing"`
 	Network         []NetworkGrant        `json:"network,omitempty"`
@@ -159,6 +160,7 @@ type SetupPlan struct {
 }
 
 type SetupCommand struct {
+	Cwd            string `json:"cwd,omitempty"`
 	Command        string `json:"command"`
 	TimeoutSeconds int    `json:"timeoutSeconds,omitempty"`
 }
@@ -337,6 +339,7 @@ func NormalizeWorkOrder(in WorkOrder) WorkOrder {
 	in.Completion.ID = strings.TrimSpace(in.Completion.ID)
 	in.Completion.Version = strings.TrimSpace(in.Completion.Version)
 	in.Completion.Checks = normalizeCompletionChecks(in.Completion.Checks)
+	in.Dependencies = NormalizeDependencyPlan(in.Dependencies)
 	in.Setup.ID = strings.TrimSpace(in.Setup.ID)
 	in.Setup.Version = strings.TrimSpace(in.Setup.Version)
 	in.Setup.ExpectedPaths = briefStrings(in.Setup.ExpectedPaths)
@@ -528,6 +531,14 @@ func ValidateWorkOrder(order WorkOrder) error {
 	if workOrderDefinitionComplete(order.State) && (strings.TrimSpace(order.Stack.ID) == "" || strings.TrimSpace(order.Stack.Version) == "" || strings.TrimSpace(order.Stack.Category) == "") {
 		problems = append(problems, "ready work order requires a versioned stack preset")
 	}
+	if err := ValidateDependencyPlan(order.Dependencies); err != nil {
+		problems = append(problems, err.Error())
+	}
+	for _, command := range order.Setup.Commands {
+		if !DependencyPathValid(command.Cwd, true) {
+			problems = append(problems, "setup command cwd must stay inside the workspace")
+		}
+	}
 	if workOrderDefinitionComplete(order.State) {
 		if order.Setup.ID != "" {
 			if order.Setup.Version == "" || len(order.Setup.ExpectedPaths) == 0 {
@@ -573,11 +584,14 @@ func ValidateWorkOrder(order WorkOrder) error {
 			}
 		}
 	}
-	if order.Workspace.Isolation != "snapshot" && order.Workspace.Isolation != "git_worktree" && order.Workspace.Isolation != "live_write" {
+	if order.Workspace.Isolation != "snapshot" && order.Workspace.Isolation != "git_worktree" && order.Workspace.Isolation != "live_write" && order.Workspace.Isolation != "host_live" {
 		problems = append(problems, "unsupported workspace isolation")
 	}
 	if order.Workspace.Isolation == "live_write" && !order.Workspace.ExpertOptIn {
 		problems = append(problems, "live_write requires explicit expert opt-in")
+	}
+	if order.Workspace.Isolation == "host_live" && (len(order.Roster.Permanent) != 1 || order.Roster.Permanent[0].ID != SystemFastAgentID || len(order.Roster.Temporary) != 0) {
+		problems = append(problems, "host_live requires the system Fast Agent")
 	}
 	if order.Routing.Mode != "fixed" && order.Routing.Mode != "auto" {
 		problems = append(problems, "routing mode must be fixed or auto")

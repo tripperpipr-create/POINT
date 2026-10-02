@@ -1,13 +1,27 @@
 # HTTP API
 
+Completion events now distinguish `implementationReady`, `machineChecksPassed`, `acceptancePassed` and `pendingCriterionIds`. `StageVerifyOutcome` adds optional `needsReview`, `pendingCriterionIds` and `criteria`; its `passed` remains machine success. Pending manual review produces `needs_review`; absent independent acceptance produces `implementation_ready`. Historical nested evidence overrides optimistic event status when read, without modifying stored bytes. Acceptance criteria optionally declare `deterministic:true` for local `verification/run_command` checks; old orders remain ineligible for reuse. Sandbox capabilities optionally expose runtime/security/Linux attribution. Dependency/check events add `phase`, `engine`, `engineVersion`, `securityProfileVersion`. These additions are backward compatible; [implementation details and remaining gates](implementation-embedded-runtime.md).
+
 The headless server binds to `127.0.0.1:8080` by default. Docker overrides it to `0.0.0.0:8080` on an internal network; nginx publishes the web application on host loopback.
 
 Current for Point `1.2.3` as of 2026-09-23. The inventory below is complete and
 is checked against every `HandleFunc` registration by `node scripts/check-docs.mjs`.
 
+Master requests can select `workspaceId`; the server binds the target for the
+entire turn. Responses expose `scopeKind` (`project` or `point_chat`) and the
+conversation working folder. Clients omitting scope retain the current-project
+behavior. Master work modes are `auto`, `discuss`, `plan` and `fast`; response
+format is independent. `/api/runs/fast-agent` uses the global `system-fast`
+profile and per-run `host_live` execution. See
+[implementation and verification](implementation-auto-master.md) for limits.
+
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/api/health` | Liveness and version |
+| `GET` | `/api/system/fast-agent` | Global system Fast Agent profile, assigned skills and budget |
+| `PUT` | `/api/system/fast-agent` | Save global system Fast Agent configuration; never grants OS privileges |
+| `GET` | `/api/master/files` | Safe file tree and working folder of the explicitly selected conversation workspace |
+| `POST` | `/api/master/conversations/{id}/continue-in-project` | Copy POINT conversation context into an explicitly opened target project; preserve source history and files |
 | `GET` | `/api/system/diagnostics` | Unified READY/DEGRADED/BLOCKED lifecycle checks for Core, SQLite/migrations, disk, sandbox/image/API, workspace permissions, Core port, verified backup, and provider/model configuration; never accepts provider credentials |
 | `GET` | `/api/system/backups` | List verified managed restore snapshots as bounded metadata without local paths |
 | `POST` | `/api/system/backups` | Create a verified online SQLite snapshot, apply daily/weekly/space retention, and return only its ID, timestamp, size, SHA-256, and integrity state (never a local path) |
@@ -172,6 +186,7 @@ is checked against every `HandleFunc` registration by `node scripts/check-docs.m
 | `POST` | `/api/flow-runs/{id}/nodes/{nodeId}/merge/resolve` | Resolve one persisted parallel-sandbox conflict with `use_parent` or bounded `manual` content/deletion |
 | `POST` | `/api/flow-runs/{id}/nodes/{nodeId}/revert` | Revert the published result associated with one Flow node |
 | `POST` | `/api/executions/sandbox` | Create an ExecutionInstance with isolated sandbox |
+| `POST` | `/api/sandboxes/{id}/audit-review` | Append an immutable audit decision for the current sandbox revision: `{review:{decision:"accepted"\|"rejected",digest:"sha256:…"}}`. Acceptance requires a new clean verification. Workspace ownership is enforced; a stale digest is rejected |
 | `POST` | `/api/executions/{id}/launch` | Launch a prepared execution with transient credentials |
 | `POST` | `/api/executions/{id}/cursor/start` | Mark/start the external interactive Cursor execution path |
 | `POST` | `/api/executions/{id}/cursor/complete` | Persist the externally completed Cursor execution result |
@@ -276,6 +291,13 @@ legacy snapshots without that attribution, task mismatches, non-terminal Runs,
 cross-workspace/cross-agent evidence and reuse of one Run for multiple cases.
 
 `ChangeSet.dependsOn` contains predecessor Change Set IDs in execution order. A client may present one chain action, but it must apply those IDs topologically before the selected set; the server independently enforces the same rule. Every sandbox has a server-only immutable `baselinePath`. Single-parent lineage uses `parentSandboxId` / `parentExecutionId`; merged lineage uses `parentSandboxIds` / `parentExecutionIds` and `baselineChangeSetIds`.
+
+Sandbox records additionally pin `storageMode` (`bind` or `volume`),
+`workspaceVolume`, `fileRulesVersion` and `sandboxdDigest`. `path` remains the
+host mirror. Legacy records migrate to bind/legacy rules. An incomplete volume
+audit adds a blocking `sandbox-audit` item to the decision queue and a permanent
+evidence limitation. Delivery requires a clean check and accepted review for
+the same sandbox/digest after the latest interruption.
 
 A multi-parent Join creates one deterministic three-way merge against its nearest common immutable ancestor. Disjoint paths, identical outcomes and non-overlapping text-line edits merge automatically. The successor remains uncreated while `FlowNodeState.output.waitReason` is `sandbox_merge_conflict`; `mergeConflicts` exposes only `{path,candidates:[{executionId,kind,hash}]}`. Resolve every path through the merge endpoint with `{path,strategy:"use_parent",executionId}` or `{path,strategy:"manual",content}` / `{...,delete:true}`. Manual content is limited to 1 MiB. The resulting `kind:"merge"` Change Set lists replaced branch sets in `supersedes`; each source becomes `status:"superseded"` with `supersededBy`, so it cannot be applied twice.
 
@@ -437,3 +459,12 @@ The GitLab connection is shared by all projects, the link is each folder's
 choice: `not_linked` is a calm state, not a failure. MR cards and owner
 actions address an explicit `project` and do not depend on the link. See
 [integrations-gitlab.md](integrations-gitlab.md).
+
+
+## Dependency preparation contract
+
+`WorkOrder.dependencyPlan` and its execution contract accept an optional versioned object. Omission preserves historical WorkOrder JSON and digests. Version `"1"` contains `projects`: each project declares workspace-relative `cwd`, `manager` (`npm`, `go`, `composer`), `commands` (`command`, `timeoutSeconds`, optional `cwd`), `manifestPaths`, and `expectedPaths`. Setup-command `cwd` defaults to the workspace root; dependency commands inherit their project's directory unless overridden. Timeout is 1–600 seconds. Absolute paths, traversal and duplicate manager/directory entries are rejected.
+
+The existing WorkOrder revision/approval flow signs new plans. An already failed stage can propose `dependencyPlan` through the existing stage-retry proposal/control API. Such a proposal always requires human approval, is included in the proposal digest, and overlays the immutable approved order only for that quest. Historical proposals retain their digest. Retrying Accept preserves completed writer stages and the original criteria; no separate preparation route exists.
+
+Events `dependencies.started`, `dependencies.finished`, `dependencies.failed`, `verification.started`, and `verification.finished` carry quest, execution, Flow and node correlation. A preparation failure produces unavailable check evidence with `preparationFailed: true`; criteria do not execute. Completion distinguishes `implementationReady` from `acceptancePassed`, and an unsuccessful independent check cannot emit `accepted_after_revision`.

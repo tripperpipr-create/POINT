@@ -1100,11 +1100,9 @@ const TYPE_SCALE = new Set(
   // называть, а не писать «обратился к инструменту».
   const actions = read('internal/orchestrator/master_actions.go')
   for (const match of actions.matchAll(/masterAction\w+\s*=\s*"(\w+)"/g)) coreTools.add(match[1])
-  // read_skill доступен компаньону с навыками, Мастеру его не дают
-  // (newCompanionReadTools(fs, nil)) — но подпись у него общая, и держать её
-  // в словаре честнее, чем ловить «обратился к инструменту» при первой же
-  // выдаче навыков Мастеру.
-  coreTools.delete('read_skill')
+  // Master skill discovery uses the same pinned read/search tools as the runner.
+  const skillRuntime=read('internal/orchestrator/master_skills.go')
+  for(const match of skillRuntime.matchAll(/name\s*==\s*"(read_skill|search_skills)"/g))coreTools.add(match[1])
   const dictionary = read('vscode-extension/ui/client/master-tool-names.js')
   const known = new Set()
   const body = dictionary.slice(dictionary.indexOf('MASTER_TOOL_NAMES = {'), dictionary.indexOf('MASTER_TOOL_NAMES_NOW'))

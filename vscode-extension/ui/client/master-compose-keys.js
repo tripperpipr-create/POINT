@@ -159,8 +159,8 @@ export function masterRecallText (client, id, history = []) {
 const COMMANDS = [
   { id: 'discuss', label: 'Обсудить', hint: '/обсудить', aliases: ['обсудить', 'обсуждение', 'discuss', 'чат'], click: '[data-action="master-session-workMode"][data-value="discuss"]' },
   { id: 'plan', label: 'Спланировать', hint: '/план', aliases: ['план', 'спланировать', 'plan'], click: '[data-action="master-session-workMode"][data-value="plan"]' },
-  { id: 'execute', label: 'Выполнить', hint: '/выполнить', aliases: ['выполнить', 'execute', 'run'], click: '[data-action="master-session-workMode"][data-value="execute"]' },
-  { id: 'agent', label: 'Агент', hint: '/агент', aliases: ['агент', 'agent'], click: '[data-action="master-session-workMode"][data-value="agent"]' },
+  { id: 'auto', label: 'Авто', hint: '/авто', aliases: ['авто', 'auto'], click: '[data-action="master-session-workMode"][data-value="auto"]' },
+  { id: 'fast', label: 'Быстро выполнить', hint: '/fast', aliases: ['быстро', 'fast'], click: '[data-action="master-session-workMode"][data-value="fast"]' },
   { id: 'file', label: 'Приложить открытый файл', hint: '/файл', aliases: ['файл', 'открытый', 'file'], click: '[data-action="master-context-attach"]' },
   { id: 'source', label: 'Выбрать источник контекста', hint: '/контекст', aliases: ['контекст', 'источник', 'context', 'source'], click: '[data-action="master-context-pick"]' },
   { id: 'model', label: 'Сменить модель', hint: '/модель', aliases: ['модель', 'model'], click: '[data-action="toggle-model-picker"][data-target="master"]' },

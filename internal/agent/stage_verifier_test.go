@@ -117,3 +117,17 @@ func TestPreAcceptCheckDoesNotHoldTheStageForever(t *testing.T) {
 		t.Fatalf("checks=%d model turns=%d", len(verifier.requests), len(model.requests))
 	}
 }
+
+func TestPreparationFailureDoesNotSpendModelCorrectionTurns(t *testing.T) {
+	v := &scriptedVerifier{outcomes: []StageVerifyOutcome{{Ran: true, PreparationFailed: true, Feedback: "dependencies missing"}}}
+	model, repo, run := runWithVerifier(t, v)
+	if run.Status != domain.RunCompleted || len(model.requests) != 1 || len(v.requests) != 1 {
+		t.Fatalf("run=%v model=%d checks=%d", run.Status, len(model.requests), len(v.requests))
+	}
+	events, _ := repo.ListByRun(context.Background(), run.ID)
+	for _, e := range events {
+		if e.Type == domain.EventCompletionChecked && strings.Contains(string(e.Data), `"status":"accepted_after_revision"`) {
+			t.Fatal("failed independent verification reported accepted")
+		}
+	}
+}

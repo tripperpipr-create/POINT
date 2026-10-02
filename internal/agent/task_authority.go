@@ -60,6 +60,9 @@ func RestrictTaskProfile(profile domain.AgentProfile, brief *domain.TaskBrief, c
 		policies[k] = v
 	}
 	profile.ToolPolicies = policies
+	if domain.HostLiveFastAgent(profile, brief) {
+		return profile, nil
+	}
 	allowed := map[string]bool{}
 	for _, host := range brief.Permissions.NetworkHosts {
 		host = strings.ToLower(strings.TrimSpace(host))
@@ -137,6 +140,9 @@ func TaskAutoApproves(b *domain.TaskBrief, profile domain.AgentProfile, tool str
 	// но каждый вызов идёт через окно подтверждения (Q05).
 	if strings.HasPrefix(tool, "customtool_") && strings.EqualFold(strings.TrimSpace(profile.ToolPolicies["run_command"]), "DENY") {
 		return false
+	}
+	if domain.HostLiveFastAgent(profile, b) {
+		return tool == "propose_patch" && b.Permissions.WriteFiles || tool == "run_command" && b.Permissions.ExecuteCommands
 	}
 	// Fast Agent (Cursor daily): auto-approve file writes on precise tasks.
 	// Commands stay manual unless project+Docker path below also applies.

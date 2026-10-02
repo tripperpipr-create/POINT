@@ -22,13 +22,6 @@ type Runtime struct {
 	Store Store
 }
 
-type StartRequest struct {
-	FlowID      string
-	WorkspaceID string
-	QuestID     string
-	Input       map[string]any
-}
-
 func (r Runtime) Start(ctx context.Context, req StartRequest) (domain.FlowRun, error) {
 	flow, err := r.Store.GetFlow(ctx, req.FlowID)
 	if err != nil {
@@ -47,6 +40,9 @@ func (r Runtime) Start(ctx context.Context, req StartRequest) (domain.FlowRun, e
 		run.Snapshot["input"] = req.Input
 	}
 	run.Snapshot["graph"] = flow
+	if req.SandboxWorkspace != "" {
+		run.Snapshot["sandboxWorkspace"] = map[string]any{"storageMode": req.SandboxWorkspace, "fileRulesVersion": req.FileRulesVersion}
+	}
 	for _, node := range flow.Nodes {
 		status := "blocked"
 		if node.Kind == domain.FlowNodeInput {

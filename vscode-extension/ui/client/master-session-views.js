@@ -35,8 +35,8 @@ export function masterSessionHtml(sessions,esc,openPanel='',developmentHtml=''){
    </div>
    <div class="hall-pop-sep"></div>
    ${masterAnswerStyleHtml(sessions,esc)}
-   <button type="button" class="hall-pop-row" role="switch" aria-checked="${Boolean(sessions.autoRunReadOnly)}" data-action="master-session-auto-read-only" data-value="${!sessions.autoRunReadOnly}" title="Инструменты: read_file, list_files, search_text, project_map, search_code. Задания вне этих пределов требуют подтверждения.">${icon('retry')}<span>Автозапуск на чтение</span><span class="hall-pop-switch" aria-hidden="true"></span></button>
-   <small class="hall-pop-note">В режиме «Выполнить» агент читает проект без записи, команд и сети: до 20 000 токенов и 2 минут.</small>
+   <button type="button" class="hall-pop-row" data-action="master-fast-settings">${icon("tool")}<span>Настройки быстрого агента</span></button>
+   ${current?.scopeKind==='point_chat'?`<button type="button" class="hall-pop-row" data-action="master-chat-files">${icon("folder")}<span>Файлы разговора</span></button><button type="button" class="hall-pop-row" data-action="master-chat-folder">${icon("folder")}<span>Открыть папку</span></button><button type="button" class="hall-pop-row" data-action="master-continue-project">${icon("chat")}<span>Продолжить в проекте</span></button>`:''}
    <button type="button" class="hall-pop-row" data-action="master-session-toggle" data-panel="memory">${icon('memory')}<span>Память проекта</span><small>${proposed?`<i class="hall-pop-dot"></i>${proposed} ${proposed===1?'новая':'новых'}`:''}${icon('chevron-right')}</small></button>
    ${developmentHtml?`<button type="button" class="hall-pop-row" data-action="master-session-toggle" data-panel="development">${icon('bolt')}<span>Навыки и развитие</span><small>${icon('chevron-right')}</small></button>`:''}
    ${current?.summary?`<details class="hall-pop-more"><summary class="hall-pop-row">${icon('text')}<span>Резюме беседы</span><small>${icon('chevron-right')}</small></summary><p>${esc(current.summary)}</p></details>`:''}
@@ -83,7 +83,7 @@ export function masterComposerHtml(sessions,model,esc,sending,modelChip){
  // Режим работы: отметка считается от ступени, а не от сырого поля. Значок
  // режима стоит и в свёрнутом меню, и в строке списка: по нему режим узнаётся
  // в ряду рядом со скрепкой «Контекста» и точкой модели, не читая слова.
- const works=[['discuss','Обсудить','chat'],['plan','Спланировать','list'],['execute','Выполнить','play'],['agent','Агент','tool']]
+ const works=[['auto','Авто','bolt'],['discuss','Обсудить','chat'],['plan','Спланировать','list'],['fast','Быстро выполнить','tool']]
  const work=works.find(v=>v[0]===sessions.workMode) || works[0]
  const [workId,workLabel,workIcon]=work
  // Модель этого разговора, если её переопределили: ядро берёт её вместо общей

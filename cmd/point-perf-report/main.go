@@ -27,9 +27,9 @@ import (
 )
 
 type event struct {
-	RunID, FlowRunID, Type string
-	Data                   map[string]any
-	At                     time.Time
+	RunID, FlowRunID, ExecutionID, Type string
+	Data                                map[string]any
+	At                                  time.Time
 }
 
 type command struct {
@@ -58,31 +58,49 @@ type stage struct {
 	CheckpointBytes int64 `json:"checkpointBytes,omitempty"`
 	// Сервис проверок: сколько раз Point проверил этап перед завершением,
 	// сколько из них провалилось, и взяла ли приёмка готовый исход.
-	PreAcceptChecks int    `json:"preAcceptChecks,omitempty"`
-	PreAcceptFailed int    `json:"preAcceptFailed,omitempty"`
-	AcceptReused    bool   `json:"acceptReused,omitempty"`
-	ShadowAgrees    string `json:"shadowAgrees,omitempty"`
+	PreparationMs        int64    `json:"preparationMs,omitempty"`
+	VerificationMs       int64    `json:"verificationMs,omitempty"`
+	StorageMode          string   `json:"storageMode,omitempty"`
+	CacheState           string   `json:"cacheState,omitempty"`
+	PreAcceptChecks      int      `json:"preAcceptChecks,omitempty"`
+	PreAcceptFailed      int      `json:"preAcceptFailed,omitempty"`
+	AcceptReused         bool     `json:"acceptReused,omitempty"`
+	ShadowAgrees         string   `json:"shadowAgrees,omitempty"`
+	WriterPreparationMs  int64    `json:"writerPreparationMs,omitempty"`
+	PreAcceptMs          int64    `json:"preAcceptMs,omitempty"`
+	AcceptMs             int64    `json:"acceptMs,omitempty"`
+	ShadowAcceptMs       int64    `json:"shadowAcceptMs,omitempty"`
+	UnclassifiedSystemMs int64    `json:"unclassifiedSystemMs,omitempty"`
+	Engine               string   `json:"engine,omitempty"`
+	EngineVersion        string   `json:"engineVersion,omitempty"`
+	WouldReuse           string   `json:"wouldReuse,omitempty"`
+	ReusedFrom           string   `json:"reusedFrom,omitempty"`
+	Unmeasured           []string `json:"unmeasured"`
 }
 
 type flowReport struct {
-	FlowRunID string    `json:"flowRunId"`
-	StartedAt time.Time `json:"startedAt"`
-	WallMs    int64     `json:"wallMs"`
-	Stages    []stage   `json:"stages"`
+	FlowRunID  string     `json:"flowRunId"`
+	StartedAt  time.Time  `json:"startedAt"`
+	FinishedAt *time.Time `json:"finishedAt,omitempty"`
+	WallMs     int64      `json:"wallMs"`
+	Stages     []stage    `json:"stages"`
 }
 
 type summary struct {
-	Flows        int       `json:"flows"`
-	WallMs       int64     `json:"wallMs"`
-	ModelMs      int64     `json:"modelMs"`
-	ToolMs       int64     `json:"toolMs"`
-	CommandMs    int64     `json:"commandMs"`
-	AuditMs      int64     `json:"auditMs"`
-	CheckpointMs int64     `json:"checkpointMs"`
-	ModelCalls   int       `json:"modelCalls"`
-	InputTokens  int64     `json:"inputTokens"`
-	CachedTokens int64     `json:"cachedTokens"`
-	TopCommands  []command `json:"topCommands"`
+	Flows          int   `json:"flows"`
+	WallMs         int64 `json:"wallMs"`
+	ModelMs        int64 `json:"modelMs"`
+	ToolMs         int64 `json:"toolMs"`
+	CommandMs      int64 `json:"commandMs"`
+	AuditMs        int64 `json:"auditMs"`
+	CheckpointMs   int64 `json:"checkpointMs"`
+	ModelCalls     int   `json:"modelCalls"`
+	InputTokens    int64 `json:"inputTokens"`
+	CachedTokens   int64 `json:"cachedTokens"`
+	PreparationMs  int64 `json:"preparationMs"`
+	VerificationMs int64 `json:"verificationMs"`
+	// CommandMs and AuditMs are nested within ToolMs, not additive.
+	TopCommands []command `json:"topCommands"`
 }
 
 type report struct {
@@ -124,7 +142,7 @@ func build(path string, limit int) (report, error) {
 		return report{}, err
 	}
 	defer db.Close()
-	rows, err := db.Query(`SELECT flow_run_id FROM events WHERE flow_run_id <> '' GROUP BY flow_run_id ORDER BY MAX(sequence) DESC LIMIT ?`, limit)
+	rows, err := db.Query(`SELECT id FROM flow_runs ORDER BY started_at DESC LIMIT ?`, limit)
 	if err != nil {
 		return report{}, err
 	}
@@ -146,12 +164,28 @@ func build(path string, limit int) (report, error) {
 			return report{}, loadErr
 		}
 		flow := analyze(ids[i], events, commands)
+		var started string
+		var finished sql.NullString
+		if err := db.QueryRow(`SELECT started_at, finished_at FROM flow_runs WHERE id=?`, ids[i]).Scan(&started, &finished); err != nil {
+			return report{}, err
+		}
+		if at, err := time.Parse(time.RFC3339Nano, started); err == nil {
+			flow.StartedAt = at
+		}
+		if finished.Valid && finished.String != "" {
+			if at, err := time.Parse(time.RFC3339Nano, finished.String); err == nil {
+				flow.FinishedAt = &at
+				flow.WallMs = at.Sub(flow.StartedAt).Milliseconds()
+			}
+		}
 		result.Flows = append(result.Flows, flow)
 		result.Summary.Flows++
 		result.Summary.WallMs += flow.WallMs
 		for _, s := range flow.Stages {
 			result.Summary.ModelMs += s.ModelMs
 			result.Summary.ToolMs += s.ToolMs
+			result.Summary.PreparationMs += s.PreparationMs
+			result.Summary.VerificationMs += s.VerificationMs
 			result.Summary.CommandMs += s.CommandMs
 			result.Summary.AuditMs += s.AuditMs
 			result.Summary.CheckpointMs += s.CheckpointMs
@@ -173,7 +207,8 @@ func build(path string, limit int) (report, error) {
 }
 
 func loadEvents(db *sql.DB, flowRunID string) ([]event, error) {
-	rows, err := db.Query(`SELECT run_id, flow_run_id, type, data, created_at FROM events WHERE flow_run_id = ? ORDER BY sequence`, flowRunID)
+	rows, err := db.Query(`SELECT run_id, flow_run_id, execution_id, type, data, created_at FROM events
+WHERE flow_run_id = ? OR execution_id IN (SELECT id FROM executions WHERE flow_run_id = ?) OR run_id IN (SELECT run_id FROM executions WHERE flow_run_id = ? AND run_id <> '') ORDER BY sequence`, flowRunID, flowRunID, flowRunID)
 	if err != nil {
 		return nil, err
 	}
@@ -182,7 +217,7 @@ func loadEvents(db *sql.DB, flowRunID string) ([]event, error) {
 	for rows.Next() {
 		var item event
 		var data, created string
-		if err = rows.Scan(&item.RunID, &item.FlowRunID, &item.Type, &data, &created); err != nil {
+		if err = rows.Scan(&item.RunID, &item.FlowRunID, &item.ExecutionID, &item.Type, &data, &created); err != nil {
 			return nil, err
 		}
 		_ = json.Unmarshal([]byte(data), &item.Data)
@@ -209,11 +244,14 @@ func analyze(flowRunID string, events []event, commands map[string]*command) flo
 	callCommand := map[string]string{}
 	for _, e := range events {
 		if e.RunID == "" {
-			continue
+			e.RunID = "execution:" + e.ExecutionID
+			if e.ExecutionID == "" {
+				e.RunID = "system:" + flowRunID
+			}
 		}
 		s, ok := stages[e.RunID]
 		if !ok {
-			s = &stage{RunID: e.RunID}
+			s = &stage{RunID: e.RunID, Unmeasured: []string{"runtimePreparation", "synchronization", "delivery", "humanWait", "wholeEnvironmentResources"}}
 			stages[e.RunID] = s
 			order = append(order, e.RunID)
 			first[e.RunID] = e.At
@@ -226,6 +264,38 @@ func analyze(flowRunID string, events []event, commands map[string]*command) flo
 			delete(requested, e.RunID)
 		}
 		switch e.Type {
+		case "dependencies.finished", "verification.finished":
+			duration := int64(number(e.Data["durationMs"]))
+			switch phase, _ := e.Data["phase"].(string); phase {
+			case "writer":
+				s.WriterPreparationMs += duration
+			case "pre_accept":
+				s.PreAcceptMs += duration
+			case "accept":
+				s.AcceptMs += duration
+			case "accept_shadow":
+				s.ShadowAcceptMs += duration
+			default:
+				s.UnclassifiedSystemMs += duration
+			}
+			if engine, ok := e.Data["engine"].(string); ok {
+				s.Engine = engine
+			}
+			if version, ok := e.Data["engineVersion"].(string); ok {
+				s.EngineVersion = version
+			}
+			if e.Type == "dependencies.finished" {
+				s.PreparationMs += duration
+			} else {
+				s.VerificationMs += duration
+			}
+			if mode, ok := e.Data["storageMode"].(string); ok {
+				s.StorageMode = mode
+			}
+			s.CacheState = "unmeasured"
+			if state, ok := e.Data["cacheState"].(string); ok {
+				s.CacheState = state
+			}
 		case "run.started":
 			if role, _ := e.Data["stageRole"].(string); role != "" {
 				s.Role = role
@@ -250,7 +320,9 @@ func analyze(flowRunID string, events []event, commands map[string]*command) flo
 			switch kind, _ := e.Data["checkKind"].(string); kind {
 			case "pre_accept":
 				s.PreAcceptChecks++
-				if status, _ := e.Data["status"].(string); status != "accepted" {
+				passed, measured := e.Data["machineChecksPassed"].(bool)
+				status, _ := e.Data["status"].(string)
+				if measured && !passed || !measured && status != "accepted" && status != "needs_review" {
 					s.PreAcceptFailed++
 				}
 			case "accept":
@@ -258,6 +330,8 @@ func analyze(flowRunID string, events []event, commands map[string]*command) flo
 					s.Role = "accept"
 				}
 				if note, ok := e.Data["verificationService"].(map[string]any); ok {
+					s.WouldReuse, _ = note["wouldReuse"].(string)
+					s.ReusedFrom, _ = note["reusedFrom"].(string)
 					if id, _ := note["reusedFrom"].(string); id != "" {
 						s.AcceptReused = true
 					}
@@ -365,6 +439,9 @@ func printReport(out io.Writer, r report) {
 			}
 			fmt.Fprintf(out, "  %-12s %7s  модель %7s (%d выз.)  команды %7s (%d)  аудит %6s  кэш %s\n",
 				role, seconds(s.WallMs), seconds(s.ModelMs), s.ModelCalls, seconds(s.CommandMs), s.Commands, seconds(s.AuditMs), share(s.CachedTokens, s.InputTokens))
+			if s.PreparationMs > 0 || s.VerificationMs > 0 {
+				fmt.Fprintf(out, "               preparation %s, system checks %s, storage %s, download cache %s\n", seconds(s.PreparationMs), seconds(s.VerificationMs), s.StorageMode, s.CacheState)
+			}
 			if s.PreAcceptChecks > 0 {
 				fmt.Fprintf(out, "               проверки Point перед приёмкой: %d, из них не прошло %d\n", s.PreAcceptChecks, s.PreAcceptFailed)
 			}
@@ -379,6 +456,7 @@ func printReport(out io.Writer, r report) {
 	fmt.Fprintf(out, "\nИтого по %d Flow: %s. Модель %s (%s), команды %s (%s), аудит папки %s (%s), контрольные точки %s (%s). Вызовов модели %d, кэш промпта %s.\n",
 		sum.Flows, seconds(sum.WallMs), seconds(sum.ModelMs), share(sum.ModelMs, sum.WallMs), seconds(sum.CommandMs), share(sum.CommandMs, sum.WallMs),
 		seconds(sum.AuditMs), share(sum.AuditMs, sum.WallMs), seconds(sum.CheckpointMs), share(sum.CheckpointMs, sum.WallMs), sum.ModelCalls, share(sum.CachedTokens, sum.InputTokens))
+	fmt.Fprintf(out, "System preparation %s; system checks %s. Command and audit timings are nested within agent tools.\n", seconds(sum.PreparationMs), seconds(sum.VerificationMs))
 	if len(sum.TopCommands) > 0 {
 		fmt.Fprintln(out, "\nСамые дорогие команды:")
 		for _, c := range sum.TopCommands {

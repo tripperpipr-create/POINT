@@ -238,7 +238,7 @@ func (a *App) finishExternalCLIExecution(execution domain.ExecutionInstance, san
 			built, buildErr := applier.BuildFromSandbox(context.Background(), changesets.BuildRequest{
 				WorkspaceID: ws.ID, ExecutionID: execution.ID, QuestID: execution.QuestID,
 				Title: "Changes from " + execution.ID, WorkspacePath: ws.Path,
-				BaselinePath: baseline, SandboxPath: sandboxRecord.Path, DependsOn: dependencies,
+				BaselinePath: baseline, SandboxPath: sandboxRecord.Path, DependsOn: dependencies, FileRulesVersion: sandboxRecord.FileRulesVersion,
 			})
 			if buildErr == nil && execution.FlowRunID != "" {
 				if run, runErr := a.store.GetFlowRun(context.Background(), execution.FlowRunID); runErr == nil {

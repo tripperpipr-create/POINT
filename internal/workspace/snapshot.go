@@ -10,9 +10,11 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"time"
 	"unicode/utf8"
+
+	"local-agent-workbench/internal/filepolicy"
+	"local-agent-workbench/internal/sandboxsync"
 )
 
 const (
@@ -23,13 +25,6 @@ const (
 	maxSnapshotHashBytes     = 64 * 1024 * 1024
 	maxSnapshotSkippedPaths  = 200
 )
-
-var snapshotExcludedDirs = map[string]bool{
-	".git": true, "node_modules": true, "vendor": true, ".cache": true,
-	"dist": true, "build": true, "out": true, ".idea": true, ".point": true,
-	"target": true, ".venv": true, "venv": true, "__pycache__": true,
-	".next": true, ".turbo": true, "coverage": true,
-}
 
 type SnapshotEntry struct {
 	Fingerprint string
@@ -82,6 +77,13 @@ const snapshotRacyWindow = 2 * time.Second
 // каждой команды, и прежде каждый снимок читал до 32 МиБ заново —
 // по полторы секунды на команду в квесте 30.09.
 func (f *FS) CaptureTextSnapshotFrom(ctx context.Context, prev *TextSnapshot) (TextSnapshot, error) {
+	if f.FileRules == filepolicy.Current {
+		manifest, err := sandboxsync.Scan(ctx, f.root, f.FileRules)
+		if err != nil {
+			return TextSnapshot{}, err
+		}
+		return f.CaptureManifestSnapshot(ctx, manifest, prev)
+	}
 	snapshot := TextSnapshot{StartedAt: time.Now(), Files: make(map[string]SnapshotEntry), Complete: true, SkippedPaths: []string{}}
 	err := filepath.WalkDir(f.root, func(path string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
@@ -93,12 +95,15 @@ func (f *FS) CaptureTextSnapshotFrom(ctx context.Context, prev *TextSnapshot) (T
 			return err
 		}
 		if entry.IsDir() {
-			if path != f.root && snapshotExcludedDirs[strings.ToLower(entry.Name())] {
+			if path != f.root && filepolicy.SkipDirectory(f.FileRules, entry.Name(), true) {
 				return filepath.SkipDir
 			}
 			return nil
 		}
 		if entry.Type()&os.ModeSymlink != 0 {
+			return nil
+		}
+		if f.FileRules == filepolicy.Current && filepolicy.SkipFile(entry.Name()) {
 			return nil
 		}
 		if snapshot.ScannedFiles >= maxSnapshotFiles {

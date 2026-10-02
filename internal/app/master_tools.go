@@ -279,6 +279,7 @@ func proposeStageRetryDefinition() domain.ToolDefinition {
 			`"questId":{"type":"string","description":"Корневой квест, ждущий решения по этапу"},` +
 			`"instruction":{"type":"string","description":"Что учесть исполнителю этапа в новой попытке"},` +
 			`"criteria":{"type":"array","items":{"type":"object","properties":{"criterionId":{"type":"string"},"command":{"type":"string","description":"Новая полная команда проверки"},"reason":{"type":"string"}},"required":["criterionId","command","reason"],"additionalProperties":false}},` +
+			`"dependencyPlan":{"type":"object","properties":{"version":{"type":"string","enum":["1"]},"projects":{"type":"array","minItems":1,"maxItems":64,"items":{"type":"object","properties":{"cwd":{"type":"string"},"manager":{"type":"string","enum":["npm","go","composer"]},"commands":{"type":"array","minItems":1,"maxItems":8,"items":{"type":"object","properties":{"command":{"type":"string"},"cwd":{"type":"string"},"timeoutSeconds":{"type":"integer","minimum":1,"maximum":600}},"required":["command"],"additionalProperties":false}},"manifestPaths":{"type":"array","minItems":1,"items":{"type":"string"}},"expectedPaths":{"type":"array","items":{"type":"string"}}},"required":["manager","commands","manifestPaths"],"additionalProperties":false}}},"required":["version","projects"],"additionalProperties":false},` +
 			`"diagnosis":{"type":"string","description":"Причина провала своими словами, для человека"}},` +
 			`"required":["questId","diagnosis"],"additionalProperties":false}`),
 	}

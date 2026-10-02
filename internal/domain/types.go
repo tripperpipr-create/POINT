@@ -75,16 +75,20 @@ const (
 )
 
 type AgentProfile struct {
-	ID              string       `json:"id"`
-	Name            string       `json:"name"`
-	RoleDescription string       `json:"roleDescription"`
-	SystemPrompt    string       `json:"systemPrompt"`
-	Goals           []string     `json:"goals"`
-	Rules           []string     `json:"rules"`
-	Provider        ProviderKind `json:"provider"`
-	ProviderPreset  string       `json:"providerPreset"`
-	ConnectionID    string       `json:"connectionId,omitempty"`
-	BaseURL         string       `json:"baseUrl"`
+	// ManagedVerification is recomputed by the core for the current stage.
+	ManagedVerification bool           `json:"-"`
+	ExecutionMode       string         `json:"executionMode,omitempty"`
+	SkillCatalog        []SkillRuntime `json:"skillCatalog,omitempty"`
+	ID                  string         `json:"id"`
+	Name                string         `json:"name"`
+	RoleDescription     string         `json:"roleDescription"`
+	SystemPrompt        string         `json:"systemPrompt"`
+	Goals               []string       `json:"goals"`
+	Rules               []string       `json:"rules"`
+	Provider            ProviderKind   `json:"provider"`
+	ProviderPreset      string         `json:"providerPreset"`
+	ConnectionID        string         `json:"connectionId,omitempty"`
+	BaseURL             string         `json:"baseUrl"`
 	// APIVersion заполняется из подключения перед запуском и нужна только
 	// Azure. В профиле её не задают руками: адрес и версия принадлежат
 	// подключению, а не агенту.
@@ -113,6 +117,7 @@ type Workspace struct {
 }
 
 type Run struct {
+	ScopeKind             string                   `json:"scopeKind"`
 	ID                    string                   `json:"id"`
 	AgentID               string                   `json:"agentId"`
 	ProfileID             string                   `json:"profileId"`
@@ -138,34 +143,40 @@ type Run struct {
 type EventType string
 
 const (
-	EventRunStarted         EventType = "run.started"
-	EventModelRequested     EventType = "model.requested"
-	EventModelRetrying      EventType = "model.retrying"
-	EventModelStreamed      EventType = "model.streamed"
-	EventModelUsage         EventType = "model.usage"
-	EventModelResponded     EventType = "model.responded"
-	EventContextCompacted   EventType = "context.compacted"
-	EventContextAmended     EventType = "context.amended"
-	EventRunMessageInjected EventType = "run.message_injected"
-	EventCompletionChecked  EventType = "completion.checked"
-	EventToolRequested      EventType = "tool.requested"
-	EventApprovalRequested  EventType = "approval.requested"
-	EventApprovalResolved   EventType = "approval.resolved"
-	EventToolStarted        EventType = "tool.started"
-	EventToolFinished       EventType = "tool.finished"
-	EventPatchProposed      EventType = "patch.proposed"
-	EventPatchApplied       EventType = "patch.applied"
-	EventPatchRejected      EventType = "patch.rejected"
-	EventPatchReverted      EventType = "patch.reverted"
-	EventWorkspaceChanged   EventType = "workspace.changed"
-	EventAgentGuardrail     EventType = "agent.guardrail"
-	EventOrchestratorWatch  EventType = "orchestrator.supervision"
-	EventRunCancelled       EventType = "run.cancelled"
-	EventRunFailed          EventType = "run.failed"
-	EventRunCompleted       EventType = "run.completed"
+	EventDependenciesStarted  EventType = "dependencies.started"
+	EventDependenciesFinished EventType = "dependencies.finished"
+	EventDependenciesFailed   EventType = "dependencies.failed"
+	EventVerificationStarted  EventType = "verification.started"
+	EventVerificationFinished EventType = "verification.finished"
+	EventRunStarted           EventType = "run.started"
+	EventModelRequested       EventType = "model.requested"
+	EventModelRetrying        EventType = "model.retrying"
+	EventModelStreamed        EventType = "model.streamed"
+	EventModelUsage           EventType = "model.usage"
+	EventModelResponded       EventType = "model.responded"
+	EventContextCompacted     EventType = "context.compacted"
+	EventContextAmended       EventType = "context.amended"
+	EventRunMessageInjected   EventType = "run.message_injected"
+	EventCompletionChecked    EventType = "completion.checked"
+	EventToolRequested        EventType = "tool.requested"
+	EventApprovalRequested    EventType = "approval.requested"
+	EventApprovalResolved     EventType = "approval.resolved"
+	EventToolStarted          EventType = "tool.started"
+	EventToolFinished         EventType = "tool.finished"
+	EventPatchProposed        EventType = "patch.proposed"
+	EventPatchApplied         EventType = "patch.applied"
+	EventPatchRejected        EventType = "patch.rejected"
+	EventPatchReverted        EventType = "patch.reverted"
+	EventWorkspaceChanged     EventType = "workspace.changed"
+	EventAgentGuardrail       EventType = "agent.guardrail"
+	EventOrchestratorWatch    EventType = "orchestrator.supervision"
+	EventRunCancelled         EventType = "run.cancelled"
+	EventRunFailed            EventType = "run.failed"
+	EventRunCompleted         EventType = "run.completed"
 )
 
 type Event struct {
+	ScopeKind   string          `json:"scopeKind"`
 	ID          string          `json:"id"`
 	WorkspaceID string          `json:"workspaceId"`
 	RunID       string          `json:"runId"`

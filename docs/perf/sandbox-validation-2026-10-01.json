@@ -1,0 +1,188 @@
+{
+  "createdAt": "2026-10-01T09:33:16.999074+00:00",
+  "baseRevision": "91ad15d47bcbde1f33cb47e5c818736261aff275",
+  "workingTreeCodeDiffSha256": "26d79f806877aa459634680aa98e8d68d948f4d1a491904c9dd056d36602c5c6",
+  "defaultWorkspace": "bind",
+  "phase4e": {
+    "status": "deferred-by-user",
+    "liveQuestsRun": false,
+    "defaultSwitched": false,
+    "afterLivePerfReport": null
+  },
+  "resources": {
+    "memory": "2g",
+    "cpus": "2",
+    "pids": 256
+  },
+  "source": {
+    "focusedPackages": "pass",
+    "goVet": "pass",
+    "staticcheck": "pass",
+    "goModVerify": "pass",
+    "frontendBuild": "pass",
+    "extensionSequenceExceptReleaseContracts": "pass",
+    "hubSmokes": {
+      "passed": 85,
+      "total": 85
+    },
+    "fullGo": {
+      "status": "fail",
+      "passedTests": 1620,
+      "passedPackages": 45,
+      "failedTests": [
+        {
+          "test": "TestMasterChatAnswersQuestionsWithoutCreatingWork",
+          "package": "local-agent-workbench/internal/app"
+        },
+        {
+          "test": "TestMasterWorksWithAnEmptyRoster",
+          "package": "local-agent-workbench/internal/app"
+        },
+        {
+          "test": "TestQuestPlanningStopsWithTheHTTPContext",
+          "package": "local-agent-workbench/internal/app"
+        }
+      ],
+      "baselineReproducesCleanupAndCancellationCauses": true
+    },
+    "releaseContracts": {
+      "status": "fail",
+      "baselineRedCount": 5,
+      "currentRedCount": 5,
+      "newRedCount": 0
+    }
+  },
+  "docker": {
+    "integrationTests": [
+      {
+        "test": "TestVolumeIntegrationInheritanceAndRecovery",
+        "seconds": 17.17,
+        "status": "pass"
+      },
+      {
+        "test": "TestVolumeIntegrationAllowlistAndIsolation",
+        "seconds": 16.18,
+        "status": "pass"
+      },
+      {
+        "test": "TestVolumeIntegrationRunResetAndDelta",
+        "seconds": 9.49,
+        "status": "pass"
+      },
+      {
+        "test": "TestVolumeIntegrationInterruptedCommandIsNotReplayed",
+        "seconds": 8.13,
+        "status": "pass"
+      },
+      {
+        "test": "TestVolumeIntegrationDetachedProcessAndControlDescriptors",
+        "seconds": 5.53,
+        "status": "pass"
+      },
+      {
+        "test": "TestVolumeIntegrationJoinMatchesBindAndStartsClean",
+        "seconds": 18.57,
+        "status": "pass"
+      },
+      {
+        "test": "TestVolumeIntegrationCollectorPreservesLiveRecentAndForeignVolumes",
+        "seconds": 2.37,
+        "status": "pass"
+      },
+      {
+        "test": "TestDockerSandboxIntegration",
+        "seconds": 12.39,
+        "status": "pass"
+      },
+      {
+        "test": "TestVolumeModelIntegrationByteParity",
+        "seconds": 8.71,
+        "status": "pass"
+      }
+    ],
+    "significantResultParityRetest": "pass",
+    "actualDaemonRestart": {
+      "status": "pass",
+      "seconds": 219.84,
+      "unknownCommandReplayed": false,
+      "previouslyRunningUserContainersRestored": 14
+    }
+  },
+  "helpers": {
+    "amd64": {
+      "sha256": "7d4de7504a4dcbd66e3519f3ca5c4cab8f88f5f0b6d06826f5a3ef8e0a5f123e",
+      "bytes": 6324408
+    },
+    "arm64": {
+      "sha256": "097b992334aa757bcc27a9786f675b06cb9f7b08e516acaec103401db90502a6",
+      "bytes": 5898424
+    }
+  },
+  "rawLocalLogs": [
+    {
+      "path": "build/volume-go-final.jsonl",
+      "sha256": "84bd2410d785e549323f635a0aebf13a57720bcc3c5fd2280050cab43c5940fd",
+      "bytes": 2698386
+    },
+    {
+      "path": "build/volume-source-final.log",
+      "sha256": "80fc2017b083114a3c226fa4833b0a9d67793d5345520cb79aedb701abdcbe4f",
+      "bytes": 498
+    },
+    {
+      "path": "build/volume-extension-full.log",
+      "sha256": "809c6f4426dc1714fa76395f6adba49ac284fd1d57dc2aa7648455de16f4969f",
+      "bytes": 11378
+    },
+    {
+      "path": "build/volume-docker-acceptance.log",
+      "sha256": "c9c922817ffd5c2cb23cbf947f9776c685760d02505f4e5fe105e6ff309dbbc2",
+      "bytes": 12190
+    },
+    {
+      "path": "build/volume-parity-final.log",
+      "sha256": "d3593fdc8f4ac3691a5b62cbe011e200e789933071c2743aa212ffaa0bbd0f6e",
+      "bytes": 8287
+    },
+    {
+      "path": "build/volume-daemon.log",
+      "sha256": "657cef3555fbd971b265b6bd88de798f5abbf3d1396c5554e188bd3b1a03344d",
+      "bytes": 256
+    },
+    {
+      "path": "build/volume-pack-artifact.log",
+      "sha256": "9ab49392976d81a25b50e0b5cd508fe2d29a417c1af7c09184bc1f6cd9090460",
+      "bytes": 1602
+    },
+    {
+      "path": "build/volume-core-freshness-final.log",
+      "sha256": "fac07f830de18180e8f13e55446d21a951e11ba2884c523aaaffac1dfcacb12d",
+      "bytes": 96
+    },
+    {
+      "path": "build/volume-build-final.log",
+      "sha256": "edf2540d74ac0a7987dd5eac5bc581579f4d3df26d3faf5df8a3aa9aedfad1d4",
+      "bytes": 107
+    },
+    {
+      "path": "build/volume-three-current.log",
+      "sha256": "7f83ca23bdcd5a1146ea5614bbb67e18dd4b23ffa094363ed191867245b93eee",
+      "bytes": 36719
+    },
+    {
+      "path": "build/volume-baseline-91ad15d/volume-three-baseline.log",
+      "sha256": "a3ff1c6840102cfe1aaa94b4ad1bc648f1e48f2cb00dbbd8dda1756d49644e1d",
+      "bytes": 37244
+    },
+    {
+      "path": "build/volume-retry-current.log",
+      "sha256": "9e8ca48c2bf17041f8410a0f255b00a496b3974f44668cf3ae5468cdc444c7eb",
+      "bytes": 59088
+    },
+    {
+      "path": "build/volume-retry-baseline.log",
+      "sha256": "6b9bda0ca7e72b982e8c000df0d6ffa525acf884535c4760ed497cb23f0c28f2",
+      "bytes": 58220
+    }
+  ]
+}

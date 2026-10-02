@@ -5,7 +5,7 @@
 # затвора, перекладывает поиск отказа на пуш и на чужой раннер, где разбор
 # стоит на порядок дороже. Имена целей совпадают с именами job'ов, чтобы
 # по красному job'у было видно, что запускать у себя.
-.PHONY: test test-docs test-go test-race test-frontend test-extension lint \
+.PHONY: test test-docs test-go test-race test-frontend test-extension test-runtime-tooling lint \
         check-docs check-release performance build-ui build-desktop run-api \
         docker-up docker-down loop loop-docker
 
@@ -41,7 +41,12 @@ test-frontend:
 test-extension:
 	cd vscode-extension && npm run check
 
-test: test-docs test-go test-frontend test-extension
+# job `runtime-tooling`; Python >=3.11, no external Python packages.
+# Set POINT_METRICS_NATIVE=1 on Windows to include exited-child job accounting.
+test-runtime-tooling:
+	python scripts/test-point-runtime-tooling.py
+
+test: test-docs test-go test-frontend test-extension test-runtime-tooling
 
 # Полигон повседневной доводки: одна правка в настоящем проекте, от реплики до
 # зелёных тестов. В `test` не входит и входить не должен — он требует живой

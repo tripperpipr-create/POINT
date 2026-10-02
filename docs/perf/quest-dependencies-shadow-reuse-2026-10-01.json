@@ -1,0 +1,276 @@
+{
+  "imageDigest": "sha256:cdbf49d1d93902496539b3054c3f02b565f8690972229c0fd221f9e17cb77add",
+  "preAccept": {
+    "ran": true,
+    "passed": true,
+    "reused": true,
+    "resultId": "verification_57bed5868cc0c23308ece8c6",
+    "treeDigest": "sha256:6d803bad41e3f392539776acd4b3e01bf45c50669a9b11e8c16268e1250a2c5b",
+    "summaries": [
+      "проверки уже прошли на этой ревизии"
+    ]
+  },
+  "preAcceptMs": 5114,
+  "productionDatabaseChanged": false,
+  "questId": "quest_6b59b5c8a7b402ee88cfc9ba",
+  "reuse": {
+    "PreparationFailed": false,
+    "PreparationClass": "",
+    "Criteria": [
+      {
+        "criterionId": "typecheck",
+        "text": "Проверка типов проходит: tsc --noEmit без ошибок",
+        "kind": "verification",
+        "status": "satisfied",
+        "expectedExitCode": 0,
+        "check": {
+          "identity": "",
+          "tool": "run_command",
+          "arguments": {
+            "command": "cd lk-backend/source \u0026\u0026 npm run typecheck",
+            "reason": "deterministic accept: typecheck",
+            "timeoutSeconds": 600
+          },
+          "workspaceRevision": 0,
+          "exitCode": 0,
+          "timedOut": false,
+          "detail": "Переиспользовано из проверки verification_c13079aa7b6ca14367e8e8bb от 2026-10-01T16:40:33Z на ревизии 6d803bad41e3: дерево, образ и команды те же. {\"durationMs\":5653,\"exitCode\":0,\"sandboxImage\":\"sha256:cdbf49d1d93902496539b3054c3f02b565f8690972229c0fd221f9e17cb77add\",\"stderr\":\"npm notice run lk-backend@0.0.1 typecheck\\nnpm notice run tsc --noEmit\\n\",\"stdout\":\"\",\"timedOut\":false}",
+          "status": "passed",
+          "treeDigest": "sha256:6d803bad41e3f392539776acd4b3e01bf45c50669a9b11e8c16268e1250a2c5b",
+          "reusedFrom": {
+            "resultId": "verification_c13079aa7b6ca14367e8e8bb",
+            "ranAt": "2026-10-01T16:40:33.5523255Z",
+            "treeDigest": "sha256:6d803bad41e3f392539776acd4b3e01bf45c50669a9b11e8c16268e1250a2c5b",
+            "imageDigest": "sha256:cdbf49d1d93902496539b3054c3f02b565f8690972229c0fd221f9e17cb77add",
+            "runId": "probe_555afd2193ba8328ffd680b2"
+          }
+        }
+      },
+      {
+        "criterionId": "flags-tests",
+        "text": "Unit- и модульные e2e-тесты feature-flags проходят, включая новые тесты get-flag: точное совпадение имени, NotFound при отсутствии, BadRequest без project/name, @DisableAuth",
+        "kind": "verification",
+        "status": "satisfied",
+        "expectedExitCode": 0,
+        "check": {
+          "identity": "",
+          "tool": "run_command",
+          "arguments": {
+            "command": "cd lk-backend/source \u0026\u0026 npx jest src/modules/feature-flags/feature-flags.controller.spec.ts src/modules/feature-flags/feature-flags.service.spec.ts src/modules/feature-flags/feature-flags.e2e.spec.ts --runInBand",
+            "reason": "deterministic accept: flags-tests",
+            "timeoutSeconds": 600
+          },
+          "workspaceRevision": 0,
+          "exitCode": 0,
+          "timedOut": false,
+          "detail": "Переиспользовано из проверки verification_c13079aa7b6ca14367e8e8bb от 2026-10-01T16:40:33Z на ревизии 6d803bad41e3: дерево, образ и команды те же. {\"durationMs\":8756,\"exitCode\":0,\"sandboxImage\":\"sha256:cdbf49d1d93902496539b3054c3f02b565f8690972229c0fd221f9e17cb77add\",\"stderr\":\"npm notice run lk-backend@0.0.1 npx\\nnpm notice run 'jest' src/modules/feature-flags/feature-flags.controller.spec.ts src/modules/feature-flags/feature-flags.service.spec.ts src/modules/feature-flags/feature-flags.e2e.spec.ts --runInBand\\nPASS src/modules/feature-flags/feature-flags.service.spec.ts\\nPASS src/modules/feature-flags/feature-flags.e2e.spec.ts\\nPASS src/modules/feature-flags/feature-flags.controller.spec.ts\\n\\nTest Suites: 3 passed, 3 total\\nTests:       26 passed, 26 total\\nSnapshots:   0 total\\nTime:        6.76 s\\nRan all test suites matching /src\\\\/modules\\\\/feature-flags\\\\/feature-flags.controller.spec.ts|src\\\\/modules\\\\/feature-flags\\\\/feature-flags.service.spec.ts|src\\\\/modules\\\\/feature-flags\\\\/feature-flags.e2e.spec.ts/i.\\n\",\"stdout\":\"\",\"timedOut\":false}",
+          "status": "passed",
+          "treeDigest": "sha256:6d803bad41e3f392539776acd4b3e01bf45c50669a9b11e8c16268e1250a2c5b",
+          "reusedFrom": {
+            "resultId": "verification_c13079aa7b6ca14367e8e8bb",
+            "ranAt": "2026-10-01T16:40:33.5523255Z",
+            "treeDigest": "sha256:6d803bad41e3f392539776acd4b3e01bf45c50669a9b11e8c16268e1250a2c5b",
+            "imageDigest": "sha256:cdbf49d1d93902496539b3054c3f02b565f8690972229c0fd221f9e17cb77add",
+            "runId": "probe_555afd2193ba8328ffd680b2"
+          }
+        }
+      },
+      {
+        "criterionId": "lint-changed",
+        "text": "ESLint без ошибок на изменённых файлах модуля feature-flags",
+        "kind": "verification",
+        "status": "satisfied",
+        "expectedExitCode": 0,
+        "check": {
+          "identity": "",
+          "tool": "run_command",
+          "arguments": {
+            "command": "cd lk-backend/source \u0026\u0026 npx eslint src/modules/feature-flags/feature-flags.controller.ts src/modules/feature-flags/feature-flags.service.ts src/modules/feature-flags/feature-flags.controller.spec.ts src/modules/feature-flags/feature-flags.service.spec.ts src/modules/feature-flags/feature-flags.e2e.spec.ts",
+            "reason": "deterministic accept: lint-changed",
+            "timeoutSeconds": 600
+          },
+          "workspaceRevision": 0,
+          "exitCode": 0,
+          "timedOut": false,
+          "detail": "Переиспользовано из проверки verification_c13079aa7b6ca14367e8e8bb от 2026-10-01T16:40:33Z на ревизии 6d803bad41e3: дерево, образ и команды те же. {\"durationMs\":5822,\"exitCode\":0,\"sandboxImage\":\"sha256:cdbf49d1d93902496539b3054c3f02b565f8690972229c0fd221f9e17cb77add\",\"stderr\":\"npm notice run lk-backend@0.0.1 npx\\nnpm notice run 'eslint' src/modules/feature-flags/feature-flags.controller.ts src/modules/feature-flags/feature-flags.service.ts src/modules/feature-flags/feature-flags.controller.spec.ts src/modules/feature-flags/feature-flags.service.spec.ts src/modules/feature-flags/feature-flags.e2e.spec.ts\\n\",\"stdout\":\"\",\"timedOut\":false}",
+          "status": "passed",
+          "treeDigest": "sha256:6d803bad41e3f392539776acd4b3e01bf45c50669a9b11e8c16268e1250a2c5b",
+          "reusedFrom": {
+            "resultId": "verification_c13079aa7b6ca14367e8e8bb",
+            "ranAt": "2026-10-01T16:40:33.5523255Z",
+            "treeDigest": "sha256:6d803bad41e3f392539776acd4b3e01bf45c50669a9b11e8c16268e1250a2c5b",
+            "imageDigest": "sha256:cdbf49d1d93902496539b3054c3f02b565f8690972229c0fd221f9e17cb77add",
+            "runId": "probe_555afd2193ba8328ffd680b2"
+          }
+        }
+      }
+    ],
+    "Summaries": [
+      "typecheck: ok (переиспользовано)",
+      "flags-tests: ok (переиспользовано)",
+      "lint-changed: ok (переиспользовано)"
+    ],
+    "AllOK": true,
+    "NeedsReview": false,
+    "Commands": [
+      {
+        "criterionId": "typecheck",
+        "tool": "run_command",
+        "arguments": {
+          "command": "cd lk-backend/source \u0026\u0026 npm run typecheck",
+          "reason": "deterministic accept: typecheck",
+          "timeoutSeconds": 600
+        },
+        "expectedExitCode": 0
+      },
+      {
+        "criterionId": "flags-tests",
+        "tool": "run_command",
+        "arguments": {
+          "command": "cd lk-backend/source \u0026\u0026 npx jest src/modules/feature-flags/feature-flags.controller.spec.ts src/modules/feature-flags/feature-flags.service.spec.ts src/modules/feature-flags/feature-flags.e2e.spec.ts --runInBand",
+          "reason": "deterministic accept: flags-tests",
+          "timeoutSeconds": 600
+        },
+        "expectedExitCode": 0
+      },
+      {
+        "criterionId": "lint-changed",
+        "tool": "run_command",
+        "arguments": {
+          "command": "cd lk-backend/source \u0026\u0026 npx eslint src/modules/feature-flags/feature-flags.controller.ts src/modules/feature-flags/feature-flags.service.ts src/modules/feature-flags/feature-flags.controller.spec.ts src/modules/feature-flags/feature-flags.service.spec.ts src/modules/feature-flags/feature-flags.e2e.spec.ts",
+          "reason": "deterministic accept: lint-changed",
+          "timeoutSeconds": 600
+        },
+        "expectedExitCode": 0
+      }
+    ]
+  },
+  "reuseMs": 573,
+  "reuseNote": {
+    "found": true,
+    "mode": "on",
+    "reusedFrom": "verification_c13079aa7b6ca14367e8e8bb",
+    "treeDigest": "sha256:6d803bad41e3f392539776acd4b3e01bf45c50669a9b11e8c16268e1250a2c5b"
+  },
+  "shadow": {
+    "PreparationFailed": false,
+    "PreparationClass": "",
+    "Criteria": [
+      {
+        "criterionId": "typecheck",
+        "text": "Проверка типов проходит: tsc --noEmit без ошибок",
+        "kind": "verification",
+        "status": "satisfied",
+        "expectedExitCode": 0,
+        "check": {
+          "identity": "",
+          "tool": "run_command",
+          "arguments": {
+            "command": "cd lk-backend/source \u0026\u0026 npm run typecheck",
+            "reason": "deterministic accept: typecheck",
+            "timeoutSeconds": 600
+          },
+          "workspaceRevision": 0,
+          "exitCode": 0,
+          "timedOut": false,
+          "detail": "{\"durationMs\":5653,\"exitCode\":0,\"sandboxImage\":\"sha256:cdbf49d1d93902496539b3054c3f02b565f8690972229c0fd221f9e17cb77add\",\"stderr\":\"npm notice run lk-backend@0.0.1 typecheck\\nnpm notice run tsc --noEmit\\n\",\"stdout\":\"\",\"timedOut\":false}",
+          "status": "passed",
+          "treeDigest": "sha256:6d803bad41e3f392539776acd4b3e01bf45c50669a9b11e8c16268e1250a2c5b"
+        }
+      },
+      {
+        "criterionId": "flags-tests",
+        "text": "Unit- и модульные e2e-тесты feature-flags проходят, включая новые тесты get-flag: точное совпадение имени, NotFound при отсутствии, BadRequest без project/name, @DisableAuth",
+        "kind": "verification",
+        "status": "satisfied",
+        "expectedExitCode": 0,
+        "check": {
+          "identity": "",
+          "tool": "run_command",
+          "arguments": {
+            "command": "cd lk-backend/source \u0026\u0026 npx jest src/modules/feature-flags/feature-flags.controller.spec.ts src/modules/feature-flags/feature-flags.service.spec.ts src/modules/feature-flags/feature-flags.e2e.spec.ts --runInBand",
+            "reason": "deterministic accept: flags-tests",
+            "timeoutSeconds": 600
+          },
+          "workspaceRevision": 0,
+          "exitCode": 0,
+          "timedOut": false,
+          "detail": "{\"durationMs\":8756,\"exitCode\":0,\"sandboxImage\":\"sha256:cdbf49d1d93902496539b3054c3f02b565f8690972229c0fd221f9e17cb77add\",\"stderr\":\"npm notice run lk-backend@0.0.1 npx\\nnpm notice run 'jest' src/modules/feature-flags/feature-flags.controller.spec.ts src/modules/feature-flags/feature-flags.service.spec.ts src/modules/feature-flags/feature-flags.e2e.spec.ts --runInBand\\nPASS src/modules/feature-flags/feature-flags.service.spec.ts\\nPASS src/modules/feature-flags/feature-flags.e2e.spec.ts\\nPASS src/modules/feature-flags/feature-flags.controller.spec.ts\\n\\nTest Suites: 3 passed, 3 total\\nTests:       26 passed, 26 total\\nSnapshots:   0 total\\nTime:        6.76 s\\nRan all test suites matching /src\\\\/modules\\\\/feature-flags\\\\/feature-flags.controller.spec.ts|src\\\\/modules\\\\/feature-flags\\\\/feature-flags.service.spec.ts|src\\\\/modules\\\\/feature-flags\\\\/feature-flags.e2e.spec.ts/i.\\n\",\"stdout\":\"\",\"timedOut\":false}",
+          "status": "passed",
+          "treeDigest": "sha256:6d803bad41e3f392539776acd4b3e01bf45c50669a9b11e8c16268e1250a2c5b"
+        }
+      },
+      {
+        "criterionId": "lint-changed",
+        "text": "ESLint без ошибок на изменённых файлах модуля feature-flags",
+        "kind": "verification",
+        "status": "satisfied",
+        "expectedExitCode": 0,
+        "check": {
+          "identity": "",
+          "tool": "run_command",
+          "arguments": {
+            "command": "cd lk-backend/source \u0026\u0026 npx eslint src/modules/feature-flags/feature-flags.controller.ts src/modules/feature-flags/feature-flags.service.ts src/modules/feature-flags/feature-flags.controller.spec.ts src/modules/feature-flags/feature-flags.service.spec.ts src/modules/feature-flags/feature-flags.e2e.spec.ts",
+            "reason": "deterministic accept: lint-changed",
+            "timeoutSeconds": 600
+          },
+          "workspaceRevision": 0,
+          "exitCode": 0,
+          "timedOut": false,
+          "detail": "{\"durationMs\":5822,\"exitCode\":0,\"sandboxImage\":\"sha256:cdbf49d1d93902496539b3054c3f02b565f8690972229c0fd221f9e17cb77add\",\"stderr\":\"npm notice run lk-backend@0.0.1 npx\\nnpm notice run 'eslint' src/modules/feature-flags/feature-flags.controller.ts src/modules/feature-flags/feature-flags.service.ts src/modules/feature-flags/feature-flags.controller.spec.ts src/modules/feature-flags/feature-flags.service.spec.ts src/modules/feature-flags/feature-flags.e2e.spec.ts\\n\",\"stdout\":\"\",\"timedOut\":false}",
+          "status": "passed",
+          "treeDigest": "sha256:6d803bad41e3f392539776acd4b3e01bf45c50669a9b11e8c16268e1250a2c5b"
+        }
+      }
+    ],
+    "Summaries": [
+      "typecheck: ok",
+      "flags-tests: ok",
+      "lint-changed: ok"
+    ],
+    "AllOK": true,
+    "NeedsReview": false,
+    "Commands": [
+      {
+        "criterionId": "typecheck",
+        "tool": "run_command",
+        "arguments": {
+          "command": "cd lk-backend/source \u0026\u0026 npm run typecheck",
+          "reason": "deterministic accept: typecheck",
+          "timeoutSeconds": 600
+        },
+        "expectedExitCode": 0
+      },
+      {
+        "criterionId": "flags-tests",
+        "tool": "run_command",
+        "arguments": {
+          "command": "cd lk-backend/source \u0026\u0026 npx jest src/modules/feature-flags/feature-flags.controller.spec.ts src/modules/feature-flags/feature-flags.service.spec.ts src/modules/feature-flags/feature-flags.e2e.spec.ts --runInBand",
+          "reason": "deterministic accept: flags-tests",
+          "timeoutSeconds": 600
+        },
+        "expectedExitCode": 0
+      },
+      {
+        "criterionId": "lint-changed",
+        "tool": "run_command",
+        "arguments": {
+          "command": "cd lk-backend/source \u0026\u0026 npx eslint src/modules/feature-flags/feature-flags.controller.ts src/modules/feature-flags/feature-flags.service.ts src/modules/feature-flags/feature-flags.controller.spec.ts src/modules/feature-flags/feature-flags.service.spec.ts src/modules/feature-flags/feature-flags.e2e.spec.ts",
+          "reason": "deterministic accept: lint-changed",
+          "timeoutSeconds": 600
+        },
+        "expectedExitCode": 0
+      }
+    ]
+  },
+  "shadowMs": 77176,
+  "shadowNote": {
+    "agrees": true,
+    "found": true,
+    "mode": "shadow",
+    "treeDigest": "sha256:6d803bad41e3f392539776acd4b3e01bf45c50669a9b11e8c16268e1250a2c5b",
+    "wouldReuse": "verification_57bed5868cc0c23308ece8c6"
+  },
+  "sourceTree": "sha256:6d803bad41e3f392539776acd4b3e01bf45c50669a9b11e8c16268e1250a2c5b",
+  "storageMode": "volume"
+}

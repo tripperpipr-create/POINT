@@ -17,6 +17,7 @@ import (
 	"unicode/utf8"
 
 	"local-agent-workbench/internal/domain"
+	"local-agent-workbench/internal/filepolicy"
 )
 
 var (
@@ -76,9 +77,31 @@ func isIndexExcludedDir(name string) bool {
 	return excludedDirs[key] || indexExcludedDirs[key]
 }
 
+func (f *FS) skipDirectory(absolute string, index bool) bool {
+	if f.FileRules == filepolicy.Current {
+		rel, err := filepath.Rel(f.root, absolute)
+		key := strings.ToLower(filepath.Base(absolute))
+		return err != nil || filepolicy.SkipDirectoryPath(f.FileRules, filepath.ToSlash(rel), false) || excludedDirs[key] && key != "vendor"
+	}
+	if index {
+		return isIndexExcludedDir(filepath.Base(absolute))
+	}
+	return excludedDirs[strings.ToLower(filepath.Base(absolute))]
+}
+
 type FS struct {
 	root         string
 	maxReadBytes int64
+	FileRules    string
+	MutationHook func()
+}
+
+func (f *FS) UseFileRules(version string) error {
+	if !filepolicy.ValidVersion(version) {
+		return fmt.Errorf("unknown file rules %q", version)
+	}
+	f.FileRules = version
+	return nil
 }
 
 type FileContent struct {
@@ -167,6 +190,15 @@ func (f *FS) Resolve(path string, allowMissing bool) (string, error) {
 	clean := filepath.Clean(filepath.FromSlash(path))
 	if clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
 		return "", ErrOutsideWorkspace
+	}
+	if f.FileRules == filepolicy.Current && clean != "." {
+		rel := filepath.ToSlash(clean)
+		if err := filepolicy.ValidatePath(rel); err != nil {
+			return "", err
+		}
+		if filepolicy.ExcludedPath(f.FileRules, rel, false) {
+			return "", ErrExcluded
+		}
 	}
 	// Двоеточие в звене — альтернативный поток NTFS (`.git::$INDEX_ALLOCATION`,
 	// `file.txt:stream`): имени файла в нём на Windows быть не может.
@@ -325,20 +357,7 @@ func HasParentDirSegment(value string) bool {
 }
 
 func IsSensitive(path string) bool {
-	base := strings.ToLower(filepath.Base(path))
-	if runtime.GOOS == "windows" {
-		base = strings.TrimRight(base, ". ")
-	}
-	if base == ".env" || strings.HasPrefix(base, ".env.") || base == ".npmrc" || base == ".pypirc" || base == "credentials" {
-		return true
-	}
-	exts := []string{".pem", ".key", ".p12", ".pfx", ".kdbx"}
-	for _, ext := range exts {
-		if strings.HasSuffix(base, ext) {
-			return true
-		}
-	}
-	return strings.Contains(base, "id_rsa") || strings.Contains(base, "id_ed25519")
+	return filepolicy.AuditSensitiveLegacy(path, runtime.GOOS == "windows")
 }
 
 // MaxListedNodes — сколько записей дерева отдаёт ListPath.
@@ -404,13 +423,12 @@ func (f *FS) listDir(ctx context.Context, absolute, relative string, depth, maxD
 			return nil, err
 		}
 		name := entry.Name()
-		lower := strings.ToLower(name)
 		if IsSensitive(name) {
 			continue
 		}
 		// Skip dependency roots when listing a parent, but allow listing when the
 		// caller already asked for vendor/ or node_modules/ explicitly.
-		if excludedDirs[lower] {
+		if f.skipDirectory(filepath.Join(absolute, name), false) {
 			relLower := strings.ToLower(filepath.ToSlash(relative))
 			underDeps := relLower == "vendor" || strings.HasPrefix(relLower, "vendor/") ||
 				relLower == "node_modules" || strings.HasPrefix(relLower, "node_modules/")
@@ -666,7 +684,7 @@ func (f *FS) Search(ctx context.Context, query string, maxResults int) ([]Match,
 			return err
 		}
 		if entry.IsDir() {
-			if path != f.root && excludedDirs[strings.ToLower(entry.Name())] {
+			if path != f.root && f.skipDirectory(path, false) {
 				return filepath.SkipDir
 			}
 			return nil

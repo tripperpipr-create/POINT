@@ -40,13 +40,14 @@ type CommandFailure struct {
 
 // CommandRun — всё, что известно о завершившейся команде.
 type CommandRun struct {
-	Command     string
-	ExitCode    int
-	TimedOut    bool
-	Timeout     string
-	Stdout      string
-	Stderr      string
-	DeniedHosts []string
+	Command             string
+	ExitCode            int
+	TimedOut            bool
+	Timeout             string
+	Stdout              string
+	Stderr              string
+	DeniedHosts         []string
+	MissingDependencies []string
 }
 
 var (
@@ -77,6 +78,11 @@ func DiagnoseCommand(run CommandRun) (CommandFailure, bool) {
 			Cause: "сеть: не разрешён " + strings.Join(hosts, ", "),
 			Hint:  "хост добавляется только новой версией наряда — это решение человека",
 		}, true
+	}
+	for _, name := range run.MissingDependencies {
+		if strings.Contains(combined, name) && (strings.Contains(combined, "Cannot find package") || strings.Contains(combined, "Cannot find module") || strings.Contains(combined, "was not found") || strings.Contains(combined, "Module "+name+" in the transform")) {
+			return CommandFailure{Signature: "dependency_missing", Class: FailureRuntime, Cause: "declared dependency is absent: " + name, Hint: "prepare dependencies using the approved lockfile plan", Evidence: lastLines(lines, 2)}, true
+		}
 	}
 	if run.TimedOut {
 		limit := strings.TrimSpace(run.Timeout)
@@ -123,6 +129,13 @@ func DiagnoseCommand(run CommandRun) (CommandFailure, bool) {
 			cause += ": " + path
 		}
 		return CommandFailure{Signature: "enoent", Class: FailureCode, Cause: cause, Evidence: []string{line}}, true
+	}
+	if run.ExitCode == 127 && strings.Contains(combined, "tsc") {
+		for _, name := range run.MissingDependencies {
+			if name == "typescript" {
+				return CommandFailure{Signature: "dependency_missing", Class: FailureRuntime, Cause: "declared dependency is absent: typescript", Hint: "prepare dependencies using the approved lockfile plan"}, true
+			}
+		}
 	}
 	if run.ExitCode == 127 {
 		program := ""
@@ -185,6 +198,9 @@ func DiagnoseMessage(text string) CommandFailure {
 	text = strings.TrimSpace(text)
 	if text == "" {
 		return CommandFailure{Signature: "unknown", Class: FailureCode, Cause: "этап завершился без описания причины"}
+	}
+	if strings.HasPrefix(text, "dependency preparation:") {
+		return CommandFailure{Signature: "dependency_preparation", Class: FailureRuntime, Cause: truncate(text, 300)}
 	}
 	if pointEnvironmentFailure.MatchString(text) {
 		return CommandFailure{Signature: "point_environment", Class: FailureTransient,

@@ -21,7 +21,7 @@ import (
 // частичном уникальном индексе master_one_active_turn, так что подзапрос
 // попадает в индекс и стоит одного обращения.
 const masterDirectoryQuery = `
-SELECT w.id, w.name, w.path, c.id, c.title, c.branch_name, c.updated_at, c.pinned,
+SELECT w.id, w.name, w.path, c.id, c.title, c.branch_name, c.updated_at, c.pinned, c.scope_kind,
   EXISTS(SELECT 1 FROM master_turns t
          WHERE t.workspace_id = c.workspace_id AND t.conversation_id = c.id
            AND t.status IN ('preparing','waiting','streaming','tools')) AS running
@@ -43,7 +43,7 @@ func (s *SQLite) MasterConversationDirectory(ctx context.Context, limit int) ([]
 	out := []domain.MasterConversationRef{}
 	for rows.Next() {
 		v := domain.MasterConversationRef{}
-		if err = rows.Scan(&v.WorkspaceID, &v.WorkspaceName, &v.WorkspacePath, &v.ID, &v.Title, &v.BranchName, &v.UpdatedAt, &v.Pinned, &v.Running); err != nil {
+		if err = rows.Scan(&v.WorkspaceID, &v.WorkspaceName, &v.WorkspacePath, &v.ID, &v.Title, &v.BranchName, &v.UpdatedAt, &v.Pinned, &v.ScopeKind, &v.Running); err != nil {
 			return nil, err
 		}
 		out = append(out, v)

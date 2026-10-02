@@ -23,6 +23,9 @@ import (
 // FastAgentRequest launches a Cursor-style precise write run: one Send creates
 // an approved FastAgent brief + Quest and starts the agent without Master interview.
 type FastAgentRequest struct {
+	FromMaster           bool                     `json:"-"`
+	WorkspaceID          string                   `json:"workspaceId,omitempty"`
+	RequestID            string                   `json:"requestId,omitempty"`
 	ProfileID            string                   `json:"profileId"`
 	Task                 string                   `json:"task"`
 	APIKey               string                   `json:"apiKey"`
@@ -35,10 +38,7 @@ type FastAgentRequest struct {
 }
 
 func (a *App) StartFastAgent(request FastAgentRequest) (domain.Run, error) {
-	if databaseFileForRuntime() == legacyDatabaseFile {
-		return a.startLegacyFastAgent(request)
-	}
-	return a.startFastAgentV2(request)
+	return a.startHostFastAgent(context.Background(), request)
 }
 
 type preparedFastAgentV2 struct {
@@ -76,7 +76,7 @@ func (a *App) startFastAgentV2(request FastAgentRequest) (domain.Run, error) {
 		return domain.Run{}, err
 	}
 	createRequest := sandbox.CreateRequest{
-		WorkspaceID: order.WorkspaceID, WorkspacePath: order.Workspace.Path, ExecutionID: launch.Execution.ID,
+		WorkspaceID: order.WorkspaceID, WorkspacePath: order.Workspace.Path, ExecutionID: launch.Execution.ID, QuestID: launch.QuestID,
 		Runtime:        environment.RuntimeRequirementsForWorkOrder(&order),
 		PreferWorktree: order.Workspace.Isolation == "git_worktree", LiveWorkspace: false,
 	}
@@ -371,80 +371,6 @@ func (a *App) failFastAgentLaunchV2(ctx context.Context, approval domain.WorkOrd
 	return fmt.Errorf("fast agent v2 launch: %w", cause)
 }
 
-// startLegacyFastAgent is the rollback-only v1 path selected by
-// POINT_AGENT_HUB_V2=0.
-func (a *App) startLegacyFastAgent(request FastAgentRequest) (domain.Run, error) {
-	task := strings.TrimSpace(request.Task)
-	if task == "" {
-		return domain.Run{}, errors.New("task is required")
-	}
-	if len(task) > 64*1024 {
-		return domain.Run{}, errors.New("task exceeds 64 KiB")
-	}
-	profileID := strings.TrimSpace(request.ProfileID)
-	if profileID == "" {
-		return domain.Run{}, errors.New("profileId is required")
-	}
-	title := task
-	if first, _, ok := strings.Cut(title, "\n"); ok {
-		title = first
-	}
-	runes := []rune(title)
-	if len(runes) > 120 {
-		title = string(runes[:120])
-	}
-	brief, err := domain.ApproveTaskBrief(domain.NormalizeTaskBrief(domain.TaskBrief{
-		SourceRequest: task,
-		Mode:          domain.TaskModePrecise,
-		State:         "ready",
-		Goal:          title,
-		ResultKind:    "workspace_change",
-		Scope:         []string{"Изменения по запросу пользователя"},
-		Criteria: []domain.AcceptanceCriterion{{
-			ID: "done", Text: "Запрошенные изменения внесены в проект", Kind: "manual",
-		}},
-		Permissions: domain.TaskPermissions{WriteFiles: true, ExecuteCommands: true},
-		Budget:      domain.TaskBudget{Tokens: 200000, ActiveSeconds: 3600, MaxParallel: 1, MaxReplans: 2, MaxAttempts: 3},
-		FastAgent:   true,
-	}))
-	if err != nil {
-		return domain.Run{}, fmt.Errorf("fast agent brief: %w", err)
-	}
-	ws, err := a.requireWorkspace()
-	if err != nil {
-		return domain.Run{}, err
-	}
-	// FastAgent создаёт квест до StartRun, поэтому обязательный coding route
-	// проверяется заранее: отказ подключения не должен оставлять фантомную
-	// активную работу.
-	if err = a.ensureCodingModelRouteReady(ws.ID); err != nil {
-		return domain.Run{}, err
-	}
-	now := time.Now().UTC()
-	quest := domain.Quest{
-		ID: domain.NewID("quest"), WorkspaceID: ws.ID, Title: title, Description: task,
-		Objectives: []string{brief.Goal}, DefinitionOfDone: []string{brief.Criteria[0].Text},
-		Importance: domain.QuestNormal, Status: domain.QuestActive, Brief: &brief,
-		BudgetTokens: brief.Budget.Tokens, CreatedAt: now, UpdatedAt: now,
-	}
-	if err = a.store.SaveQuest(context.Background(), quest); err != nil {
-		return domain.Run{}, err
-	}
-	exec, err := a.startSandboxedExecution(profileID, task, quest.ID, "")
-	if err != nil {
-		return domain.Run{}, fmt.Errorf("fast agent execution: %w", err)
-	}
-	// Keep Task raw so ComposeQuestTask matches the execution.Task snapshot.
-	return a.StartRun(StartRunRequest{
-		ProfileID: profileID, Task: task, APIKey: request.APIKey,
-		ContextItems:         request.ContextItems,
-		PreflightFingerprint: request.PreflightFingerprint,
-		QuestID:              quest.ID, ExecutionID: exec.ID,
-	})
-}
-
-// Идентификатор беседы приходит из вебвью как есть; ядро хранит его рядом с
-// нарядом и адресует по нему итог. Длинное или многострочное значение — не
 // беседа, а мусор, и итог тогда уходит в разговор проекта по умолчанию.
 func fastAgentConversationV2(value string) string {
 	value = strings.TrimSpace(value)

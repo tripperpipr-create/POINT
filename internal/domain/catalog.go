@@ -95,6 +95,7 @@ func BuiltInToolCatalog() []ToolCatalogItem {
 		{Name: "git_branches", DisplayName: "Git: ветки", Description: "Показывает текущую ветку, локальные и удалённые ветки с upstream и расхождением. Только чтение.", Category: "git", Risk: "LOW", Replayable: true},
 		{Name: "git_log", DisplayName: "Git: история", Description: "Показывает последние коммиты: хеш, автор, дату, ссылки и заголовок. Только чтение.", Category: "git", Risk: "LOW", Replayable: true, WorkspaceWide: true},
 		{Name: "git_tags", DisplayName: "Git: метки", Description: "Показывает метки с их коммитом, датой и подписью аннотации. Только чтение.", Category: "git", Risk: "LOW", Replayable: true},
+		{Name: "search_skills", DisplayName: "Поиск навыков", Description: "Search pinned available library skills without loading instructions or changing permissions.", Category: "skill", Risk: "LOW", Replayable: true},
 		{Name: "read_skill", DisplayName: "Чтение навыка", Description: "Загружает полные инструкции экипированного skill. Добавляется автоматически, если у агента есть навыки.", Category: "skill", Risk: "LOW", Replayable: true},
 		{Name: "team_inbox", DisplayName: "Сообщения команды", Description: "Читает адресованные агенту и общие сообщения текущего Flow.", Category: "team", Risk: "LOW", Replayable: true},
 		{Name: "team_publish", DisplayName: "Сообщить команде", Description: "Публикует вопрос, блокер, контракт или результат внутри текущего Flow; не меняет права задания.", Category: "team", Risk: "LOW"},

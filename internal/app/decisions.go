@@ -136,6 +136,11 @@ func (a *App) Decisions(ctx context.Context) (DecisionQueue, error) {
 	now := time.Now().UTC()
 	workspaceID := a.currentWorldID()
 	queue := DecisionQueue{Items: []Decision{}, ByKind: map[string]int{}, GeneratedAt: now}
+	auditItems, auditErr := a.sandboxAuditDecisions(ctx, workspaceID, now)
+	if auditErr != nil {
+		return queue, auditErr
+	}
+	queue.Items = append(queue.Items, auditItems...)
 
 	customRisk := map[string]string{}
 	if tools, err := a.store.ListCustomTools(ctx); err == nil {

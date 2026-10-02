@@ -4,12 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"local-agent-workbench/internal/agent"
 	"local-agent-workbench/internal/domain"
 	projectenv "local-agent-workbench/internal/environment"
+	"local-agent-workbench/internal/filepolicy"
 	"local-agent-workbench/internal/sandbox"
 	"local-agent-workbench/internal/tools"
 	"local-agent-workbench/internal/workspace"
@@ -22,9 +25,13 @@ import (
 // гоняют критерии одним кодом и в одинаковых условиях.
 
 type criteriaBatchInput struct {
-	QuestID  string
-	RunID    string
-	Criteria []domain.AcceptanceCriterion
+	Phase      string
+	Context    context.Context
+	FlowRunID  string
+	FlowNodeID string
+	QuestID    string
+	RunID      string
+	Criteria   []domain.AcceptanceCriterion
 	// Sandbox — запись песочницы, чьё дерево проверяется: её путь и образ.
 	Sandbox domain.SandboxRecord
 	// Root — где гонять команды. Пусто — в самой песочнице; проверка перед
@@ -38,10 +45,12 @@ type criteriaBatchInput struct {
 }
 
 type criteriaBatchResult struct {
-	Criteria    []agent.CriterionEvidence
-	Summaries   []string
-	AllOK       bool
-	NeedsReview bool
+	PreparationFailed bool
+	PreparationClass  string
+	Criteria          []agent.CriterionEvidence
+	Summaries         []string
+	AllOK             bool
+	NeedsReview       bool
 	// Commands — команды, которые действительно запускались, в порядке
 	// критериев: с поправками, сроком и подстановкой PHP. По ним считается
 	// ключ переиспользования.
@@ -118,13 +127,47 @@ func (a *App) plannedCriteriaCommands(input criteriaBatchInput) []executedCriter
 }
 
 func (a *App) runCriteriaBatch(input criteriaBatchInput) (criteriaBatchResult, error) {
+	ctx := input.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	root := input.Root
 	if root == "" {
 		root = input.Sandbox.Path
+		if input.Sandbox.FileRulesVersion == filepolicy.Current && input.Sandbox.Kind != "live" {
+			clean, err := os.MkdirTemp(filepath.Dir(root), "accept-")
+			if err != nil {
+				return criteriaBatchResult{}, err
+			}
+			defer os.RemoveAll(clean)
+			if err = sandbox.CopyPortable(context.Background(), root, clean, input.Sandbox.FileRulesVersion); err != nil {
+				return criteriaBatchResult{}, err
+			}
+			root = clean
+		}
+	}
+	if backend, ok := a.sandboxBackend.(interface {
+		RegisterCheckWorkspace(context.Context, domain.SandboxRecord, string) (func(), error)
+	}); ok && input.Sandbox.FileRulesVersion == filepolicy.Current && input.Sandbox.Kind != "live" {
+		cleanup, err := backend.RegisterCheckWorkspace(context.Background(), input.Sandbox, root)
+		if err != nil {
+			return criteriaBatchResult{}, err
+		}
+		defer cleanup()
 	}
 	fs, err := workspace.Open(root)
 	if err != nil {
 		return criteriaBatchResult{}, err
+	}
+	if input.Sandbox.FileRulesVersion == filepolicy.Current {
+		fs.FileRules = filepolicy.Current
+	}
+	initialDigest := ""
+	if input.Sandbox.FileRulesVersion == filepolicy.Current && input.Sandbox.Kind != "live" {
+		initialDigest, err = sandbox.TreeDigestWithRules(root, input.Sandbox.FileRulesVersion)
+		if err != nil {
+			return criteriaBatchResult{}, err
+		}
 	}
 	// Образ — тот же, что у исполнителей этапа. Без него проверки уходили в
 	// образ по умолчанию: 30.09 квест на Node 20 принимался под npm 12,
@@ -135,6 +178,9 @@ func (a *App) runCriteriaBatch(input criteriaBatchInput) (criteriaBatchResult, e
 		Executor: a.sandboxProcessExecutor(), SandboxImage: sandbox.ExecutionImageForRecord(input.Sandbox),
 		RunID: input.RunID, QuestID: input.QuestID, Authoritative: true,
 		DefaultTimeout: 10 * time.Minute, MaxOutput: 256 * 1024,
+	}
+	if failure := a.prepareDependencies(ctx, input, root, tool); failure != nil {
+		return dependencyFailureBatch(input.Criteria, failure), nil
 	}
 	result := criteriaBatchResult{AllOK: true, Criteria: make([]agent.CriterionEvidence, 0, len(input.Criteria))}
 	amendments := a.criterionAmendments(context.Background(), input.QuestID)
@@ -168,15 +214,29 @@ func (a *App) runCriteriaBatch(input criteriaBatchInput) (criteriaBatchResult, e
 		raw, _ := json.Marshal(args)
 		expected := expectedExitCode(criterion)
 		result.Commands = append(result.Commands, executedCriterion{CriterionID: criterion.ID, Tool: criterion.Tool, Arguments: raw, ExpectedExitCode: expected})
-		ctx, cancel := context.WithTimeout(context.Background(), 12*time.Minute)
-		outcome := tool.Execute(ctx, raw)
+		if err := a.journalCriteria(input, domain.EventVerificationStarted, map[string]any{"criterionId": criterion.ID, "arguments": args, "storageMode": input.Sandbox.StorageMode}); err != nil {
+			return result, err
+		}
+		started := time.Now()
+		commandCtx, cancel := context.WithTimeout(ctx, 12*time.Minute)
+		checkTool := tool
+		// A reusable local check cannot observe external services. Dependency
+		// preparation above keeps the separately approved registry access.
+		if criterion.Deterministic && criterion.Kind == "verification" {
+			checkTool.NetworkPolicy = "DENY"
+			checkTool.AllowedNetworkHosts = nil
+		}
+		outcome := checkTool.Execute(commandCtx, raw)
 		cancel()
+		if err := a.journalCriteria(input, domain.EventVerificationFinished, map[string]any{"criterionId": criterion.ID, "durationMs": time.Since(started).Milliseconds(), "exitCode": toolResultExitCode(outcome), "storageMode": input.Sandbox.StorageMode}); err != nil {
+			return result, err
+		}
 		exit := toolResultExitCode(outcome)
 		ce := agent.CriterionEvidence{
 			CriterionID: criterion.ID, Text: criterion.Text, Kind: criterion.Kind,
 			ExpectedExitCode: criterion.ExpectedExitCode,
 			Check: &agent.CheckEvidence{
-				Tool: criterion.Tool, Arguments: criterion.Arguments, ExitCode: &exit,
+				Tool: criterion.Tool, Arguments: raw, ExitCode: &exit,
 				Detail: acceptCheckDetail(outcome.Output, input.Sandbox), Status: "passed",
 			},
 		}
@@ -194,11 +254,27 @@ func (a *App) runCriteriaBatch(input criteriaBatchInput) (criteriaBatchResult, e
 				failure = fmt.Sprintf("%s: %s (код %d)", criterion.ID, detail, exit)
 			}
 			result.Summaries = append(result.Summaries, failure)
+			if diagnosed, ok := acceptCheckFailure(outcome); ok && diagnosed.Signature == "dependency_missing" {
+				result.PreparationFailed = true
+				result.PreparationClass = diagnosed.Class
+				result.Criteria = append(result.Criteria, ce)
+				for _, pending := range input.Criteria[len(result.Criteria):] {
+					result.Criteria = append(result.Criteria, agent.CriterionEvidence{CriterionID: pending.ID, Text: pending.Text, Kind: pending.Kind, Status: "unavailable"})
+				}
+				return result, nil
+			}
 		} else {
 			ce.Status = "satisfied"
 			result.Summaries = append(result.Summaries, criterion.ID+": ok")
 		}
 		result.Criteria = append(result.Criteria, ce)
+	}
+	if initialDigest != "" {
+		finalDigest, digestErr := sandbox.TreeDigestWithRules(root, input.Sandbox.FileRulesVersion)
+		if digestErr != nil || initialDigest != finalDigest {
+			result.AllOK = false
+			result.Summaries = append(result.Summaries, "integrity: clean verification changed portable sources")
+		}
 	}
 	return result, nil
 }

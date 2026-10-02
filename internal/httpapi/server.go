@@ -30,9 +30,13 @@ func New(application *app.App, eventHub *events.Hub, logger *slog.Logger, allowe
 	return s
 }
 
-func (s *Server) Handler() http.Handler { return s.middleware(s.mux) }
+func (s *Server) Handler() http.Handler { return s.middleware(s.masterScopeHandler(s.mux)) }
 
 func (s *Server) routes() {
+	s.mux.HandleFunc("GET /api/system/fast-agent", s.getFastAgentConfig)
+	s.mux.HandleFunc("PUT /api/system/fast-agent", s.saveFastAgentConfig)
+	s.mux.HandleFunc("GET /api/master/files", s.masterFiles)
+	s.mux.HandleFunc("POST /api/master/conversations/{id}/continue-in-project", s.continuePointChat)
 	// Инструменты Point для исполнителей, принимающих их только по MCP.
 	// Права здесь не решаются: сервер спрашивает исполнителя сущности,
 	// открывшей сессию, — тот же, что отвечает на обычном пути.
@@ -220,6 +224,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/flow-runs/{id}/nodes/{nodeId}/resolve", s.resolveFlowNode)
 	s.mux.HandleFunc("POST /api/flow-runs/{id}/nodes/{nodeId}/merge/resolve", s.resolveFlowSandboxMerge)
 	s.mux.HandleFunc("POST /api/executions/sandbox", s.startSandboxedExecution)
+	s.mux.HandleFunc("POST /api/sandboxes/{id}/audit-review", s.reviewSandboxAudit)
 	s.mux.HandleFunc("POST /api/executions/{id}/launch", s.launchPendingExecution)
 	s.mux.HandleFunc("POST /api/executions/{id}/cursor/start", s.beginCursorExecution)
 	s.mux.HandleFunc("POST /api/executions/{id}/cursor/complete", s.completeCursorExecution)

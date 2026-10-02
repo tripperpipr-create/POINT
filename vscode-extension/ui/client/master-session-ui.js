@@ -155,6 +155,8 @@ export function handleMasterSessionAction({action, target, root, vscode, sending
     }
     return true
   }
+  const localActions={'master-fast-settings':'editFastAgentSettings','master-chat-files':'showMasterChatFiles','master-chat-folder':'openMasterChatFolder','master-continue-project':'continueMasterInProject'}
+  if(localActions[action]) {vscode.postMessage({type:localActions[action]});return true}
   if (!action?.startsWith('master-session-')) return false
   // Пока идёт ход, действия над разговором молчат — но выбор режима и
   // подробности ответа относится к следующей реплике, а не к текущей.

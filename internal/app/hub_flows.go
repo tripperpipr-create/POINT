@@ -144,7 +144,12 @@ func (a *App) StartFlowRun(flowID, questID string, input map[string]any) (domain
 		return domain.FlowRun{}, err
 	}
 	runtime := flowruntime.Runtime{Store: a.store}
+	choice, choiceErr := currentSandboxChoice()
+	if choiceErr != nil {
+		return domain.FlowRun{}, choiceErr
+	}
 	run, err := runtime.Start(context.Background(), flowruntime.StartRequest{
+		SandboxWorkspace: choice.StorageMode, FileRulesVersion: choice.FileRulesVersion,
 		FlowID: flowID, WorkspaceID: ws.ID, QuestID: questID, Input: input,
 	})
 	if err != nil {

@@ -37,6 +37,13 @@ for (const expected of ['data-action="save-master-work-order-v2"', 'data-work-or
   if (!editable.includes(expected)) throw new Error(`WorkOrder editor lost field: ${expected}`)
 }
 
+const legacyDependencyJSON = editable.match(/data-work-order-json="dependencyPlan"[^>]*>(.*?)<\/textarea>/s)?.[1]
+if (legacyDependencyJSON !== 'null') throw new Error('editing a legacy order must preserve the omitted dependency plan')
+const prepared = masterWorkOrderCardsHtml([{ ...base, state: 'ready', dependencyPlan: { version: '1', projects: [{ manager: 'npm', cwd: 'lk-backend/source', commands: [{ command: 'npm ci --include=dev' }] }] } }], esc)
+for (const text of ['Подготовка зависимостей', 'lk-backend/source', 'npm ci --include=dev']) {
+  if (!prepared.includes(text)) throw new Error(`dependency approval card hides ${text}`)
+}
+
 const paused = masterWorkOrderCardsHtml([{ ...base, runtime: { questId: 'quest-1', status: 'paused' } }], esc)
 if (!paused.includes('data-control="resume"') || paused.includes('data-control="pause"')) {
   throw new Error('paused WorkOrder controls are incorrect')

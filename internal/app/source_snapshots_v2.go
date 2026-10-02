@@ -29,6 +29,15 @@ type PreviewSourceV2Request struct {
 }
 
 func (a *App) PreviewSourceV2(ctx context.Context, request PreviewSourceV2Request) (domain.SourceSnapshot, error) {
+	if request.WorkspaceID != "" {
+		var err error
+		ctx, err = a.WithMasterWorkspace(ctx, request.WorkspaceID)
+		if err != nil {
+			return domain.SourceSnapshot{}, err
+		}
+	} else if scope, ok := ctx.Value(masterScopeKey{}).(masterScope); ok {
+		request.WorkspaceID = scope.Workspace.ID
+	}
 	request.Kind = strings.ToLower(strings.TrimSpace(request.Kind))
 	request.Label = strings.TrimSpace(request.Label)
 	now := time.Now().UTC()
@@ -43,7 +52,7 @@ func (a *App) PreviewSourceV2(ctx context.Context, request PreviewSourceV2Reques
 	case "image":
 		snapshot, err = previewImageSource(snapshot, request.Content, request.MediaType, root)
 	case "workspace_file":
-		snapshot, err = a.previewWorkspaceFileSource(snapshot, request.Path, root)
+		snapshot, err = a.previewWorkspaceFileSourceContext(ctx, snapshot, request.Path, root)
 	case "local_file":
 		snapshot, err = previewLocalFileSource(snapshot, request.Path, root)
 	case "url":
@@ -179,8 +188,11 @@ func previewTextSource(snapshot domain.SourceSnapshot, content string) (domain.S
 	return snapshotFromContextItem(snapshot, preview.Items[0], preview.Warnings), nil
 }
 
-func (a *App) previewWorkspaceFileSource(snapshot domain.SourceSnapshot, path, root string) (domain.SourceSnapshot, error) {
+func (a *App) previewWorkspaceFileSourceContext(ctx context.Context, snapshot domain.SourceSnapshot, path, root string) (domain.SourceSnapshot, error) {
 	fs, err := a.fs()
+	if scoped, ok := ctx.Value(masterScopeKey{}).(masterScope); ok {
+		fs, err = scoped.FS, nil
+	}
 	if err != nil {
 		return domain.SourceSnapshot{}, errors.New("open the source workspace before attaching a workspace file")
 	}

@@ -184,6 +184,9 @@ func (t *completionTracker) contractEvidence(revision int) *CompletionEvidence {
 func (t *completionTracker) missingCriteria(revision int, changedFiles []string) []completionRequirement {
 	var missing []completionRequirement
 	for _, criterion := range t.brief.Criteria {
+		if t.managedVerification {
+			continue // Independent core checks supply evidence after implementation.
+		}
 		evidence := t.criterionEvidence(criterion, revision)
 		switch evidence.Status {
 		case "satisfied", "needs_review":
@@ -217,12 +220,16 @@ func (t *completionTracker) ContractInstructions() string {
 		return ""
 	}
 	encoded, _ := json.Marshal(t.brief)
+	checksInstruction := "For machine criteria execute the declared tool and arguments; an expected-failure reproduction succeeds only at its specified exit code. Manual criteria remain for user review."
+	if t.managedVerification {
+		checksInstruction = "Point runs the declared machine criteria independently on a clean copy when you finish. Use focused checks to debug; do not repeat the full acceptance batch merely to finish. Manual criteria remain for user review."
+	}
 	return strings.Join([]string{
 		"<point_task_completion_contract>",
 		"Use the approved task brief below as the fixed scope, delivery format and acceptance criteria. Do not invent extra required work or weaken a criterion.",
 		"sourceRequest preserves the original user contract. Later approved decisions and criteria take precedence where they explicitly revise that request.",
 		string(encoded),
-		"For machine criteria execute the declared tool and arguments; an expected-failure reproduction succeeds only at its specified exit code. Manual criteria remain for user review.",
+		checksInstruction,
 		"Diagnostics are observations, not automatic scope additions. Report unresolved diagnostics honestly; a previously passing check that now fails must not be hidden or relabeled.",
 		"When the requested result is ready and required checks are satisfied, finish. List optional ideas separately without implementing them. If scope must change, report a blocker and preserve progress.",
 		"</point_task_completion_contract>",

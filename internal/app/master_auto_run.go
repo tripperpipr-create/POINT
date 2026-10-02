@@ -1,7 +1,6 @@
 package app
 
 import (
-	"context"
 	"errors"
 	"local-agent-workbench/internal/domain"
 )
@@ -41,28 +40,4 @@ func masterAutoRunAllowed(proposal domain.QuestProposal, agents []domain.Project
 		return nil
 	}
 	return errors.New("исполнитель не найден")
-}
-
-func (a *App) tryMasterAutoRun(ctx context.Context, w string, proposal *domain.QuestProposal, key string) (bool, error) {
-	enabled, err := a.store.Setting(ctx, "master.auto-run.read-only."+w)
-	if err != nil || enabled != "true" || proposal == nil {
-		return false, nil
-	}
-	agents, err := a.store.ListProjectAgents(ctx, w)
-	if err != nil {
-		return false, err
-	}
-	if err = masterAutoRunAllowed(*proposal, agents); err != nil {
-		return false, err
-	}
-	// Existing orchestration still owns approvals, validation and execution.
-	if a.currentWorldID() != w {
-		return false, errors.New("проект переключён; подтвердите запуск в исходном проекте")
-	}
-	result, err := a.DecideQuestProposalContext(ctx, QuestProposalDecision{ProposalID: proposal.ID, Action: QuestProposalStart, ExpectedVersion: proposal.Brief.Version, ApproveVersion: proposal.Brief.Version, StartFlow: true, OrchestratorAPIKey: key})
-	if err != nil {
-		return false, err
-	}
-	*proposal = result.Proposal
-	return true, nil
 }

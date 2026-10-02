@@ -73,7 +73,7 @@ func newVerificationFixture(t *testing.T) verificationFixture {
 	brief, err := domain.ApproveTaskBrief(domain.NormalizeTaskBrief(domain.TaskBrief{
 		Mode: domain.TaskModeProject, Goal: "Ship", ResultKind: "workspace_change",
 		Criteria: []domain.AcceptanceCriterion{{
-			ID: "verify", Text: "npm run verify", Kind: "verification", Tool: "run_command",
+			ID: "verify", Text: "npm run verify", Kind: "verification", Tool: "run_command", Deterministic: true,
 			Arguments: json.RawMessage(`{"command":"npm ci && npm run verify"}`), ExpectedExitCode: &exit,
 		}},
 		Permissions: domain.TaskPermissions{WriteFiles: true, ExecuteCommands: true},
@@ -289,6 +289,7 @@ func TestVerificationBatchKeyBindsEverythingTheOutcomeDependsOn(t *testing.T) {
 		"network":  verificationBatchKey("sha256:tree", "sha256:image", "ALLOWLIST", []string{"registry.npmjs.org"}, commands),
 		"command":  verificationBatchKey("sha256:tree", "sha256:image", "DENY", nil, []executedCriterion{{CriterionID: "verify", Tool: "run_command", Arguments: json.RawMessage(`{"command":"npm run build"}`)}}),
 		"expected": verificationBatchKey("sha256:tree", "sha256:image", "DENY", nil, []executedCriterion{{CriterionID: "verify", Tool: "run_command", Arguments: commands[0].Arguments, ExpectedExitCode: 1}}),
+		"rules":    verificationBatchKey("sha256:tree", "sha256:image", "DENY", nil, commands, "portable-v2"),
 	} {
 		if other == base {
 			t.Fatalf("the key ignores a change of the %s", name)

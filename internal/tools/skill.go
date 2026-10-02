@@ -13,12 +13,13 @@ import (
 
 type ReadSkill struct {
 	Skills []domain.SkillRuntime
+	Loaded map[string]bool
 }
 
 func (t ReadSkill) Definition() domain.ToolDefinition {
 	return domain.ToolDefinition{
 		Name:        "read_skill",
-		Description: "Load the full equipped skill: instructions, references, scripts, and project configuration. Copy its exact canonical id from the equipped_skills list into id.",
+		Description: "Load a pinned available skill found through search_skills or the equipped list: instructions, references, scripts, and project configuration. Copy its exact canonical id from the equipped_skills list into id.",
 		InputSchema: schema(`{"type":"object","properties":{"id":{"type":"string","description":"Exact canonical id from equipped_skills, for example skill-code-review"},"name":{"type":"string","description":"Legacy display-name lookup; prefer the canonical id"}},"additionalProperties":false}`),
 	}
 }
@@ -51,9 +52,16 @@ func (t ReadSkill) Execute(ctx context.Context, raw json.RawMessage) domain.Tool
 		}
 		return logExecute(ctx, "read_skill", started, FailWithHint("skill_not_equipped", "skill is not equipped for this agent", hint), "query", query)
 	}
+	if t.Loaded[skill.ID] {
+		return OK(map[string]any{"id": skill.ID, "alreadyLoaded": true, "attribution": domain.SkillRuntimeAttribution(skill)})
+	}
+	if t.Loaded != nil {
+		t.Loaded[skill.ID] = true
+	}
 	return logExecute(ctx, "read_skill", started, OK(map[string]any{
 		"id": skill.ID, "name": skill.Name, "description": skill.Description,
 		"instructions": skill.Instructions, "references": skill.References, "scripts": skill.Scripts,
+		"attribution":   domain.SkillRuntimeAttribution(skill),
 		"requiredTools": skill.RequiredTools, "configuration": skillprompt.PromptConfiguration(skill.Configuration),
 	}), "skill_id", skill.ID, "name", skill.Name)
 }

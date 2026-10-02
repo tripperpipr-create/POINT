@@ -22,6 +22,7 @@ node_modules/
 /point-core.exe
 /point-db
 /point-db.exe
+/server.exe
 /vscode-extension/bin/*
 !/vscode-extension/bin/.gitkeep
 
@@ -54,6 +55,7 @@ GolandProjects.lnk
 
 # Замер покрытия: профиль пишет затвор, в дерево он не входит.
 /coverage.out
+/scripts/__pycache__/
 
 # Маркер проверки прав: его создаёт диагностика и обязана убирать за собой.
 # Один такой хвост уже уехал в коммит вместе с фикстурой examples/go-health.

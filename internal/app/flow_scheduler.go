@@ -356,7 +356,7 @@ func (a *App) scheduleWaitingAgentNodes(quest domain.Quest, flow domain.FlowGrap
 				if parentExecutionID == "" {
 					rootSeedPath = a.rootFlowSeedPath(flowRun)
 				}
-				created, createErr = a.startSandboxedExecutionWithSeed(effectiveAgentID, task, executionQuestID, parentExecutionID, rootSeedPath)
+				created, createErr = a.startSandboxedExecutionWithSeed(effectiveAgentID, task, executionQuestID, parentExecutionID, rootSeedPath, flowSandboxOptions(flowRun, domain.FlowNodeStageRole(node)))
 			}
 			if createErr != nil {
 				return createErr

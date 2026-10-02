@@ -1,0 +1,388 @@
+{
+  "createdAt": "2026-10-01T06:31:47.8541647Z",
+  "project": "C:\\Users\\Rif\\GolandProjects\\ai-ide",
+  "revision": "91ad15d47bcbde1f33cb47e5c818736261aff275",
+  "image": "point-agent-sandbox:1.2.2",
+  "imageDigest": "sha256:cdbf49d1d93902496539b3054c3f02b565f8690972229c0fd221f9e17cb77add",
+  "dockerVersion": "27.2.0",
+  "rules": "portable-v2",
+  "audit": "SHA-256 snapshots, patch diff and durable JSON journal; excludes LLM and app event bus",
+  "samples": [
+    {
+      "mode": "bind",
+      "command": "true",
+      "setupMs": 30617,
+      "preparationMs": 0,
+      "durationMs": 1027,
+      "exitCode": 0,
+      "digest": "sha256:e74ccf7eb27a4a086de813c9b9904f8a034fa38e066809ae12b2356ee6afcdc5"
+    },
+    {
+      "mode": "bind",
+      "command": "true",
+      "setupMs": 30617,
+      "preparationMs": 0,
+      "durationMs": 952,
+      "exitCode": 0,
+      "digest": "sha256:e74ccf7eb27a4a086de813c9b9904f8a034fa38e066809ae12b2356ee6afcdc5"
+    },
+    {
+      "mode": "bind",
+      "command": "true",
+      "setupMs": 30617,
+      "preparationMs": 0,
+      "durationMs": 951,
+      "exitCode": 0,
+      "digest": "sha256:e74ccf7eb27a4a086de813c9b9904f8a034fa38e066809ae12b2356ee6afcdc5"
+    },
+    {
+      "mode": "bind",
+      "command": "true",
+      "setupMs": 30617,
+      "preparationMs": 0,
+      "durationMs": 924,
+      "exitCode": 0,
+      "digest": "sha256:e74ccf7eb27a4a086de813c9b9904f8a034fa38e066809ae12b2356ee6afcdc5"
+    },
+    {
+      "mode": "bind",
+      "command": "true",
+      "setupMs": 30617,
+      "preparationMs": 0,
+      "durationMs": 911,
+      "exitCode": 0,
+      "digest": "sha256:e74ccf7eb27a4a086de813c9b9904f8a034fa38e066809ae12b2356ee6afcdc5"
+    },
+    {
+      "mode": "bind",
+      "command": "true",
+      "setupMs": 30617,
+      "preparationMs": 0,
+      "durationMs": 845,
+      "exitCode": 0,
+      "digest": "sha256:e74ccf7eb27a4a086de813c9b9904f8a034fa38e066809ae12b2356ee6afcdc5"
+    },
+    {
+      "mode": "bind",
+      "command": "true",
+      "setupMs": 30617,
+      "preparationMs": 0,
+      "durationMs": 904,
+      "exitCode": 0,
+      "digest": "sha256:e74ccf7eb27a4a086de813c9b9904f8a034fa38e066809ae12b2356ee6afcdc5"
+    },
+    {
+      "mode": "bind",
+      "command": "true",
+      "setupMs": 30617,
+      "preparationMs": 0,
+      "durationMs": 939,
+      "exitCode": 0,
+      "digest": "sha256:e74ccf7eb27a4a086de813c9b9904f8a034fa38e066809ae12b2356ee6afcdc5"
+    },
+    {
+      "mode": "bind",
+      "command": "true",
+      "setupMs": 30617,
+      "preparationMs": 0,
+      "durationMs": 868,
+      "exitCode": 0,
+      "digest": "sha256:e74ccf7eb27a4a086de813c9b9904f8a034fa38e066809ae12b2356ee6afcdc5"
+    },
+    {
+      "mode": "bind",
+      "command": "true",
+      "setupMs": 30617,
+      "preparationMs": 0,
+      "durationMs": 965,
+      "exitCode": 0,
+      "digest": "sha256:e74ccf7eb27a4a086de813c9b9904f8a034fa38e066809ae12b2356ee6afcdc5"
+    },
+    {
+      "mode": "bind",
+      "command": "true",
+      "setupMs": 30617,
+      "preparationMs": 0,
+      "durationMs": 934,
+      "exitCode": 0,
+      "digest": "sha256:e74ccf7eb27a4a086de813c9b9904f8a034fa38e066809ae12b2356ee6afcdc5"
+    },
+    {
+      "mode": "bind",
+      "command": "true",
+      "setupMs": 30617,
+      "preparationMs": 0,
+      "durationMs": 918,
+      "exitCode": 0,
+      "digest": "sha256:e74ccf7eb27a4a086de813c9b9904f8a034fa38e066809ae12b2356ee6afcdc5"
+    },
+    {
+      "mode": "bind",
+      "command": "true",
+      "setupMs": 30617,
+      "preparationMs": 0,
+      "durationMs": 876,
+      "exitCode": 0,
+      "digest": "sha256:e74ccf7eb27a4a086de813c9b9904f8a034fa38e066809ae12b2356ee6afcdc5"
+    },
+    {
+      "mode": "bind",
+      "command": "true",
+      "setupMs": 30617,
+      "preparationMs": 0,
+      "durationMs": 875,
+      "exitCode": 0,
+      "digest": "sha256:e74ccf7eb27a4a086de813c9b9904f8a034fa38e066809ae12b2356ee6afcdc5"
+    },
+    {
+      "mode": "bind",
+      "command": "true",
+      "setupMs": 30617,
+      "preparationMs": 0,
+      "durationMs": 872,
+      "exitCode": 0,
+      "digest": "sha256:e74ccf7eb27a4a086de813c9b9904f8a034fa38e066809ae12b2356ee6afcdc5"
+    },
+    {
+      "mode": "bind",
+      "command": "true",
+      "setupMs": 30617,
+      "preparationMs": 0,
+      "durationMs": 825,
+      "exitCode": 0,
+      "digest": "sha256:e74ccf7eb27a4a086de813c9b9904f8a034fa38e066809ae12b2356ee6afcdc5"
+    },
+    {
+      "mode": "bind",
+      "command": "true",
+      "setupMs": 30617,
+      "preparationMs": 0,
+      "durationMs": 950,
+      "exitCode": 0,
+      "digest": "sha256:e74ccf7eb27a4a086de813c9b9904f8a034fa38e066809ae12b2356ee6afcdc5"
+    },
+    {
+      "mode": "bind",
+      "command": "true",
+      "setupMs": 30617,
+      "preparationMs": 0,
+      "durationMs": 872,
+      "exitCode": 0,
+      "digest": "sha256:e74ccf7eb27a4a086de813c9b9904f8a034fa38e066809ae12b2356ee6afcdc5"
+    },
+    {
+      "mode": "bind",
+      "command": "true",
+      "setupMs": 30617,
+      "preparationMs": 0,
+      "durationMs": 941,
+      "exitCode": 0,
+      "digest": "sha256:e74ccf7eb27a4a086de813c9b9904f8a034fa38e066809ae12b2356ee6afcdc5"
+    },
+    {
+      "mode": "bind",
+      "command": "true",
+      "setupMs": 30617,
+      "preparationMs": 0,
+      "durationMs": 870,
+      "exitCode": 0,
+      "digest": "sha256:e74ccf7eb27a4a086de813c9b9904f8a034fa38e066809ae12b2356ee6afcdc5"
+    },
+    {
+      "mode": "volume",
+      "command": "true",
+      "setupMs": 43495,
+      "preparationMs": 0,
+      "durationMs": 207,
+      "exitCode": 0,
+      "digest": "sha256:e74ccf7eb27a4a086de813c9b9904f8a034fa38e066809ae12b2356ee6afcdc5"
+    },
+    {
+      "mode": "volume",
+      "command": "true",
+      "setupMs": 43495,
+      "preparationMs": 0,
+      "durationMs": 214,
+      "exitCode": 0,
+      "digest": "sha256:e74ccf7eb27a4a086de813c9b9904f8a034fa38e066809ae12b2356ee6afcdc5"
+    },
+    {
+      "mode": "volume",
+      "command": "true",
+      "setupMs": 43495,
+      "preparationMs": 0,
+      "durationMs": 218,
+      "exitCode": 0,
+      "digest": "sha256:e74ccf7eb27a4a086de813c9b9904f8a034fa38e066809ae12b2356ee6afcdc5"
+    },
+    {
+      "mode": "volume",
+      "command": "true",
+      "setupMs": 43495,
+      "preparationMs": 0,
+      "durationMs": 202,
+      "exitCode": 0,
+      "digest": "sha256:e74ccf7eb27a4a086de813c9b9904f8a034fa38e066809ae12b2356ee6afcdc5"
+    },
+    {
+      "mode": "volume",
+      "command": "true",
+      "setupMs": 43495,
+      "preparationMs": 0,
+      "durationMs": 202,
+      "exitCode": 0,
+      "digest": "sha256:e74ccf7eb27a4a086de813c9b9904f8a034fa38e066809ae12b2356ee6afcdc5"
+    },
+    {
+      "mode": "volume",
+      "command": "true",
+      "setupMs": 43495,
+      "preparationMs": 0,
+      "durationMs": 220,
+      "exitCode": 0,
+      "digest": "sha256:e74ccf7eb27a4a086de813c9b9904f8a034fa38e066809ae12b2356ee6afcdc5"
+    },
+    {
+      "mode": "volume",
+      "command": "true",
+      "setupMs": 43495,
+      "preparationMs": 0,
+      "durationMs": 215,
+      "exitCode": 0,
+      "digest": "sha256:e74ccf7eb27a4a086de813c9b9904f8a034fa38e066809ae12b2356ee6afcdc5"
+    },
+    {
+      "mode": "volume",
+      "command": "true",
+      "setupMs": 43495,
+      "preparationMs": 0,
+      "durationMs": 191,
+      "exitCode": 0,
+      "digest": "sha256:e74ccf7eb27a4a086de813c9b9904f8a034fa38e066809ae12b2356ee6afcdc5"
+    },
+    {
+      "mode": "volume",
+      "command": "true",
+      "setupMs": 43495,
+      "preparationMs": 0,
+      "durationMs": 201,
+      "exitCode": 0,
+      "digest": "sha256:e74ccf7eb27a4a086de813c9b9904f8a034fa38e066809ae12b2356ee6afcdc5"
+    },
+    {
+      "mode": "volume",
+      "command": "true",
+      "setupMs": 43495,
+      "preparationMs": 0,
+      "durationMs": 207,
+      "exitCode": 0,
+      "digest": "sha256:e74ccf7eb27a4a086de813c9b9904f8a034fa38e066809ae12b2356ee6afcdc5"
+    },
+    {
+      "mode": "volume",
+      "command": "true",
+      "setupMs": 43495,
+      "preparationMs": 0,
+      "durationMs": 202,
+      "exitCode": 0,
+      "digest": "sha256:e74ccf7eb27a4a086de813c9b9904f8a034fa38e066809ae12b2356ee6afcdc5"
+    },
+    {
+      "mode": "volume",
+      "command": "true",
+      "setupMs": 43495,
+      "preparationMs": 0,
+      "durationMs": 190,
+      "exitCode": 0,
+      "digest": "sha256:e74ccf7eb27a4a086de813c9b9904f8a034fa38e066809ae12b2356ee6afcdc5"
+    },
+    {
+      "mode": "volume",
+      "command": "true",
+      "setupMs": 43495,
+      "preparationMs": 0,
+      "durationMs": 211,
+      "exitCode": 0,
+      "digest": "sha256:e74ccf7eb27a4a086de813c9b9904f8a034fa38e066809ae12b2356ee6afcdc5"
+    },
+    {
+      "mode": "volume",
+      "command": "true",
+      "setupMs": 43495,
+      "preparationMs": 0,
+      "durationMs": 211,
+      "exitCode": 0,
+      "digest": "sha256:e74ccf7eb27a4a086de813c9b9904f8a034fa38e066809ae12b2356ee6afcdc5"
+    },
+    {
+      "mode": "volume",
+      "command": "true",
+      "setupMs": 43495,
+      "preparationMs": 0,
+      "durationMs": 213,
+      "exitCode": 0,
+      "digest": "sha256:e74ccf7eb27a4a086de813c9b9904f8a034fa38e066809ae12b2356ee6afcdc5"
+    },
+    {
+      "mode": "volume",
+      "command": "true",
+      "setupMs": 43495,
+      "preparationMs": 0,
+      "durationMs": 199,
+      "exitCode": 0,
+      "digest": "sha256:e74ccf7eb27a4a086de813c9b9904f8a034fa38e066809ae12b2356ee6afcdc5"
+    },
+    {
+      "mode": "volume",
+      "command": "true",
+      "setupMs": 43495,
+      "preparationMs": 0,
+      "durationMs": 197,
+      "exitCode": 0,
+      "digest": "sha256:e74ccf7eb27a4a086de813c9b9904f8a034fa38e066809ae12b2356ee6afcdc5"
+    },
+    {
+      "mode": "volume",
+      "command": "true",
+      "setupMs": 43495,
+      "preparationMs": 0,
+      "durationMs": 216,
+      "exitCode": 0,
+      "digest": "sha256:e74ccf7eb27a4a086de813c9b9904f8a034fa38e066809ae12b2356ee6afcdc5"
+    },
+    {
+      "mode": "volume",
+      "command": "true",
+      "setupMs": 43495,
+      "preparationMs": 0,
+      "durationMs": 223,
+      "exitCode": 0,
+      "digest": "sha256:e74ccf7eb27a4a086de813c9b9904f8a034fa38e066809ae12b2356ee6afcdc5"
+    },
+    {
+      "mode": "volume",
+      "command": "true",
+      "setupMs": 43495,
+      "preparationMs": 0,
+      "durationMs": 200,
+      "exitCode": 0,
+      "digest": "sha256:e74ccf7eb27a4a086de813c9b9904f8a034fa38e066809ae12b2356ee6afcdc5"
+    }
+  ],
+  "aggregates": [
+    {
+      "mode": "bind",
+      "command": "true",
+      "count": 20,
+      "medianMs": 914,
+      "p95Ms": 965
+    },
+    {
+      "mode": "volume",
+      "command": "true",
+      "count": 20,
+      "medianMs": 207,
+      "p95Ms": 220
+    }
+  ]
+}

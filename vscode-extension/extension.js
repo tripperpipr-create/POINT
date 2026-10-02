@@ -11,6 +11,7 @@ const net = require('net')
 const crypto = require('crypto')
 const os = require('os')
 const { spawn } = require('child_process')
+const { configureSandbox, watchSandboxSettings } = require('./sandbox-settings')
 const cursorRuntime = require('./cursor-runtime')
 const { restoreSystemBackup } = require('./backup-controller')
 const { createNdjsonReader } = require('./core-stream')
@@ -285,9 +286,9 @@ class BackendService {
   }
 
   async startCore() {
-    if (!vscode.workspace.isTrusted) throw new Error('Сначала подтвердите доверие к рабочей папке Point.')
-    const folder = this.workspaceFolder()
-    if (!folder) throw new Error('Откройте папку проекта перед запуском агента Point.')
+    const projectFolder = this.workspaceFolder()
+    if (projectFolder && !vscode.workspace.isTrusted) throw new Error('Сначала подтвердите доверие к папке Point.')
+    const folder = projectFolder || {name:'POINT',uri:vscode.Uri.file(path.join(require('os').homedir(),'POINT'))}
     if (folder.uri.scheme !== 'file') throw new Error('Point поддерживает только локальные папки проекта.')
     this.setState('starting', 'Запускаем локальный сервис…')
     fs.mkdirSync(this.dataDirPath, { recursive: true })
@@ -315,28 +316,26 @@ class BackendService {
     this.baseUrl = `http://127.0.0.1:${port}`
     const logLevel = String(vscode.workspace.getConfiguration('localAgent').get('logLevel', 'info') || 'info').toLowerCase()
     const logFormat = String(vscode.workspace.getConfiguration('localAgent').get('logFormat', 'text') || 'text').toLowerCase()
-    const sandboxBackend = String(vscode.workspace.getConfiguration('localAgent').get('sandboxBackend', 'filtered-copy') || 'filtered-copy').toLowerCase()
-    const sandboxImage = String(vscode.workspace.getConfiguration('localAgent').get('sandboxImage', '') || '').trim()
     const liveWorkspace = vscode.workspace.getConfiguration('localAgent').get('liveWorkspace', true) !== false
+    const sandboxEnv = configureSandbox(this, vscode.workspace.getConfiguration('localAgent'), process.env, binary)
     const env = {
       ...process.env,
       DATA_DIR: this.dataDirPath,
-      WORKSPACE_ROOT: folder.uri.fsPath,
+      WORKSPACE_ROOT: projectFolder?.uri.fsPath || '',
       HTTP_ADDR: `127.0.0.1:${port}`,
       REDIS_ADDR: '',
       DEFAULT_OLLAMA_URL: vscode.workspace.getConfiguration('localAgent').get('ollamaBaseUrl', 'http://127.0.0.1:11434'),
       POINT_LOG_LEVEL: ['debug', 'info', 'warn', 'error'].includes(logLevel) ? logLevel : 'info',
       POINT_LOG_FORMAT: logFormat === 'json' ? 'json' : 'text',
       POINT_LOG_FILE: this.logPath,
-      POINT_SANDBOX_BACKEND: sandboxBackend === 'docker' || sandboxBackend === 'container' ? 'docker' : 'filtered-copy',
       POINT_LIVE_WORKSPACE: liveWorkspace ? '1' : '0',
       // Ядро гаснет само, когда не остаётся ни одного окна Point (owner_watch.go).
       POINT_OWNER_DIR: path.join(this.dataDirPath, 'runtime'),
+      ...sandboxEnv,
     }
-    if (sandboxImage) env.POINT_SANDBOX_IMAGE = sandboxImage
-    if (env.POINT_SANDBOX_BACKEND === 'docker') {
+    if (['docker', 'embedded'].includes(env.POINT_SANDBOX_BACKEND)) {
       env.POINT_SANDBOX_REQUIRE_STRONG = 'true'
-      this.hostLog('info', `[sandbox] backend=docker requireStrong=true liveWorkspace=${liveWorkspace}${sandboxImage ? ` image=${sandboxImage}` : ''}`)
+      this.hostLog('info', `[sandbox] backend=${env.POINT_SANDBOX_BACKEND} requireStrong=true liveWorkspace=${env.POINT_LIVE_WORKSPACE}${env.POINT_SANDBOX_IMAGE ? ` image=${env.POINT_SANDBOX_IMAGE}` : ''}`)
     } else {
       this.hostLog('info', `[sandbox] backend=filtered-copy liveWorkspace=${liveWorkspace}`)
     }
@@ -2417,6 +2416,7 @@ function activate(context) {
   // Отметка «приложение открыто»: по ней ядра, и тёплые тоже, живут, пока жив
   // хоть один Point, и выходят сами после закрытия последнего окна.
   context.subscriptions.push(coreLease.startHostHeartbeat(warmPool.runtimeDirPath))
+  context.subscriptions.push(watchSandboxSettings(vscode))
   activeWarmPool = isPointHubWindow() ? warmPool : undefined
   const postProjects = async () => {
     if (!provider.hubPanelReady && !provider.panel) return

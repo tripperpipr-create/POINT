@@ -35,6 +35,9 @@ func TestMasterMigrationPreservesLegacySessions(t *testing.T) {
 		tx.Rollback()
 		t.Fatal(err)
 	}
+	if err = migrationMasterHostV1(ctx, tx); err != nil {
+		t.Fatal(err)
+	}
 	if err = tx.Commit(); err != nil {
 		t.Fatal(err)
 	}

@@ -55,7 +55,14 @@ func TestMain(m *testing.M) {
 	if os.Getenv("POINT_FILE_ISOLATION") == "" {
 		_ = os.Setenv("POINT_FILE_ISOLATION", "sandbox")
 	}
+	sandboxes, err := os.MkdirTemp("", "point-app-sandboxes-")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	_ = os.Setenv("POINT_SANDBOX_ROOT", sandboxes)
 	code := m.Run()
+	_ = os.RemoveAll(sandboxes)
 	// Одну попытку делает сам TestOrdinaryTestsRejectDeveloperOllamaAndAllowManagedFake —
 	// он проверяет сторож; всё сверх неё — тест, который идёт к настоящей модели.
 	if dials := ollamaDials.Load(); dials > expectedOllamaDials.Load() {

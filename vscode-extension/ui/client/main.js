@@ -1,3 +1,4 @@
+import { acceptMasterFastRun } from './master-fast-run.js'
 import { fillAttribute } from './format-units.js'
 import { createQuestHistoryViews } from './quest-history-views.js'
 import { createCompanionProposalViews } from './companion-proposal-views.js'
@@ -75,7 +76,7 @@ const vscode = {
   postMessage(message) {
     if (/master/i.test(message.type || '')) {
       if(message.type==='masterViewPreferences'){masterClient.historyHidden=message.hidden;masterClient.historyOpen=message.open;persistDraft();return}
-      message = {...message,viewId:masterViewId,conversationId:message.conversationId || masterClient.active || undefined}
+      message = {...message,viewId:masterViewId,workspaceId:message.workspaceId || masterData?.sessions?.workspaceId,conversationId:message.conversationId || masterClient.active || undefined}
       if (message.type==='loadMaster' || message.type==='masterSession') message.requestId=++masterRequestId
       if (message.type==='stopMasterChat') message.turnId=masterClient.turns[masterClient.active]?.id
     }
@@ -1567,20 +1568,8 @@ function sendMasterMessage(forcedText = '', options = {}) {
     else masterComposeNote = 'В очереди уже пять реплик — дождитесь ответа или уберите лишнее.'
     persistDraft(); render(); return
   }
-  const workMode = masterData?.sessions?.workMode || 'discuss'
-  if (workMode === 'agent') {
-    const profile = agentById(selectedProfileId) || hubAgents()[0] || (state.boot?.profiles || [])[0]
-    if (!profile?.id) {
-      masterComposeNote = 'Выберите агента проекта — режим «Агент» пишет через его профиль.'
-      render()
-      return
-    }
-    const routing = state.boot?.modelRouting
-    if (routing?.codingRequired && routing?.codingReady === false) {
-      masterComposeNote = routing.codingBlockReason || 'Сильная модель (coding) не прошла проверку. Откройте Связи и проверьте подключение.'
-      render()
-      return
-    }
+  const workMode = masterData?.sessions?.workMode || 'auto'
+  if (workMode === 'fast') {
     const attachments = masterContextPayload(masterClient.active)
     masterComposeNote = ''
     rememberMasterSent(text)
@@ -1591,7 +1580,9 @@ function sendMasterMessage(forcedText = '', options = {}) {
     runStarting = true
     vscode.postMessage({
       type: 'startFastAgent',
-      profileId: profile.id,
+      profileId: 'system-fast',
+      workspaceId:masterData?.sessions?.workspaceId,
+      requestId:'fast_'+Date.now().toString(36)+Math.random().toString(36).slice(2),
       task: text,
       apiKey,
       conversationId: masterClient.active,
@@ -2309,7 +2300,7 @@ function paint() {
     persistDraft()
     return
   }
-  if (state.workspaceTrusted === false) { root.innerHTML = workspaceTrustRequired(); restoreUi(snapshot); return }
+  if (state.workspace && state.workspaceTrusted === false) { root.innerHTML = workspaceTrustRequired(); restoreUi(snapshot); return }
   if (isToolWindow() && (['git', 'terminal', 'logs'].includes(toolWindowKind()) || state.service?.state === 'running')) {
     root.innerHTML = currentToolWindowView()
     restoreUi(snapshot)
@@ -3229,6 +3220,7 @@ const applyWorldStateMessage = createWorldStateInbox({
 window.addEventListener('message', event => {
   const message=event.data
   if (acknowledgesForm(submittingForm, message)) submittingForm = ''
+  if (acceptMasterFastRun(message,modularUiState,masterClient.active,render)) return
   if (message.type === 'collectGarbage') {
     setTimeout(() => globalThis.gc?.(), 0)
     return

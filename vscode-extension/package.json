@@ -741,10 +741,17 @@
           "type": "string",
           "enum": [
             "filtered-copy",
-            "docker"
+            "docker",
+            "embedded"
           ],
           "default": "filtered-copy",
-          "description": "Граница исполнения команд агента. filtered-copy — процесс Point на хосте; docker — контейнер с изоляцией процесса и сети (нужны Docker Desktop и локальный образ sandbox). Запись файлов по умолчанию идёт в открытый проект независимо от этого выбора."
+          "enumDescriptions": [
+            "Копия файлов проекта, команды — процессом Point на хосте. Без изоляции процессов и сети.",
+            "Контейнер Docker Desktop с изоляцией процессов и сети. Нужны запущенный Docker и локальный образ sandbox.",
+            "Встроенный Moby: поставляется вместе с Point, работает в собственном WSL 2-дистрибутиве Point и гаснет без работы. Docker Desktop не нужен."
+          ],
+          "markdownDescription": "Среда, в которой агенты выполняют команды. Если Point поставлен со встроенным Moby, а значение не выбрано явно, используется `embedded`. Без готового Moby квесты останавливаются, а не уходят на хост. Изменение применяется после перезапуска ядра.",
+          "scope": "application"
         },
         "localAgent.sandboxImage": {
           "type": "string",
@@ -801,6 +808,44 @@
           "type": "boolean",
           "default": false,
           "description": "Оптимизировать импорты при сохранении, если language server это умеет."
+        },
+        "localAgent.embeddedRuntimeManifest": {
+          "type": "string",
+          "default": "",
+          "scope": "application",
+          "markdownDescription": "Обычно пусто: Point берёт пакет Moby из своей поставки (`bin/moby/runtime.json` рядом с ядром). Укажите абсолютный путь к `runtime.json` только для отдельно проверенного пакета. Если указанного файла нет, используется пакет поставки."
+        },
+        "localAgent.sandboxCPUs": {
+          "type": "integer",
+          "default": 2,
+          "minimum": 1,
+          "maximum": 16,
+          "scope": "application",
+          "markdownDescription": "Сколько CPU получает контейнер этапа во встроенном Moby. Замеры проведены на `2`; больше имеет смысл только для тяжёлых сборок."
+        },
+        "localAgent.sandboxMemoryGiB": {
+          "type": "integer",
+          "default": 2,
+          "minimum": 1,
+          "maximum": 32,
+          "scope": "application",
+          "markdownDescription": "Память контейнера этапа во встроенном Moby, ГиБ. Замеры проведены на `2`. Общую память WSL эта настройка не ограничивает."
+        },
+        "localAgent.verificationReuse": {
+          "type": "string",
+          "enum": [
+            "off",
+            "shadow",
+            "on"
+          ],
+          "default": "shadow",
+          "scope": "application",
+          "enumDescriptions": [
+            "Каждая проверка запускается заново.",
+            "Проверка запускается заново, а совпадение с сохранённым доказательством записывается для сравнения.",
+            "Детерминированная проверка с тем же деревом, окружением и командами берёт сохранённое доказательство. Ручные критерии остаются открытыми."
+          ],
+          "description": "Переиспользование независимых проверок во встроенном Moby."
         }
       }
     },
@@ -1983,7 +2028,7 @@
     "build:js": "node ui/build-js.mjs",
     "build:runtime": "node runtime/build.mjs",
     "build": "npm run build:css && npm run build:js && npm run build:runtime",
-    "check": "node ../scripts/check-docs.mjs && node ../scripts/check-release-contracts.mjs && node ../scripts/test-patch-point-chat-hub.js && npm run build && node ../scripts/check-webview-exports.mjs && node ../scripts/check-webview-message-routes.mjs && node ../scripts/check-webview-inline-styles.mjs && node ../scripts/check-click-handler-returns.mjs && node ../scripts/check-js-syntax.mjs && node ../scripts/check-api-content-type.mjs && node ui/contracts.mjs && node ui/plural.mjs && node ui/alphabet.mjs && node ui/contrast.mjs && node ui/type-scale.mjs && node ../scripts/check-shell-tokens.mjs && node ../scripts/check-shell-scales.mjs && node ../scripts/test-extension-utils.js && node ../scripts/smoke-backup-restore-controller.js && node ../scripts/smoke-core-lease.js && node ../scripts/smoke-webview-persisted-state.js && node ../scripts/test-cursor-runtime.js && node ../scripts/smoke-bootstrap-patching.js && node ../scripts/smoke-point-performance-controls.js && node ../scripts/smoke-point-editor-daily.js && node ../scripts/smoke-point-run-configurations.js && node ../scripts/smoke-chat-markup-escaping.js && node ../scripts/smoke-git-workflow.js && node ../scripts/smoke-point-multi-project.js && node ../scripts/smoke-point-warm-cores.js && node ../scripts/smoke-companion-ide-routing.js && node ../scripts/smoke-agent-studio-ui.js && node ../scripts/smoke-system-health-ui.js && node ../scripts/smoke-agent-profile-memory.js && node ../scripts/smoke-point-daily-workbench.mjs && node ../scripts/smoke-point-console-runtime.js && node ../scripts/smoke-point-ssh.js && node ../scripts/run-hub-smokes.mjs && node ../scripts/check-point-navigation.mjs --source-only",
+    "check": "node ../scripts/check-docs.mjs && node ../scripts/check-release-contracts.mjs && node ../scripts/test-patch-point-chat-hub.js && npm run build && node ../scripts/check-webview-exports.mjs && node ../scripts/check-webview-message-routes.mjs && node ../scripts/check-webview-inline-styles.mjs && node ../scripts/check-click-handler-returns.mjs && node ../scripts/check-js-syntax.mjs && node ../scripts/check-api-content-type.mjs && node ui/contracts.mjs && node ui/plural.mjs && node ui/alphabet.mjs && node ui/contrast.mjs && node ui/type-scale.mjs && node ../scripts/check-shell-tokens.mjs && node ../scripts/check-shell-scales.mjs && node ../scripts/test-extension-utils.js && node ../scripts/test-point-sandbox-settings.js && node ../scripts/smoke-backup-restore-controller.js && node ../scripts/smoke-core-lease.js && node ../scripts/smoke-webview-persisted-state.js && node ../scripts/test-cursor-runtime.js && node ../scripts/smoke-bootstrap-patching.js && node ../scripts/smoke-point-performance-controls.js && node ../scripts/smoke-point-editor-daily.js && node ../scripts/smoke-point-run-configurations.js && node ../scripts/smoke-chat-markup-escaping.js && node ../scripts/smoke-git-workflow.js && node ../scripts/smoke-point-multi-project.js && node ../scripts/smoke-point-warm-cores.js && node ../scripts/smoke-companion-ide-routing.js && node ../scripts/smoke-agent-studio-ui.js && node ../scripts/smoke-system-health-ui.js && node ../scripts/smoke-agent-profile-memory.js && node ../scripts/smoke-point-daily-workbench.mjs && node ../scripts/smoke-point-console-runtime.js && node ../scripts/smoke-point-ssh.js && node ../scripts/run-hub-smokes.mjs && node ../scripts/check-point-navigation.mjs --source-only",
     "package": "npm run build && vsce package --allow-missing-repository --out ../build/vsix/point-ide-1.2.3.vsix",
     "package:verify": "powershell -NoProfile -ExecutionPolicy Bypass -File ../scripts/smoke-vsix-runtime.ps1 -VsixPath ../build/vsix/point-ide-1.2.3.vsix",
     "build:core": "node ../scripts/build-core.mjs",

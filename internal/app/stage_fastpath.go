@@ -341,7 +341,7 @@ func (a *App) executeApprovedSetupPlan(flowRun domain.FlowRun, exec domain.Execu
 	}
 	for _, command := range setup.Commands {
 		args, _ := json.Marshal(map[string]any{
-			"command": command.Command, "reason": "approved setup plan: " + setup.ID,
+			"command": command.Command, "cwd": command.Cwd, "reason": "approved setup plan: " + setup.ID,
 			"timeoutSeconds": command.TimeoutSeconds,
 		})
 		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(command.TimeoutSeconds+60)*time.Second)
@@ -466,20 +466,21 @@ func acceptCheckFailure(result domain.ToolResult) (diagnostics.CommandFailure, b
 		return failure, true
 	}
 	var payload struct {
-		Stdout     string `json:"stdout"`
-		Stderr     string `json:"stderr"`
-		ExitCode   int    `json:"exitCode"`
-		TimedOut   bool   `json:"timedOut"`
-		Cause      string `json:"cause"`
-		CauseClass string `json:"causeClass"`
-		CauseHint  string `json:"causeHint"`
+		Stdout         string `json:"stdout"`
+		Stderr         string `json:"stderr"`
+		ExitCode       int    `json:"exitCode"`
+		TimedOut       bool   `json:"timedOut"`
+		Cause          string `json:"cause"`
+		CauseClass     string `json:"causeClass"`
+		CauseSignature string `json:"causeSignature"`
+		CauseHint      string `json:"causeHint"`
 	}
 	if json.Unmarshal(result.Output, &payload) != nil {
 		return diagnostics.CommandFailure{}, false
 	}
 	if payload.Cause != "" {
 		// Вывод разобран там, где знали команду и решения шлюза.
-		return diagnostics.CommandFailure{Class: payload.CauseClass, Cause: payload.Cause, Hint: payload.CauseHint}, true
+		return diagnostics.CommandFailure{Signature: payload.CauseSignature, Class: payload.CauseClass, Cause: payload.Cause, Hint: payload.CauseHint}, true
 	}
 	return diagnostics.DiagnoseCommand(diagnostics.CommandRun{ExitCode: payload.ExitCode, TimedOut: payload.TimedOut, Stdout: payload.Stdout, Stderr: payload.Stderr})
 }
@@ -533,6 +534,9 @@ func (a *App) tryDeterministicAccept(quest domain.Quest, flowRun domain.FlowRun,
 		return false, flowRun, nil
 	}
 	approval, approvalErr := a.store.WorkOrderApprovalByQuestV2(context.Background(), flowRun.QuestID)
+	if approvalErr == nil {
+		approval.WorkOrder.Dependencies = effectiveDependencyPlan(quest, approval.WorkOrder.Dependencies)
+	}
 	if !criteriaSupportDeterministicAccept(brief) && !(approvalErr == nil && criteriaSupportWorkOrderAcceptV2(brief)) {
 		return false, flowRun, nil
 	}
@@ -565,13 +569,15 @@ func (a *App) tryDeterministicAccept(quest domain.Quest, flowRun domain.FlowRun,
 		"fastPath": domain.StageRoleAccept, "executionId": exec.ID,
 	})
 	if err = a.store.Append(context.Background(), domain.Event{
-		ID: domain.NewID("event"), RunID: runID, Type: domain.EventRunStarted, Actor: "system",
+		ID: domain.NewID("event"), RunID: runID, WorkspaceID: flowRun.WorkspaceID, QuestID: flowRun.QuestID, ExecutionID: exec.ID, FlowRunID: flowRun.ID, FlowNodeID: node.ID, Type: domain.EventRunStarted, Actor: "system",
 		Data: startPayload, CreatedAt: now,
 	}); err != nil {
 		return true, flowRun, err
 	}
 
 	batchInput := criteriaBatchInput{
+		Phase:     "accept",
+		FlowRunID: flowRun.ID, FlowNodeID: node.ID,
 		QuestID: flowRun.QuestID, RunID: runID, Criteria: brief.Criteria, Sandbox: sandboxRecord,
 		NetworkPolicy: policy, NetworkHosts: hosts,
 	}
@@ -602,14 +608,19 @@ func (a *App) tryDeterministicAccept(quest domain.Quest, flowRun domain.FlowRun,
 		evidence.Status = "blocked"
 	}
 	checkStatus := "accepted_after_revision"
+	if batch.NeedsReview {
+		checkStatus = "needs_review"
+	}
 	if !allOK {
 		checkStatus = "rejected"
 	}
 	checkPayload, _ := json.Marshal(map[string]any{
 		"status": checkStatus, "evidence": evidence, "checkKind": "accept", "verificationService": verificationNote,
+		"machineChecksPassed": allOK, "acceptancePassed": allOK && !batch.NeedsReview,
+		"pendingCriterionIds": agent.PendingCriterionIDs(evidence.Criteria),
 	})
 	if err = a.store.Append(context.Background(), domain.Event{
-		ID: domain.NewID("event"), RunID: runID, Type: domain.EventCompletionChecked, Actor: "system",
+		ID: domain.NewID("event"), RunID: runID, WorkspaceID: flowRun.WorkspaceID, QuestID: flowRun.QuestID, ExecutionID: exec.ID, FlowRunID: flowRun.ID, FlowNodeID: node.ID, Type: domain.EventCompletionChecked, Actor: "system",
 		Data: checkPayload, CreatedAt: time.Now().UTC(),
 	}); err != nil {
 		return true, flowRun, err
@@ -641,13 +652,16 @@ func (a *App) tryDeterministicAccept(quest domain.Quest, flowRun domain.FlowRun,
 	}
 	a.setFlowChildQuestStatus(flowRun.ID, node.ID, childStatus)
 	output := map[string]any{
-		"executionId":        exec.ID,
-		"runId":              runID,
-		"result":             run.Result,
-		"status":             string(exec.Status),
-		"fastPath":           domain.StageRoleAccept,
-		"completionStatus":   checkStatus,
-		"completionEvidence": evidence,
+		"executionId":         exec.ID,
+		"runId":               runID,
+		"result":              run.Result,
+		"status":              string(exec.Status),
+		"fastPath":            domain.StageRoleAccept,
+		"completionStatus":    checkStatus,
+		"completionEvidence":  evidence,
+		"machineChecksPassed": allOK,
+		"acceptancePassed":    allOK && !batch.NeedsReview,
+		"pendingCriterionIds": agent.PendingCriterionIDs(evidence.Criteria),
 	}
 	if state := flowRun.NodeStates[node.ID]; state.Output != nil {
 		if lineage, _ := state.Output["sandboxLineage"].(string); lineage != "" {

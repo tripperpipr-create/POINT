@@ -164,3 +164,14 @@ func containsToolCall(messages []providers.Message, id string) bool {
 	}
 	return false
 }
+
+func TestLargeWindowCompactsOldSearchOutputBeforeHardLimit(t *testing.T) {
+	h := newConversationHistory([]providers.Message{{Role: "system", Content: "approved brief"}})
+	for i := 0; i < 10; i++ {
+		h.AppendRound(conversationRound{Step: i, Assistant: providers.Message{Role: "assistant", Content: strings.Repeat("old search excerpt ", 18000)}})
+	}
+	messages, r, err := h.Prepare(nil, 200000)
+	if err != nil || r.RemovedRounds == 0 || r.AfterTokens >= r.BeforeTokens || messages[0].Content != "approved brief" || len(h.rounds) < 2 {
+		t.Fatalf("report=%+v err=%v", r, err)
+	}
+}

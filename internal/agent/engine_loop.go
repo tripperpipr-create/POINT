@@ -37,6 +37,12 @@ func (e *Engine) executeWithCheckpoint(ctx context.Context, active *activeRun, p
 		close(active.finalized)
 	}()
 	run := e.snapshot(active)
+	if planner, ok := e.stageVerifier.(StageVerificationPlanner); ok {
+		profile.ManagedVerification = planner.WillVerifyBeforeCompletion(ctx, StageVerifyRequest{
+			RunID: run.ID, ExecutionID: active.correlation.ExecutionID, QuestID: active.correlation.QuestID,
+			FlowRunID: active.correlation.FlowRunID, FlowNodeID: active.correlation.FlowNodeID, SandboxPath: active.sandboxPath,
+		})
+	}
 	toolDefinitions := withoutUnusableGitTools(ctx, registry.Definitions(policy.ProfileGrants(profile).ToolNames()), patches)
 	history := newConversationHistory(BuildStableMessages(profile, run.ContextItems, run.Task, customTools))
 	// Предел вывода считает не только ответ: размышление тратит тот же бюджет и
@@ -66,6 +72,9 @@ func (e *Engine) executeWithCheckpoint(ctx context.Context, active *activeRun, p
 	toolPlanRecoveries := 0
 	reasoningBudgetRecoveries := 0
 	preAcceptChecks := 0
+	preAcceptFailed := false
+	preAcceptObserved := false
+	var preAcceptOutcome StageVerifyOutcome
 	emptyResponseRecoveries := 0
 	transientModelRetries := 0
 	toolOutputBudgetNoticed := false
@@ -105,6 +114,7 @@ func (e *Engine) executeWithCheckpoint(ctx context.Context, active *activeRun, p
 			e.fail(active, fmt.Errorf("restore completion checkpoint: %w", restoreErr))
 			return
 		}
+		completion.managedVerification = profile.ManagedVerification
 		observations, restoreErr = unmarshalObservationTracker(restored.ObservationsJSON)
 		if restoreErr != nil {
 			e.fail(active, fmt.Errorf("restore observation checkpoint: %w", restoreErr))
@@ -588,15 +598,26 @@ func (e *Engine) executeWithCheckpoint(ctx context.Context, active *activeRun, p
 					return
 				}
 				if outcome.Ran {
+					preAcceptOutcome = outcome
+					preAcceptFailed = !outcome.Passed
+					preAcceptObserved = true
 					status := "accepted"
+					if outcome.NeedsReview {
+						status = "needs_review"
+					}
 					if !outcome.Passed {
 						status = "revision_required"
+						if outcome.PreparationFailed {
+							status = "preparation_failed"
+						}
 					}
 					e.publishOrLog(ctx, currentRun, domain.EventCompletionChecked, "system", map[string]any{
 						"status": status, "checkKind": "pre_accept", "verification": outcome,
-						"workspaceRevision": workspaceRevision, "episode": preAcceptChecks + 1, "maxEpisodes": maxPreAcceptChecks,
+						"machineChecksPassed": outcome.Passed, "acceptancePassed": outcome.Passed && !outcome.NeedsReview,
+						"pendingCriterionIds": outcome.PendingCriterionIDs,
+						"workspaceRevision":   workspaceRevision, "episode": preAcceptChecks + 1, "maxEpisodes": maxPreAcceptChecks,
 					})
-					if !outcome.Passed {
+					if !outcome.Passed && !outcome.PreparationFailed {
 						preAcceptChecks++
 						feedback := providers.Message{Role: "user", Content: outcome.Feedback}
 						history.AppendRound(conversationRound{Step: step, Assistant: providers.Message{Role: "assistant", Content: assistantText, Reasoning: reasoning}, Followup: &feedback})
@@ -605,9 +626,23 @@ func (e *Engine) executeWithCheckpoint(ctx context.Context, active *activeRun, p
 				}
 			}
 			if completionRevisions > 0 || active.taskBrief != nil {
+				evidence := completion.Evidence(workspaceRevision)
+				if preAcceptObserved && len(preAcceptOutcome.Criteria) > 0 {
+					evidence.Criteria = preAcceptOutcome.Criteria
+					evidence.Status = "verified"
+					if preAcceptOutcome.NeedsReview {
+						evidence.Status = "needs_review"
+					}
+					if preAcceptFailed {
+						evidence.Status = "blocked"
+					}
+				}
 				if err := e.publish(ctx, currentRun, domain.EventCompletionChecked, "agent", withCompletionCheckKind(active, map[string]any{
-					"status": "accepted_after_revision", "workspaceRevision": workspaceRevision, "evidence": completion.Evidence(workspaceRevision),
-					"changedFiles": currentRun.ChangedFiles, "commandAttempts": completion.commandAttempts,
+					"status": completionStatusAfterPreAccept(preAcceptObserved, !preAcceptFailed, preAcceptOutcome.NeedsReview), "workspaceRevision": workspaceRevision, "evidence": evidence,
+					"implementationReady": true, "machineChecksPassed": preAcceptObserved && !preAcceptFailed,
+					"acceptancePassed":    preAcceptObserved && !preAcceptFailed && !preAcceptOutcome.NeedsReview,
+					"pendingCriterionIds": PendingCriterionIDs(evidence.Criteria),
+					"changedFiles":        currentRun.ChangedFiles, "commandAttempts": completion.commandAttempts,
 					"successfulVerificationRevision": completion.successfulVerificationRevision,
 					"correctionEpisodesUsed":         completionRevisions,
 				})); err != nil {

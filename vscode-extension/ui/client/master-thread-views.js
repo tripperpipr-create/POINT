@@ -1,3 +1,4 @@
+import { masterFastRunHtml } from './master-fast-run.js'
 import { masterProposedMemoryHtml, masterUsedMemoryHtml } from './master-memory-ui.js'
 import { masterContextAddHtml, masterContextHtml, masterMessageAttachmentsHtml } from './master-context-ui.js'
 import { masterSessionHtml, masterComposerHtml } from './master-session-ui.js'
@@ -798,7 +799,7 @@ export function createMasterThreadViews(dependencies) {
     }
     if (ui.masterData && ui.masterData.configured === false && !ui.masterData.sessions?.items?.length) return shell(masterNotConfiguredHtml())
 
-    const workMode = ui.masterData?.sessions?.workMode || 'discuss'
+    const workMode = ui.masterData?.sessions?.workMode || 'auto'
 
     // Панель задания собирается один раз: её разметка решает и класс раздела —
     // без задания сужать разговор не подо что.
@@ -886,8 +887,8 @@ export function createMasterThreadViews(dependencies) {
           ? `<div class="hall-empty"><b>Открываем переписку</b><span>Ядро отдаёт прежние реплики Мастера.</span></div>`
           : `<div class="hall-empty hall-chat-welcome"><b>С чего начнём?</b><span>Обсудите идею с мастером. Он поможет разобраться в проекте, составить план и подобрать отряд.</span>${masterStartersHtml()}</div>`
 
-    const workMode = ui.masterData?.sessions?.workMode || 'discuss'
-    const runChangedFiles = (workMode === 'agent' || ui.state.details?.run) ? sessionRunChangedFilesHtml() : ''
+    const workMode = ui.masterData?.sessions?.workMode || 'auto'
+    const runChangedFiles = (workMode === 'fast' || ui.state.details?.run) ? sessionRunChangedFilesHtml() : ''
     // Карточке наряда нужны те же зависимости, что и остальным видам: после
     // утверждения она рисует экран выполнения, а он читает хронику прогона.
     const shownProposalIds = new Set(history.map(item => String(item?.proposalId || '')).filter(Boolean))
@@ -939,6 +940,7 @@ export function createMasterThreadViews(dependencies) {
         ${/* Идущий ход — одним блоком (master-stream-view.js): «Думаю…», след,
              живой ответ, а после конца — тот же ответ, пока не придёт история. */''}
         ${masterStreamBlockHtml()}
+        ${masterFastRunHtml(ui.masterData?.fastRun,esc,icon)}
         ${factsShown ? '' : masterFactsHtml(response?.facts)}
         ${proposalShown ? '' : masterThreadProposalHtml(response?.proposal?.id)}
         ${actionProposalShown ? '' : masterThreadActionProposalHtml(response?.actionProposal?.id)}

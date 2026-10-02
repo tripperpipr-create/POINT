@@ -13,6 +13,7 @@ import (
 	"github.com/pmezard/go-difflib/difflib"
 
 	"local-agent-workbench/internal/domain"
+	"local-agent-workbench/internal/filepolicy"
 	"local-agent-workbench/internal/osproc"
 )
 
@@ -32,6 +33,9 @@ type Capabilities struct {
 	APIVersion                    string   `json:"apiVersion,omitempty"`
 	Image                         string   `json:"image,omitempty"`
 	ImageDigest                   string   `json:"imageDigest,omitempty"`
+	SecurityProfileVersion        string   `json:"securityProfileVersion,omitempty"`
+	RuntimeDigest                 string   `json:"runtimeDigest,omitempty"`
+	LinuxVersion                  string   `json:"linuxVersion,omitempty"`
 	LiveWorkspaceIsolation        bool     `json:"liveWorkspaceIsolation"`
 	ProcessIsolation              bool     `json:"processIsolation"`
 	NetworkIsolation              bool     `json:"networkIsolation"`
@@ -72,9 +76,15 @@ func (*Manager) Capabilities() Capabilities {
 }
 
 type CreateRequest struct {
-	WorkspaceID   string
-	WorkspacePath string
-	ExecutionID   string
+	QuestID          string
+	StorageMode      string
+	FileRulesVersion string
+	SeedVolume       string
+	SeedImageDigest  string
+	PortableOnly     bool
+	WorkspaceID      string
+	WorkspacePath    string
+	ExecutionID      string
 	// Image is a trusted server-selected managed runtime pack. Local filesystem
 	// sandboxes ignore it; container backends resolve and pin its digest.
 	Image string
@@ -120,51 +130,6 @@ type DiffEntry struct {
 	ProposedHash string
 	Original     string
 	Proposed     string
-}
-
-// MergeSeed is one completed branch head participating in a deterministic
-// Flow join. Paths remain server-side; only bounded conflict metadata is
-// exposed to clients.
-type MergeSeed struct {
-	ExecutionID string
-	SandboxID   string
-	Path        string
-}
-
-type MergeResolution struct {
-	Path        string  `json:"path"`
-	Strategy    string  `json:"strategy"` // use_parent | manual
-	ExecutionID string  `json:"executionId,omitempty"`
-	Content     *string `json:"content,omitempty"`
-	Delete      bool    `json:"delete,omitempty"`
-}
-
-type MergeCandidate struct {
-	ExecutionID string `json:"executionId"`
-	Kind        string `json:"kind"`
-	Hash        string `json:"hash,omitempty"`
-	proposed    string
-}
-
-type MergeConflict struct {
-	Path       string           `json:"path"`
-	Candidates []MergeCandidate `json:"candidates"`
-}
-
-type MergeRequest struct {
-	WorkspaceID          string
-	ExecutionID          string
-	BasePath             string
-	Runtime              RuntimeRequirements
-	Seeds                []MergeSeed
-	Resolutions          []MergeResolution
-	BaselineChangeSetIDs []string
-}
-
-type MergeResult struct {
-	Record    domain.SandboxRecord `json:"record"`
-	Conflicts []MergeConflict      `json:"conflicts,omitempty"`
-	Paths     []string             `json:"paths,omitempty"`
 }
 
 type mergeTextEdit struct {
@@ -272,12 +237,16 @@ func (m *Manager) Merge(ctx context.Context, req MergeRequest) (MergeResult, err
 		_ = os.RemoveAll(target)
 		_ = os.RemoveAll(baseline)
 	}
-	if err := copyFiltered(req.BasePath, target); err != nil {
+	copyTree := copyFiltered
+	if req.FileRulesVersion == filepolicy.Current {
+		copyTree = func(src, dst string) error { return CopyPortable(ctx, src, dst, req.FileRulesVersion) }
+	}
+	if err := copyTree(req.BasePath, target); err != nil {
 		cleanup()
 		return MergeResult{}, fmt.Errorf("copy merge base: %w", err)
 	}
 
-	baseFiles, err := listTextFiles(req.BasePath)
+	baseFiles, err := listTextFilesWithRules(req.BasePath, req.FileRulesVersion)
 	if err != nil {
 		cleanup()
 		return MergeResult{}, fmt.Errorf("read merge base: %w", err)
@@ -299,7 +268,7 @@ func (m *Manager) Merge(ctx context.Context, req MergeRequest) (MergeResult, err
 		seenExecutions[seed.ExecutionID] = true
 		parentExecutionIDs = append(parentExecutionIDs, seed.ExecutionID)
 		parentSandboxIDs = append(parentSandboxIDs, seed.SandboxID)
-		diffs, err := m.Diff(ctx, req.BasePath, seed.Path)
+		diffs, err := m.DiffWithRules(ctx, req.BasePath, seed.Path, req.FileRulesVersion)
 		if err != nil {
 			cleanup()
 			return MergeResult{}, fmt.Errorf("diff merge seed %s: %w", seed.ExecutionID, err)
@@ -423,7 +392,7 @@ func (m *Manager) Merge(ctx context.Context, req MergeRequest) (MergeResult, err
 			return MergeResult{}, fmt.Errorf("merge write %s: %w", path, err)
 		}
 	}
-	if err := copyFiltered(target, baseline); err != nil {
+	if err := copyTree(target, baseline); err != nil {
 		cleanup()
 		return MergeResult{}, fmt.Errorf("snapshot merged sandbox baseline: %w", err)
 	}
@@ -447,6 +416,9 @@ func (m *Manager) Create(ctx context.Context, req CreateRequest) (domain.Sandbox
 	id := domain.NewID("sandbox")
 	if req.LiveWorkspace {
 		return m.createLive(ctx, req, id)
+	}
+	if req.FileRulesVersion == filepolicy.Current {
+		return m.createPortable(ctx, req, id)
 	}
 	target := filepath.Join(m.Root, id)
 	record := domain.SandboxRecord{
@@ -643,11 +615,15 @@ func (m *Manager) createLive(_ context.Context, req CreateRequest, id string) (d
 }
 
 func (m *Manager) Diff(_ context.Context, basePath, sandboxPath string) ([]DiffEntry, error) {
-	baseFiles, err := listTextFiles(basePath)
+	return m.DiffWithRules(context.Background(), basePath, sandboxPath, filepolicy.Legacy)
+}
+
+func (m *Manager) DiffWithRules(_ context.Context, basePath, sandboxPath, rules string) ([]DiffEntry, error) {
+	baseFiles, err := listTextFilesWithRules(basePath, rules)
 	if err != nil {
 		return nil, err
 	}
-	sandboxFiles, err := listTextFiles(sandboxPath)
+	sandboxFiles, err := listTextFilesWithRules(sandboxPath, rules)
 	if err != nil {
 		return nil, err
 	}

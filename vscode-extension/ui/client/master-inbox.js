@@ -11,15 +11,7 @@ import { masterQueueAfterTurn, masterQueuePause } from './master-compose-keys.js
 import { acceptQuestAppState, acceptQuestReportState, questAppsToProbe } from './quest-app-state.js'
 import { masterAgentBusy, masterAgentErrors } from './master-agent-card-state.js'
 import { mergeNewerById, upsertNewer, workOrderStamp } from './snapshot-order.js'
-const ORDER_REPLIES = new Set(['masterWorkOrderApproved', 'masterWorkOrderRevised', 'masterWorkOrderControlled', 'masterApplicationControlled'])
-const MASTER_MESSAGES = new Set([
-	'masterDevelopment', 'masterDevelopmentError',
-  'master', 'masterTurn', 'masterEvent',
-  'masterStreamError', 'masterWorkOrder', 'masterWorkOrderApproved',
-  'masterWorkOrderDeleted', 'masterWorkOrderRevised', 'masterWorkOrderControlled', 'masterAgentHired',
-  'masterApplicationControlled', 'masterPage', 'masterContextSuggestions',
-  'masterContext', 'masterApplicationState', 'masterReportState',
-])
+import { ORDER_REPLIES, MASTER_MESSAGES } from './master-inbox-types.js'
 export function createMasterInbox({
   ui,
   root,

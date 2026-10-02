@@ -1,5 +1,7 @@
 # Матрица готовности Point IDE
 
+2026-10-02: embedded Moby/Podman and acceptance-verdict fixes are implemented; both engines passed seven native isolation/recovery scenarios on the current PC under profile v2. Three-project fixed-operation replay completed 36/36 trials with whole-environment resource traces; [observations](perf/runtime-replay-2026-10-02.json) cannot qualify full-model acceleration. Embedded engines remain experimental opt-in; clean Windows/installed IDE acceptance and comparative full-model qualification are pending. WSL Containers is excluded at the current documented security API gate. Defaults remain bind/shadow. See [current implementation evidence](implementation-embedded-runtime.md).
+
 Актуально на 18 сентября 2026 (шапка пересмотрена; строки таблицы датированы 26 августа, их повторная проверка — отдельная работа). Статус **готово** означает не наличие кнопки, а
 исполняемый пользовательский маршрут и автоматическую регрессию. Все пути
 ограничены выбранным проектом, а внешние мутации проходят явное подтверждение.

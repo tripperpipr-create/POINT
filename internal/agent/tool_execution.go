@@ -17,6 +17,7 @@ import (
 	"local-agent-workbench/internal/observability"
 	"local-agent-workbench/internal/policy"
 	"local-agent-workbench/internal/providers"
+	"local-agent-workbench/internal/sandbox"
 	"local-agent-workbench/internal/security"
 	workbenchtools "local-agent-workbench/internal/tools"
 	"local-agent-workbench/internal/workspace"
@@ -95,6 +96,9 @@ func (e *Engine) executeTool(ctx context.Context, active *activeRun, profile dom
 	if autoApproved && !decision.Denied {
 		decision.RequiresApproval = false
 		decision.Reason = "Разрешено утверждённым заданием внутри Docker sandbox"
+		if domain.HostLiveFastAgent(profile, active.taskBrief) {
+			decision.Reason = "Authorized by the local Fast Agent task"
+		}
 	}
 	if decision.Denied {
 		return workbenchtools.Fail("tool_denied", decision.Reason), nil
@@ -212,7 +216,11 @@ func (e *Engine) executeTool(ctx context.Context, active *activeRun, profile dom
 		snapshotStarted := time.Now()
 		// Снимок после прошлой команды служит основой: неизменённые файлы
 		// не перечитываются (workspace.CaptureTextSnapshotFrom).
-		before, snapshotErr = patches.FS.CaptureTextSnapshotFrom(ctx, active.lastSnapshot)
+		if auditor, ok := active.processExecutor.(sandbox.ManifestAuditor); ok && auditor.UsesVolume(patches.FS.Root()) {
+			before, snapshotErr = auditor.CaptureVolumeAudit(ctx, patches.FS.Root(), active.lastSnapshot, false)
+		} else {
+			before, snapshotErr = patches.FS.CaptureTextSnapshotFrom(ctx, active.lastSnapshot)
+		}
 		beforeTook = time.Since(snapshotStarted)
 		if snapshotErr != nil {
 			result := workbenchtools.Fail("workspace_audit_failed", "could not capture the workspace before executing the approved tool: "+snapshotErr.Error())
@@ -222,6 +230,11 @@ func (e *Engine) executeTool(ctx context.Context, active *activeRun, profile dom
 	}
 	if err := e.publish(ctx, e.snapshot(active), domain.EventToolStarted, "agent", map[string]any{"tool": call.Name, "callId": call.ID}); err != nil {
 		return domain.ToolResult{}, fmt.Errorf("%w: start was not persisted; tool was not executed: %v", errToolJournalIntegrity, err)
+	}
+	if auditedExecutable {
+		if err := e.beginVolumeToolAudit(ctx, active, patches.FS.Root()); err != nil {
+			return domain.ToolResult{}, fmt.Errorf("%w: begin volume audit: %v", errToolJournalIntegrity, err)
+		}
 	}
 	started := time.Now()
 	result := tool.Execute(ctx, call.Arguments)
@@ -252,6 +265,9 @@ func (e *Engine) executeTool(ctx context.Context, active *activeRun, profile dom
 	auditStarted := time.Now()
 	if auditedExecutable {
 		after, auditErr := captureAfterExecutable(func(ctx context.Context) (workspace.TextSnapshot, error) {
+			if auditor, ok := active.processExecutor.(sandbox.ManifestAuditor); ok && auditor.UsesVolume(patches.FS.Root()) {
+				return auditor.CaptureVolumeAudit(ctx, patches.FS.Root(), &before, true)
+			}
 			return patches.FS.CaptureTextSnapshotFrom(ctx, &before)
 		}, postToolAuditTimeout(beforeTook))
 		timing["auditAfterMs"] = time.Since(auditStarted).Milliseconds()
@@ -284,6 +300,11 @@ func (e *Engine) executeTool(ctx context.Context, active *activeRun, profile dom
 	}
 	if err := e.publish(context.Background(), e.snapshot(active), domain.EventToolFinished, "agent", finished); err != nil {
 		return result, fmt.Errorf("%w: unknown_outcome: tool ran but its result was not persisted: %v", errToolJournalIntegrity, err)
+	}
+	if auditedExecutable && integrityErr == nil {
+		if err := e.finishVolumeToolAudit(context.Background(), active, patches.FS.Root()); err != nil {
+			return result, fmt.Errorf("%w: acknowledge volume audit: %v", errToolJournalIntegrity, err)
+		}
 	}
 	return result, integrityErr
 }

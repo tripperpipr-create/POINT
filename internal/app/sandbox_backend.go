@@ -2,7 +2,9 @@ package app
 
 import (
 	"errors"
-	"os/exec"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"local-agent-workbench/internal/domain"
 	"local-agent-workbench/internal/orchestrator"
@@ -42,10 +44,8 @@ func (a *App) sandboxProcessExecutor() sandbox.ProcessExecutor {
 func (a *App) plannerExecutionEnvironment(brief *domain.TaskBrief) *orchestrator.ExecutionEnvironment {
 	capabilities := a.sandboxCapabilities()
 	environment := &orchestrator.ExecutionEnvironment{SandboxBackend: capabilities.Backend, NetworkHosts: []string{}}
-	if capabilities.Backend != "docker" {
-		_, err := exec.LookPath("docker")
-		environment.DockerInSandbox = err == nil
-	}
+	// A host executable proves nothing about the project execution boundary.
+	// Keep this unavailable unless a future executor proves in-sandbox support.
 	if brief == nil {
 		return environment
 	}
@@ -57,4 +57,15 @@ func (a *App) plannerExecutionEnvironment(brief *domain.TaskBrief) *orchestrator
 		}
 	}
 	return environment
+}
+
+// sandboxRoot is shared by every core on the machine. Tests point
+// POINT_SANDBOX_ROOT at their own temporary directory: their data directories
+// are removed after the run, the shared root is not, and test copies piled up
+// there by the thousand.
+func sandboxRoot() string {
+	if root := strings.TrimSpace(os.Getenv("POINT_SANDBOX_ROOT")); root != "" {
+		return root
+	}
+	return filepath.Join(os.TempDir(), "point-sandboxes")
 }

@@ -398,7 +398,7 @@ func TestModelOrchestratorUsesValidSecondPlan(t *testing.T) {
 		}
 		plan, _ := json.Marshal(map[string]any{
 			"agentIds": []string{agent.ID}, "rationale": "Implement the approved result",
-			"stages": []map[string]any{{"name": "Implement", "agentId": agent.ID, "instruction": "Implement the approved result.", "phase": 1}},
+			"stages":           []map[string]any{{"name": "Implement", "agentId": agent.ID, "instruction": "Implement the approved result.", "phase": 1}},
 			"requiresApproval": false,
 		})
 		writePlannerSSE(t, w, string(plan), 10, 10)
@@ -507,8 +507,10 @@ func TestCriticalImportanceSchedulesDualSandboxes(t *testing.T) {
 func TestQuestPlanningStopsWithTheHTTPContext(t *testing.T) {
 	t.Setenv("REDIS_ADDR", "")
 	providerCancelled := make(chan struct{}, 1)
+	providerStarted := make(chan struct{}, 1)
 	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = io.Copy(io.Discard, r.Body)
+		providerStarted <- struct{}{}
 		<-r.Context().Done()
 		providerCancelled <- struct{}{}
 	}))
@@ -554,8 +556,16 @@ func TestQuestPlanningStopsWithTheHTTPContext(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	go func() {
+		select {
+		case <-providerStarted:
+			cancel()
+		case <-time.After(5 * time.Second):
+			cancel()
+		}
+	}()
 	if _, err = application.DecideQuestProposalContext(ctx, QuestProposalDecision{
 		ProposalID: proposal.ID, Action: QuestProposalStart, OrchestratorAPIKey: "secret",
 	}); err == nil {

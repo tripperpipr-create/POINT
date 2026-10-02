@@ -112,13 +112,19 @@ func (s *SQLite) SaveSandbox(ctx context.Context, sandbox domain.SandboxRecord) 
 }
 
 func saveSandboxWith(ctx context.Context, db sqlExecer, sandbox domain.SandboxRecord) error {
+	if sandbox.StorageMode == "" {
+		sandbox.StorageMode = "bind"
+	}
+	if sandbox.FileRulesVersion == "" {
+		sandbox.FileRulesVersion = "legacy-v1"
+	}
 	var closed any
 	if sandbox.ClosedAt != nil {
 		closed = formatTime(*sandbox.ClosedAt)
 	}
 	_, err := db.ExecContext(ctx, `
-INSERT INTO sandboxes(id,workspace_id,execution_id,kind,backend,backend_version,backend_image,backend_image_digest,path,base_commit,parent_sandbox_id,parent_execution_id,parent_sandbox_ids,parent_execution_ids,baseline_path,baseline_change_set_ids,created_at,closed_at)
-VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+INSERT INTO sandboxes(id,workspace_id,execution_id,kind,backend,backend_version,backend_image,backend_image_digest,path,base_commit,parent_sandbox_id,parent_execution_id,parent_sandbox_ids,parent_execution_ids,baseline_path,baseline_change_set_ids,created_at,closed_at,storage_mode,workspace_volume,file_rules_version,sandboxd_digest)
+VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 ON CONFLICT(id) DO UPDATE SET parent_sandbox_id=excluded.parent_sandbox_id,
   parent_execution_id=excluded.parent_execution_id, parent_sandbox_ids=excluded.parent_sandbox_ids,
   parent_execution_ids=excluded.parent_execution_ids, baseline_path=excluded.baseline_path,
@@ -126,19 +132,20 @@ ON CONFLICT(id) DO UPDATE SET parent_sandbox_id=excluded.parent_sandbox_id,
 		sandbox.ID, sandbox.WorkspaceID, sandbox.ExecutionID, sandbox.Kind, sandbox.Backend, sandbox.BackendVersion,
 		sandbox.BackendImage, sandbox.BackendImageDigest, sandbox.Path, sandbox.BaseCommit,
 		sandbox.ParentSandboxID, sandbox.ParentExecutionID, marshalJSON(sandbox.ParentSandboxIDs), marshalJSON(sandbox.ParentExecutionIDs),
-		sandbox.BaselinePath, marshalJSON(sandbox.BaselineChangeSetIDs), formatTime(sandbox.CreatedAt), closed)
+		sandbox.BaselinePath, marshalJSON(sandbox.BaselineChangeSetIDs), formatTime(sandbox.CreatedAt), closed,
+		sandbox.StorageMode, sandbox.WorkspaceVolume, sandbox.FileRulesVersion, sandbox.SandboxdDigest)
 	return err
 }
 
 func (s *SQLite) GetSandbox(ctx context.Context, id string) (domain.SandboxRecord, error) {
-	row := s.db.QueryRowContext(ctx, `SELECT id,workspace_id,execution_id,kind,backend,backend_version,backend_image,backend_image_digest,path,base_commit,parent_sandbox_id,parent_execution_id,parent_sandbox_ids,parent_execution_ids,baseline_path,baseline_change_set_ids,created_at,closed_at FROM sandboxes WHERE id=?`, id)
+	row := s.db.QueryRowContext(ctx, `SELECT id,workspace_id,execution_id,kind,backend,backend_version,backend_image,backend_image_digest,path,base_commit,parent_sandbox_id,parent_execution_id,parent_sandbox_ids,parent_execution_ids,baseline_path,baseline_change_set_ids,created_at,closed_at,storage_mode,workspace_volume,file_rules_version,sandboxd_digest FROM sandboxes WHERE id=?`, id)
 	var sandbox domain.SandboxRecord
 	var created, parentSandboxIDs, parentExecutionIDs, baselineChangeSetIDs string
 	var closed sql.NullString
 	if err := row.Scan(&sandbox.ID, &sandbox.WorkspaceID, &sandbox.ExecutionID, &sandbox.Kind,
 		&sandbox.Backend, &sandbox.BackendVersion, &sandbox.BackendImage, &sandbox.BackendImageDigest, &sandbox.Path,
 		&sandbox.BaseCommit, &sandbox.ParentSandboxID, &sandbox.ParentExecutionID, &parentSandboxIDs, &parentExecutionIDs,
-		&sandbox.BaselinePath, &baselineChangeSetIDs, &created, &closed); err != nil {
+		&sandbox.BaselinePath, &baselineChangeSetIDs, &created, &closed, &sandbox.StorageMode, &sandbox.WorkspaceVolume, &sandbox.FileRulesVersion, &sandbox.SandboxdDigest); err != nil {
 		return domain.SandboxRecord{}, err
 	}
 	unmarshalJSON(parentSandboxIDs, &sandbox.ParentSandboxIDs)
@@ -153,14 +160,14 @@ func (s *SQLite) GetSandbox(ctx context.Context, id string) (domain.SandboxRecor
 }
 
 func (s *SQLite) GetSandboxByExecution(ctx context.Context, executionID string) (domain.SandboxRecord, error) {
-	row := s.db.QueryRowContext(ctx, `SELECT id,workspace_id,execution_id,kind,backend,backend_version,backend_image,backend_image_digest,path,base_commit,parent_sandbox_id,parent_execution_id,parent_sandbox_ids,parent_execution_ids,baseline_path,baseline_change_set_ids,created_at,closed_at FROM sandboxes WHERE execution_id=? ORDER BY created_at DESC LIMIT 1`, executionID)
+	row := s.db.QueryRowContext(ctx, `SELECT id,workspace_id,execution_id,kind,backend,backend_version,backend_image,backend_image_digest,path,base_commit,parent_sandbox_id,parent_execution_id,parent_sandbox_ids,parent_execution_ids,baseline_path,baseline_change_set_ids,created_at,closed_at,storage_mode,workspace_volume,file_rules_version,sandboxd_digest FROM sandboxes WHERE execution_id=? ORDER BY created_at DESC LIMIT 1`, executionID)
 	var sandbox domain.SandboxRecord
 	var created, parentSandboxIDs, parentExecutionIDs, baselineChangeSetIDs string
 	var closed sql.NullString
 	if err := row.Scan(&sandbox.ID, &sandbox.WorkspaceID, &sandbox.ExecutionID, &sandbox.Kind,
 		&sandbox.Backend, &sandbox.BackendVersion, &sandbox.BackendImage, &sandbox.BackendImageDigest, &sandbox.Path,
 		&sandbox.BaseCommit, &sandbox.ParentSandboxID, &sandbox.ParentExecutionID, &parentSandboxIDs, &parentExecutionIDs,
-		&sandbox.BaselinePath, &baselineChangeSetIDs, &created, &closed); err != nil {
+		&sandbox.BaselinePath, &baselineChangeSetIDs, &created, &closed, &sandbox.StorageMode, &sandbox.WorkspaceVolume, &sandbox.FileRulesVersion, &sandbox.SandboxdDigest); err != nil {
 		return domain.SandboxRecord{}, err
 	}
 	unmarshalJSON(parentSandboxIDs, &sandbox.ParentSandboxIDs)

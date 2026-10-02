@@ -157,9 +157,16 @@ func (a *App) SaveProjectAgent(agent domain.ProjectAgent) (domain.ProjectAgent, 
 }
 
 func (a *App) prepareProjectAgent(agent domain.ProjectAgent) (domain.ProjectAgent, error) {
+	return a.prepareProjectAgentContext(context.Background(), agent)
+}
+
+func (a *App) prepareProjectAgentContext(ctx context.Context, agent domain.ProjectAgent) (domain.ProjectAgent, error) {
 	now := time.Now().UTC()
 	existingSkillIDs := []string{}
 	ws, err := a.requireWorkspace()
+	if scoped, ok := ctx.Value(masterScopeKey{}).(masterScope); ok {
+		ws, err = scoped.Workspace, nil
+	}
 	if err != nil {
 		return domain.ProjectAgent{}, err
 	}

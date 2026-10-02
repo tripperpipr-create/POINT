@@ -64,7 +64,7 @@ func (s *SQLite) SaveVerificationResultV2(ctx context.Context, result domain.Ver
 // PassedVerificationResultV2 — последний целиком прошедший прогон квеста с
 // этим ключом. Провалы не возвращаются: провал всегда перепроверяется.
 func (s *SQLite) PassedVerificationResultV2(ctx context.Context, questID, batchKey string) (domain.VerificationResult, bool, error) {
-	row := s.db.QueryRowContext(ctx, `SELECT id,workspace_id,flow_run_id,execution_id,run_id,tree_digest,image_digest,source,evidence_json,created_at FROM verification_results_v2 WHERE quest_id=? AND batch_key=? AND all_passed=1 ORDER BY created_at DESC LIMIT 1`, questID, batchKey)
+	row := s.db.QueryRowContext(ctx, `SELECT id,workspace_id,flow_run_id,execution_id,run_id,tree_digest,image_digest,source,evidence_json,created_at FROM verification_results_v2 WHERE quest_id=? AND batch_key=? AND all_passed=1 AND id=(SELECT id FROM verification_results_v2 WHERE quest_id=? AND batch_key=? ORDER BY created_at DESC,rowid DESC LIMIT 1)`, questID, batchKey, questID, batchKey)
 	result := domain.VerificationResult{QuestID: questID, BatchKey: batchKey, AllPassed: true}
 	var evidence, created string
 	if err := row.Scan(&result.ID, &result.WorkspaceID, &result.FlowRunID, &result.ExecutionID, &result.RunID, &result.TreeDigest, &result.ImageDigest, &result.Source, &evidence, &created); err != nil {

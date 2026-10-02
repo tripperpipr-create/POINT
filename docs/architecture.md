@@ -1,11 +1,15 @@
 # Architecture
 
+Experimental embedded runtime infrastructure is isolated behind `internal/sandbox.ContainerEngine` and the bundled `cmd/point-runtime` bridge. The existing backend/executor/audit/sandboxd contracts continue to own project execution. Moby/Podman run inside an owned WSL guest with Linux volumes and interprocess runtime leases. Historical completion readers prioritize evidence; deterministic independent proof reuse binds engine/security/environment inputs. See [implementation and open qualification gates](implementation-embedded-runtime.md).
+
 Architecture inventory for Point `1.2.3`, reviewed on 2026-09-23. Runtime code
 and tests remain the source of truth; see [README.md](README.md) for document
 ownership and [PRODUCT-VISION.md](PRODUCT-VISION.md) for the target architecture.
 Sections that describe earlier run paths are historical until revalidated by a
 live end-to-end test. In particular, file isolation and process isolation must
-be evaluated separately; the v2 Fast Agent uses an isolated execution copy.
+be evaluated separately. The system Fast Agent uses host_live execution in its
+pinned project or POINT chat folder; approved full Point work uses the existing
+isolated route.
 
 ## Runtime surfaces
 
@@ -22,6 +26,19 @@ No transport owns agent behavior, policy decisions, storage semantics, or filesy
 The multi-project core proposal is tracked in [TODO.md](TODO.md), Q25. It requires a separate architecture decision replacing the current per-project process and filesystem isolation boundary.
 
 ## Module boundaries
+
+Volume-backed execution adds a versioned portable-file boundary shared by
+copies, snapshots, transfer and verification digests. `SandboxRecord.path`
+continues to identify the host source mirror and `baselinePath` its immutable
+portable baseline. Storage mode, workspace volume, file rules and helper digest
+are pinned per sandbox; Flow launch pins the mechanism for successors.
+The static helper runs in the pinned execution image from a separate read-only
+volume, so no image-specific Point installation is required. A host-side durable
+operation journal separates command dispatch, received delta and mirror commit.
+The optional delta executor and manifest auditor serve executable tools while
+bind/live retain their existing process contract. Incomplete audit is bound to
+the revision and blocks delivery until clean verification and human review.
+See [sandbox storage and recovery](sandbox.md#volume-workspaces-experimental).
 
 The central entry files remain compatibility composition roots, but bounded
 behavior no longer has to be edited inside them:
@@ -99,7 +116,7 @@ The same boundary remains available during execution. From Context Inspector the
 
 The dependency layer resolves relative TypeScript/JavaScript imports, Go module/package paths, Python modules, Rust `use` paths and Java/Kotlin/C# imports against lookup tables built once per index. It records outgoing `imports`, reverse `imported_by`, `test` and `tests` relationships. Test filenames are linked only when their production target is unambiguous. A request may return at most 20 deterministic relationship records containing only path, relation, import spec and whole-file digest; source content is never included and does not become edit evidence. Import extraction is capped at 256 unique specs per file and each spec resolves to at most eight local targets. Before returning results, Point compares indexed file metadata plus the selected chunk/relationship digests; external creates, deletes and edits trigger a rebuild even when an edit preserves size and modification time. Any managed file write, accepted patch, detected executable-tool mutation or rollback also invalidates the index.
 
-At run creation the application constructs schema-version-2 `RunConfigurationSnapshot` (v1 remains accepted by the engine). Execution workspace selection is route-specific: WorkOrder v2 and the v2 Fast Agent use an isolated execution copy, while legacy and opt-in live-write paths retain their own contracts. The UI must show the selected mode; a Docker process boundary does not imply staged file writes. Every direct launch also creates a first-class Quest, while Flow launches reuse their existing Quest and Execution. SQLite inserts the configuration snapshot with the run and never updates it during status transitions. This makes execution history independent of mutable agent/tool catalogs while keeping API keys outside durable state.
+At run creation the application constructs schema-version-2 `RunConfigurationSnapshot` (v1 remains accepted by the engine). Execution workspace selection is route-specific: approved WorkOrder v2 uses an isolated execution copy, while the system Fast Agent uses host_live in the captured project or POINT chat folder. The executor is selected per run. The UI must show the selected mode; a Docker process boundary does not imply staged file writes. Every direct launch also creates a first-class Quest, while Flow launches reuse their existing Quest and Execution. SQLite inserts the configuration snapshot with the run and never updates it during status transitions. This makes execution history independent of mutable agent/tool catalogs while keeping API keys outside durable state.
 
 Graph Flows are validated before persistence and again before execution: node IDs and endpoints must be valid, the graph must be reachable, ordinary cycles are rejected, and Agent/Tool references must be explicit. Tool nodes bypass the model and invoke only the deterministic low-risk allowlist in their own execution sandbox. Loop nodes use an explicit `maxIterations` limit (1-20), one `continue` edge, one `done` edge, one entry edge, and one back edge; runtime state records bounded iteration results and attempts.
 
@@ -425,3 +442,14 @@ mode and schema are measured separately. Character reduction is not a tokenizer
 measurement or proof of better answers. Actual tokens and quality need live
 paired evaluations in the development history. Deterministic tests exercise
 gates and lifecycle, not the quality of a particular configured model.
+
+
+## Quest dependency preparation
+
+Project discovery resolves criterion working directories and nested manifests. Scaffolding remains in the one-time setup stage. The approved dependency plan installs from npm/Composer lockfiles with development dependencies, or verifies Go modules and reconstructs vendor when required. Executor, pre-accept and deterministic Accept use `internal/app/dependency_preparation.go`; a clean batch prepares once, then runs unchanged criteria. Preparation never expands the approved network policy.
+
+Portable source and lock integrity is checked after installation. Failed preparation stops the batch and retains the saved upstream result. Missing declared tooling dependencies are classified as environment failures; TypeScript diagnostics remain implementation failures. Preparation failures do not consume model correction turns.
+
+Independent checks inherit bind/volume selection and isolate installed dependencies. Successful reuse also includes the dependency-plan and manifest fingerprint alongside tree, image digest, portable rules, effective commands and network policy. Shadow remains the global default; failures never reuse. Download caches for npm/Go survive quest stages, while unverified build caches remain isolated from acceptance. Older conversation rounds compact through existing replayable memory above a 64k working context; stable approved inputs and recent evidence remain intact.
+
+`point-perf-report` takes wall-clock bounds from `flow_runs`, finds deterministic events via execution/run correlation, and reports preparation and system-check time separately. Command and audit durations are nested under agent tool time and are never added twice. Unmeasured cache state is explicitly reported rather than inferred as warm.

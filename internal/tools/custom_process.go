@@ -32,6 +32,8 @@ type CustomProcess struct {
 	Executor            sandbox.ProcessExecutor
 	SandboxImage        string
 	RunID               string
+	QuestID             string
+	Authoritative       bool
 }
 
 type effectiveProcess struct {
@@ -110,7 +112,11 @@ func (t CustomProcess) Execute(ctx context.Context, raw json.RawMessage) domain.
 	commandCtx, cancel := context.WithTimeout(ctx, time.Duration(t.Config.TimeoutSeconds)*time.Second)
 	defer cancel()
 	var cmd *exec.Cmd
-	if t.Executor != nil {
+	var volumeExecutor sandbox.DeltaProcessExecutor
+	if candidate, ok := t.Executor.(sandbox.DeltaProcessExecutor); ok && candidate.UsesVolume(t.FS.Root()) {
+		volumeExecutor = candidate
+	}
+	if t.Executor != nil && volumeExecutor == nil {
 		prepared, prepareErr := t.Executor.PrepareProcess(commandCtx, sandbox.ProcessRequest{
 			WorkspaceRoot: t.FS.Root(), WorkingDirectory: preview.ResolvedCWD,
 			Program: preview.Program, Arguments: append([]string(nil), preview.Arguments...), Image: t.SandboxImage,
@@ -132,15 +138,21 @@ func (t CustomProcess) Execute(ctx context.Context, raw json.RawMessage) domain.
 				_ = prepared.Cleanup(cleanupCtx)
 			}()
 		}
-	} else {
+	} else if volumeExecutor == nil {
 		cmd = osproc.Command(preview.Program, preview.Arguments...)
 		cmd.Dir = preview.ResolvedCWD
 		cmd.Env = sanitizedProcessEnv()
 	}
 	stdout, stderr := &limitedWriter{limit: 64 * 1024}, &limitedWriter{limit: 64 * 1024}
-	cmd.Stdout, cmd.Stderr = stdout, stderr
 	started := time.Now()
-	runErr := runProcess(commandCtx, cmd)
+	var runErr error
+	var volumeOutcome sandbox.ProcessOutcome
+	if volumeExecutor != nil {
+		volumeOutcome, runErr = volumeExecutor.RunVolumeProcess(commandCtx, sandbox.ProcessRequest{WorkspaceRoot: t.FS.Root(), WorkingDirectory: preview.ResolvedCWD, Program: preview.Program, Arguments: preview.Arguments, Image: t.SandboxImage, Environment: sanitizedProcessEnv(), NetworkPolicy: t.NetworkPolicy, AllowedNetworkHosts: t.AllowedNetworkHosts, RunID: t.RunID, CacheScope: t.QuestID, Authoritative: t.Authoritative}, stdout, stderr)
+	} else {
+		cmd.Stdout, cmd.Stderr = stdout, stderr
+		runErr = runProcess(commandCtx, cmd)
+	}
 	exitCode := 0
 	if runErr != nil {
 		if exit, ok := runErr.(*exec.ExitError); ok {
@@ -149,10 +161,16 @@ func (t CustomProcess) Execute(ctx context.Context, raw json.RawMessage) domain.
 			exitCode = -1
 		}
 	}
+	if volumeExecutor != nil {
+		exitCode = volumeOutcome.ExitCode
+		if runErr != nil {
+			exitCode = -1
+		}
+	}
 	result := OK(map[string]any{
 		"stdout": security.Redact(stdout.String()), "stderr": security.Redact(stderr.String()),
 		"exitCode": exitCode, "durationMs": time.Since(started).Milliseconds(),
-		"timedOut": commandCtx.Err() == context.DeadlineExceeded,
+		"timedOut": commandCtx.Err() == context.DeadlineExceeded || volumeOutcome.TimedOut,
 	})
 	result.Truncated = stdout.truncated || stderr.truncated
 	return result
@@ -178,15 +196,22 @@ func (t CustomProcess) Preview(raw json.RawMessage) (CustomProcessPreview, error
 	if err != nil {
 		return CustomProcessPreview{}, err
 	}
-	resolvedCWD, err := t.FS.Resolve(t.Config.CWD, false)
+	resolvedCWD := ""
+	volumeCWD := false
+	if resolver, ok := t.Executor.(sandbox.VolumeDirectoryResolver); ok && resolver.UsesVolume(t.FS.Root()) {
+		volumeCWD = true
+		resolvedCWD, err = resolver.ResolveProcessDirectory(t.FS.Root(), t.Config.CWD)
+	} else {
+		resolvedCWD, err = t.FS.Resolve(t.Config.CWD, false)
+	}
 	if err != nil {
 		return CustomProcessPreview{}, fmt.Errorf("resolve process working directory: %w", err)
 	}
 	info, err := os.Stat(resolvedCWD)
-	if err != nil {
+	if err != nil && !(volumeCWD && os.IsNotExist(err)) {
 		return CustomProcessPreview{}, fmt.Errorf("inspect process working directory: %w", err)
 	}
-	if !info.IsDir() {
+	if err == nil && !info.IsDir() {
 		return CustomProcessPreview{}, fmt.Errorf("process working directory is not a directory")
 	}
 	quoted := make([]string, 0, len(effective.Args)+1)
@@ -307,15 +332,23 @@ func (t CustomProcess) prepare(raw json.RawMessage) (effectiveProcess, error) {
 		return effectiveProcess{}, fmt.Errorf("absolute process programs are not allowed")
 	}
 	if strings.ContainsAny(program, `/\`) {
-		resolved, resolveErr := t.FS.Resolve(filepath.ToSlash(program), false)
+		resolved := ""
+		var resolveErr error
+		volumeProgram := false
+		if resolver, ok := t.Executor.(sandbox.VolumeDirectoryResolver); ok && resolver.UsesVolume(t.FS.Root()) {
+			volumeProgram = true
+			resolved, resolveErr = resolver.ResolveProcessDirectory(t.FS.Root(), filepath.ToSlash(program))
+		} else {
+			resolved, resolveErr = t.FS.Resolve(filepath.ToSlash(program), false)
+		}
 		if resolveErr != nil {
 			return effectiveProcess{}, fmt.Errorf("resolve process program: %w", resolveErr)
 		}
 		info, statErr := os.Stat(resolved)
-		if statErr != nil {
+		if statErr != nil && !(volumeProgram && os.IsNotExist(statErr)) {
 			return effectiveProcess{}, fmt.Errorf("inspect process program: %w", statErr)
 		}
-		if info.IsDir() {
+		if statErr == nil && info.IsDir() {
 			return effectiveProcess{}, fmt.Errorf("process program points to a directory")
 		}
 		program = resolved

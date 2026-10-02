@@ -84,3 +84,10 @@ assert.ok(failedNote.includes('1 из 3 прошли') && failedNote.includes('�
 const passedNote = preAcceptNoteHtml({ preAcceptCheck: { passed: 3, total: 3, allPassed: true } }, esc)
 assert.ok(passedNote.includes('3 из 3 прошли') && !passedNote.includes('исправляет'), passedNote)
 console.log(JSON.stringify({ stageRetry: 'ok', heldButtons: true, verdictHasNoRetry: true, oneRequest: true, diagnosis: true, autoRetryNotice: true, approvalCard: true, preAcceptNote: true }))
+
+const dependencyAmended = diagnosed('awaiting_user')
+dependencyAmended.runtime.stageRetryProposal = { digest: 'sha256:dependencies', needsApproval: true, dependencyPlan: { version: '1', projects: [{ cwd: 'lk-backend/source', manager: 'npm', commands: [{ command: 'npm ci --include=dev' }], manifestPaths: ['lk-backend/source/package-lock.json'], expectedPaths: ['lk-backend/source/node_modules'] }] } }
+const dependencyCard = workOrderExecutionParts(dependencyAmended, {}, { esc })?.stall || ''
+assert.ok(dependencyCard.includes('lk-backend/source') && dependencyCard.includes('npm ci --include=dev') && dependencyCard.includes('data-proposal-digest="sha256:dependencies"'), 'dependency amendment is concrete and digest approved')
+
+assert.ok(dependencyCard.includes('package-lock.json') && dependencyCard.includes('node_modules'), 'approval includes manifests and expected paths')

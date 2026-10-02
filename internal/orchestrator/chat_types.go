@@ -171,6 +171,9 @@ type ChatAction struct {
 type CapabilityCheck func(agent domain.ProjectAgent) []string
 
 type ChatResponse struct {
+	Route               string   `json:"route,omitempty"`
+	FastTask            string   `json:"fastTask,omitempty"`
+	RunID               string   `json:"runId,omitempty"`
 	ConversationSummary string   `json:"conversationSummary,omitempty"`
 	MemorySuggestions   []string `json:"memorySuggestions,omitempty"`
 	Reply               string   `json:"reply"`

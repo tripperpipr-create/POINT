@@ -320,6 +320,10 @@ function createHubMessageRouter({ openWorkspaceFile }) {
       case 'attachMasterContext':
       case 'masterSession':
       case 'loadMaster':
+      case 'editFastAgentSettings':
+      case 'showMasterChatFiles':
+      case 'openMasterChatFolder':
+      case 'continueMasterInProject':
 		case 'loadMasterDevelopment':
 		case 'setMasterLearning':
 		case 'rollbackMasterSkill':

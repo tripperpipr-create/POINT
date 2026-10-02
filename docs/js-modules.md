@@ -1,5 +1,9 @@
 # Карта JS-контура
 
+`ui/client/completion-verdict.js` owns evidence-first completion status, pending manual-criterion text and reuse provenance formatting. `agent-work-transcript.js` and `quest-journal-views.js` consume it using copied payloads. Regression smoke: `scripts/smoke-completion-verdict.mjs`; [core/runtime contract](implementation-embedded-runtime.md).
+
+`sandbox-settings.js` owns application-scoped execution settings and the embedded Moby launch environment. It resolves the Moby pack shipped beside the core (`bin/moby/runtime.json`), makes it the default engine when no backend is chosen explicitly, and offers a core restart when an engine setting changes (`watchSandboxSettings`). `extension.js` consumes its result when starting the core; `distribution/apply-overlay.mjs` includes it in delivery. Regression: `scripts/test-point-sandbox-settings.js` checks ignored project overrides, Moby selection, the shipped pack and stale overrides, bounded quotas and refusal of host fallback.
+
 Актуально для Point `1.2.3` на 27 сентября 2026 года. Здесь — кто за что
 отвечает в расширении и вебвью. Границы модулей охраняет
 `scripts/check-release-contracts.mjs`, но до сих пор нигде не объяснялись: по
@@ -304,3 +308,7 @@ Flow (`isRootQuest`) живут в `vscode-extension/ui/client/quest-status.js`:
 слепнут: перестают что-либо находить и падают не на дефекте, а на переезде. Для
 них есть `scripts/lib/extension-host-source.js` — хост одним текстом. Часть
 смоуков на него ещё не переведена.
+
+## Master and POINT chat scope (2026-10-01)
+
+`vscode-extension/master-scope.js` binds workspace/conversation identifiers and follows local Fast runs. `master-fast-settings.js` edits the global system profile. `master-chat-controller.js` owns scoped session operations, chat files and explicit continuation in a project. `ui/client/master-fast-run.js` renders local run progress; `master-session-views.js` exposes auto/discuss/plan/fast modes. These host modules are included by `distribution/apply-overlay.mjs`; client modules are built into the Hub bundle.

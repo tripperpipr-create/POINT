@@ -103,7 +103,7 @@ func (f *FS) buildIndex(ctx context.Context, limits indexLimits) (IndexStatus, e
 			}
 		}
 		if entry.IsDir() {
-			if path != f.root && isIndexExcludedDir(entry.Name()) {
+			if path != f.root && f.skipDirectory(path, true) {
 				return filepath.SkipDir
 			}
 			if path != f.root {

@@ -10,25 +10,36 @@ func (s *Server) masterSessionUpdate(w http.ResponseWriter, r *http.Request) {
 	if !s.decode(w, r, &input) {
 		return
 	}
-	_, err := s.app.UpdateMasterSession(r.Context(), input)
+	sessions, err := s.app.UpdateMasterSession(r.Context(), input)
 	if err != nil {
 		s.result(w, nil, err)
 		return
 	}
-	value, err := s.app.MasterHistory(r.Context())
+	ctx, err := s.app.WithMasterWorkspace(r.Context(), sessions.WorkspaceID)
+	if err != nil {
+		s.result(w, nil, err)
+		return
+	}
+	value, err := s.app.MasterHistory(ctx)
 	s.result(w, value, err)
 }
 
 func (s *Server) masterChatBranchOffer(w http.ResponseWriter, r *http.Request) {
-	var input struct { State string `json:"state"` }
-	if !s.decode(w, r, &input) { return }
+	var input struct {
+		State string `json:"state"`
+	}
+	if !s.decode(w, r, &input) {
+		return
+	}
 	err := s.app.SetMasterChatBranchOffer(r.Context(), r.PathValue("id"), input.State)
 	s.result(w, map[string]string{"state": input.State}, err)
 }
 
 func (s *Server) masterChatBindBranch(w http.ResponseWriter, r *http.Request) {
 	var input app.MasterChatBranchBindRequest
-	if !s.decode(w, r, &input) { return }
+	if !s.decode(w, r, &input) {
+		return
+	}
 	value, err := s.app.BindMasterChatBranch(r.Context(), r.PathValue("id"), input)
 	s.result(w, value, err)
 }

@@ -46,7 +46,7 @@ func (f *FS) collectIndexDrift(ctx context.Context, files map[string]indexedFile
 			}
 		}
 		if entry.IsDir() {
-			if path != f.root && isIndexExcludedDir(entry.Name()) {
+			if path != f.root && f.skipDirectory(path, true) {
 				return filepath.SkipDir
 			}
 			return nil

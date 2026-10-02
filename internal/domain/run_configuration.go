@@ -15,6 +15,7 @@ import (
 // RunConfigurationSnapshot captures every persisted agent setting that can
 // influence a run. API keys are intentionally excluded and remain in memory.
 type RunConfigurationSnapshot struct {
+	TargetWorkspace     *Workspace         `json:"targetWorkspace,omitempty"`
 	SchemaVersion       int                `json:"schemaVersion"`
 	ApplicationVersion  string             `json:"applicationVersion"`
 	CapturedAt          time.Time          `json:"capturedAt"`
@@ -28,6 +29,8 @@ type RunConfigurationSnapshot struct {
 }
 
 func NewRunConfigurationSnapshot(applicationVersion string, profile AgentProfile, customTools []CustomTool, capturedAt time.Time) RunConfigurationSnapshot {
+	rawProfile, _ := json.Marshal(profile)
+	_ = json.Unmarshal(rawProfile, &profile)
 	profile.AllowedTools = append([]string(nil), profile.AllowedTools...)
 	profile.FallbackModels = append([]string(nil), profile.FallbackModels...)
 	if len(profile.EquippedSkills) > 0 {
@@ -94,7 +97,23 @@ func (s RunConfigurationSnapshot) WithEffectiveModel(model string) RunConfigurat
 	}
 	profile := s.Profile
 	profile.Model = model
-	return NewRunConfigurationSnapshot(s.ApplicationVersion, profile, s.CustomTools, s.CapturedAt)
+	updated := NewRunConfigurationSnapshot(s.ApplicationVersion, profile, s.CustomTools, s.CapturedAt)
+	if s.TargetWorkspace != nil {
+		updated = updated.WithTargetWorkspace(*s.TargetWorkspace)
+	}
+	return updated
+}
+
+func (s RunConfigurationSnapshot) WithTargetWorkspace(w Workspace) RunConfigurationSnapshot {
+	s.TargetWorkspace = &w
+	s.ConfigurationDigest = digestJSON(struct {
+		ApplicationVersion string
+		Profile            AgentProfile
+		CustomTools        []CustomTool
+		EgressPolicyDigest string
+		WorkspaceID, Path  string
+	}{s.ApplicationVersion, s.Profile, s.CustomTools, s.EgressPolicyDigest, w.ID, w.Path})
+	return s
 }
 
 // SkillRuntimeAttribution returns the exact immutable identity that was sent

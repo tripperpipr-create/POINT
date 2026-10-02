@@ -64,6 +64,9 @@ type BriefDecision struct {
 }
 
 type AcceptanceCriterion struct {
+	// Deterministic explicitly authorizes reuse of a local verification.
+	// Existing approved criteria remain unchanged and default to fresh checks.
+	Deterministic    bool            `json:"deterministic,omitempty"`
 	ID               string          `json:"id"`
 	Text             string          `json:"text"`
 	Kind             string          `json:"kind"` // verification | manual | reproduction
@@ -113,6 +116,7 @@ type WorkOrderExecutionContract struct {
 	Stack        StackPresetRef      `json:"stack"`
 	Sandbox      RuntimeSpec         `json:"sandbox,omitempty"`
 	Setup        SetupPlan           `json:"setupPlan,omitempty"`
+	Dependencies *DependencyPlan     `json:"dependencyPlan,omitempty"`
 	Routing      ModelRoutingPolicy  `json:"routing"`
 	Network      []NetworkGrant      `json:"network,omitempty"`
 	Secrets      []SecretRequirement `json:"secrets,omitempty"`
@@ -317,6 +321,9 @@ func ValidateTaskBriefIssues(b TaskBrief) []TaskBriefValidationIssue {
 			add("invalid_criterion_identity", path, "criteria require unique IDs and text")
 		}
 		ids[c.ID] = true
+		if c.Deterministic && (c.Kind != "verification" || c.Tool != "run_command") {
+			add("criterion_determinism", path, "only local run_command verification criteria may be declared deterministic")
+		}
 		switch c.Kind {
 		case "manual":
 			if c.Tool != "" || len(c.Arguments) != 0 || c.ExpectedExitCode != nil {

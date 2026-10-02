@@ -26,7 +26,7 @@ func (a *App) HireWorkOrderAgentV2(ctx context.Context, orderID string, req Hire
 	if err != nil {
 		return storage.WorkOrderHireResult{}, err
 	}
-	if order.WorkspaceID != a.currentWorldID() {
+	if order.WorkspaceID != a.masterWorldID(ctx) {
 		return storage.WorkOrderHireResult{}, errors.New("наряд принадлежит другому проекту")
 	}
 	requestHash := storage.WorkOrderHireRequestHash(req.DraftID, req.AgentID, req.Agent)
@@ -47,7 +47,7 @@ func (a *App) HireWorkOrderAgentV2(ctx context.Context, orderID string, req Hire
 		if req.Agent.ID != "" {
 			return storage.WorkOrderHireResult{}, errors.New("нового исполнителя нельзя создать с готовым id")
 		}
-		agent, err = a.prepareProjectAgent(req.Agent)
+		agent, err = a.prepareProjectAgentContext(ctx, req.Agent)
 		if err != nil {
 			return storage.WorkOrderHireResult{}, err
 		}

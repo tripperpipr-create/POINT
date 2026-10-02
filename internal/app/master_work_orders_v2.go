@@ -5,6 +5,7 @@ import (
 	"local-agent-workbench/internal/textutil"
 	"net"
 	"net/url"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -116,6 +117,9 @@ func (a *App) saveMasterWorkOrderV2(ctx context.Context, proposal *domain.QuestP
 		order.Workspace = domain.WorkspacePlan{Mode: "managed"}
 	}
 	a.mu.RUnlock()
+	if scope, ok := ctx.Value(masterScopeKey{}).(masterScope); ok && scope.Workspace.ID == proposal.WorkspaceID {
+		order.Workspace = domain.WorkspacePlan{Mode: "existing", Path: scope.Workspace.Path}
+	}
 	if order.Workspace.Mode == "existing" && isCleanGitWorkspace(order.Workspace.Path) {
 		order.Delivery.CommitMode = "squash"
 	}
@@ -129,8 +133,24 @@ func (a *App) saveMasterWorkOrderV2(ctx context.Context, proposal *domain.QuestP
 	if order.Workspace.Mode == "existing" {
 		order.Sandbox = environment.Analyze(order.Workspace.Path, order.WorkspaceID).Runtime
 	}
+	order.Dependencies = environment.DependencyPlanFor(order.Workspace.Path, order.Criteria)
+	dependencyToolchains := []string{}
+	if order.Dependencies != nil {
+		if order.Sandbox.Toolchains == nil {
+			order.Sandbox.Toolchains = map[string]string{}
+		}
+		for _, project := range order.Dependencies.Projects {
+			detected := environment.Analyze(filepath.Join(order.Workspace.Path, filepath.FromSlash(project.Cwd)), order.WorkspaceID).Runtime
+			for toolchain, version := range detected.Toolchains {
+				dependencyToolchains = appendUniqueStrings(dependencyToolchains, toolchain)
+				if _, exists := order.Sandbox.Toolchains[toolchain]; !exists {
+					order.Sandbox.Toolchains[toolchain] = version
+				}
+			}
+		}
+	}
 	order.Setup = masterSetupPlanV2(order.Stack.ID, brief)
-	order.Network = masterNetworkGrantsV2(brief, sources, order.Setup, masterToolchainsV2(brief, order.Workspace))
+	order.Network = masterNetworkGrantsV2(brief, sources, order.Setup, appendUniqueStrings(masterToolchainsV2(brief, order.Workspace), dependencyToolchains...))
 	order.Completion = masterCompletionProfileV2(order)
 	current, getErr := a.store.GetWorkOrderV2(ctx, order.ID)
 	if getErr == nil {

@@ -12,6 +12,7 @@ import (
 
 	"local-agent-workbench/internal/domain"
 	"local-agent-workbench/internal/orchestrator"
+	"local-agent-workbench/internal/security"
 	"local-agent-workbench/internal/textutil"
 	"local-agent-workbench/internal/workspace"
 )
@@ -21,6 +22,8 @@ import (
 // одно окно, два разных собеседника и ни одного способа их различить.
 
 type MasterChatRequest struct {
+	FastAPIKey     string                    `json:"fastApiKey,omitempty"`
+	WorkspaceID    string                    `json:"workspaceId,omitempty"`
 	TurnID         string                    `json:"turnId,omitempty"`
 	Attachments    []domain.MasterAttachment `json:"attachments,omitempty"`
 	Model          string                    `json:"model,omitempty"`
@@ -39,6 +42,7 @@ type MasterChatRequest struct {
 // caller-supplied attachment bytes. This keeps the conversation and the
 // approved WorkOrder bound to the same digests.
 type MasterTurnV2Request struct {
+	FastAPIKey     string                     `json:"fastApiKey,omitempty"`
 	TurnID         string                     `json:"turnId,omitempty"`
 	ConversationID string                     `json:"conversationId,omitempty"`
 	WorkspaceID    string                     `json:"workspaceId,omitempty"`
@@ -54,6 +58,7 @@ type MasterTurnV2Request struct {
 }
 
 type MasterChatView struct {
+	FastRun            *domain.Run         `json:"fastRun,omitempty"`
 	ContextBudgetChars int                 `json:"contextBudgetChars"`
 	SupportsImages     bool                `json:"supportsImages"`
 	Before             int64               `json:"before,omitempty"`
@@ -115,10 +120,8 @@ func (a *App) masterHistory(ctx context.Context, service orchestrator.ChatServic
 }
 
 func (a *App) masterChatService(ctx context.Context, briefing orchestrator.ProjectFacts) orchestrator.ChatService {
-	a.mu.RLock()
-	fs := a.currentFS
-	a.mu.RUnlock()
-	workspaceID := a.currentWorldID()
+	fs := a.masterScopedFS(ctx)
+	workspaceID := a.masterWorldID(ctx)
 	reading := newMasterReadTools(fs, a.store, workspaceID)
 	reading.proposeRetry = func(ctx context.Context, input StageRetryProposalInput) (StageRetryProposal, error) {
 		return a.ProposeStageRetryV2(ctx, workspaceID, input)
@@ -140,6 +143,9 @@ func (a *App) masterChatService(ctx context.Context, briefing orchestrator.Proje
 		// Числа происходящего Мастер берёт у того же кода, который наполняет
 		// очередь решений: своя арифметика поссорила бы его с экраном.
 		Situation: func(ctx context.Context, workspaceID string) (orchestrator.Situation, error) {
+			if strings.HasPrefix(workspaceID, "point-chat-") {
+				return orchestrator.Situation{Project: briefing}, nil
+			}
 			queue, err := a.Decisions(ctx)
 			if err != nil {
 				return orchestrator.Situation{}, err
@@ -223,6 +229,10 @@ func (a *App) computeMasterProjectFacts(ctx context.Context) orchestrator.Projec
 	current := a.currentWorkspace
 	currentFS := a.currentFS
 	a.mu.RUnlock()
+	if scope, ok := ctx.Value(masterScopeKey{}).(masterScope); ok {
+		current = &scope.Workspace
+		currentFS = scope.FS
+	}
 	facts := orchestrator.ProjectFacts{IndexState: "no_workspace"}
 	if current != nil {
 		facts.Name = current.Name
@@ -436,7 +446,12 @@ func (a *App) masterConfig(ctx context.Context, workspaceID string) (domain.Orch
 // MasterChat проводит один ход разговора и возвращает обновлённую историю,
 // чтобы клиенту не приходилось делать второй запрос ради собственной реплики.
 func (a *App) MasterChat(ctx context.Context, req MasterChatRequest) (MasterChatView, error) {
-	workspaceID := a.currentWorldID()
+	var scopeErr error
+	ctx, scopeErr = a.WithMasterWorkspace(ctx, req.WorkspaceID)
+	if scopeErr != nil {
+		return MasterChatView{}, scopeErr
+	}
+	workspaceID := a.masterWorldID(ctx)
 	cfg, err := a.masterConfig(ctx, workspaceID)
 	// Ненастроенный Мастер — это состояние раздела, а не сбой запроса. Ошибка
 	// показалась бы красным баннером «request_failed», хотя человеку нужно не
@@ -488,10 +503,7 @@ func (a *App) masterChatPrepared(ctx context.Context, req MasterChatRequest, wor
 			summary = v.Summary
 		}
 	}
-	phase := "explanation"
-	if req.TaskIntake || sessions.WorkMode == "discuss" {
-		phase = "intake"
-	}
+	phase := "intake"
 	service.Skills, err = a.newMasterSkillSession(ctx, workspaceID, phase, req.TurnID, req.ProposalID, "")
 	if err != nil {
 		return MasterChatView{}, err
@@ -505,7 +517,7 @@ func (a *App) masterChatPrepared(ctx context.Context, req MasterChatRequest, wor
 	if !temporary {
 		defer a.finishMasterOperation(service.Skills, cfg, req.APIKey)
 	}
-	rules := a.masterProjectRules()
+	rules := a.masterScopedRules(ctx)
 	var revisionNotes []string
 	if !temporary && req.TaskIntake {
 		revisionNotes = a.masterRevisionNotes(ctx, workspaceID, sessions.Active)
@@ -536,19 +548,29 @@ func (a *App) masterChatPrepared(ctx context.Context, req MasterChatRequest, wor
 	if err != nil {
 		return MasterChatView{}, err
 	}
+	if response.FastTask != "" && sessions.WorkMode == "auto" {
+		run, e := a.startHostFastAgent(ctx, FastAgentRequest{FromMaster: true, WorkspaceID: workspaceID, ConversationID: sessions.Active, RequestID: req.TurnID, Task: response.FastTask, APIKey: req.FastAPIKey})
+		if e != nil {
+			_ = a.store.SaveCompanionMessage(ctx, domain.CompanionMessage{ID: domain.NewID("msg"), WorkspaceID: workspaceID, ConversationID: sessions.Active, Speaker: "master", Role: "assistant", Content: "Fast Agent: " + security.Redact(e.Error()), CreatedAt: time.Now().UTC()})
+			response.Reply += "\n\nFast Agent не запущен: " + e.Error()
+			if service.OnProgress != nil {
+				service.OnProgress("route", "Fast Agent не запущен", e.Error())
+			}
+		} else {
+			response.RunID = run.ID
+			if service.OnProgress != nil {
+				service.OnProgress("run_started", run.ID, "host_live")
+			}
+		}
+	}
+	if response.Route != "" && service.OnProgress != nil {
+		service.OnProgress("route", response.Route, "")
+	}
 	history, truncated, err := a.masterHistory(ctx, service, workspaceID, false)
 	if err != nil {
 		return MasterChatView{}, err
 	}
-	if sessions.WorkMode == "execute" && sessions.AutoRunReadOnly && response.Proposal != nil {
-		if started, startErr := a.tryMasterAutoRun(ctx, workspaceID, response.Proposal, req.APIKey); startErr != nil {
-			if service.OnProgress != nil {
-				service.OnProgress("tools", "Нужно подтверждение: "+startErr.Error(), "")
-			}
-		} else if started && service.OnProgress != nil {
-			service.OnProgress("tools", "Задание передано исполнителю в разрешённых пределах", "")
-		}
-	}
+
 	for i := range sessions.Items {
 		item := sessions.Items[i]
 		if item.ID != sessions.Active {
@@ -618,7 +640,11 @@ func (a *App) masterChatPrepared(ctx context.Context, req MasterChatRequest, wor
 	if err != nil {
 		return MasterChatView{}, err
 	}
-	return MasterChatView{Configured: true, Sessions: sessions, Response: response, History: history, Config: cfg, Truncated: truncated, Briefing: briefing, WorkOrders: workOrders, Hiring: a.hiringCardsForConversation(ctx, workOrders)}, nil
+	workOrders, fastRun, err := a.masterFastState(ctx, workOrders)
+	if err != nil {
+		return MasterChatView{}, err
+	}
+	return MasterChatView{FastRun: fastRun, Configured: true, Sessions: sessions, Response: response, History: history, Config: cfg, Truncated: truncated, Briefing: briefing, WorkOrders: workOrders, Hiring: a.hiringCardsForConversation(ctx, workOrders)}, nil
 }
 
 // MasterMessageFeedback ставит или снимает оценку одной реплики Мастера.
@@ -636,13 +662,13 @@ func (a *App) MasterMessageFeedback(ctx context.Context, messageID, value string
 	default:
 		return errors.New("оценка бывает только «up», «down» или пустой")
 	}
-	if err := a.store.SetChatMessageFeedback(ctx, a.currentWorldID(), messageID, value); err != nil {
+	if err := a.store.SetChatMessageFeedback(ctx, a.masterWorldID(ctx), messageID, value); err != nil {
 		return err
 	}
-	if err := a.store.SetMasterOperationFeedback(ctx, a.currentWorldID(), messageID, value); err != nil {
+	if err := a.store.SetMasterOperationFeedback(ctx, a.masterWorldID(ctx), messageID, value); err != nil {
 		return err
 	}
-	return a.updateMasterCanaries(ctx, a.currentWorldID())
+	return a.updateMasterCanaries(ctx, a.masterWorldID(ctx))
 }
 
 // MasterHistory отдаёт разговор без нового хода — для открытия раздела.
@@ -655,7 +681,12 @@ func (a *App) MasterHistory(ctx context.Context) (MasterChatView, error) {
 // full=true отдаёт весь хвост, какой хранит ядро: это кнопка «Показать раньше»
 // под строкой о том, что разговор начался раньше показанного.
 func (a *App) MasterSessionHistory(ctx context.Context, id string, full bool) (MasterChatView, error) {
-	workspaceID := a.currentWorldID()
+	var scopeErr error
+	ctx, scopeErr = a.WithMasterWorkspace(ctx, a.masterWorldID(ctx))
+	if scopeErr != nil {
+		return MasterChatView{}, scopeErr
+	}
+	workspaceID := a.masterWorldID(ctx)
 	cfg, err := a.masterConfig(ctx, workspaceID)
 	configured := true
 	if errors.Is(err, ErrMasterNotConfigured) {
@@ -686,6 +717,10 @@ func (a *App) MasterSessionHistory(ctx context.Context, id string, full bool) (M
 	if workOrderErr != nil {
 		return MasterChatView{}, workOrderErr
 	}
+	workOrders, fastRun, err := a.masterFastState(ctx, workOrders)
+	if err != nil {
+		return MasterChatView{}, err
+	}
 	modelCfg := cfg
 	if sessions.Model != "" {
 		modelCfg.Model = sessions.Model
@@ -695,5 +730,5 @@ func (a *App) MasterSessionHistory(ctx context.Context, id string, full bool) (M
 	for _, capability := range ref.Capabilities {
 		vision = vision || capability == "vision"
 	}
-	return MasterChatView{ContextBudgetChars: masterAttachmentBudget(modelCfg, ref), SupportsImages: vision, Configured: configured, Sessions: sessions, History: history, Config: cfg, Truncated: truncated || page.HasMore, Briefing: briefing, Before: page.Before, ActiveTurns: turns, WorkOrders: workOrders, Hiring: a.hiringCardsForConversation(ctx, workOrders)}, nil
+	return MasterChatView{FastRun: fastRun, ContextBudgetChars: masterAttachmentBudget(modelCfg, ref), SupportsImages: vision, Configured: configured, Sessions: sessions, History: history, Config: cfg, Truncated: truncated || page.HasMore, Briefing: briefing, Before: page.Before, ActiveTurns: turns, WorkOrders: workOrders, Hiring: a.hiringCardsForConversation(ctx, workOrders)}, nil
 }

@@ -23,6 +23,7 @@ import { countOf, formatElapsed, list } from './format-units.js'
 import { icon } from './ui-icons.js'
 import { masterCardMoreAttrs } from './master-card-open.js'
 import { diffCountHtml, diffHtml, diffPathHtml, diffStats } from './diff-view.js'
+import { completionStatus, pendingAcceptanceText, verificationReuseText } from './completion-verdict.js'
 
 // Отказы, о которых ядро сообщает отдельным событием защиты: строка сбоя их
 // повторила бы.
@@ -211,7 +212,7 @@ export function createQuestJournal(dependencies) {
     const alert = (label, error, tool) => current().alerts.push(noteHtml('warn', 'warning', label, failureText(tool, error), [error?.code, error?.message].filter(Boolean).join(': ')))
     let anchored = false
     for (const event of events) {
-      const payload = data(event.data)
+      const payload = { ...data(event.data) }
       switch (event.type) {
         case 'model.responded':
           if (payload.content) { close(); blocks.push({ kind: 'html', html: sayHtml(payload.content, `journal-say:${runId}:${event.step}:${blocks.length}`) }) }
@@ -265,7 +266,13 @@ export function createQuestJournal(dependencies) {
           current().rows.push(noteHtml('quiet', 'memory', 'Память уплотнена', `${Number(payload.beforeTokens || 0).toLocaleString('ru-RU')} → ${Number(payload.afterTokens || 0).toLocaleString('ru-RU')}`))
           break
         case 'completion.checked': {
-          const verdict = { revision_required: ['warn', 'warning', 'финал на доработку: нет проверяемого результата'], accepted_after_revision: ['ok', 'check', 'финал принят после проверки инструментом'], rejected: ['fail', 'x', 'финал отклонён: готовность не доказана'] }[payload.status]
+          payload.status = completionStatus(payload)
+          if (payload.status === 'needs_review') {
+            close(); blocks.push({ kind: 'html', html: `<div class="hall-trail quest-trail">${noteHtml('warn', 'warning', 'Приёмка', pendingAcceptanceText(payload))}</div>` })
+          }
+          const reuse = verificationReuseText(payload)
+          if (reuse) current().rows.push(noteHtml('quiet', 'check', 'Проверки', reuse))
+          const verdict = { implementation_ready: ['warn', 'warning', 'реализация сохранена; независимая приёмка не подтверждена'], preparation_failed: ['warn', 'warning', 'ошибка подготовки окружения; реализация сохранена'], revision_required: ['warn', 'warning', 'финал на доработку: нет проверяемого результата'], accepted_after_revision: ['ok', 'check', 'финал принят после проверки инструментом'], rejected: ['fail', 'x', 'финал отклонён: готовность не доказана'] }[payload.status]
           if (verdict) { close(); blocks.push({ kind: 'html', html: `<div class="hall-trail quest-trail">${noteHtml(verdict[0], verdict[1], 'Проверка финала', verdict[2])}</div>` }) }
           break
         }

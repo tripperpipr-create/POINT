@@ -552,28 +552,6 @@ type ExecutionInstance struct {
 	DurationMs       int64                    `json:"durationMs"`
 }
 
-// SandboxRecord tracks an isolated execution workspace.
-type SandboxRecord struct {
-	ID                   string     `json:"id"`
-	WorkspaceID          string     `json:"workspaceId"`
-	ExecutionID          string     `json:"executionId"`
-	Kind                 string     `json:"kind"` // worktree | copy | merge-copy | live
-	Backend              string     `json:"backend"`
-	BackendVersion       string     `json:"backendVersion,omitempty"`
-	BackendImage         string     `json:"backendImage,omitempty"`
-	BackendImageDigest   string     `json:"backendImageDigest,omitempty"`
-	Path                 string     `json:"path"`
-	BaseCommit           string     `json:"baseCommit,omitempty"`
-	ParentSandboxID      string     `json:"parentSandboxId,omitempty"`
-	ParentExecutionID    string     `json:"parentExecutionId,omitempty"`
-	ParentSandboxIDs     []string   `json:"parentSandboxIds,omitempty"`
-	ParentExecutionIDs   []string   `json:"parentExecutionIds,omitempty"`
-	BaselinePath         string     `json:"baselinePath,omitempty"`
-	BaselineChangeSetIDs []string   `json:"baselineChangeSetIds,omitempty"`
-	CreatedAt            time.Time  `json:"createdAt"`
-	ClosedAt             *time.Time `json:"closedAt,omitempty"`
-}
-
 // ChangeSet groups sandbox mutations for review/apply.
 type ChangeSet struct {
 	ID           string               `json:"id"`

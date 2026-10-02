@@ -35,13 +35,14 @@ function autopilotHtml(failure, proposal, esc) {
 
 function proposalHtml(order, runtime, proposal, esc) {
   if (!proposal?.needsApproval) return ''
+  const dependencies = (proposal.dependencyPlan?.projects || []).map(project => `<li><b>${esc(project.manager)}: ${esc(project.cwd || '.')}</b>${(project.commands || []).map(command => `<code>${esc(command.command)}</code>`).join('')}<small>Манифесты: ${esc((project.manifestPaths || []).join(', '))}</small><small>Ожидаемые пути: ${esc((project.expectedPaths || []).join(', ') || '—')}</small></li>`).join('')
   const changes = (Array.isArray(proposal.criteria) ? proposal.criteria : []).map(change => `<li><b>${esc(change.criterionId)}</b>
       <span>было</span><code>${esc(change.previousCommand || '')}</code>
       <span>станет</span><code>${esc(change.command || '')}</code>${change.reason ? `<small>${esc(change.reason)}</small>` : ''}</li>`).join('')
   return `<div class="stage-retry-proposal">
-      <b>Мастер предлагает изменить проверку и повторить этап</b>
+      <b>Мастер предлагает поправку и повтор этапа</b>
       ${proposal.diagnosis ? `<p>${esc(proposal.diagnosis)}</p>` : ''}
-      <ul>${changes}</ul>
+      <ul>${dependencies}${changes}</ul>
       <div><button type="button" class="hall-btn is-primary" data-action="retry-work-order-stage" data-id="${esc(order.id)}" data-quest-id="${esc(runtime.questId || '')}" data-proposal-digest="${esc(proposal.digest)}">Разрешить и повторить</button></div>
     </div>`
 }

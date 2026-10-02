@@ -19,6 +19,7 @@ type MasterSkillSession struct {
 	Skills    []domain.SkillRuntime
 	Operation domain.MasterOperation
 	used      map[string]bool
+	loaded    map[string]bool
 	secrets   []string
 	dynamic   []domain.SkillRuntime
 	progress  func(kind, text, detail string)
@@ -28,7 +29,7 @@ func NewMasterSkillSession(phase string, definitions []domain.SkillDefinition) *
 	if len(definitions) == 0 {
 		definitions = masterskills.Builtins()
 	}
-	s := &MasterSkillSession{Operation: domain.MasterOperation{Phase: phase}, used: map[string]bool{}}
+	s := &MasterSkillSession{Operation: domain.MasterOperation{Phase: phase}, used: map[string]bool{}, loaded: map[string]bool{}}
 	for _, d := range definitions {
 		s.Skills = append(s.Skills, masterskills.Runtime(d))
 	}
@@ -40,6 +41,7 @@ func (s *MasterSkillSession) use(skill domain.SkillRuntime) {
 		return
 	}
 	s.used[skill.ID] = true
+	s.loaded[skill.ID] = true
 	s.Operation.Skills = append(s.Operation.Skills, domain.SkillRuntimeAttribution(skill))
 }
 
@@ -75,18 +77,26 @@ func (t masterSkillTools) Definitions() []domain.ToolDefinition {
 	if t.base != nil {
 		defs = t.base.Definitions()
 	}
-	return append(defs, (workbenchtools.ReadSkill{}).Definition())
+	return append(defs, (workbenchtools.ReadSkill{}).Definition(), (workbenchtools.SearchSkills{}).Definition())
 }
 func (t masterSkillTools) Execute(ctx context.Context, name string, args json.RawMessage) domain.ToolResult {
+	if name == "search_skills" {
+		return (workbenchtools.SearchSkills{Skills: t.session.Skills}).Execute(ctx, args)
+	}
 	if name == "read_skill" {
-		result := (workbenchtools.ReadSkill{Skills: t.session.Skills}).Execute(ctx, args)
+		result := (workbenchtools.ReadSkill{Skills: t.session.Skills, Loaded: t.session.loaded}).Execute(ctx, args)
 		var resolved struct {
-			ID string `json:"id"`
+			ID            string `json:"id"`
+			AlreadyLoaded bool   `json:"alreadyLoaded"`
 		}
 		if result.OK && json.Unmarshal(result.Output, &resolved) == nil {
 			for _, skill := range t.session.Skills {
 				if skill.ID == resolved.ID {
 					t.session.use(skill)
+					if !resolved.AlreadyLoaded && t.session.progress != nil {
+						detail, _ := json.Marshal(domain.SkillRuntimeAttribution(skill))
+						t.session.progress("skill", "Загружен навык: "+skill.Name, string(detail))
+					}
 				}
 			}
 		}
@@ -153,7 +163,7 @@ func (m masterObservedModel) Stream(ctx context.Context, req providers.ModelRequ
 	// Реплей снимается с круга, где модель отвечала, а не читала проект: вызовы
 	// разговора (задание, уточнения, память) — часть ответа, чтение — нет.
 	readCalled := false
-	callbackFailed:=false
+	callbackFailed := false
 	err := m.model.Stream(ctx, req, func(e providers.ModelEvent) error {
 		if e.Kind == providers.EventUsage {
 			m.session.Operation.InputTokens += int64(e.InputTokens + e.CacheReadTokens + e.CacheWriteTokens)
@@ -162,12 +172,18 @@ func (m masterObservedModel) Stream(ctx context.Context, req providers.ModelRequ
 		if e.Kind == providers.EventToolCall && (e.ToolCall == nil || !IsMasterActionTool(e.ToolCall.Name)) {
 			readCalled = true
 		}
-		callbackErr:=emit(e)
-		if callbackErr!=nil {callbackFailed=true}
+		callbackErr := emit(e)
+		if callbackErr != nil {
+			callbackFailed = true
+		}
 		return callbackErr
 	})
 	if err != nil {
-		if callbackFailed {m.session.Operation.ContractError=true} else {m.session.Operation.ProviderError = true}
+		if callbackFailed {
+			m.session.Operation.ContractError = true
+		} else {
+			m.session.Operation.ProviderError = true
+		}
 	}
 	if !readCalled && err == nil && len(req.Messages) > 0 && strings.Contains(req.Messages[0].Content, "<master_skill") {
 		// Only text snapshots, never image bytes, signatures, project tools, API
@@ -252,8 +268,10 @@ func ReplayScore(phase, output string) (int, error) {
 		}
 		return 1, nil
 	}
-	var obj struct{Reply string `json:"reply"`}
-	if json.Unmarshal([]byte(output), &obj) != nil || strings.TrimSpace(obj.Reply)=="" {
+	var obj struct {
+		Reply string `json:"reply"`
+	}
+	if json.Unmarshal([]byte(output), &obj) != nil || strings.TrimSpace(obj.Reply) == "" {
 		return 0, fmt.Errorf("missing structured reply")
 	}
 	return 1, nil
@@ -262,7 +280,7 @@ func ReplayScore(phase, output string) (int, error) {
 // masterReplayOutput — ответ модели на реплей: текст и вызовы разговора. Сами
 // вызовы при воспроизведении не исполняются, их только проверяют.
 type masterReplayOutput struct {
-	Reply   string                `json:"reply"`
+	Reply   string               `json:"reply"`
 	Actions []masterReplayAction `json:"actions,omitempty"`
 }
 

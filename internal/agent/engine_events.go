@@ -101,7 +101,7 @@ func (e *Engine) publish(ctx context.Context, run domain.Run, kind domain.EventT
 		return err
 	}
 	raw = json.RawMessage(security.Redact(string(raw)))
-	event := domain.Event{
+	event := domain.Event{ScopeKind: domain.ConversationScope(run.WorkspaceID),
 		ID: domain.NewID("evt"), WorkspaceID: run.WorkspaceID, RunID: run.ID, AgentID: run.AgentID,
 		ExecutionID: correlation.ExecutionID, QuestID: correlation.QuestID,
 		FlowRunID: correlation.FlowRunID, FlowNodeID: correlation.FlowNodeID,

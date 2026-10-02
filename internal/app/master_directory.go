@@ -36,6 +36,7 @@ const (
 )
 
 type MasterChatDirectoryWorld struct {
+	ScopeKind   string                         `json:"scopeKind"`
 	WorkspaceID string                         `json:"workspaceId"`
 	Name        string                         `json:"name"`
 	Hash        string                         `json:"hash"`
@@ -78,13 +79,20 @@ func (a *App) MasterChatDirectory(ctx context.Context) (MasterChatDirectory, err
 	}
 	index := map[string]int{}
 	for _, row := range rows {
-		position, known := index[row.WorkspaceID]
+		groupID := row.WorkspaceID
+		if row.ScopeKind == "point_chat" {
+			groupID = "point-chats"
+		}
+		position, known := index[groupID]
 		if !known {
 			world := MasterChatDirectoryWorld{
-				WorkspaceID: row.WorkspaceID,
-				Name:        row.WorkspaceName,
-				Hash:        workspacePathHash(row.WorkspacePath),
-				Current:     row.WorkspaceID == current && current != "",
+				WorkspaceID: groupID, ScopeKind: row.ScopeKind,
+				Name:    row.WorkspaceName,
+				Hash:    workspacePathHash(row.WorkspacePath),
+				Current: row.WorkspaceID == current && current != "",
+			}
+			if row.ScopeKind == "point_chat" {
+				world.Name = "Без проекта"
 			}
 			// Путь наружу отдаётся только для открытого мира. Чужие проекты
 			// опознаются отпечатком: путь для них хост берёт из своего реестра,
@@ -93,11 +101,11 @@ func (a *App) MasterChatDirectory(ctx context.Context) (MasterChatDirectory, err
 				world.Path = row.WorkspacePath
 			}
 			position = len(out.Worlds)
-			index[row.WorkspaceID] = position
+			index[groupID] = position
 			out.Worlds = append(out.Worlds, world)
 		}
 		chat := row
-		if !out.Worlds[position].Current {
+		if !out.Worlds[position].Current && row.ScopeKind != "point_chat" {
 			chat.WorkspacePath = ""
 		}
 		chat.WorkspaceHash = out.Worlds[position].Hash

@@ -147,7 +147,7 @@ func (a *App) StartWorkflow(request StartWorkflowRequest) (domain.WorkflowRun, e
 			_, finalizeErr := applier.BuildFromSandbox(context.Background(), changesets.BuildRequest{
 				WorkspaceID: workspaceID, ExecutionID: workflowExecutionID,
 				Title:         "Changes from legacy workflow " + finished.ID,
-				WorkspacePath: workspacePath, BaselinePath: sandboxRecord.BaselinePath, SandboxPath: sandboxRecord.Path,
+				WorkspacePath: workspacePath, BaselinePath: sandboxRecord.BaselinePath, SandboxPath: sandboxRecord.Path, FileRulesVersion: sandboxRecord.FileRulesVersion,
 			})
 			return finalizeErr
 		},

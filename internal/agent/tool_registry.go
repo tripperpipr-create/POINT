@@ -31,6 +31,12 @@ func BuildToolRegistryForFlow(fs *workspace.FS, customTools []domain.CustomTool,
 }
 
 func buildToolRegistryWithExecution(fs *workspace.FS, customTools []domain.CustomTool, serverProfiles workbenchtools.ServerProfileSource, dbSource workbenchtools.DBConnectionSource, executor sandbox.ProcessExecutor, runID, sandboxImage string, confirmedRemotes []string, grants *workbenchtools.NetworkGrantBook, teamBus workbenchtools.TeamBus, correlation runCorrelation, profiles ...domain.AgentProfile) (*workbenchtools.Registry, *workbenchtools.PatchManager) {
+	if auditor, ok := executor.(sandbox.ManifestAuditor); ok {
+		fs.FileRules = auditor.RulesForWorkspace(fs.Root())
+	}
+	if observer, ok := executor.(interface{ WatchMirror(*workspace.FS) }); ok {
+		observer.WatchMirror(fs)
+	}
 	patches := workbenchtools.NewPatchManager(fs)
 	networkPolicy := ""
 	var allowedNetworkHosts []string
@@ -80,14 +86,17 @@ func buildToolRegistryWithExecution(fs *workspace.FS, customTools []domain.Custo
 		workbenchtools.RequestSubagent{Requester: subagentRequester(teamBus), WorkspaceID: correlation.WorkspaceID, QuestID: correlation.QuestID, ParentAgentID: firstProfileID(profiles)},
 		workbenchtools.PermissionPrompt{},
 	}
-	if len(profiles) > 0 && len(profiles[0].EquippedSkills) > 0 {
-		toolItems = append(toolItems, workbenchtools.ReadSkill{Skills: profiles[0].EquippedSkills})
+	if len(profiles) > 0 {
+		skills := append(append([]domain.SkillRuntime(nil), profiles[0].EquippedSkills...), profiles[0].SkillCatalog...)
+		if len(skills) > 0 {
+			toolItems = append(toolItems, workbenchtools.ReadSkill{Skills: skills, Loaded: map[string]bool{}}, workbenchtools.SearchSkills{Skills: skills})
+		}
 	}
 	for _, customTool := range customTools {
 		if customTool.Kind == domain.CustomToolProcess {
-			toolItems = append(toolItems, workbenchtools.CustomProcess{FS: fs, Config: customTool, NetworkPolicy: networkPolicy, AllowedNetworkHosts: allowedNetworkHosts, Executor: executor, SandboxImage: sandboxImage, RunID: runID})
+			toolItems = append(toolItems, workbenchtools.CustomProcess{FS: fs, Config: customTool, NetworkPolicy: networkPolicy, AllowedNetworkHosts: allowedNetworkHosts, Executor: executor, SandboxImage: sandboxImage, RunID: runID, QuestID: correlation.QuestID, Authoritative: runCommand.Authoritative})
 		} else {
-			toolItems = append(toolItems, workbenchtools.CustomCommand{FS: fs, Config: customTool, NetworkPolicy: networkPolicy, AllowedNetworkHosts: allowedNetworkHosts, Executor: executor, SandboxImage: sandboxImage, RunID: runID})
+			toolItems = append(toolItems, workbenchtools.CustomCommand{FS: fs, Config: customTool, NetworkPolicy: networkPolicy, AllowedNetworkHosts: allowedNetworkHosts, Executor: executor, SandboxImage: sandboxImage, RunID: runID, QuestID: correlation.QuestID, Authoritative: runCommand.Authoritative})
 		}
 	}
 	return workbenchtools.NewRegistry(toolItems...), patches

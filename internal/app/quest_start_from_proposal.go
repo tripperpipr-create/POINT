@@ -463,7 +463,12 @@ func (a *App) startQuestFromProposalUsingQuest(ctx context.Context, ws domain.Wo
 			return result, progressErr
 		}
 		runtime := flowruntime.Runtime{Store: a.store}
+		choice, choiceErr := currentSandboxChoice()
+		if choiceErr != nil {
+			return result, choiceErr
+		}
 		flowRun, runErr := runtime.Start(ctx, flowruntime.StartRequest{
+			SandboxWorkspace: choice.StorageMode, FileRulesVersion: choice.FileRulesVersion,
 			FlowID: flow.ID, WorkspaceID: ws.ID, QuestID: quest.ID,
 			Input: map[string]any{
 				"title": quest.Title, "objectives": quest.Objectives, "importance": quest.Importance,

@@ -112,6 +112,21 @@ func (a *App) newMasterSkillSession(ctx context.Context, ws, phase, turn, propos
 		return nil, err
 	}
 	s := orchestrator.NewMasterSkillSession(phase, defs)
+	p := domain.DefaultProfile()
+	p.AllowedTools = []string{"read_file", "list_files", "search_text", "project_map", "search_code", "read_skill", "search_skills"}
+	catalog, err := a.availableRuntimeSkills(ctx, ws, p)
+	if err != nil {
+		return nil, err
+	}
+	known := map[string]bool{}
+	for _, skill := range s.Skills {
+		known[skill.ID] = true
+	}
+	for _, skill := range catalog {
+		if !known[skill.ID] {
+			s.Skills = append(s.Skills, skill)
+		}
+	}
 	s.Operation.ID = domain.NewID("master-operation")
 	s.Operation.WorkspaceID = ws
 	s.Operation.TurnID = turn

@@ -6,6 +6,8 @@
 ui/**
 runtime/**
 bin/data/**
+# Пакет Moby (~2 ГиБ) кладётся в поставку Point отдельно: scripts/bundle-point-moby.ps1.
+bin/moby/**
 bin/**/*.db
 bin/**/*.db-shm
 bin/**/*.db-wal

@@ -143,6 +143,9 @@ func (a *App) ResumeRun(runID string, request ...ResumeRunRequest) (domain.Run, 
 		}
 		return publicRun(run), nil
 	}
+	if run.ConfigurationSnapshot.Profile.ExecutionMode == "host_live" {
+		return domain.Run{}, errors.New("host worker stopped; inspect the preserved local files and start a new Fast Agent task")
+	}
 	checkpoint, err := a.store.LatestRunCheckpoint(context.Background(), runID)
 	if err != nil {
 		return domain.Run{}, fmt.Errorf("run is not active and has no resumable checkpoint: %w", err)
@@ -188,6 +191,13 @@ func (a *App) ResumeRun(runID string, request ...ResumeRunRequest) (domain.Run, 
 		if sandboxRecord, sandboxErr := a.store.GetSandboxByExecution(context.Background(), execution.ID); sandboxErr == nil {
 			sandboxPath = sandboxRecord.Path
 			sandboxImage = sandbox.ExecutionImageForRecord(sandboxRecord)
+			if backend, ok := a.sandboxBackend.(interface {
+				RegisterWorkspace(domain.SandboxRecord) error
+			}); ok {
+				if err := backend.RegisterWorkspace(sandboxRecord); err != nil {
+					return domain.Run{}, err
+				}
+			}
 		}
 	}
 	if snapshot.SchemaVersion != 3 {
@@ -241,6 +251,19 @@ func (a *App) ResumeRun(runID string, request ...ResumeRunRequest) (domain.Run, 
 			return
 		}
 		baselinePath, dependencies, lineageErr := a.changeSetLineage(ws.ID, sandboxRecord)
+		if backend, ok := a.sandboxBackend.(interface {
+			StopWorkspace(context.Context, domain.SandboxRecord) error
+		}); ok {
+			defer backend.StopWorkspace(context.Background(), sandboxRecord)
+		}
+		if _, err := a.sandboxIntegrity(context.Background(), sandboxRecord); err != nil {
+			slog.Warn("resumed sandbox integrity failed", "sandbox_id", sandboxRecord.ID, "error", err)
+			if execution, loadErr := a.store.GetExecutionByRunID(context.Background(), finished.ID); loadErr == nil {
+				execution.Status, execution.Error = domain.RunFailed, err.Error()
+				_ = a.store.SaveExecution(context.Background(), execution)
+			}
+			return
+		}
 		if lineageErr != nil {
 			return
 		}
@@ -252,7 +275,7 @@ func (a *App) ResumeRun(runID string, request ...ResumeRunRequest) (domain.Run, 
 		built, buildErr := applier.BuildFromSandbox(context.Background(), changesets.BuildRequest{
 			WorkspaceID: ws.ID, ExecutionID: execID, QuestID: questID,
 			Title: "Changes from " + finished.ID, WorkspacePath: ws.Path,
-			BaselinePath: baselinePath, SandboxPath: sandboxRecord.Path, DependsOn: dependencies,
+			BaselinePath: baselinePath, SandboxPath: sandboxRecord.Path, DependsOn: dependencies, FileRulesVersion: sandboxRecord.FileRulesVersion,
 		})
 		if buildErr != nil || built.ID == "" || len(built.Items) == 0 {
 			return
@@ -335,18 +358,14 @@ func (a *App) AddRunContext(runID string, inputs []domain.RunContextInput) (doma
 	if !a.engine.IsActiveRun(runID) {
 		return domain.ContextPreview{}, errors.New("run is not active")
 	}
-	workspaceView, err := a.requireWorkspace()
-	if err != nil {
-		return domain.ContextPreview{}, err
-	}
 	run, err := a.store.GetRun(context.Background(), runID)
 	if err != nil {
 		return domain.ContextPreview{}, err
 	}
-	if run.WorkspaceID != workspaceView.ID {
-		return domain.ContextPreview{}, errors.New("run does not belong to the open workspace")
+	if err = a.guardWorld(run.WorkspaceID); err != nil {
+		return domain.ContextPreview{}, err
 	}
-	fs, err := a.fs()
+	fs, err := a.runWorkspaceFS(context.Background(), run)
 	if err != nil {
 		return domain.ContextPreview{}, err
 	}

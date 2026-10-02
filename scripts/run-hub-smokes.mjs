@@ -24,6 +24,8 @@ const root = path.resolve(import.meta.dirname, '..');
 // `vscode-extension/media/main.js` в изолированном контексте с фейковым DOM,
 // поэтому раннер обязан идти после `npm run build`.
 const checks = [
+  'smoke-completion-verdict.mjs',
+  'smoke-runtime-comparison.mjs',
 	'smoke-master-development.mjs',
 	'smoke-quest-retrospective.mjs',
 	'smoke-quest-stage-retry.mjs',

@@ -52,6 +52,10 @@ func TestVerificationResultsKeepPassesReusableAndSummarizeTheLatestCheck(t *test
 	if check := store.latestPreAcceptCheckV2(ctx, "flow-1"); check == nil || check.Passed != 3 || check.Total != 3 || !check.AllPassed {
 		t.Fatalf("summary of the latest check = %+v", check)
 	}
+	save("v-shadow-disagreed", "key-b", false, now.Add(2*time.Second), evidence("failed"))
+	if _, found, err = store.PassedVerificationResultV2(ctx, "q-1", "key-b"); err != nil || found {
+		t.Fatalf("older success survived a shadow disagreement: found=%v err=%v", found, err)
+	}
 	if _, err = store.db.ExecContext(ctx, `DELETE FROM verification_results_v2 WHERE id='v-1'`); err == nil {
 		t.Fatal("verification results must be immutable")
 	}

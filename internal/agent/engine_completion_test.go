@@ -79,7 +79,8 @@ func TestEngineRepairsPrematureCompletionWithVerificationEvidence(t *testing.T) 
 		t.Fatal("model did not receive deterministic completion feedback")
 	}
 	statuses := completionStatuses(t, repo, run.ID)
-	if fmt.Sprint(statuses) != "[revision_required accepted_after_revision]" {
+	// Self-reported agent checks do not constitute independent acceptance.
+	if fmt.Sprint(statuses) != "[revision_required implementation_ready]" {
 		t.Fatalf("completion statuses=%v", statuses)
 	}
 }

@@ -1,3 +1,6 @@
+const {masterWorkspaceId,masterPath,setMasterScope,followFastRun} = require('./master-scope')
+const {editFastAgentSettings}=require('./master-fast-settings')
+const path=require('path')
 const { pickMasterContext, previewMasterContext, searchMasterContext, attachMasterContextPath } = require('./master-context-controller')
 const { followMasterTurn } = require('./master-turn-stream')
 const { watchMasterWorkOrder, watchMasterWorkOrders, askMasterAboutStageFailure, projectScope } = require('./master-work-order-watch')
@@ -91,7 +94,7 @@ async function generateQuickReport(host, message) {
   }
 }
 
-async function snapshotMasterContexts(host, contexts) {
+async function snapshotMasterContexts(host, contexts,workspaceId) {
   const sources=[]
   for(const value of contexts || []) {
     const label=String(value?.name || 'Контекст Мастера').slice(0,300)
@@ -103,7 +106,7 @@ async function snapshotMasterContexts(host, contexts) {
     } else {
       request={kind:'text',label,content:String(value?.content || '')}
     }
-    const snapshot=await host.service.request('/api/v2/sources/preview',{method:'POST',body:JSON.stringify(request)})
+    const snapshot=await host.service.request(masterPath('/api/v2/sources/preview',workspaceId),{method:'POST',body:JSON.stringify({...request,workspaceId})})
     sources.push({id:snapshot.id,kind:snapshot.kind,label:snapshot.label,locator:snapshot.canonicalUrl || snapshot.locator || '',digest:snapshot.digest,mediaType:snapshot.mediaType || ''})
   }
   return sources
@@ -115,16 +118,40 @@ async function handleMasterMessage(message) {
  // и карточки в окне нового проекта были бы чужими — первые чаты обоих миров
  // называются `legacy`. Эпоху двигает forgetProjectFollowers.
  let scope = projectScope(this)
+ let workspaceId=masterWorkspaceId(this,message.workspaceId)
+ const request=(route,options)=>this.service.request(masterPath(route,workspaceId),options)
  const post = reply => scope.post(reply)
  switch(message.type) {
+ case 'editFastAgentSettings':await editFastAgentSettings(this);break
+ case 'openMasterChatFolder': {
+   const view=await request('/api/master/files')
+   await vscode.commands.executeCommand('revealFileInOS',vscode.Uri.file(view.path));break
+ }
+ case 'showMasterChatFiles': {
+   const view=await request('/api/master/files')
+   const flatten=nodes=>(nodes || []).flatMap(n=>n.isDir ? flatten(n.children) : [{label:n.path}])
+   const picked=await vscode.window.showQuickPick(flatten(view.files),{title:'Файлы разговора POINT'})
+   if(picked){const root=path.resolve(view.path),file=path.resolve(root,picked.label);if(file.startsWith(root+path.sep))await vscode.window.showTextDocument(vscode.Uri.file(file))}
+   break
+ }
+ case 'continueMasterInProject': {
+   const choices=(this.boot?.workspaces || []).filter(w=>!String(w.id).startsWith('point-chat-')&&this.knownProject(w.path))
+   const picked=await vscode.window.showQuickPick(choices.map(w=>({label:w.name,description:w.path,world:w})),{title:'Продолжить в выбранном проекте'})
+   if(!picked)break
+   if(!(await this.confirmLeavingBusyWorld()))break
+   const source=workspaceId
+   await this.switchToProject?.(picked.world.path)
+   const master=await this.service.request(masterPath('/api/master/conversations/'+encodeURIComponent(message.conversationId)+'/continue-in-project',source),{method:'POST',body:JSON.stringify({workspaceId:this.boot?.currentWorkspace?.id})})
+   await setMasterScope(this,master.sessions.workspaceId);this.post({type:'master',master,loaded:true,sessionChanged:true});break
+ }
 	case 'loadMasterDevelopment':
 	case 'setMasterLearning':
 	case 'rollbackMasterSkill': {
 	  try {
 	    let development
-	    if (message.type === 'setMasterLearning') development = await this.service.request('/api/master/learning',{method:'POST',body:JSON.stringify({enabled:message.enabled === true})})
-	    else if (message.type === 'rollbackMasterSkill') development = await this.service.request('/api/master/skills/'+encodeURIComponent(String(message.id || ''))+'/rollback',{method:'POST',body:'{}'})
-	    else development = await this.service.request('/api/master/skills')
+	    if (message.type === 'setMasterLearning') development = await request('/api/master/learning',{method:'POST',body:JSON.stringify({enabled:message.enabled === true})})
+	    else if (message.type === 'rollbackMasterSkill') development = await request('/api/master/skills/'+encodeURIComponent(String(message.id || ''))+'/rollback',{method:'POST',body:'{}'})
+	    else development = await request('/api/master/skills')
 	    post({type:'masterDevelopment',development,projectKey:message.projectKey})
 	  } catch (error) {
 	    post({type:'masterDevelopmentError',error:String(error?.message || error),projectKey:message.projectKey})
@@ -132,18 +159,20 @@ async function handleMasterMessage(message) {
 	  break
 	}
  case 'forkMasterConversation': {
-   const master=await this.service.request('/api/master/conversations/'+encodeURIComponent(message.conversationId)+'/fork',{method:'POST',body:JSON.stringify({messageId:message.messageId})})
+   const master=await request('/api/master/conversations/'+encodeURIComponent(message.conversationId)+'/fork',{method:'POST',body:JSON.stringify({messageId:message.messageId})})
+   await setMasterScope(this,master.sessions.workspaceId)
    post({type:'master',master,viewId:message.viewId,sessionChanged:true,draft:message.draft,regenerate:message.regenerate})
    break
  }
  case 'deleteMasterConversation': {
    const answer=await vscode.window.showWarningMessage('Удалить разговор и его историю? Задачи и изменения проекта сохранятся.',{modal:true},'Удалить')
    if(answer!=='Удалить')break
-   const master=await this.service.request('/api/master/sessions',{method:'POST',body:JSON.stringify({action:'delete',id:message.conversationId})})
+   const master=await request('/api/master/sessions',{method:'POST',body:JSON.stringify({action:'delete',id:message.conversationId})})
+   await setMasterScope(this,master.sessions.workspaceId)
    post({type:'master',master,viewId:message.viewId,sessionChanged:true});break
  }
  case 'exportMasterConversation': {
-   const result=await this.service.request('/api/master/conversations/'+encodeURIComponent(message.conversationId)+'/export')
+   const result=await request('/api/master/conversations/'+encodeURIComponent(message.conversationId)+'/export')
    const uri=await vscode.window.showSaveDialog({saveLabel:'Экспортировать разговор',filters:{Markdown:['md']}})
    if(uri)await vscode.workspace.fs.writeFile(uri,Buffer.from(result.markdown,'utf8'));break
  }
@@ -161,7 +190,7 @@ async function handleMasterMessage(message) {
    if(!format)break
    const apiKey=await this.credentialForOrchestrator()
    await vscode.window.withProgress({location:vscode.ProgressLocation.Notification,title:'Архивариус собирает отчёт…',cancellable:false},async()=>{
-     const result=await this.service.request('/api/reports',{method:'POST',body:JSON.stringify({prompt:prompt.trim(),format:format.value,apiKey})})
+     const result=await request('/api/reports',{method:'POST',body:JSON.stringify({prompt:prompt.trim(),format:format.value,apiKey})})
      const bytes=Buffer.from(String(result.contentBase64 || ''),'base64')
      if(!bytes.length||bytes.length>16*1024*1024)throw new Error('Агент отчётов вернул файл недопустимого размера.')
      const folder=this.workspaceFolder()
@@ -179,15 +208,15 @@ async function handleMasterMessage(message) {
    break
  }
  case 'pickMasterModel': {
-   const current=await this.service.request('/api/master/history?conversationId='+encodeURIComponent(message.conversationId))
+   const current=await request('/api/master/history?conversationId='+encodeURIComponent(message.conversationId))
    const conn=(this.boot?.connections || []).find(v=>v.id===current.config?.connectionId)
    const options=(conn?.models || []).map(v=>({label:v.id,description:(v.capabilities || []).join(' · ')}))
    let model
    if(options.length)model=(await vscode.window.showQuickPick(options,{title:'Модель разговора',placeHolder:'Модели текущего подключения'}))?.label
    else model=await vscode.window.showInputBox({title:'Модель текущего подключения',value:current.sessions?.model || current.config?.model || '',prompt:'Название модели из каталога вашего подключения'})
    if(!model?.trim())break
-   await this.service.request('/api/master/sessions',{method:'POST',body:JSON.stringify({action:'model',id:message.conversationId,value:model.trim()})})
-   const master=await this.service.request('/api/master/history?conversationId='+encodeURIComponent(message.conversationId))
+   await request('/api/master/sessions',{method:'POST',body:JSON.stringify({action:'model',id:message.conversationId,value:model.trim()})})
+   const master=await request('/api/master/history?conversationId='+encodeURIComponent(message.conversationId))
    post({type:'master',master,viewId:message.viewId,sessionChanged:true});break
  }
 
@@ -207,14 +236,15 @@ async function handleMasterMessage(message) {
  }
 
         case 'masterSession': {
-          const master = await this.service.request('/api/master/sessions', {method:'POST', body:JSON.stringify({action:message.action,id:message.id || (message.action.startsWith('memory') ? '' : message.conversationId),value:message.value,sourceId:message.sourceId})})
-          const selected=['new','temporary'].includes(message.action) ? master : await this.service.request('/api/master/history?conversationId='+encodeURIComponent(message.action==='select'?message.id:message.conversationId || master.sessions.active))
+          const master = await request('/api/master/sessions', {method:'POST', body:JSON.stringify({action:message.action,id:message.id || (message.action.startsWith('memory') ? '' : message.conversationId),value:message.value,sourceId:message.sourceId,workspaceId,scopeKind:message.scopeKind})})
+          workspaceId=String(master.sessions?.workspaceId || workspaceId);await setMasterScope(this,workspaceId)
+          const selected=['new','temporary'].includes(message.action) ? master : await request('/api/master/history?conversationId='+encodeURIComponent(message.action==='select'?message.id:message.conversationId || master.sessions.active))
           post({type:'master',master:selected,sessionChanged:true,viewId:message.viewId,requestId:message.requestId})
           watchMasterWorkOrders(this,selected)
           break
         }
         case 'loadChatDirectory': {
-          const directory=await this.service.request('/api/master/directory')
+          const directory=await request('/api/master/directory')
           post({type:'chatDirectory',directory,viewId:message.viewId,requestId:message.requestId})
           break
         }
@@ -223,6 +253,12 @@ async function handleMasterMessage(message) {
         // по реестру: открываем только то, что реестр уже знает, — ядро отдаёт
         // чужие миры без путей именно ради этого.
         case 'openProjectChat': {
+          if(String(message.workspaceId || '').startsWith('point-chat-')) {
+            workspaceId=message.workspaceId;await setMasterScope(this,workspaceId)
+            const master=await request('/api/master/history?conversationId='+encodeURIComponent(message.conversationId || ''))
+            post({type:'master',master,sessionChanged:true,loaded:true,viewId:message.viewId});break
+          }
+          workspaceId='';await setMasterScope(this,'')
           const known=this.knownProject(message.path)
           if(!known) throw new Error('Проект не найден в списке Point. Откройте папку заново.')
           if(!(await this.confirmLeavingBusyWorld())) break
@@ -249,12 +285,13 @@ async function handleMasterMessage(message) {
               // Новый чат в чужом мире создаётся здесь же: ядро того мира до этой
               // точки ещё не поднято, и раньше запрос гарантированно бы упал.
               const master=pending.create
-                ? await this.service.request('/api/master/sessions',{method:'POST',body:JSON.stringify({action:'new'})})
-                : await this.service.request('/api/master/sessions',{method:'POST',body:JSON.stringify({action:'select',id:pending.id})})
+                ? await request('/api/master/sessions',{method:'POST',body:JSON.stringify({action:'new'})})
+                : await request('/api/master/sessions',{method:'POST',body:JSON.stringify({action:'select',id:pending.id})})
               const wanted=pending.create ? String(master?.sessions?.active || '') : pending.id
-              const selected=await this.service.request('/api/master/history?conversationId='+encodeURIComponent(wanted))
+              const selected=await request('/api/master/history?conversationId='+encodeURIComponent(wanted))
               if ((this.workspaceFolder()?.uri?.fsPath || '') !== requestedProject) break
               post({type:'master',master:selected,viewId:message.viewId,requestId:message.requestId,loaded:true,sessionChanged:true})
+              await setMasterScope(this,selected.sessions.workspaceId)
               for(const turn of selected.activeTurns || []) void followMasterTurn(this,turn)
               watchMasterWorkOrders(this,selected)
               void this.postChatDirectory?.()
@@ -265,39 +302,43 @@ async function handleMasterMessage(message) {
               this.service.hostLog('warn', `[chat] ожидаемый разговор не открылся: ${error?.message || error}`)
             }
           }
-          const master=await this.service.request('/api/master/history?conversationId='+encodeURIComponent(message.conversationId || '')+(message.full ? '&full=1' : ''))
+          const master=await request('/api/master/history?conversationId='+encodeURIComponent(message.conversationId || '')+(message.full ? '&full=1' : ''))
           if ((this.workspaceFolder()?.uri?.fsPath || '') !== requestedProject) break
+          workspaceId=String(master.sessions?.workspaceId || workspaceId);await setMasterScope(this,workspaceId)
           post({type:'master',master,viewId:message.viewId,requestId:message.requestId,loaded:true})
+          if(master.fastRun && ['pending','running','waiting','paused'].includes(master.fastRun.status))void followFastRun(this,master.fastRun.id,master.sessions.workspaceId,master.sessions.active)
           for(const turn of master.activeTurns || []) void followMasterTurn(this,turn)
           watchMasterWorkOrders(this,master)
           void this.postChatDirectory?.()
           break
         }
         case 'masterPage': {
-          const page=await this.service.request('/api/master/conversations/'+encodeURIComponent(message.conversationId)+'/messages?before='+(message.before || '')+'&q='+encodeURIComponent(message.query || ''))
+          const page=await request('/api/master/conversations/'+encodeURIComponent(message.conversationId)+'/messages?before='+(message.before || '')+'&q='+encodeURIComponent(message.query || ''))
           post({type:'masterPage',page,conversationId:message.conversationId,viewId:message.viewId,query:message.query || ''})
           break
         }
         case 'masterChat': {
-          const before=await this.service.request('/api/master/history?conversationId='+encodeURIComponent(String(message.conversationId || '')))
+          const before=await request('/api/master/history?conversationId='+encodeURIComponent(String(message.conversationId || '')))
           const chat=before?.sessions?.items?.find(item=>item.id===message.conversationId)
           // Принятая ветка переносит беседу в свою рабочую копию и открывает её:
           // эта смена мира — часть отправки, и сообщение уходит в новый мир.
           if(chat?.branchOffer==='pending' && chat?.workMode==='plan' && await offerMasterChatBranch(this,{...chat,title:message.message || chat.title})) scope = projectScope(this)
-          const workspaceId = String(this.boot?.currentWorkspace?.id || '')
+          workspaceId=String(before?.sessions?.workspaceId || workspaceId || this.boot?.currentWorkspace?.id || '');await setMasterScope(this,workspaceId)
           const apiKey = await this.credentialForOrchestrator()
           const contexts=message.attachments || (message.context ? [message.context] : [])
-          const sources=await snapshotMasterContexts(this,contexts)
+          const sources=await snapshotMasterContexts(this,contexts,workspaceId)
+          const fastConfig=await this.service.request('/api/system/fast-agent')
+          const fastApiKey=(chat?.workMode || 'auto')==='auto' && fastConfig?.profile?.connectionId ? await this.credentialFor(fastConfig.profile,'Fast Agent') : ''
           // Пока спрашивали ключ и снимали вложения, человек мог открыть другой
           // проект. Реплика принадлежит прежнему: в новом она ушла бы в его
           // `legacy`. Ядро отвергает и чужой workspaceId.
           if (!scope.current()) break
-          const turn = await this.service.request('/api/v2/master/turns',{method:'POST',body:JSON.stringify({message:message.message,conversationId:message.conversationId,turnId:message.turnId,sources,model:message.model,taskIntake:true,proposalId:message.proposalId,previousAnswerRejected:!!message.retry,apiKey,workspaceId})})
+          const turn = await request('/api/v2/master/turns',{method:'POST',body:JSON.stringify({message:message.message,conversationId:message.conversationId,turnId:message.turnId,sources,model:message.model,taskIntake:true,proposalId:message.proposalId,previousAnswerRejected:!!message.retry,apiKey,fastApiKey,workspaceId})})
           void followMasterTurn(this,turn)
           break
         }
         case 'offerMasterChatBranch': {
-          const before=await this.service.request('/api/master/history?conversationId='+encodeURIComponent(String(message.conversationId || '')))
+          const before=await request('/api/master/history?conversationId='+encodeURIComponent(String(message.conversationId || '')))
           const chat=before?.sessions?.items?.find(item=>item.id===message.conversationId)
           if(chat && chat.branchOffer!=='bound') await offerMasterChatBranch(this,chat,{manual:true})
           break
@@ -312,7 +353,7 @@ async function handleMasterMessage(message) {
         case 'openMasterMessageDetails': {
 		  const item = {...message.item}
 		  if (item.turnId) {
-		    const turn = await this.service.request('/api/master/turns/'+encodeURIComponent(item.turnId))
+		    const turn = await request('/api/master/turns/'+encodeURIComponent(item.turnId))
 		    item.skills = turn.skills || []
 		  }
           this.chatDocuments.showMasterMessageDetails(item, message.request)
@@ -325,10 +366,10 @@ async function handleMasterMessage(message) {
           const id = String(message.messageId || '')
           if (!id) break
           const value = message.value === 'down' ? 'down' : message.value === 'up' ? 'up' : ''
-          await this.service.request(`/api/master/messages/${encodeURIComponent(id)}/feedback`, {
+          await request(`/api/master/messages/${encodeURIComponent(id)}/feedback`, {
             method: 'POST', body: JSON.stringify({ value }),
           })
-          post({ type: 'master', master: await this.service.request('/api/master/history?conversationId='+encodeURIComponent(message.conversationId)),viewId:message.viewId,loaded:true })
+          post({ type: 'master', master: await request('/api/master/history?conversationId='+encodeURIComponent(message.conversationId)),viewId:message.viewId,loaded:true })
           break
         }
         case 'stopMasterChat': {
@@ -336,23 +377,23 @@ async function handleMasterMessage(message) {
           // Content-Type: application/json (middleware.go), а служба ставит этот
           // заголовок только там, где тело есть. Без него остановка хода падала
           // ошибкой «Content-Type must be application/json» вместо отмены.
-          if (message.turnId) await this.service.request('/api/v2/master/turns/'+encodeURIComponent(message.turnId)+'/cancel',{method:'POST',body:'{}'})
+          if (message.turnId) await request('/api/v2/master/turns/'+encodeURIComponent(message.turnId)+'/cancel',{method:'POST',body:'{}'})
           break
         }
         case 'approveMasterWorkOrderV2': {
           const id=String(message.workOrderId || '')
-		  const reviewed=await this.service.request('/api/v2/work-orders/'+encodeURIComponent(id))
+		  const reviewed=await request('/api/v2/work-orders/'+encodeURIComponent(id))
 		  const routing=reviewed?.routing || {}
 		  const connectionId=routing.mode==='auto' ? routing.routerConnectionId : routing.fixedConnectionId
 		  const apiKey=connectionId ? await this.credentialFor({connectionId},'утверждённого маршрута WorkOrder') : await this.credentialForOrchestrator()
-          const approval=await this.service.request('/api/v2/work-orders/'+encodeURIComponent(id)+'/approve',{
+          const approval=await request('/api/v2/work-orders/'+encodeURIComponent(id)+'/approve',{
 			method:'POST',body:JSON.stringify({version:Number(message.version),digest:String(message.digest || ''),idempotencyKey:String(message.idempotencyKey || ''),apiKey,rosterConsent:Array.isArray(message.rosterConsent)?message.rosterConsent.map(String):[]})
           })
           post({type:'masterWorkOrderApproved',approval,turnId:message.turnId,viewId:message.viewId})
           // Утверждение только начинает запуск: план и первый шаг идут минутами.
           // Дальше карточку ведёт наблюдение, иначе она замрёт на «Проверяем окружение».
           void watchMasterWorkOrder(this,id,message.conversationId)
-          const [runtime,guild]=await Promise.all([this.service.request('/api/state/runtime'),this.service.request('/api/state/guild')])
+          const [runtime,guild]=await Promise.all([request('/api/state/runtime'),request('/api/state/guild')])
           this.patchBoot(runtime);this.patchBoot(guild);this.postState()
           // Путь v2 не доводил pending-executions до запуска и не звал loadRun:
           // activeRunId оставался пустым, runDelta в вебвью не приходил никогда,
@@ -364,7 +405,7 @@ async function handleMasterMessage(message) {
         }
 		case 'reviseMasterWorkOrderV2': {
 		  const id=String(message.workOrderId || '')
-		  const workOrder=await this.service.request('/api/v2/work-orders/'+encodeURIComponent(id)+'/revise',{
+		  const workOrder=await request('/api/v2/work-orders/'+encodeURIComponent(id)+'/revise',{
 			method:'POST',body:JSON.stringify({expectedVersion:Number(message.expectedVersion),expectedDigest:String(message.expectedDigest || ''),idempotencyKey:String(message.idempotencyKey || ''),workOrder:message.workOrder})
 		  })
 		  post({type:'masterWorkOrderRevised',workOrder,viewId:message.viewId})
@@ -372,7 +413,7 @@ async function handleMasterMessage(message) {
 		}
         case 'hireMasterWorkOrderAgentV2': {
           const id=String(message.workOrderId || '')
-          const result=await this.service.request('/api/v2/work-orders/'+encodeURIComponent(id)+'/hire-agent',{
+          const result=await request('/api/v2/work-orders/'+encodeURIComponent(id)+'/hire-agent',{
             method:'POST',body:JSON.stringify({draftId:message.draftId,expectedVersion:message.expectedVersion,expectedDigest:message.expectedDigest,idempotencyKey:message.idempotencyKey,agentId:message.agentId,agent:message.agent})
           })
           this.upsertBootItem('projectAgents',result.agent)
@@ -382,16 +423,16 @@ async function handleMasterMessage(message) {
         }
         case 'reviewMasterManualCriterionV2': {
           const workOrderId=String(message.workOrderId || '')
-          await this.service.request('/api/v2/master/quests/'+encodeURIComponent(String(message.questId || ''))+'/criteria/'+encodeURIComponent(String(message.criterionId || ''))+'/review',{
+          await request('/api/v2/master/quests/'+encodeURIComponent(String(message.questId || ''))+'/criteria/'+encodeURIComponent(String(message.criterionId || ''))+'/review',{
             method:'POST',body:JSON.stringify({decision:String(message.decision || ''),note:String(message.note || '')})
           })
-          const workOrder=await this.service.request('/api/v2/work-orders/'+encodeURIComponent(workOrderId))
+          const workOrder=await request('/api/v2/work-orders/'+encodeURIComponent(workOrderId))
           post({type:'masterWorkOrderControlled',workOrder,viewId:message.viewId})
           break
         }
         case 'analyzeStageFailureWithMaster': {
           // Ручной разбор провала: та же реплика, что шлёт наблюдатель сам.
-          const workOrder=await this.service.request('/api/v2/work-orders/'+encodeURIComponent(String(message.workOrderId || '')))
+          const workOrder=await request('/api/v2/work-orders/'+encodeURIComponent(String(message.workOrderId || '')))
           const asked=await askMasterAboutStageFailure(this,workOrder,message.conversationId,{manual:true})
           if(!asked) post({type:'masterBranchNotice',tone:'error',message:'Мастер не взялся за разбор: нет провала этапа или разговора наряда',viewId:message.viewId})
           break
@@ -402,7 +443,7 @@ async function handleMasterMessage(message) {
           const action=String(message.action || '')
 		  let apiKey=''
 		  if(action==='resume'||action==='retry'){
-			const reviewed=await this.service.request('/api/v2/work-orders/'+encodeURIComponent(workOrderId))
+			const reviewed=await request('/api/v2/work-orders/'+encodeURIComponent(workOrderId))
 			const routing=reviewed?.routing || {}
 			const connectionId=routing.mode==='auto' ? routing.routerConnectionId : routing.fixedConnectionId
 			apiKey=connectionId ? await this.credentialFor({connectionId},'утверждённого маршрута WorkOrder') : await this.credentialForOrchestrator()
@@ -410,13 +451,13 @@ async function handleMasterMessage(message) {
           // Повтор этапа может нести среду из списка или предложение Мастера,
           // которое человек разрешил; ядро перепроверяет и то и другое.
           const retry=action==='retry' ? {proposalDigest:String(message.proposalDigest || '')} : {}
-          const result=await this.service.request('/api/v2/master/quests/'+encodeURIComponent(questId)+'/'+encodeURIComponent(action),{
+          const result=await request('/api/v2/master/quests/'+encodeURIComponent(questId)+'/'+encodeURIComponent(action),{
             method:'POST',body:JSON.stringify({message:String(message.message || ''),apiKey,...retry})
           })
-          const workOrder=await this.service.request('/api/v2/work-orders/'+encodeURIComponent(workOrderId))
+          const workOrder=await request('/api/v2/work-orders/'+encodeURIComponent(workOrderId))
           post({type:'masterWorkOrderControlled',result,workOrder,viewId:message.viewId})
           void watchMasterWorkOrder(this,workOrderId,message.conversationId)
-          const runtime=await this.service.request('/api/state/runtime')
+          const runtime=await request('/api/state/runtime')
           this.patchBoot(runtime);this.postState()
           break
         }
@@ -428,28 +469,28 @@ async function handleMasterMessage(message) {
           const postState=(state,extra={})=>post({type:'masterApplicationState',questId,workOrderId,state,...extra,viewId:message.viewId})
           // Состояние, открытие и терминал ядро не меняют: это чтение и
           // действие в самой IDE по тому, что ядро знает о приложении.
-          if(action==='status'){postState(await this.service.request(route+'?probe=1'),{final:true});break}
-          if(action==='open'||action==='terminal'){const state=await this.service.request(route);postState(state,{opened:await openDeliveredApplication(state,action),final:true});break}
+          if(action==='status'){postState(await request(route+'?probe=1'),{final:true});break}
+          if(action==='open'||action==='terminal'){const state=await request(route);postState(state,{opened:await openDeliveredApplication(state,action),final:true});break}
           // Запуск идёт минутами — сборка образов, старт контейнеров, ожидание
           // ответа по адресу. Пока ядро держит запрос, карточка раз в 0,7 с
           // получает его живой вывод; двадцать секунд умолчания здесь мало.
           let polling=true
-          const poll=(async()=>{while(polling){await new Promise(resolve=>setTimeout(resolve,700));if(!polling)break;try{postState(await this.service.request(route,{timeoutMs:5000}))}catch{}}})()
+          const poll=(async()=>{while(polling){await new Promise(resolve=>setTimeout(resolve,700));if(!polling)break;try{postState(await request(route,{timeoutMs:5000}))}catch{}}})()
           let result
           try{
-            result=await this.service.request(route+'/'+encodeURIComponent(action),{
+            result=await request(route+'/'+encodeURIComponent(action),{
               method:'POST',timeoutMs:20*60_000,body:JSON.stringify({version:Number(message.version),workOrderDigest:String(message.digest || ''),deliveryReceiptId:String(message.deliveryReceiptId || ''),idempotencyKey:String(message.idempotencyKey || '')})
             })
           }catch(error){
             polling=false;await poll
-            try{postState(await this.service.request(route),{error:String(error?.message || error),final:true})}catch{post({type:'masterApplicationState',questId,workOrderId,error:String(error?.message || error),final:true,viewId:message.viewId})}
+            try{postState(await request(route),{error:String(error?.message || error),final:true})}catch{post({type:'masterApplicationState',questId,workOrderId,error:String(error?.message || error),final:true,viewId:message.viewId})}
             throw error
           }
           polling=false;await poll
-          const state=await this.service.request(route+'?probe=1')
+          const state=await request(route+'?probe=1')
           const opened=action==='start'&&result?.status==='running'?await openDeliveredApplication(state,'auto'):''
           postState(state,{opened,final:true})
-          const workOrder=await this.service.request('/api/v2/work-orders/'+encodeURIComponent(workOrderId))
+          const workOrder=await request('/api/v2/work-orders/'+encodeURIComponent(workOrderId))
           post({type:'masterApplicationControlled',result,workOrder,viewId:message.viewId})
           break
         }

@@ -3,11 +3,33 @@ package app
 import (
 	"context"
 	"fmt"
+	"local-agent-workbench/internal/domain"
 	"strings"
 )
 
 func (a *App) ForkMasterConversation(ctx context.Context, id, messageID string) (MasterChatView, error) {
-	newID, err := a.store.ForkMasterConversation(ctx, a.currentWorldID(), id, messageID)
+	if strings.HasPrefix(a.masterWorldID(ctx), "point-chat-") {
+		source := a.masterWorldID(ctx)
+		scoped, err := a.newPointChatScope(ctx, domain.NewID("chat"), false)
+		if err != nil {
+			return MasterChatView{}, err
+		}
+		sessions, err := a.MasterSessions(scoped)
+		if err != nil {
+			return MasterChatView{}, err
+		}
+		if err = a.store.CopyMasterContext(ctx, source, sessions.WorkspaceID, id, sessions.Active, messageID); err != nil {
+			return MasterChatView{}, err
+		}
+		chat := sessions.Items[0]
+		chat.ParentID = id
+		chat.Title = "Продолжение разговора"
+		if err = a.store.SaveMasterConversation(scoped, chat); err != nil {
+			return MasterChatView{}, err
+		}
+		return a.MasterSessionHistory(scoped, sessions.Active, false)
+	}
+	newID, err := a.store.ForkMasterConversation(ctx, a.masterWorldID(ctx), id, messageID)
 	if err != nil {
 		return MasterChatView{}, err
 	}
@@ -22,7 +44,7 @@ func (a *App) ExportMasterConversation(ctx context.Context, id string) (string, 
 	pages := []string{}
 	var before int64
 	for {
-		p, err := a.store.MasterMessagePage(ctx, a.currentWorldID(), id, before, "", 200)
+		p, err := a.store.MasterMessagePage(ctx, a.masterWorldID(ctx), id, before, "", 200)
 		if err != nil {
 			return "", err
 		}

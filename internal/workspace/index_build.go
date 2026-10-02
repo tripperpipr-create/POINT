@@ -12,9 +12,12 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 	"time"
+
+	"local-agent-workbench/internal/osproc"
 )
 
 func (f *FS) BuildIndex(ctx context.Context) (IndexStatus, error) {
@@ -34,7 +37,11 @@ func (f *FS) buildIndex(ctx context.Context, limits indexLimits) (IndexStatus, e
 	type walkedPath struct {
 		absolute string
 		relative string
+		modified time.Time
 	}
+	// Кандидаты сначала собираются, потом индексируются по приоритету: при
+	// упоре в предел индекс должен держать код команды, а не ядро фреймворка.
+	var candidates []walkedPath
 	const batchSize = 256
 	pending := make([]walkedPath, 0, batchSize)
 	processPending := func() (bool, error) {
@@ -88,6 +95,7 @@ func (f *FS) buildIndex(ctx context.Context, limits indexLimits) (IndexStatus, e
 		pending = pending[:0]
 		return false, nil
 	}
+	ignore := newProjectIgnore(f.root)
 	err := filepath.WalkDir(f.root, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return nil
@@ -103,7 +111,7 @@ func (f *FS) buildIndex(ctx context.Context, limits indexLimits) (IndexStatus, e
 			}
 		}
 		if entry.IsDir() {
-			if path != f.root && f.skipDirectory(path, true) {
+			if path != f.root && (f.skipDirectory(path, true) || f.ignoredDir(ignore, path)) {
 				return filepath.SkipDir
 			}
 			if path != f.root {
@@ -122,23 +130,49 @@ func (f *FS) buildIndex(ctx context.Context, limits indexLimits) (IndexStatus, e
 			return nil
 		}
 		relative = filepath.ToSlash(relative)
-		if !likelyTextPath(path) {
+		if !likelyTextPath(path) || ignore.matches(relative, false) {
 			return nil
 		}
-		pending = append(pending, walkedPath{absolute: path, relative: relative})
-		if len(pending) == batchSize {
-			stop, processErr := processPending()
-			if processErr != nil {
-				return processErr
-			}
-			if stop {
-				return fs.SkipAll
-			}
+		item := walkedPath{absolute: path, relative: relative}
+		if info, infoErr := entry.Info(); infoErr == nil {
+			item.modified = info.ModTime()
 		}
+		candidates = append(candidates, item)
 		return nil
 	})
-	if err == nil && !index.status.Partial {
-		_, err = processPending()
+	if err == nil {
+		// Сначала то, что команда меняет: файлы из недавних коммитов, затем
+		// свежие по времени изменения. 02.10.2026 в cf-bitrix предел 256 МБ
+		// уходил на ядро Битрикса (по алфавиту source/bitrix раньше
+		// source/local), и собственный код в индекс не попадал вовсе.
+		touched := f.recentlyCommittedPaths(ctx)
+		sort.SliceStable(candidates, func(i, j int) bool {
+			left, right := touched[candidates[i].relative], touched[candidates[j].relative]
+			if left != right {
+				return left > right
+			}
+			if !candidates[i].modified.Equal(candidates[j].modified) {
+				return candidates[i].modified.After(candidates[j].modified)
+			}
+			return candidates[i].relative < candidates[j].relative
+		})
+		for _, item := range candidates {
+			pending = append(pending, item)
+			if len(pending) < batchSize {
+				continue
+			}
+			stop, processErr := processPending()
+			if processErr != nil {
+				err = processErr
+				break
+			}
+			if stop {
+				break
+			}
+		}
+		if err == nil && len(pending) > 0 {
+			_, err = processPending()
+		}
 	}
 	if err != nil {
 		slog.Error("index build failed", "root", f.root, "error", err, "duration_ms", time.Since(started).Milliseconds())
@@ -197,9 +231,16 @@ func (f *FS) UpdateIndex(ctx context.Context, changed, deleted []string) (IndexS
 
 	started := time.Now()
 	prepared := make([]preparedIndexFile, 0, len(changed))
+	ignore := newProjectIgnore(f.root)
 	for _, relative := range changed {
 		if err := ctx.Err(); err != nil {
 			return IndexStatus{State: "error"}, err
+		}
+		// Игнорируемое не попадает в индекс и через точечное обновление:
+		// иначе каждое изменение лога в томе Docker возвращало бы его туда.
+		if ignore.ignored(relative, false) {
+			deleted = append(deleted, relative)
+			continue
 		}
 		info, err := f.statIndexedPath(relative)
 		if err != nil {
@@ -476,4 +517,23 @@ func expandDeletedIndexPaths(index *projectIndex, deleted []string) []string {
 		}
 	}
 	return uniqueIndexPaths(extra)
+}
+
+// recentlyCommittedPaths — сколько раз файл менялся в последних 2000
+// коммитах (пути относительно корня проекта). Вне репозитория — пусто, и
+// порядок решает время изменения.
+func (f *FS) recentlyCommittedPaths(ctx context.Context) map[string]int {
+	logCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	out, err := osproc.CommandContext(logCtx, "git", "-C", f.root, "log", "-n", "2000", "--name-only", "--format=", "--relative", "--no-renames").Output()
+	counts := map[string]int{}
+	if err != nil {
+		return counts
+	}
+	for _, line := range strings.Split(string(out), "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			counts[line]++
+		}
+	}
+	return counts
 }

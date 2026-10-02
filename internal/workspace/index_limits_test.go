@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestBuildIndexStopsAtConfiguredCapacity(t *testing.T) {
@@ -51,6 +52,11 @@ func TestPartialIndexMissDoesNotRepeatFullWalk(t *testing.T) {
 	root := t.TempDir()
 	writeIndexLimitFixture(t, root, "a.go", "package fixture\nvar IndexedAlpha = 1\n")
 	writeIndexLimitFixture(t, root, "b.go", "package fixture\nvar ExcludedZebra = 2\n")
+	// Под предел индекс берёт сначала свежее: b.go старше, он и остаётся вне.
+	old := time.Now().Add(-48 * time.Hour)
+	if err := os.Chtimes(filepath.Join(root, "b.go"), old, old); err != nil {
+		t.Fatal(err)
+	}
 	filesystem, err := Open(root)
 	if err != nil {
 		t.Fatal(err)

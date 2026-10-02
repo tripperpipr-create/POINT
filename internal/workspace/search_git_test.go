@@ -19,15 +19,15 @@ func TestSearchRespectsGitIgnoreAndSkipsBinary(t *testing.T) {
 	}
 	root := t.TempDir()
 	files := map[string]string{
-		".gitignore":               "docker/data/\n*.log\n",
-		"source/api.php":           "route('/api/documents', 'DocumentsController');\n",
-		"source/new.php":           "// untracked but not ignored: /api/documents\n",
-		"docker/data/mysql.ibd":    "/api/documents\n",
-		"docker/logger.log":        "GET /api/documents 200\n",
-		"docker/compose.yml":       "# /api/documents proxied\n",
-		"source/blob.bin":          "\x00\x01/api/documents",
-		"nested/front/.gitkeep":    "",
-		"source/vendor/lib/x.php":  "/api/documents in vendor\n",
+		".gitignore":              "docker/data/\n*.log\n",
+		"source/api.php":          "route('/api/documents', 'DocumentsController');\n",
+		"source/new.php":          "// untracked but not ignored: /api/documents\n",
+		"docker/data/mysql.ibd":   "/api/documents\n",
+		"docker/logger.log":       "GET /api/documents 200\n",
+		"docker/compose.yml":      "# /api/documents proxied\n",
+		"source/blob.bin":         "\x00\x01/api/documents",
+		"nested/front/.gitkeep":   "",
+		"source/vendor/lib/x.php": "/api/documents in vendor\n",
 	}
 	for name, text := range files {
 		path := filepath.Join(root, filepath.FromSlash(name))

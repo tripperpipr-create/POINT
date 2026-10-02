@@ -151,6 +151,9 @@ func (f *FS) SearchWithStats(ctx context.Context, options SearchOptions) ([]Cont
 	} else if files, ok := f.gitCandidates(searchCtx, root, options); ok {
 		walkErr = f.visitGitFiles(root, files, visit)
 	} else {
+		// Без git — те же правила .gitignore/.pointignore и папки данных СУБД,
+		// что у индекса.
+		ignore := newProjectIgnore(f.root)
 		walkErr = filepath.WalkDir(root, func(current string, entry os.DirEntry, walkErr error) error {
 			if walkErr != nil {
 				return nil
@@ -159,12 +162,15 @@ func (f *FS) SearchWithStats(ctx context.Context, options SearchOptions) ([]Cont
 				return err
 			}
 			if !entry.IsDir() {
+				if rel, relErr := filepath.Rel(f.root, current); relErr == nil && ignore.matches(filepath.ToSlash(rel), false) {
+					return nil
+				}
 				return visit(current)
 			}
 			if current == root {
 				return nil
 			}
-			if f.skipDirectory(current, false) {
+			if f.skipDirectory(current, false) || f.ignoredDir(ignore, current) {
 				return filepath.SkipDir
 			}
 			// Вложенный репозиторий ищется по его же .gitignore.

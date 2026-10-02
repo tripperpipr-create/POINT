@@ -31,6 +31,7 @@ func (f *FS) collectIndexDrift(ctx context.Context, files map[string]indexedFile
 	}
 	seen := make(map[string]struct{}, len(files))
 	visitedEntries := 0
+	ignore := newProjectIgnore(f.root)
 	err = filepath.WalkDir(f.root, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return nil
@@ -46,7 +47,7 @@ func (f *FS) collectIndexDrift(ctx context.Context, files map[string]indexedFile
 			}
 		}
 		if entry.IsDir() {
-			if path != f.root && f.skipDirectory(path, true) {
+			if path != f.root && (f.skipDirectory(path, true) || f.ignoredDir(ignore, path)) {
 				return filepath.SkipDir
 			}
 			return nil
@@ -59,6 +60,9 @@ func (f *FS) collectIndexDrift(ctx context.Context, files map[string]indexedFile
 			return nil
 		}
 		relative = filepath.ToSlash(relative)
+		if ignore.matches(relative, false) {
+			return nil
+		}
 		seen[relative] = struct{}{}
 		indexed, exists := files[relative]
 		if !exists {

@@ -806,7 +806,17 @@ const (
 	// его не создаёт и не получает: она только готовит черновик по команде,
 	// которую человек назвал сам, а создание и выдачу решает человек.
 	CompanionActionCreateTool CompanionActionKind = "create_tool"
+	// CompanionActionGit — git-действие квеста (коммит, отправка, MR), которое
+	// исполнит git-агент только по нажатию человека.
+	CompanionActionGit CompanionActionKind = "git_action"
 )
+
+// GitActionRequest — что сделать git-агенту и с каким квестом.
+type GitActionRequest struct {
+	QuestID string `json:"questId"`
+	Action  string `json:"action"` // commit | push | merge_request
+	Repo    string `json:"repo,omitempty"`
+}
 
 // CompanionActionProposal is a durable, reviewable Hub mutation draft. The
 // Companion may prepare it, but only an explicit user decision can apply it.
@@ -821,6 +831,7 @@ type CompanionActionProposal struct {
 	Team            *Team               `json:"team,omitempty"`
 	Skill           *SkillDefinition    `json:"skill,omitempty"`
 	Tool            *CustomTool         `json:"tool,omitempty"`
+	Git             *GitActionRequest   `json:"git,omitempty"`
 	Status          string              `json:"status"` // pending | modified | applied | ignored
 	AppliedEntityID string              `json:"appliedEntityId,omitempty"`
 	// ContinuationPrompt хранит исходную задачу, ради которой пришлось сначала

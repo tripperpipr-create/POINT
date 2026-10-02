@@ -272,3 +272,22 @@
 /* Своей меры у карточки больше нет: 62rem против 78 знаков у реплик давали на
    широком окне ступеньку — реплики по центру, договор сбоку. Мера приходит от
    ленты (--hall-read-col), общая на реплики, карточки, поиск и композер. */
+/* Ветка квеста (quest-git-views.js): выбор git-агента до запуска и итог git
+   после. Поля — те же, что у редактора наряда: моноширинные, на пустоте. */
+.quest-git-plan .hall-quest-acts { flex-wrap: wrap; gap: var(--s-3); align-items: center; }
+.quest-git-plan select, .quest-git-plan input {
+  min-width: 0;
+  border: 1px solid var(--hub-border);
+  border-radius: var(--r-1);
+  padding: var(--s-2) var(--s-3);
+  background: var(--hub-void);
+  color: var(--hub-text);
+  font: var(--fw-normal) var(--t-small) / var(--lh-base) var(--font-mono);
+}
+.quest-git-plan input { flex: 1 1 14rem; }
+.quest-git-plan select:focus-visible, .quest-git-plan input:focus-visible { outline: none; border-color: var(--ember-line); box-shadow: var(--e-focus); }
+.quest-git-plan ul ul { margin-top: var(--s-1); color: var(--hub-muted); font-size: var(--t-small); }
+.quest-git ul { display: grid; gap: var(--s-3); }
+.quest-git .hall-quest-acts { margin-top: var(--s-2); }
+.quest-git-error { color: var(--caution); font-size: var(--t-small); }
+.quest-git-ask small { color: var(--hub-muted); }

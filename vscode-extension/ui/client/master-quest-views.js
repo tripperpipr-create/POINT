@@ -23,6 +23,8 @@
 // словарь, а не под ядро, то есть проверяли сами себя.
 import { fillAttribute } from './format-units.js'
 import { icon } from './ui-icons.js'
+// Git квеста (ветка в наряде, коммит и отправка в прогоне) — quest-git-views.js.
+export { gitChoiceMissing, questGitHtml, workOrderGitHtml } from './quest-git-views.js'
 
 export const CRITERION_KIND = { verification: 'авто', reproduction: 'повтор', manual: 'вы' }
 

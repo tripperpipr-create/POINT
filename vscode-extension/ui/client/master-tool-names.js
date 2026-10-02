@@ -16,6 +16,7 @@
 // ожидания рассказывает о происходящем прямо сейчас.
 export const MASTER_TOOL_NAMES = {
   dispatch_fast_task: "передал задачу быстрому агенту",
+  request_git_action: "передал просьбу git-агенту",
   search_skills: "нашёл навыки",
   read_skill: "загрузил навык",
   project_map: 'построил карту проекта',
@@ -39,6 +40,7 @@ export const MASTER_TOOL_NAMES = {
 
 export const MASTER_TOOL_NAMES_NOW = {
   dispatch_fast_task: "передаю задачу быстрому агенту",
+  request_git_action: "передаю просьбу git-агенту",
   search_skills: "ищу навыки",
   read_skill: "загружаю навык",
   project_map: 'строю карту проекта',
@@ -74,7 +76,7 @@ export function masterToolNameNow(tool) {
 // (файл, поиск, история), и одинаковый значок у девяти строк подряд ничего бы
 // не сообщал. Незнакомое имя получает общий значок инструмента.
 const MASTER_TOOL_ICONS = {
-  dispatch_fast_task: 'tool', search_skills: 'search', read_skill: 'memory',
+  dispatch_fast_task: 'tool', request_git_action: 'tool', search_skills: 'search', read_skill: 'memory',
   project_map: 'map',
   read_file: 'file',
   list_files: 'folder',

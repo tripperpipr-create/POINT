@@ -162,6 +162,13 @@ func (a *App) ReviseWorkOrderV2(ctx context.Context, id string, request ReviseWo
 		environment.ApplyManagedRuntimePack(&plan)
 		next.Sandbox = plan.Runtime
 	}
+	// Ветка: из карточки принимается только выбор человека, осмотр — серверный.
+	if next.Git, err = reviseWorkOrderGitV2(current.Git, next.Git); err != nil {
+		return domain.WorkOrder{}, err
+	}
+	if current.Git != nil {
+		next.Delivery.CommitMode = a.revisedGitCommitModeV2(ctx, current, next.Git)
+	}
 	next, err = a.prepareWorkOrderWorkspaceV2(ctx, next)
 	if err != nil {
 		return domain.WorkOrder{}, err
@@ -295,6 +302,11 @@ func (a *App) ApproveWorkOrderV2(ctx context.Context, id string, request Approve
 	if err = a.requireRosterRunnableV2(ctx, order); err != nil {
 		return domain.WorkOrderApproval{}, err
 	}
+	// Ветка наряда открывается до транзакции и до первого снимка песочницы.
+	checkouts, err := a.checkoutWorkOrderGitV2(ctx, order)
+	if err != nil {
+		return domain.WorkOrderApproval{}, err
+	}
 	created := false
 	if order.Workspace.Mode == "managed" {
 		owner, ownerErr := a.store.WorkOrderWorkspaceOwnerV2(ctx, order.Workspace.Path)
@@ -337,8 +349,10 @@ func (a *App) ApproveWorkOrderV2(ctx context.Context, id string, request Approve
 		_ = os.RemoveAll(order.Workspace.Path)
 	}
 	if err != nil {
+		undoWorkOrderCheckoutsV2(a.gitInspectRunner(), checkouts)
 		return domain.WorkOrderApproval{}, err
 	}
+	a.recordWorkOrderCheckoutsV2(ctx, approval, checkouts)
 	a.recordMasterEvidence(ctx, approval.WorkOrder, approval.QuestID, "approval", "approved")
 	return a.resumeApprovedWorkOrderV2(ctx, approval, request.APIKey)
 }

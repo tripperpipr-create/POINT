@@ -357,6 +357,14 @@ WHERE approval.work_order_id=? ORDER BY approval.version DESC LIMIT 1`, order.ID
 	}
 	s.attachWorkOrderFlowStateV2(ctx, &runtime)
 	runtime.PreAcceptCheck = s.latestPreAcceptCheckV2(ctx, runtime.FlowRunID)
+	if order.Git != nil {
+		actions, _ := s.ListQuestGitActions(ctx, runtime.QuestID)
+		var changed []string
+		if runtime.Evidence != nil {
+			changed = runtime.Evidence.ChangedFiles
+		}
+		runtime.Git = domain.BuildQuestGitView(*order, runtime.Status, runtime.Assurance, changed, actions)
+	}
 	order.Runtime = &runtime
 }
 

@@ -1,4 +1,5 @@
 const {masterWorkspaceId,masterPath,setMasterScope,followFastRun} = require('./master-scope')
+const { syncQuestGitPolicy } = require('./quest-git-controller')
 const {editFastAgentSettings}=require('./master-fast-settings')
 const path=require('path')
 const { pickMasterContext, previewMasterContext, searchMasterContext, attachMasterContextPath } = require('./master-context-controller')
@@ -322,9 +323,11 @@ async function handleMasterMessage(message) {
           const chat=before?.sessions?.items?.find(item=>item.id===message.conversationId)
           // Принятая ветка переносит беседу в свою рабочую копию и открывает её:
           // эта смена мира — часть отправки, и сообщение уходит в новый мир.
-          if(chat?.branchOffer==='pending' && chat?.workMode==='plan' && await offerMasterChatBranch(this,{...chat,title:message.message || chat.title})) scope = projectScope(this)
+          // Ветку квеста решает git-агент в наряде; отдельная рабочая копия чата —
+          // только по кнопке «Ветка» (offerMasterChatBranch ниже), не сама.
           workspaceId=String(before?.sessions?.workspaceId || workspaceId || this.boot?.currentWorkspace?.id || '');await setMasterScope(this,workspaceId)
           const apiKey = await this.credentialForOrchestrator()
+          await syncQuestGitPolicy(this.service, vscode.workspace.getConfiguration('localAgent'))
           const contexts=message.attachments || (message.context ? [message.context] : [])
           const sources=await snapshotMasterContexts(this,contexts,workspaceId)
           const fastConfig=await this.service.request('/api/system/fast-agent')

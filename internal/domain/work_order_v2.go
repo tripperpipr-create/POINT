@@ -49,6 +49,7 @@ type WorkOrder struct {
 	Budget          BudgetEnvelope        `json:"budget"`
 	Completion      CompletionProfile     `json:"completion"`
 	Delivery        DeliveryPolicy        `json:"delivery"`
+	Git             *GitPlan              `json:"git,omitempty"`
 	Runtime         *WorkOrderRuntime     `json:"runtime,omitempty"`
 	CreatedAt       time.Time             `json:"createdAt"`
 	UpdatedAt       time.Time             `json:"updatedAt"`
@@ -97,6 +98,8 @@ type WorkOrderRuntime struct {
 	// Stages — этапы Flow для экрана выполнения. Наблюдатель и так опрашивает
 	// наряд раз в 2.5 с, поэтому экрану не нужен полный /api/state/runtime.
 	Stages []WorkOrderStage `json:"stages,omitempty"`
+	// Git — ветка, коммит, отправка и MR квеста с доступными действиями.
+	Git *QuestGitView `json:"git,omitempty"`
 	// PlannerNote — предупреждение, что план собран движком Point, а не моделью.
 	PlannerNote string    `json:"plannerNote,omitempty"`
 	UpdatedAt   time.Time `json:"updatedAt,omitempty"`
@@ -250,7 +253,7 @@ type BudgetEnvelope struct {
 
 type DeliveryPolicy struct {
 	ApplyMode           string `json:"applyMode"`  // automatic | manual
-	CommitMode          string `json:"commitMode"` // squash | staged | none
+	CommitMode          string `json:"commitMode"` // squash | staged | none | on_completion | on_request
 	KeepPartialDays     int    `json:"keepPartialDays"`
 	KeepServicesRunning bool   `json:"keepServicesRunning"`
 	ApplicationURL      string `json:"applicationUrl,omitempty"`
@@ -673,6 +676,12 @@ func ValidateWorkOrder(order WorkOrder) error {
 	}
 	if order.Delivery.KeepPartialDays != 30 {
 		problems = append(problems, "partial results must be retained for 30 days")
+	}
+	if !ValidCommitMode(order.Delivery.CommitMode) {
+		problems = append(problems, "delivery commitMode is invalid")
+	}
+	if err := ValidateGitPlan(order.Git); err != nil {
+		problems = append(problems, err.Error())
 	}
 	if len(problems) > 0 {
 		return errors.New(strings.Join(problems, "; "))

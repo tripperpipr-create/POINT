@@ -30,6 +30,7 @@ func TestIntakeFixturesEnforceTheirFormalOutcome(t *testing.T) {
 	writing := validBrief()
 	writing.ResultKind = "workspace_change"
 	writing.Permissions.WriteFiles = true
+	writing.Criteria = selfCheckedCriteria()
 	if result := (&masterActions{}).proposeBrief(json.RawMessage(briefOutputArguments(writing))); !result.OK {
 		t.Fatalf("test brief is invalid: %#v", result.Error)
 	}

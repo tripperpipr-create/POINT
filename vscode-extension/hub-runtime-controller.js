@@ -454,6 +454,9 @@ async function handleHubRuntimeMessage(message) {
             expectedVersion: message.expectedVersion,
             approveVersion: message.approveVersion,
             action: String(message.action || ''),
+            // Карточка git-агента («закоммить»): ключ нужен только для текста
+            // коммита; у прочих предложений ядро его не читает.
+            apiKey: message.action === 'apply' && message.origin === 'master' ? await this.credentialForOrchestrator().catch(() => '') : undefined,
             name: message.name || undefined,
             description: message.description || undefined,
             roleDescription: message.roleDescription || undefined,

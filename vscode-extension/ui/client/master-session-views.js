@@ -31,7 +31,7 @@ export function masterSessionHtml(sessions,esc,openPanel='',developmentHtml=''){
     ${tile('pin', current?.pinned?'Открепить':'Закрепить', 'master-session-pin', sessions.active, esc)}
     ${tile('download', 'Экспорт', 'master-session-export', sessions.active, esc, 'Экспорт в Markdown')}
     ${tile('archive', current?.archived?'Вернуть':'В архив', 'master-session-archive', sessions.active, esc, current?.archived?'Вернуть из архива':'Убрать в архив')}
-    ${current?.branchOffer === 'skipped' ? tile('git', 'Ветка', 'master-session-branch', current.id, esc, 'Создать ветку для плана') : current?.branchOffer === 'bound' ? `<span class="hall-pop-tile is-static" title="Ветка: ${esc(current.branchName)}">${icon('git')}<span>${esc(current.branchName)}</span></span>` : ''}
+    ${current?.branchOffer === 'skipped' || current?.branchOffer === 'pending' ? tile('git', 'Ветка', 'master-session-branch', current.id, esc, 'Создать ветку для плана') : current?.branchOffer === 'bound' ? `<span class="hall-pop-tile is-static" title="Ветка: ${esc(current.branchName)}">${icon('git')}<span>${esc(current.branchName)}</span></span>` : ''}
    </div>
    <div class="hall-pop-sep"></div>
    ${masterAnswerStyleHtml(sessions,esc)}

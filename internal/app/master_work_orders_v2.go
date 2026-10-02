@@ -120,16 +120,10 @@ func (a *App) saveMasterWorkOrderV2(ctx context.Context, proposal *domain.QuestP
 	if scope, ok := ctx.Value(masterScopeKey{}).(masterScope); ok && scope.Workspace.ID == proposal.WorkspaceID {
 		order.Workspace = domain.WorkspacePlan{Mode: "existing", Path: scope.Workspace.Path}
 	}
-	if order.Workspace.Mode == "existing" && isCleanGitWorkspace(order.Workspace.Path) {
-		order.Delivery.CommitMode = "squash"
-	}
-	// Папка с несколькими Git-проектами: каждый получит свой коммит доставки
-	// (work_order_nested_delivery_v2.go), а не молчаливое «без коммита».
-	if order.Workspace.Mode == "existing" {
-		if _, nested := cleanNestedGitRepos(order.Workspace.Path); nested {
-			order.Delivery.CommitMode = "squash"
-		}
-	}
+	// Ручной приёмки у изменений проекта нет (propose_brief её отклоняет); если
+	// ручной критерий всё же дошёл, он становится допущением, а наряд без
+	// исполняемой проверки остаётся в обсуждении.
+	order.Criteria, order.Assumptions, order.OpenQuestions, order.State = withoutManualCriteriaV2(brief, order)
 	if order.Workspace.Mode == "existing" {
 		order.Sandbox = environment.Analyze(order.Workspace.Path, order.WorkspaceID).Runtime
 	}
@@ -168,6 +162,16 @@ func (a *App) saveMasterWorkOrderV2(ctx context.Context, proposal *domain.QuestP
 	} else if !storage.IsNotFound(getErr) {
 		return "", getErr
 	}
+	// Ветку и коммит решает git-агент: Мастер о git не думает.
+	var previous *domain.WorkOrder
+	if getErr == nil {
+		previous = &current
+	}
+	gitKey := ""
+	if len(apiKeys) > 0 {
+		gitKey = apiKeys[0]
+	}
+	order.Git, order.Delivery.CommitMode = a.masterWorkOrderGitV2(ctx, order, previous, cfg, gitKey)
 	selection := agentSelectionResult{}
 	if order.State == "staffing" {
 		apiKey := ""
@@ -555,4 +559,24 @@ func masterToolchainLabelV2(toolchain string) string {
 	default:
 		return toolchain
 	}
+}
+
+func withoutManualCriteriaV2(brief domain.TaskBrief, order domain.WorkOrder) ([]domain.AcceptanceCriterion, []string, []string, string) {
+	criteria, assumptions, questions, state := order.Criteria, order.Assumptions, order.OpenQuestions, order.State
+	if brief.ResultKind != "workspace_change" && brief.ResultKind != "hub_tool" {
+		return criteria, assumptions, questions, state
+	}
+	kept := make([]domain.AcceptanceCriterion, 0, len(criteria))
+	for _, criterion := range criteria {
+		if criterion.Kind == "manual" {
+			assumptions = append(assumptions, "Проверьте сами после квеста: "+strings.TrimSpace(criterion.Text))
+			continue
+		}
+		kept = append(kept, criterion)
+	}
+	if len(kept) == 0 && len(criteria) > 0 {
+		questions = append(questions, "Как квесту самому проверить результат: какой тест или команда это докажет?")
+		state = "discussion"
+	}
+	return kept, assumptions, questions, state
 }

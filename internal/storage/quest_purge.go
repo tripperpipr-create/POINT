@@ -72,6 +72,7 @@ var questPurgeJournalTables = map[string]string{
 	"work_order_quest_control_events_v2": "журнал решений по квесту, триггер work_order_quest_controls_no_delete_v2",
 	"task_brief_revisions":               "подписанные версии задания, триггер task_brief_revisions_immutable_delete",
 	"work_order_manual_reviews_v2":       "решения человека по ручным критериям, триггер work_order_manual_reviews_v2_no_delete",
+	"quest_git_actions_v2":               "журнал git-действий квеста (ветка, коммит, отправка, MR), триггер quest_git_actions_v2_no_delete",
 	"work_order_criterion_amendments_v2": "разрешённые человеком поправки проверок, триггер work_order_criterion_amendments_v2_no_delete",
 	"verification_results_v2":            "исходы проверок Point, на которые ссылаются доказательства, триггер verification_results_v2_no_delete",
 }

@@ -65,7 +65,14 @@ func masterActionDefinitions() []domain.ToolDefinition {
 		raw, _ := json.Marshal(value)
 		return raw
 	}
-	return []domain.ToolDefinition{
+	return append([]domain.ToolDefinition{{
+		Name:        masterActionGitRequest,
+		Description: "Передать git-агенту просьбу человека по результату квеста: commit — закоммитить файлы квеста, push — отправить ветку квеста на сервер, merge_request — отправить и создать MR в GitLab. Зови, только когда человек сам просит закоммитить, запушить, отправить или создать MR/мерж-реквест. Сам git не трогай: человек подтвердит карточкой.",
+		InputSchema: schema(map[string]any{"type": "object", "properties": map[string]any{
+			"action":  map[string]any{"type": "string", "enum": []string{"commit", "push", "merge_request"}},
+			"questId": map[string]any{"type": "string", "description": "квест, если человек назвал конкретный; иначе пусто — последний квест разговора"},
+		}, "required": []string{"action"}, "additionalProperties": false}),
+	}}, []domain.ToolDefinition{
 		{
 			Name:        masterActionProposeBrief,
 			Description: "Оформить или обновить задание на работу. Зови, когда человек поручает работу или обсуждает её требования, даже если известна лишь цель. Карточку задания человек увидит отдельно, повторять её в тексте не нужно. Сервер проверит задание и вернёт замечания, если оно неполно.",
@@ -98,5 +105,5 @@ func masterActionDefinitions() []domain.ToolDefinition {
 				},
 			}),
 		},
-	}
+	}...)
 }

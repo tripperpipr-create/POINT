@@ -548,6 +548,9 @@ func (a *App) masterChatPrepared(ctx context.Context, req MasterChatRequest, wor
 	if err != nil {
 		return MasterChatView{}, err
 	}
+	if response.GitRequest != nil {
+		a.masterGitRequestV2(ctx, workspaceID, sessions.Active, *response.GitRequest)
+	}
 	if response.FastTask != "" && sessions.WorkMode == "auto" {
 		run, e := a.startHostFastAgent(ctx, FastAgentRequest{FromMaster: true, WorkspaceID: workspaceID, ConversationID: sessions.Active, RequestID: req.TurnID, Task: response.FastTask, APIKey: req.FastAPIKey})
 		if e != nil {

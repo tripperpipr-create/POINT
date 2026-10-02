@@ -18,8 +18,10 @@ const (
 )
 
 type CompanionActionDecision struct {
-	ProposalID      string   `json:"proposalId"`
-	Action          string   `json:"action"`
+	ProposalID string `json:"proposalId"`
+	Action     string `json:"action"`
+	// APIKey — ключ модели для git-агента (сообщение коммита); только в памяти.
+	APIKey          string   `json:"apiKey,omitempty"`
 	Name            string   `json:"name,omitempty"`
 	Description     string   `json:"description,omitempty"`
 	RoleDescription string   `json:"roleDescription,omitempty"`
@@ -55,6 +57,7 @@ type CompanionActionResult struct {
 	Skill        *domain.SkillDefinition        `json:"skill,omitempty"`
 	ProjectSkill *domain.ProjectSkillInstance   `json:"projectSkill,omitempty"`
 	Tool         *domain.CustomTool             `json:"tool,omitempty"`
+	Git          *QuestGitActionResult          `json:"git,omitempty"`
 }
 
 func (a *App) DecideCompanionAction(decision CompanionActionDecision) (CompanionActionResult, error) {
@@ -156,6 +159,15 @@ func (a *App) DecideCompanionAction(decision CompanionActionDecision) (Companion
 				return CompanionActionResult{}, saveErr
 			}
 			proposal.Tool, proposal.AppliedEntityID, result.Tool = &saved, saved.ID, &saved
+		case domain.CompanionActionGit:
+			// Карточка — подтверждение человека; исполняет git-агент тем же
+			// путём, что и кнопка карточки квеста. Сбой оставляет карточку
+			// открытой, чтобы повторить.
+			gitResult, gitErr := a.RunQuestGitAction(context.Background(), proposal.Git.QuestID, proposal.Git.Action, proposal.Git.Repo, "chat", decision.APIKey)
+			if gitErr != nil {
+				return CompanionActionResult{Proposal: *proposal, Git: &gitResult}, gitErr
+			}
+			proposal.AppliedEntityID, result.Git = proposal.Git.QuestID, &gitResult
 		}
 		proposal.Status = "applied"
 		proposal.UpdatedAt = now
@@ -181,6 +193,8 @@ func validCompanionActionPayload(proposal domain.CompanionActionProposal) bool {
 		return proposal.Skill != nil
 	case domain.CompanionActionCreateTool:
 		return proposal.Tool != nil
+	case domain.CompanionActionGit:
+		return proposal.Git != nil && strings.TrimSpace(proposal.Git.QuestID) != ""
 	default:
 		return false
 	}
@@ -207,6 +221,8 @@ func (a *App) applyCompanionActionOverrides(proposal *domain.CompanionActionProp
 		return applyCompanionSkillOverrides(proposal, decision)
 	case domain.CompanionActionCreateTool:
 		return applyCompanionToolOverrides(proposal, decision)
+	case domain.CompanionActionGit:
+		return nil
 	default:
 		return fmt.Errorf("unsupported companion action kind %q", proposal.Kind)
 	}

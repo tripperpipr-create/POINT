@@ -279,7 +279,7 @@ export function createMasterThreadViews(dependencies) {
   }
 
   const MASTER_ACTION_RESOLVED = {
-    applied: { create_agent: 'Агент создан', create_team: 'Отряд создан', default: 'Действие выполнено' },
+    applied: { create_agent: 'Агент создан', create_team: 'Отряд создан', git_action: 'Git-агент выполнил', default: 'Действие выполнено' },
     ignored: { default: 'Предложение отклонено' },
   }
 
@@ -304,6 +304,9 @@ export function createMasterThreadViews(dependencies) {
     // геометрии Чертога и без его кнопок. Место прежнее — при своей реплике:
     // предложение принадлежит ходу и переживает перезагрузку вместе с ним.
     if (item.kind === 'create_agent') return masterAgentCardHtml(masterAgentCardFromAction(item), esc, masterAgentCardDeps())
+    // Просьба к git-агенту («отправить ветку и создать MR?») — подтверждение
+    // человека. Без нажатия git-агент ничего не делает.
+    if (item.kind === 'git_action') return `<div class="hall-msg-resolved quest-git-ask"><b>Git-агент</b><span>${esc(item.title || '')}</span><small>${esc(item.rationale || '')}</small><span class="hall-quest-acts"><button type="button" class="hall-btn is-primary is-sm" data-action="companion-action-apply" data-id="${esc(item.id)}">Выполнить</button><button type="button" class="hall-btn is-sm" data-action="companion-action-ignore" data-id="${esc(item.id)}">Не сейчас</button></span></div>`
     return companionActionProposalHtml(item)
   }
 

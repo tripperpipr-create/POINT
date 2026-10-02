@@ -74,9 +74,15 @@ func createWorkOrderSquashCommitV2(ctx context.Context, workspacePath, questID, 
 			_, _ = runGitV2(context.Background(), workspacePath, nil, append([]string{"rm", "--cached", "-r", "--ignore-unmatch", "--"}, paths...)...)
 		}
 	}()
-	environment := []string{
-		"GIT_AUTHOR_NAME=Point", "GIT_AUTHOR_EMAIL=point@localhost",
-		"GIT_COMMITTER_NAME=Point", "GIT_COMMITTER_EMAIL=point@localhost",
+	// Автор — человек из git config: коммит его проекта. «Point» остаётся
+	// только для нарядов squash, утверждённых до git-агента, когда git автора
+	// не знает (новые наряды коммитят через gitflow и без автора не коммитят).
+	var environment []string
+	if name, _ := runGitV2(ctx, workspacePath, nil, "config", "user.name"); strings.TrimSpace(name) == "" {
+		environment = append(environment, "GIT_AUTHOR_NAME=Point", "GIT_COMMITTER_NAME=Point")
+	}
+	if email, _ := runGitV2(ctx, workspacePath, nil, "config", "user.email"); strings.TrimSpace(email) == "" {
+		environment = append(environment, "GIT_AUTHOR_EMAIL=point@localhost", "GIT_COMMITTER_EMAIL=point@localhost")
 	}
 	message := "Point Quest " + strings.TrimSpace(questID) + "\n\nEvidenceBundle: " + strings.TrimSpace(evidenceID)
 	if _, err = runGitV2(ctx, workspacePath, environment, "commit", "--no-gpg-sign", "-m", message); err != nil {

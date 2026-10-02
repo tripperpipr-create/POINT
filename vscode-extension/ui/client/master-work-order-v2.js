@@ -3,7 +3,7 @@ import { masterAgentConsent } from './master-agent-card.js'
 import { countOf, list } from './format-units.js'
 import { masterCardMoreAttrs } from './master-card-open.js'
 import { manualReviewHtml } from './master-manual-review.js'
-import { DEFAULT_CRITERION_KIND, questChecklistHtml, questMenuHtml } from './master-quest-views.js'
+import { DEFAULT_CRITERION_KIND, gitChoiceMissing, questChecklistHtml, questMenuHtml, workOrderGitHtml } from './master-quest-views.js'
 import { runtimePresentation } from './quest-status.js'
 
 const labels = {
@@ -53,7 +53,7 @@ function criteriaRows(order) {
 const WORD = {
   existing: 'существующая', managed: 'управляемая Point', snapshot: 'снимок', git_worktree: 'отдельная копия Git', live_write: 'запись напрямую',
   fixed: 'одна модель', auto: 'маршрутизатор', certified: 'проверенная', experimental: 'экспериментальная',
-  squash: 'один коммит', staged: 'изменения в индексе', none: 'без коммита',
+  squash: 'один коммит', staged: 'изменения в индексе', none: 'без коммита', on_completion: 'коммит после успеха, отправка по решению', on_request: 'коммит и отправка по просьбе',
 }
 
 function rows(values, esc) {
@@ -217,7 +217,7 @@ export function masterWorkOrderCardsHtml(orders, esc, busyIds = new Set(), deps 
       ${questChecklistHtml('Условия готовности', criteriaRows(order), esc, { empty: 'Условия готовности не заданы' })}
       ${compositionHtml}
       ${lifecycleNote}
-	  ${manualReviewHtml(order, esc)}
+	  ${manualReviewHtml(order, esc)}${workOrderGitHtml(order, esc)}
 	  ${editor}
       <footer>
         ${/* Решение одно, остальное — в меню. Четыре кнопки в ряд не говорили,
@@ -226,7 +226,7 @@ export function masterWorkOrderCardsHtml(orders, esc, busyIds = new Set(), deps 
         ${order.state==='approved'
           ? `<span class="master-v2-approved ${runtime?runtimeView.tone:'is-quiet'}">${runtime?runtimeView.mark:'·'} ${esc(approvedText)}</span>${runtime?'':questMenuHtml([{action:'delete-work-order-v2',id:order.id,label:'Убрать наряд',busy}],esc)}`
           : `<div class="hall-quest-acts">
-              <button type="button" class="hall-btn is-primary" data-action="approve-master-work-order-v2" data-id="${esc(order.id)}" data-version="${Number(order.version)||1}" data-digest="${esc(order.digest || '')}" ${ready&&consented&&!busy?'':'disabled'}>${busy?'Запускаем…':esc(approveLabel)}</button>
+              <button type="button" class="hall-btn is-primary" data-action="approve-master-work-order-v2" data-id="${esc(order.id)}" data-version="${Number(order.version)||1}" data-digest="${esc(order.digest || '')}" ${ready&&consented&&!busy&&!gitChoiceMissing(order)?'':'disabled'}>${busy?'Запускаем…':esc(approveLabel)}</button>
               ${questMenuHtml([{action:'revise-master-work-order-v2',id:order.id,label:'Обсудить с Мастером'}],esc)}
             </div>${consentNote}`}
       </footer>

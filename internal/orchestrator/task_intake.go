@@ -25,6 +25,7 @@ type TaskReadTools interface {
 // ответа он больше не разбирается.
 type taskIntakeEnvelope struct {
 	FastTask            string
+	GitRequest          *MasterGitRequest
 	Clarifications      []domain.MasterQuestion
 	ConversationSummary string
 	MemorySuggestions   []string
@@ -84,6 +85,10 @@ func (s ChatService) DiscussTask(ctx context.Context, req ChatRequest) (ChatResp
 	if envelope.FastTask != "" && req.WorkMode == "auto" {
 		response.Route = "fast"
 		response.FastTask = envelope.FastTask
+	}
+	if envelope.GitRequest != nil {
+		response.Route = "git"
+		response.GitRequest = envelope.GitRequest
 	}
 	if envelope.Brief != nil {
 		response.Route = "plan"

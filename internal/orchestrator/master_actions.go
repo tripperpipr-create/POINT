@@ -28,6 +28,10 @@ const (
 	masterActionAskClarifications = "ask_clarifications"
 	masterActionSuggestMemory     = "suggest_memory"
 	masterActionFastTask          = "dispatch_fast_task"
+	// masterActionGitRequest — просьба человека закоммитить, отправить или
+	// создать MR. Мастер git не трогает: он передаёт просьбу git-агенту, тот
+	// показывает карточку, и действие исполняется только по нажатию.
+	masterActionGitRequest = "request_git_action"
 )
 
 // IsMasterActionTool — вызов разговора, а не обращение к проекту. Реплей
@@ -35,7 +39,7 @@ const (
 // отработали, и их результаты едут в реплее записанным свидетельством.
 func IsMasterActionTool(name string) bool {
 	switch name {
-	case masterActionProposeBrief, masterActionAskClarifications, masterActionSuggestMemory, masterActionFastTask:
+	case masterActionProposeBrief, masterActionAskClarifications, masterActionSuggestMemory, masterActionFastTask, masterActionGitRequest:
 		return true
 	}
 	return false
@@ -46,6 +50,7 @@ func IsMasterActionTool(name string) bool {
 // должна попасть исправленная версия, а не первая.
 type masterActions struct {
 	fastTask       string
+	gitRequest     *MasterGitRequest
 	title          string
 	proposalID     string
 	brief          *domain.TaskBrief
@@ -75,6 +80,17 @@ func (a *masterActions) execute(name string, arguments json.RawMessage) domain.T
 		}
 		a.fastTask = input.Task
 		return workbenchtools.OK(map[string]any{"route": "fast", "note": "The server will start the system Fast Agent in the pinned workspace."})
+	case masterActionGitRequest:
+		var input MasterGitRequest
+		if failure := workbenchtools.Decode(arguments, &input); failure != nil {
+			return *failure
+		}
+		input.Action, input.QuestID = strings.TrimSpace(input.Action), strings.TrimSpace(input.QuestID)
+		if input.Action != "commit" && input.Action != "push" && input.Action != "merge_request" {
+			return workbenchtools.FailWithHint("invalid_git_request", "action должен быть commit, push или merge_request", "назови одно действие; несколько — по очереди после подтверждения")
+		}
+		a.gitRequest = &input
+		return workbenchtools.OK(map[string]any{"route": "git", "note": "Git-агент покажет человеку карточку с подтверждением; сам ничего не делай и не обещай, что уже сделано."})
 	case masterActionProposeBrief:
 		return a.proposeBrief(arguments)
 	case masterActionAskClarifications:
@@ -122,14 +138,16 @@ func (a *masterActions) proposeBrief(arguments json.RawMessage) domain.ToolResul
 		}
 		return workbenchtools.FailWithHint("invalid_brief", "задание не прошло проверку сервера: "+strings.Join(lines, "; "), strings.Join(hints, "; "))
 	}
-	if failure := maskedCriterionCommands(brief); failure != nil {
-		a.rejectedBriefs++
-		reason := "criterion command masks its exit status"
-		if failure.Error != nil {
-			reason = failure.Error.Message
+	for _, check := range []func(domain.TaskBrief) *domain.ToolResult{maskedCriterionCommands, manualCriteriaInChange} {
+		if failure := check(brief); failure != nil {
+			a.rejectedBriefs++
+			reason := "criterion rejected"
+			if failure.Error != nil {
+				reason = failure.Error.Message
+			}
+			a.rejectReasons = append(a.rejectReasons, reason)
+			return *failure
 		}
-		a.rejectReasons = append(a.rejectReasons, reason)
-		return *failure
 	}
 	a.brief = &brief
 	a.title = input.Title
@@ -139,6 +157,31 @@ func (a *masterActions) proposeBrief(arguments json.RawMessage) domain.ToolResul
 		note = "Задание принято в обсуждении. Открытые вопросы задай вызовом ask_clarifications с вариантами, первым поставь свой; в тексте их не повторяй."
 	}
 	return workbenchtools.OK(map[string]any{"accepted": true, "state": brief.State, "note": note})
+}
+
+// manualCriteriaInChange отказывает ручному критерию в задании, которое меняет
+// проект. Ручной приёмки у квеста больше нет: проверку выполняет сам квест —
+// тестом, e2e или командой, которая поднимает сервис, обращается к нему и
+// останавливает; если у квеста работает, он выполнен. Ручной критерий держал
+// готовый результат в «ждёт приёмки» и коммит до неё (02.10). Правило здесь, а
+// не в домене: сохранённые задания с manual не должны уйти в карантин.
+func manualCriteriaInChange(brief domain.TaskBrief) *domain.ToolResult {
+	if brief.ResultKind != "workspace_change" && brief.ResultKind != "hub_tool" {
+		return nil
+	}
+	var ids []string
+	for _, criterion := range brief.Criteria {
+		if criterion.Kind == "manual" {
+			ids = append(ids, criterion.ID)
+		}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	result := workbenchtools.FailWithHint("manual_criterion",
+		"ручная приёмка отключена: критерии "+strings.Join(ids, ", ")+" должен проверить сам квест",
+		"перепиши их в verification с run_command, который исполнится в песочнице: тест или e2e проекта, либо одна команда, которая поднимает сервис, обращается к нему и останавливает его; если машиной проверить нельзя — спроси человека, как проверить, через ask_clarifications")
+	return &result
 }
 
 // maskedCriterionCommands отказывает критерию, чья команда проглатывает код
@@ -235,6 +278,7 @@ func (a *masterActions) suggestMemory(arguments json.RawMessage) domain.ToolResu
 func (a *masterActions) envelope(reply string) taskIntakeEnvelope {
 	envelope := taskIntakeEnvelope{Intent: "chat", Reply: reply, Clarifications: a.clarifications, MemorySuggestions: a.memory}
 	envelope.FastTask = a.fastTask
+	envelope.GitRequest = a.gitRequest
 	if a.brief != nil {
 		envelope.Intent = "task"
 		envelope.Brief = a.brief
@@ -255,6 +299,8 @@ func (a *masterActions) silentReply() string {
 	switch {
 	case a.fastTask != "":
 		return "Передаю задачу Fast Agent для локального выполнения."
+	case a.gitRequest != nil:
+		return "Передаю git-агенту — подтвердите действие карточкой ниже."
 	case a.brief != nil && len(a.clarifications) > 0:
 		return "Набросал задание; прежде чем его утверждать, нужно уточнить — вопросы ниже."
 	case a.brief != nil:
@@ -275,7 +321,14 @@ func (a *masterActions) silentReply() string {
 // или вопросы уже и есть ответ. Предложение запомнить — нет: модель зовёт его
 // попутно и ответ на сам вопрос ещё впереди.
 func masterActionConcludes(name string) bool {
-	return name == masterActionProposeBrief || name == masterActionAskClarifications || name == masterActionFastTask
+	return name == masterActionProposeBrief || name == masterActionAskClarifications || name == masterActionFastTask || name == masterActionGitRequest
+}
+
+// MasterGitRequest — просьба человека к git-агенту. QuestID пуст — последний
+// квест разговора.
+type MasterGitRequest struct {
+	Action  string `json:"action"`
+	QuestID string `json:"questId,omitempty"`
 }
 
 // Некоторые модели сериализуют вложенный объект строкой: "brief": "{...}".

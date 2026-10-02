@@ -55,7 +55,8 @@ function host(dataDir) {
     service: {
       dataDirPath: dataDir,
       ensureStarted: async () => {},
-      request: async (url, options) => { calls.requests.push({ url, body: JSON.parse(options.body) }); return {} },
+      // Осмотр git-агента без ядра: пустой ответ — выбор идёт по локальным веткам.
+      request: async (url, options) => { calls.requests.push({ url, body: options?.body ? JSON.parse(options.body) : null }); return url.startsWith('/api/v2/git/inspect') ? { repositories: [] } : {} },
     },
   }
 }
@@ -66,6 +67,7 @@ function host(dataDir) {
   const chat = { id: 'chat-abc123', title: 'Новый план', branchOffer: 'pending', workMode: 'plan' }
   assert.equal(await offerMasterChatBranch(ok, chat), true, JSON.stringify(ok.calls.posted))
   assert.match(picks[0].items[0].description, /apps\/cf-vue-apps: main/)
+  assert.ok(ok.calls.requests.some(item => item.url.startsWith('/api/v2/git/inspect?path=')), 'основа ветки берётся из осмотра git-агента')
   const target = path.join(dataDir, 'managed-workspaces', 'chat-chat-abc123')
   const name = inputs[0].value
   for (const rel of ['cf-pages', 'apps/cf-vue-apps']) {

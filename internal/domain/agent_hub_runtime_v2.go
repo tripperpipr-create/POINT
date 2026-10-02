@@ -62,6 +62,7 @@ type DeliveryReceipt struct {
 type RepositoryCommit struct {
 	Repo     string `json:"repo"`
 	CommitID string `json:"commitId"`
+	Branch   string `json:"branch,omitempty"`
 }
 
 type DeliveredApplicationControl struct {

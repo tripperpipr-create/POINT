@@ -81,7 +81,7 @@ func TestTaskIntakeFixesInvalidBriefWithinTheTurn(t *testing.T) {
 	fixed := invalid
 	fixed.Criteria = []domain.AcceptanceCriterion{
 		{ID: "c1", Text: "Endpoint returns 200", Kind: "verification", Tool: "execute_command", Arguments: json.RawMessage(`{"command":"curl --fail http://localhost/health"}`)},
-		{ID: "c2", Text: "Configuration exists", Kind: "manual"},
+		{ID: "c2", Text: "Configuration exists", Kind: "verification", Tool: "run_command", Arguments: json.RawMessage(`{"command":"test -f config.yaml"}`)},
 	}
 	model := &turnModel{rounds: []roundScript{
 		{calls: []providers.ToolCall{proposeBriefCall("b1", "Health", "", invalid)}},
@@ -100,7 +100,7 @@ func TestTaskIntakeFixesInvalidBriefWithinTheTurn(t *testing.T) {
 		t.Fatalf("invalid draft was not fixed in the loop: rounds=%d response=%#v", len(model.requests), response)
 	}
 	got := response.Proposal.Brief.Criteria
-	if len(got) != 2 || got[0].Tool != "execute_command" || got[1].Tool != "" {
+	if len(got) != 2 || got[0].Tool != "execute_command" || got[1].Tool != "run_command" {
 		t.Fatalf("fixed brief lost: %#v", got)
 	}
 	last := model.requests[1].Messages[len(model.requests[1].Messages)-1]

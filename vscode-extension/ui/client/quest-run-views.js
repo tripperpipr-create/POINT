@@ -22,7 +22,7 @@ import { masterPlanState } from './master-plan-views.js'
 import { countOf, formatCompactCount, formatDuration, formatElapsed, list, plural } from './format-units.js'
 import { masterCardMoreAttrs } from './master-card-open.js'
 import { icon } from './ui-icons.js'
-import { questChecklistHtml } from './master-quest-views.js'
+import { questChecklistHtml, questGitHtml } from './master-quest-views.js'
 import { stageFlowNode, stageLabel, stageLabelText } from './stage-labels.js'
 import { activeStage, requireEsc, stageSpan, workOrderExecutionParts } from './work-order-execution-views.js'
 import { diffCountHtml, diffStats } from './diff-view.js'
@@ -355,6 +355,7 @@ export function questRunHtml(order, ui, deps = {}) {
         ${questApplicationHtml(order, controls, esc)}
         ${questReportHtml(order, esc)}
         ${finishedActionsHtml(order, controls, esc)}
+        ${questGitHtml(order, esc, controls.busy)}
         ${deps.manualReviewHtml || ''}
         ${questRetrospectiveHtml(order, ui, esc)}
         ${checklist}

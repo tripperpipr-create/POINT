@@ -38,6 +38,7 @@ func DiffWorkOrders(before, after WorkOrder) WorkOrderRevisionDiff {
 	add("secrets", !reflect.DeepEqual(before.Secrets, after.Secrets))
 	add("budget", !reflect.DeepEqual(before.Budget, after.Budget))
 	add("delivery", !reflect.DeepEqual(before.Delivery, after.Delivery))
+	add("git", !reflect.DeepEqual(before.Git, after.Git))
 	return WorkOrderRevisionDiff{
 		ID: NewID("workorderdiff"), WorkOrderID: before.ID, FromVersion: before.Version, ToVersion: after.Version,
 		FromDigest: WorkOrderDigest(before), ToDigest: WorkOrderDigest(after), ChangedFields: changed,

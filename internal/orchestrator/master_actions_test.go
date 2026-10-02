@@ -85,6 +85,33 @@ func validBrief() domain.TaskBrief {
 	return domain.TaskBrief{Mode: domain.TaskModePrecise, Goal: "Bounded goal", ResultKind: "code", Criteria: []domain.AcceptanceCriterion{{ID: "c1", Text: "Done", Kind: "manual"}}}
 }
 
+// selfCheckedCriteria — проверка, которую исполняет сам квест: ручной приёмки
+// у изменений проекта нет.
+func selfCheckedCriteria() []domain.AcceptanceCriterion {
+	return []domain.AcceptanceCriterion{{ID: "c1", Text: "Tests pass", Kind: "verification", Tool: "run_command", Arguments: json.RawMessage(`{"command":"go test ./..."}`)}}
+}
+
+// Ручной критерий у задания, меняющего проект, сервер отклоняет: проверку
+// выполняет сам квест (02.10 ручная приёмка держала готовый результат и
+// коммит до неё). Отчёту и коду в ответе manual остаётся.
+func TestProposeBriefRejectsManualCriteriaForProjectChanges(t *testing.T) {
+	brief := validBrief()
+	brief.ResultKind, brief.Permissions.WriteFiles = "workspace_change", true
+	actions := &masterActions{}
+	result := actions.execute(masterActionProposeBrief, mustJSON(t, map[string]any{"title": "Эндпоинт", "brief": brief}))
+	if result.OK || result.Error == nil || result.Error.Code != "manual_criterion" || !strings.Contains(result.Error.Hint, "поднимает сервис") {
+		t.Fatalf("manual criterion accepted for a project change: %#v", result)
+	}
+	brief.Criteria = selfCheckedCriteria()
+	if result = actions.execute(masterActionProposeBrief, mustJSON(t, map[string]any{"title": "Эндпоинт", "brief": brief})); !result.OK {
+		t.Fatalf("self-checked brief rejected: %#v", result.Error)
+	}
+	report := validBrief()
+	if result = (&masterActions{}).execute(masterActionProposeBrief, mustJSON(t, map[string]any{"title": "Код", "brief": report})); !result.OK {
+		t.Fatalf("code answer may keep a manual criterion: %#v", result.Error)
+	}
+}
+
 // Вопрос — это вопрос. Прежний конверт заставлял модель заворачивать в JSON и
 // ответ на «что делает этот файл?»; теперь текст идёт в ленту как есть, без
 // карточки и без схемы в системном сообщении.
@@ -291,6 +318,7 @@ func TestProposeBriefExplainsResultKindForFileChanges(t *testing.T) {
 		t.Fatalf("отказ не называет исправление: %q", result.Error.Hint)
 	}
 	brief.ResultKind = "workspace_change"
+	brief.Criteria = selfCheckedCriteria()
 	if result = actions.execute(masterActionProposeBrief, mustJSON(t, map[string]any{"title": "Go-сервис", "brief": brief})); !result.OK {
 		t.Fatalf("исправленное задание отвергнуто: %#v", result)
 	}

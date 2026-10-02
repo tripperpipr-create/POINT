@@ -52,6 +52,19 @@ function discoverNestedRepos(root) {
   return repos.sort()
 }
 
+// Осмотр git-агента: fetch, основная ветка с сервера (origin/main, а не
+// отставшая локальная), свежая основа текущей ветки и предупреждения. Ядро
+// недоступно — остаётся прежний локальный выбор.
+async function inspectRepos(provider, source) {
+  try {
+    const inspection = await provider.service.request('/api/v2/git/inspect?path=' + encodeURIComponent(source), { timeoutMs: 60_000 })
+    const byPath = new Map((inspection?.repositories || []).map(repo => [repo.path, { ...repo, warnings: (inspection.warnings || {})[repo.path] || [] }]))
+    return byPath
+  } catch {
+    return new Map()
+  }
+}
+
 async function mainBranchOf(repo) {
   for (const name of ['master', 'main']) {
     try { await git(repo, ['rev-parse', '--verify', '--quiet', `refs/heads/${name}`]); return name } catch {}
@@ -66,10 +79,12 @@ async function offerNestedReposBranch(provider, chat, source, markSkipped) {
   const id = String(chat.id)
   const rels = discoverNestedRepos(source)
   if (!rels.length) throw new Error('папка проекта не под Git, и вложенных репозиториев в ней нет')
+  const inspected = await inspectRepos(provider, source)
   const repos = []
   for (const rel of rels) {
     const dir = path.join(source, ...rel.split('/'))
-    repos.push({ rel, dir, current: await git(dir, ['branch', '--show-current']).catch(() => ''), main: await mainBranchOf(dir) })
+    const report = inspected.get(rel)
+    repos.push({ rel, dir, current: report?.currentBase || await git(dir, ['branch', '--show-current']).catch(() => ''), main: report?.defaultRef || await mainBranchOf(dir) })
   }
   const describe = key => repos.map(repo => `${repo.rel}: ${repo[key] || '—'}`).join(' · ')
   const options = [
@@ -140,10 +155,13 @@ async function offerMasterChatBranch(provider, chat, { manual = false } = {}) {
     if (!source) throw new Error('Откройте папку проекта')
     const root = await git(source, ['rev-parse', '--show-toplevel']).catch(() => '')
     if (!root) return await offerNestedReposBranch(provider, chat, source, markSkipped)
-    const current = await git(root, ['branch', '--show-current'])
+    const report = (await inspectRepos(provider, source)).get('.')
+    const current = report?.currentBase || await git(root, ['branch', '--show-current'])
+    const main = report?.defaultRef || await mainBranchOf(root) || 'master'
+    const warnings = (report?.warnings || []).join('; ')
     const options = [
-      { label: 'От master', description: 'Локальная ветка master', base: 'master' },
-      { label: 'От текущей ветки', description: current || 'Текущая ветка не определена', base: current, disabled: !current },
+      { label: 'От основной ветки', description: main + (report?.defaultRef ? ' · с сервера' : ' · локальная'), base: main },
+      { label: 'От текущей ветки', description: (current || 'Текущая ветка не определена') + (warnings ? ' · ' + warnings : ''), base: current, disabled: !current },
       { label: 'Продолжить без ветки', base: '' },
     ]
     const selected = await vscode.window.showQuickPick(options.filter(item => !item.disabled), { title: 'Ветка для плана · выберите базу', placeHolder: 'Ветка создаётся в отдельной рабочей копии' })

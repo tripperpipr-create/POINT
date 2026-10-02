@@ -182,15 +182,16 @@ func (s *SQLite) DeleteCompanionMessages(ctx context.Context, workspaceID string
 
 func (s *SQLite) SaveCompanionActionProposal(ctx context.Context, proposal domain.CompanionActionProposal) error {
 	payload := struct {
-		Flow               *domain.FlowGraph       `json:"flow,omitempty"`
-		Agent              *domain.ProjectAgent    `json:"agent,omitempty"`
-		Team               *domain.Team            `json:"team,omitempty"`
-		Skill              *domain.SkillDefinition `json:"skill,omitempty"`
-		Tool               *domain.CustomTool      `json:"tool,omitempty"`
-		ContinuationPrompt string                  `json:"continuationPrompt,omitempty"`
-		ContinuationLabel  string                  `json:"continuationLabel,omitempty"`
+		Flow               *domain.FlowGraph        `json:"flow,omitempty"`
+		Agent              *domain.ProjectAgent     `json:"agent,omitempty"`
+		Team               *domain.Team             `json:"team,omitempty"`
+		Skill              *domain.SkillDefinition  `json:"skill,omitempty"`
+		Tool               *domain.CustomTool       `json:"tool,omitempty"`
+		Git                *domain.GitActionRequest `json:"git,omitempty"`
+		ContinuationPrompt string                   `json:"continuationPrompt,omitempty"`
+		ContinuationLabel  string                   `json:"continuationLabel,omitempty"`
 	}{
-		Flow: proposal.Flow, Agent: proposal.Agent, Team: proposal.Team, Skill: proposal.Skill, Tool: proposal.Tool,
+		Flow: proposal.Flow, Agent: proposal.Agent, Team: proposal.Team, Skill: proposal.Skill, Tool: proposal.Tool, Git: proposal.Git,
 		ContinuationPrompt: proposal.ContinuationPrompt, ContinuationLabel: proposal.ContinuationLabel,
 	}
 	result, err := s.db.ExecContext(ctx, `
@@ -231,16 +232,18 @@ FROM companion_action_proposals WHERE workspace_id=? ORDER BY updated_at DESC`, 
 			return nil, err
 		}
 		var payload struct {
-			Flow               *domain.FlowGraph       `json:"flow,omitempty"`
-			Agent              *domain.ProjectAgent    `json:"agent,omitempty"`
-			Team               *domain.Team            `json:"team,omitempty"`
-			Skill              *domain.SkillDefinition `json:"skill,omitempty"`
-			Tool               *domain.CustomTool      `json:"tool,omitempty"`
-			ContinuationPrompt string                  `json:"continuationPrompt,omitempty"`
-			ContinuationLabel  string                  `json:"continuationLabel,omitempty"`
+			Flow               *domain.FlowGraph        `json:"flow,omitempty"`
+			Agent              *domain.ProjectAgent     `json:"agent,omitempty"`
+			Team               *domain.Team             `json:"team,omitempty"`
+			Skill              *domain.SkillDefinition  `json:"skill,omitempty"`
+			Tool               *domain.CustomTool       `json:"tool,omitempty"`
+			Git                *domain.GitActionRequest `json:"git,omitempty"`
+			ContinuationPrompt string                   `json:"continuationPrompt,omitempty"`
+			ContinuationLabel  string                   `json:"continuationLabel,omitempty"`
 		}
 		unmarshalJSON(payloadJSON, &payload)
 		proposal.Flow, proposal.Agent, proposal.Team, proposal.Skill, proposal.Tool = payload.Flow, payload.Agent, payload.Team, payload.Skill, payload.Tool
+		proposal.Git = payload.Git
 		proposal.ContinuationPrompt, proposal.ContinuationLabel = payload.ContinuationPrompt, payload.ContinuationLabel
 		proposal.CreatedAt, proposal.UpdatedAt = parseTime(created), parseTime(updated)
 		result = append(result, proposal)

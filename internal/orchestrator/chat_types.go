@@ -171,12 +171,13 @@ type ChatAction struct {
 type CapabilityCheck func(agent domain.ProjectAgent) []string
 
 type ChatResponse struct {
-	Route               string   `json:"route,omitempty"`
-	FastTask            string   `json:"fastTask,omitempty"`
-	RunID               string   `json:"runId,omitempty"`
-	ConversationSummary string   `json:"conversationSummary,omitempty"`
-	MemorySuggestions   []string `json:"memorySuggestions,omitempty"`
-	Reply               string   `json:"reply"`
+	Route               string            `json:"route,omitempty"`
+	FastTask            string            `json:"fastTask,omitempty"`
+	GitRequest          *MasterGitRequest `json:"gitRequest,omitempty"`
+	RunID               string            `json:"runId,omitempty"`
+	ConversationSummary string            `json:"conversationSummary,omitempty"`
+	MemorySuggestions   []string          `json:"memorySuggestions,omitempty"`
+	Reply               string            `json:"reply"`
 	// Mode — кто ответил: "model" или "deterministic". FallbackReason заполнен
 	// только когда модель настроена, но ответила не она: молчаливый откат
 	// неотличим от исправной работы.

@@ -169,6 +169,7 @@ func (a *App) finalizeWorkOrderQuestAfterFlowV2(approval domain.WorkOrderApprova
 		bundle.OutcomeSummary = "Финализация заблокирована: " + security.Redact(gateErr.Error())
 		a.recordMasterEvidenceDetail(ctx, approval.WorkOrder, quest.ID, "evidence_gate", "finalization_blocked", "", gateErr.Error())
 		a.publishWorkOrderOutcomeV2(ctx, approval, quest, domain.QuestBlocked, bundle)
+		a.afterQuestVerdictGitV2(ctx, approval, quest, domain.QuestBlocked, bundle)
 		if isFastAgentQuestV2(quest) {
 			_ = a.markFastAgentMilestoneV2(ctx, approval, domain.QuestBlocked)
 		}
@@ -179,6 +180,9 @@ func (a *App) finalizeWorkOrderQuestAfterFlowV2(approval domain.WorkOrderApprova
 		bundle = stored
 	}
 	a.publishWorkOrderOutcomeV2(ctx, approval, quest, status, bundle)
+	// Коммит — после вердикта «выполнен», а не вместе с переносом файлов:
+	// провал, повтор или ожидание не оставляют коммитов.
+	a.afterQuestVerdictGitV2(ctx, approval, quest, status, bundle)
 	a.recordMasterEvidence(ctx, approval.WorkOrder, quest.ID, "evidence_gate", string(status))
 	if bundle.Assurance == domain.WorkOrderAssuranceVerified {
 		a.queueQuestSubagentEvaluations(quest.ID)

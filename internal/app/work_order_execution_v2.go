@@ -264,6 +264,10 @@ func workOrderRuntimeV2(quest domain.Quest, message string) *domain.WorkOrderRun
 
 func (a *App) launchApprovedWorkOrderV2(ctx context.Context, approval domain.WorkOrderApproval, quest domain.Quest, apiKey string) (QuestProposalResult, error) {
 	order := approval.WorkOrder
+	if err := a.verifyWorkOrderBranchV2(ctx, order); err != nil {
+		return QuestProposalResult{}, err
+	}
+	a.rememberQuestGitKey(quest.ID, apiKey)
 	view, err := a.OpenWorkspace(order.Workspace.Path)
 	if err != nil {
 		return QuestProposalResult{}, fmt.Errorf("open approved workspace: %w", err)

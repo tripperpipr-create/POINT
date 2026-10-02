@@ -7,11 +7,13 @@
 // открытие. Ранний выход по набору действий — договор вынесенных обработчиков.
 
 import { markQuestAppPending, questReports } from './quest-app-state.js'
+import { handleQuestGitAction } from './quest-git-views.js'
 
 const ACTIONS = new Set(['control-master-application-v2', 'generate-work-order-report', 'open-work-order-report', 'retry-work-order-stage', 'analyze-stage-failure'])
 const APP_CONTROLS = new Set(['start', 'stop', 'open', 'terminal'])
 
 export function handleQuestAppAction({ action, target, ui, vscode, render }) {
+  if (handleQuestGitAction({ action, target, ui, vscode, render })) return true
   if (!ACTIONS.has(action)) return false
   // Повтор проваленного этапа в выбранной среде или по предложению Мастера,
   // которое человек разрешил. Ядро перепроверяет и среду, и предложение.

@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 
@@ -14,7 +15,7 @@ import (
 type SearchText struct{ FS *workspace.FS }
 
 func (t SearchText) Definition() domain.ToolDefinition {
-	return domain.ToolDefinition{Name: "search_text", Description: "Search workspace text files line by line. Literal substring by default (case-insensitive); set regex=true for a Go RE2 pattern. Narrow with path (directory or file) and glob (*.go, src/**/*.ts). context adds up to 5 neighbouring lines. truncated=true means more matches exist: narrow the query, path or glob. Prefer search_code for ranked implementation context.", InputSchema: schema(`{"type":"object","properties":{"query":{"type":"string","description":"Substring, or an RE2 regular expression when regex=true."},"regex":{"type":"boolean","description":"Treat query as a regular expression."},"caseSensitive":{"type":"boolean"},"path":{"type":"string","description":"Workspace-relative directory or file to search in."},"glob":{"type":"string","description":"File name or path pattern, for example *.yml or cf-vue-apps/**/*.js"},"context":{"type":"integer","minimum":0,"maximum":5,"description":"Lines of context before and after each match."},"maxResults":{"type":"integer","minimum":1,"maximum":500}},"required":["query"],"additionalProperties":false}`)}
+	return domain.ToolDefinition{Name: "search_text", Description: "Search workspace text files line by line. Literal substring by default (case-insensitive); set regex=true for a Go RE2 pattern. Narrow with path (directory or file) and glob (*.go, src/**/*.ts). context adds up to 5 neighbouring lines. In Git repositories only files git does not ignore are searched (like ripgrep); binary files are skipped. The search stops after 30 s: truncated=true means more matches may exist — narrow the query, path or glob. Prefer search_code for ranked implementation context.", InputSchema: schema(`{"type":"object","properties":{"query":{"type":"string","description":"Substring, or an RE2 regular expression when regex=true."},"regex":{"type":"boolean","description":"Treat query as a regular expression."},"caseSensitive":{"type":"boolean"},"path":{"type":"string","description":"Workspace-relative directory or file to search in."},"glob":{"type":"string","description":"File name or path pattern, for example *.yml or cf-vue-apps/**/*.js"},"context":{"type":"integer","minimum":0,"maximum":5,"description":"Lines of context before and after each match."},"maxResults":{"type":"integer","minimum":1,"maximum":500}},"required":["query"],"additionalProperties":false}`)}
 }
 func (t SearchText) Execute(ctx context.Context, raw json.RawMessage) domain.ToolResult {
 	started := time.Now()
@@ -36,10 +37,18 @@ func (t SearchText) Execute(ctx context.Context, raw json.RawMessage) domain.Too
 	if strings.TrimSpace(input.Query) == "" {
 		return logExecute(ctx, "search_text", started, FailWithHint("invalid_input", "search query is empty", "provide a literal substring such as a function name or error text"))
 	}
-	matches, truncated, err := t.FS.SearchWith(ctx, workspace.SearchOptions{
+	matches, truncated, stats, err := t.FS.SearchWithStats(ctx, workspace.SearchOptions{
 		Query: input.Query, Regex: input.Regex, CaseSensitive: input.CaseSensitive,
 		Path: input.Path, Glob: input.Glob, Context: input.Context, MaxResults: input.MaxResults,
 	})
+	// Поиск упёрся в свой срок: найденное — это часть, ничего не найдено —
+	// не значит «нет». Модель должна сузить запрос, а не делать вывод.
+	if err == nil && stats.TimedOut && len(matches) == 0 {
+		return logExecute(ctx, "search_text", started, FailWithHint("search_timeout",
+			fmt.Sprintf("поиск остановлен по времени: просмотрено %d файлов, совпадений пока нет — это не значит, что их нет", stats.Files),
+			"сузь поиск: path на папку исходников (например src или source) и glob по расширению (*.php, *.ts); для поиска реализации начни с search_code"),
+			"query", observability.Snippet(input.Query, 80), "files", stats.Files)
+	}
 	if err != nil {
 		hint := "check that path is a workspace-relative directory or file; drop path and glob to search the whole workspace"
 		if input.Regex {
@@ -49,5 +58,5 @@ func (t SearchText) Execute(ctx context.Context, raw json.RawMessage) domain.Too
 	}
 	result := OK(matches)
 	result.Truncated = truncated
-	return logExecute(ctx, "search_text", started, result, "query", observability.Snippet(input.Query, 80), "matches", len(matches), "truncated", truncated)
+	return logExecute(ctx, "search_text", started, result, "query", observability.Snippet(input.Query, 80), "matches", len(matches), "truncated", truncated, "files", stats.Files, "timed_out", stats.TimedOut)
 }

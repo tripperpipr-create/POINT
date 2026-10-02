@@ -77,7 +77,13 @@ func (s ChatService) DiscussTask(ctx context.Context, req ChatRequest) (ChatResp
 	if err != nil {
 		// Неудачный ход тоже стоил денег и времени: провайдер успел ответить,
 		// а разобрать ответ не удалось. Молчать об этом расходе нельзя.
-		response := ChatResponse{Mode: "deterministic", FallbackReason: err.Error(), Reply: "Модель Мастера не ответила. Обсуждение сохранено; проверьте модель и повторите сообщение. Задача не запущена.", Usage: usage, Reasoning: usage.Reasoning, Steps: usage.Steps}
+		reply := "Модель Мастера не ответила. Обсуждение сохранено; проверьте модель и повторите сообщение. Задача не запущена."
+		// Срок хода — не сбой модели: «проверьте модель» отправляло человека
+		// чинить то, что работало.
+		if errors.Is(err, context.DeadlineExceeded) {
+			reply = "Ход не уложился в отведённое время: исследование проекта заняло весь срок. Обсуждение сохранено; уточните вопрос (папку, файл или модуль) и повторите. Задача не запущена."
+		}
+		response := ChatResponse{Mode: "deterministic", FallbackReason: err.Error(), Reply: reply, Usage: usage, Reasoning: usage.Reasoning, Steps: usage.Steps}
 		return response, s.persistReply(ctx, req, response, "")
 	}
 	response := ChatResponse{Mode: "model", Model: req.Config.Model, Reply: strings.TrimSpace(envelope.Reply), Questions: cleanList(envelope.Questions, 2), MemorySuggestions: cleanList(envelope.MemorySuggestions, 3), ConversationSummary: envelope.ConversationSummary, Usage: usage, Reasoning: usage.Reasoning, Steps: usage.Steps}
@@ -640,7 +646,7 @@ func (s ChatService) discussWithModel(ctx context.Context, req ChatRequest, worl
 					result = masterDuplicateToolResult()
 				} else if s.ReadTools != nil {
 					trace.toolStart(call)
-					result = s.ReadTools.Execute(ctx, call.Name, call.Arguments)
+					result = executeMasterReadTool(ctx, s.ReadTools, call, longestRound)
 					if result.OK {
 						seenTools[key] = struct{}{}
 					}
@@ -870,6 +876,38 @@ func appendRepairTrace(reasoning, reply string, issues []domain.TaskBriefValidat
 		return trace
 	}
 	return strings.TrimSpace(reasoning) + "\n" + trace
+}
+
+// Читающему инструменту — свой срок. 02.10.2026 поиск по тексту в cf-bitrix
+// шёл 15 минут, съел весь срок хода, и на ответ «по собранному» не осталось
+// ни секунды: человек получил «модель не ответила». Инструмент не вправе
+// трогать запас под последний круг модели.
+const (
+	masterReadToolTimeout = 90 * time.Second
+	masterAnswerReserve   = 3 * time.Minute
+)
+
+func masterReadToolContext(ctx context.Context, longestRound time.Duration) (context.Context, context.CancelFunc) {
+	limit := masterReadToolTimeout
+	if deadline, ok := ctx.Deadline(); ok {
+		if left := time.Until(deadline) - max(longestRound, masterAnswerReserve); left < limit {
+			limit = max(left, 5*time.Second)
+		}
+	}
+	return context.WithTimeout(ctx, limit)
+}
+
+// executeMasterReadTool — вызов с собственным сроком. Не уложился — отказ с
+// подсказкой сузить запрос, а ход продолжается.
+func executeMasterReadTool(ctx context.Context, tools TaskReadTools, call providers.ToolCall, longestRound time.Duration) domain.ToolResult {
+	toolCtx, cancel := masterReadToolContext(ctx, longestRound)
+	defer cancel()
+	result := tools.Execute(toolCtx, call.Name, call.Arguments)
+	if toolCtx.Err() != nil && ctx.Err() == nil && !result.OK {
+		return workbenchtools.FailWithHint("tool_timeout", "инструмент не уложился в отведённое время и остановлен",
+			"сузь запрос: укажи path на папку исходников и glob по расширению, либо начни с search_code")
+	}
+	return result
 }
 
 // masterTimeRunsShort — хватит ли времени ещё на один круг чтения. Мерой

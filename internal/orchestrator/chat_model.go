@@ -391,7 +391,7 @@ func (s ChatService) chatWithModel(ctx context.Context, req ChatRequest, world s
 				result = masterDuplicateToolResult()
 			} else if s.ReadTools != nil && call.ArgumentError == "" {
 				trace.toolStart(call)
-				result = s.ReadTools.Execute(ctx, call.Name, call.Arguments)
+				result = executeMasterReadTool(ctx, s.ReadTools, call, 0)
 				if result.OK {
 					seenTools[key] = struct{}{}
 				}

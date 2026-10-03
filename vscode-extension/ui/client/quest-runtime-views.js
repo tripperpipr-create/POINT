@@ -1036,8 +1036,9 @@ export function createQuestRuntimeViews(dependencies) {
     return Boolean(ui.state.selectedTab === 'onboarding' && isSystemOnboardingStep(ui.onboardingStep))
   }
   function hubSituation() {
-    const mergeConflicts = (ui.state.boot?.flowRuns || []).reduce((total, run) => total + Object.values(run.nodeStates || {}).filter(nodeState => nodeState?.output?.waitReason === 'sandbox_merge_conflict').length, 0)
-    const flowApprovals = (ui.state.boot?.flowRuns || []).reduce((total, run) => total + Object.values(run.nodeStates || {}).filter(nodeState => nodeState?.status === 'waiting_approval' && nodeState?.output?.waitReason !== 'sandbox_merge_conflict').length, 0)
+    const liveFlowRuns = (ui.state.boot?.flowRuns || []).filter(runIsLive)
+    const mergeConflicts = liveFlowRuns.reduce((total, run) => total + Object.values(run.nodeStates || {}).filter(nodeState => nodeState?.output?.waitReason === 'sandbox_merge_conflict').length, 0)
+    const flowApprovals = liveFlowRuns.reduce((total, run) => total + Object.values(run.nodeStates || {}).filter(nodeState => nodeState?.status === 'waiting_approval' && nodeState?.output?.waitReason !== 'sandbox_merge_conflict').length, 0)
     const pending = pendingChangeSets()
     const executions = activeExecutions()
     const quest = currentHubQuest()

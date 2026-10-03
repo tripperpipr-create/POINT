@@ -119,6 +119,10 @@ type RuntimeRequirements struct {
 	VersionConflicts []string
 	Packages         []string
 	CandidateImages  []string
+	// PinnedImageDigest — дайджест образа, закреплённый в наряде до
+	// утверждения (TODO Q17). Другой образ под этим утверждением не
+	// исполняется: создание песочницы отказывает с ErrRuntimeImageChanged.
+	PinnedImageDigest string
 	// Progress reports bounded provisioning phases to the existing quest feed.
 	Progress func(phase, message string)
 }

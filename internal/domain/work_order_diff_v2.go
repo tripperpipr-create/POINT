@@ -32,6 +32,7 @@ func DiffWorkOrders(before, after WorkOrder) WorkOrderRevisionDiff {
 	add("criteria", !reflect.DeepEqual(before.Criteria, after.Criteria))
 	add("workspace", !reflect.DeepEqual(before.Workspace, after.Workspace))
 	add("stack", !reflect.DeepEqual(before.Stack, after.Stack))
+	add("sandbox", !reflect.DeepEqual(before.Sandbox, after.Sandbox))
 	add("roster", !reflect.DeepEqual(before.Roster, after.Roster))
 	add("routing", !reflect.DeepEqual(before.Routing, after.Routing))
 	add("network", !reflect.DeepEqual(before.Network, after.Network))

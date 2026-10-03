@@ -456,7 +456,7 @@ try {
 const threatModel = read('docs/threat-model.md')
 for (const token of [
   'T01', 'T02', 'T03', 'T04', 'T05', 'T06', 'T07', 'T08', 'T09', 'T10',
-  'T11', 'T12', 'T13', 'T14', 'T15', 'T16', 'T17', 'T18', 'T19', 'T20', 'T21', 'T22', 'Privacy inventory', 'Принятые остаточные риски',
+  'T11', 'T12', 'T13', 'T14', 'T15', 'T16', 'T17', 'T18', 'T19', 'T20', 'T21', 'T22', 'T23', 'T24', 'T25', 'Privacy inventory', 'Принятые остаточные риски',
   'tools', 'approval', 'SecretStorage', 'Learning', 'Memory', 'Skill', 'SSH', 'DB', 'network', 'workspace', 'MCP', 'GitLab',
 ]) {
   requireText(threatModel, token, 'threat model')
@@ -464,8 +464,9 @@ for (const token of [
 requireText(threatModel, 'internal/sandbox/container_integration_test.go', 'threat model sandbox evidence')
 const threatRows = [...threatModel.matchAll(/^\| (T\d{2}) \|.*$/gm)]
 // T17–T21 (25 сентября 2026): MCP-серверы владельца и плагин GitLab.
-if (threatRows.length !== 22) errors.push(`threat model: expected 22 threat rows, found ${threatRows.length}`)
-const expectedThreatIds = Array.from({ length: 22 }, (_, index) => `T${String(index + 1).padStart(2, '0')}`)
+// T23–T25 (3 октября 2026): Fast Agent на хосте, встроенный Moby, сервер /mcp.
+if (threatRows.length !== 25) errors.push(`threat model: expected 25 threat rows, found ${threatRows.length}`)
+const expectedThreatIds = Array.from({ length: 25 }, (_, index) => `T${String(index + 1).padStart(2, '0')}`)
 if (threatRows.map(row => row[1]).join(',') !== expectedThreatIds.join(',')) errors.push('threat model: missing, duplicate or unordered threat ID')
 for (const row of threatRows) {
   if (!/`(?:internal|cmd|scripts|distribution|\.github|vscode-extension|frontend|docs)[\\/][^`]+`/.test(row[0])) {

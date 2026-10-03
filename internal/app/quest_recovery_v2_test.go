@@ -42,6 +42,11 @@ func TestInterruptedQuestBecomesPauseInsteadOfClaimingProgress(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if quest.Controller == nil {
+		quest.Controller = map[string]any{}
+	}
+	// Остановка застала сборку runtime-образа для этапа (Q14).
+	quest.Controller["launchPhase"] = "runtime_building"
 	if _, err = application.setWorkOrderQuestStatusV2(ctx, quest, domain.QuestRunning, "Квест выполняется"); err != nil {
 		t.Fatal(err)
 	}
@@ -59,6 +64,9 @@ func TestInterruptedQuestBecomesPauseInsteadOfClaimingProgress(t *testing.T) {
 	}
 	if message, _ := recovered.Controller["statusMessage"].(string); message != questRecoveryMessageV2 {
 		t.Fatalf("recovered quest message=%q", message)
+	}
+	if phase, live := recovered.Controller["launchPhase"]; live {
+		t.Fatalf("квест на паузе показывает идущую подготовку песочницы: %v", phase)
 	}
 	interrupted, err := application.store.ListInterruptedWorkOrderQuestsV2(ctx)
 	if err != nil || len(interrupted) != 0 {

@@ -192,3 +192,21 @@ if (!main.includes("message.conversationId!==masterClient.active")) {
 }
 
 console.log(JSON.stringify({ workOrderControls: ['pause', 'resume', 'cancel', 'message'], terminalMutation: false, liveQuestWatch: true }))
+
+// Q17: образ песочницы закрепляется до утверждения. Пока Point его проверяет,
+// запуск неактивен и причина названа; закреплённый образ виден с дайджестом;
+// отказ закрепления назван, а кнопка остаётся — нажатие закрепляет заново.
+const container = { ui: { state: { boot: { sandbox: { backend: 'docker' } } } } }
+const approveButton = html => html.match(/<button[^>]*data-action="approve-master-work-order-v2"[^>]*>/)?.[0] || ''
+const pinning = masterWorkOrderCardsHtml([{ ...base, state: 'ready', digest: 'sha256:pin', sandbox: { image: 'point-agent-sandbox:1.2.2' } }], esc, new Set(), container)
+if (!approveButton(pinning).includes('disabled') || !pinning.includes('Проверяем образ песочницы')) {
+  throw new Error('WorkOrder can be launched before its sandbox image is pinned')
+}
+const pinned = masterWorkOrderCardsHtml([{ ...base, state: 'ready', digest: 'sha256:pin', sandbox: { image: 'point-agent-sandbox:1.2.2', imageDigest: 'sha256:' + 'a'.repeat(64) } }], esc, new Set(), container)
+if (pinned.includes('Проверяем образ песочницы') || !pinned.includes('sha256:aaaaaaaaaaa')) {
+  throw new Error('pinned sandbox image is not shown on the card')
+}
+const unpinned = masterWorkOrderCardsHtml([{ ...base, state: 'ready', digest: 'sha256:pin', sandbox: { imageError: 'Docker недоступен' } }], esc, new Set(), container)
+if (!unpinned.includes('Образ песочницы не закреплён: Docker недоступен')) throw new Error('image pin failure is not named')
+const local = masterWorkOrderCardsHtml([{ ...base, state: 'ready', digest: 'sha256:pin' }], esc, new Set(), { ui: { state: { boot: { sandbox: { backend: 'filtered-copy' } } } } })
+if (local.includes('Проверяем образ песочницы')) throw new Error('a backend without images waits for an image pin')

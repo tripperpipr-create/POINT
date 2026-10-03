@@ -1,6 +1,6 @@
 # Security model
 
-Current for Point `1.2.2` as of 2026-09-10. This document describes enforced
+Current for Point `1.2.3` as of 2026-10-03. This document describes enforced
 application guarantees and explicit non-guarantees; UI wording is not a security boundary.
 Формальная матрица угроз, privacy inventory и принятые остаточные риски находятся
 в [threat-model.md](threat-model.md). Требования к надзору Мастера, confirmed-only
@@ -57,6 +57,8 @@ it allowed. The grant expires after ten minutes and is atomically changed to
 different workspace, denial, expiration or replay therefore fails closed. The
 durable approval keeps only redacted arguments; the caller resubmits raw
 arguments at execution and they must match the recorded digest.
+
+The system Fast Agent has one more execution route, `host_live`: only the `system-fast` profile, and only for an approved Fast Agent task (`domain.HostLiveFastAgent`), writes into the project and runs commands on the host without a container. The engine never hands it the Docker executor, it holds the project writer lease, and ASK/DENY tool policy still applies; it has the OS identity of the user, like the integrated terminal (threat model T23). Project quests keep the sandboxed route.
 
 The companion UI also offers a direct command box. It is a user-originated terminal action rather than an agent tool: the typed command is executed immediately, still with workspace-bound working directories, timeout and output limits. The VS Code extension itself opens the native integrated terminal for direct interactive work. These human-owned terminal surfaces, including interactive Cursor Agent, are outside the Point process sandbox and must not be represented as having its OS/network guarantees.
 
@@ -131,8 +133,10 @@ Profiles bound steps, total run duration, model context and output allowance. Re
 Executable tools still cannot invent egress: deny-all or exact TLS allowlist only
 ([sandbox.md](sandbox.md)). Product rule for autonomous Hub work: agents do not
 widen that allowlist; unconfirmed git remotes and suspicious downloads stop and
-escalate to the Orchestrator, which asks the user. The Orchestrator must also
-periodically inspect active agents so hang loops fail closed with a human decision
-rather than only after local identical-plan stall. Full contract:
+escalate to the Orchestrator, which asks the user (`internal/tools/git_remote_policy.go`).
+Master-watch periodically inspects active agents (`internal/app/master_watch.go`),
+so hang loops end in a human decision rather than only after the local
+identical-plan stall. Full contract:
 [AGENT-HUB-ORCHESTRATOR-NETWORK-POLICY.md](AGENT-HUB-ORCHESTRATOR-NETWORK-POLICY.md).
-Until that runtime lands, treat long unattended URL-intake as not ship-ready.
+Long unattended URL-intake is still not ship-ready until two live passes are
+recorded (TODO Q21).

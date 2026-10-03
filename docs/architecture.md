@@ -1,8 +1,8 @@
 # Architecture
 
-Experimental embedded runtime infrastructure is isolated behind `internal/sandbox.ContainerEngine` and the bundled `cmd/point-runtime` bridge. The existing backend/executor/audit/sandboxd contracts continue to own project execution. Moby/Podman run inside an owned WSL guest with Linux volumes and interprocess runtime leases. Historical completion readers prioritize evidence; deterministic independent proof reuse binds engine/security/environment inputs. See [implementation and open qualification gates](implementation-embedded-runtime.md).
+Embedded runtime infrastructure (the Moby pack Point ships since 2026-10-02) is isolated behind `internal/sandbox.ContainerEngine` and the bundled `cmd/point-runtime` bridge. The existing backend/executor/audit/sandboxd contracts continue to own project execution. Moby/Podman run inside an owned WSL guest with Linux volumes and interprocess runtime leases. Historical completion readers prioritize evidence; deterministic independent proof reuse binds engine/security/environment inputs. See [implementation and open qualification gates](implementation-embedded-runtime.md).
 
-Architecture inventory for Point `1.2.3`, reviewed on 2026-09-23. Runtime code
+Architecture inventory for Point `1.2.3`, reviewed on 2026-10-03. Runtime code
 and tests remain the source of truth; see [README.md](README.md) for document
 ownership and [PRODUCT-VISION.md](PRODUCT-VISION.md) for the target architecture.
 Sections that describe earlier run paths are historical until revalidated by a
@@ -38,7 +38,7 @@ operation journal separates command dispatch, received delta and mirror commit.
 The optional delta executor and manifest auditor serve executable tools while
 bind/live retain their existing process contract. Incomplete audit is bound to
 the revision and blocks delivery until clean verification and human review.
-See [sandbox storage and recovery](sandbox.md#volume-workspaces-experimental).
+See [sandbox storage and recovery](sandbox.md#volume-workspaces).
 
 The central entry files remain compatibility composition roots, but bounded
 behavior no longer has to be edited inside them:
@@ -195,7 +195,9 @@ A Master turn is a loop of model rounds over read tools (`internal/orchestrator/
 
 Three source-only additions of 2026-10-03 shape stage outcomes. When a writing stage starts, Point runs the acceptance criteria on the immutable baseline snapshot of its sandbox in parallel (`internal/app/stage_baseline_v2.go`, `verification_results_v2.source=baseline`); failures that existed before the change are told to the writer and marked in the stage failure diagnosis as a defect of the project or the check rather than of the code. With two or more writers, Implementation review is an independent reviewer (`internal/app/independent_review_v2.go`): it never closes without the model, sees the diff, changed files and Point's check results instead of the writers' accounts, and ends with a per-criterion verdict whose `failed` fails the stage. A host check that failed only because of the environment holds the quest for the human (`internal/app/work_order_host_recheck_v2.go`): `recheck` reruns the host phase (`runWorkOrderHostPhaseV2`) on the same delivered revision, `finalize` concludes (`concludeWorkOrderQuestV2`) on the held outcome.
 
-Active runs exist in memory, while every durable state transition is persisted. A restart deliberately converts unfinished state to an auditable terminal state instead of attempting unsafe replay. Project cores share one `hub-v2.db`, so this recovery is scoped to the core's own world: a starting core converts only the unfinished runs, Master turns, learning jobs, temporary conversations and v2 quests of the project it serves (`internal/app/world_recovery.go`, `internal/storage/startup_recovery.go`). Live work of another project belongs to that project's core and is recovered when it starts. Single-process tools that open the database with `storage.Open` keep the whole-database recovery.
+A ready WorkOrder pins the digest of its sandbox image before approval (`internal/app/work_order_image_pin_v2.go`). A background job resolves the image through the optional `sandbox.ImageResolver` and writes the next version with `sandbox.imageDigest` and the fingerprint of the image requirements; approval is refused until then. The digest travels in the approved brief as `RuntimeRequirements.PinnedImageDigest`, and `ContainerBackend` refuses every sandbox creation whose resolved image differs (`sandbox.ErrRuntimeImageChanged`); the quest pauses with the reason instead of running under an approval given to another image.
+
+Active runs exist in memory, while every durable state transition is persisted. A restart deliberately converts unfinished state to an auditable terminal state instead of attempting unsafe replay. Project cores share one `hub-v2.db`, so this recovery is scoped to the core's own world: a starting core converts only the unfinished runs, Master turns, learning jobs, temporary conversations and v2 quests of the project it serves (`internal/app/world_recovery.go`, `internal/storage/startup_recovery.go`). Closed v2 quests of that world lose their live residue in the same pass (`internal/storage/quest_residue_v2.go`): running milestones, the launch phase, unfinished stage quests and Flow nodes waiting for an agent or a decision. Cancellation closes the same residue in its transaction, and a quest paused, waiting for the human or closed drops its launch phase. Live work of another project belongs to that project's core and is recovered when it starts. Single-process tools that open the database with `storage.Open` keep the whole-database recovery.
 
 
 ### Packages the rest of this document does not name
@@ -456,6 +458,6 @@ Project discovery resolves criterion working directories and nested manifests. S
 
 Portable source and lock integrity is checked after installation. Failed preparation stops the batch and retains the saved upstream result. Missing declared tooling dependencies are classified as environment failures; TypeScript diagnostics remain implementation failures. Preparation failures do not consume model correction turns.
 
-Independent checks inherit bind/volume selection and isolate installed dependencies. Successful reuse also includes the dependency-plan and manifest fingerprint alongside tree, image digest, portable rules, effective commands and network policy. Shadow remains the global default; failures never reuse. Download caches for npm/Go survive quest stages, while unverified build caches remain isolated from acceptance. Older conversation rounds compact through existing replayable memory above a 64k working context; stable approved inputs and recent evidence remain intact.
+Independent checks inherit bind/volume selection and isolate installed dependencies. Successful reuse also includes the dependency-plan and manifest fingerprint alongside tree, image digest, portable rules, effective commands and network policy. `on` is the default since 2026-10-03 (`shadow` and `off` remain selectable); failures never reuse. Download caches for npm/Go survive quest stages, while unverified build caches remain isolated from acceptance. Older conversation rounds compact through existing replayable memory above a 64k working context; stable approved inputs and recent evidence remain intact.
 
 `point-perf-report` takes wall-clock bounds from `flow_runs`, finds deterministic events via execution/run correlation, and reports preparation and system-check time separately. Command and audit durations are nested under agent tool time and are never added twice. Unmeasured cache state is explicitly reported rather than inferred as warm.

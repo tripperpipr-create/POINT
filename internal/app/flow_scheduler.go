@@ -129,7 +129,11 @@ func (a *App) scheduleFlowAgentExecutionsFromRun(flowRun domain.FlowRun) error {
 			}
 		}
 	}
-	return a.scheduleFlowAgentExecutions(quest, flow, flowRun, a.flowOrchestratorKey(flowRun.ID))
+	err = a.scheduleFlowAgentExecutions(quest, flow, flowRun, a.flowOrchestratorKey(flowRun.ID))
+	// Поздние этапы планируются из колбэков, которые ошибку не читают: смена
+	// образа после утверждения иначе молча оставляла этап без исполнителя.
+	a.holdWorkOrderForImageChangeV2(context.Background(), flowRun.QuestID, err)
+	return err
 }
 
 // rootFlowSeedPath returns the immutable starting snapshot of the earliest

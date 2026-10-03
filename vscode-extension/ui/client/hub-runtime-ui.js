@@ -172,7 +172,8 @@ export function createHubRuntimeUi({
   }
 
   function flowApprovalStripHtml() {
-    const runs = getState().boot?.flowRuns || []
+    // Узлы закрытого прогона никто не продолжит: решение по ним не нужно.
+    const runs = (getState().boot?.flowRuns || []).filter(runIsLive)
     const mergeWaiting = runs.filter(run => Object.values(run.nodeStates || {}).some(nodeState => nodeState?.output?.waitReason === 'sandbox_merge_conflict'))
     const mergeRunIDs = new Set(mergeWaiting.map(run => run.id))
     const approvals = runs.flatMap(run => Object.entries(run.nodeStates || {})

@@ -70,5 +70,9 @@ func (a *App) HireWorkOrderAgentV2(ctx context.Context, orderID string, req Hire
 			runnable = false
 		}
 	}
-	return a.store.HireWorkOrderAgentV2(ctx, orderID, req.DraftID, req.IdempotencyKey, req.ExpectedVersion, req.ExpectedDigest, requestHash, agent, blueprint, req.AgentID != "", runnable)
+	result, err := a.store.HireWorkOrderAgentV2(ctx, orderID, req.DraftID, req.IdempotencyKey, req.ExpectedVersion, req.ExpectedDigest, requestHash, agent, blueprint, req.AgentID != "", runnable)
+	if err == nil {
+		a.startWorkOrderImagePinV2(result.WorkOrder)
+	}
+	return result, err
 }

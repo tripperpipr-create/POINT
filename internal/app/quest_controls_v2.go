@@ -277,6 +277,7 @@ func (a *App) controlWorkOrderFlowRuntimeV2(ctx context.Context, quest domain.Qu
 		flowRun.Status = domain.RunCancelled
 		flowRun.Error = "cancelled by user through Master"
 		flowRun.FinishedAt = &now
+		flowRun.CloseUnfinishedNodes("Квест отменён; этап не исполнялся", now)
 		if !flowRun.StartedAt.IsZero() {
 			flowRun.DurationMs = now.Sub(flowRun.StartedAt).Milliseconds()
 		}

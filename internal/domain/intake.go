@@ -47,11 +47,16 @@ type SourceBundle struct {
 	CreatedAt     time.Time        `json:"createdAt"`
 }
 
+// RuntimeSpec — среда песочницы наряда. ImageDigest закрепляется до
+// утверждения (TODO Q17), ImageBasis — отпечаток требований к образу, по
+// которым он закреплён, ImageError — почему закрепить не вышло.
 type RuntimeSpec struct {
 	ID               string            `json:"id"`
 	Kind             string            `json:"kind"` // project | managed | generated
 	Image            string            `json:"image,omitempty"`
 	ImageDigest      string            `json:"imageDigest,omitempty"`
+	ImageBasis       string            `json:"imageBasis,omitempty"`
+	ImageError       string            `json:"imageError,omitempty"`
 	Toolchains       map[string]string `json:"toolchains,omitempty"`
 	VersionSources   map[string]string `json:"versionSources,omitempty"`
 	VersionConflicts []string          `json:"versionConflicts,omitempty"`

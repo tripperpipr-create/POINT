@@ -82,3 +82,13 @@ export function questMenuHtml(items, esc) {
   if (!rowsHtml) return ''
   return `<details class="hall-deck-menu"><summary title="Ещё действия" aria-label="Ещё действия">${icon('more')}</summary><div>${rowsHtml}</div></details>`
 }
+
+// Образ песочницы закрепляется до утверждения (Q17). Пока Point его
+// проверяет, запускать нечего; отказ закрепления назван рядом с кнопкой, и
+// кнопка остаётся: нажатие закрепляет заново. Бэкенд без образов (локальная
+// копия) ничего не закрепляет.
+export function imagePinNote(order, sandboxBackend) {
+  const sandbox = order?.sandbox || {}
+  if (order?.state !== 'ready' || sandbox.imageDigest || !sandboxBackend || sandboxBackend === 'filtered-copy') return { pending: false, text: '' }
+  return sandbox.imageError ? { pending: false, text: `Образ песочницы не закреплён: ${sandbox.imageError}` } : { pending: true, text: 'Проверяем образ песочницы…' }
+}

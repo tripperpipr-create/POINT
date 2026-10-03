@@ -142,6 +142,9 @@ func (a *App) runWorkOrderLaunchV2(ctx context.Context, approval domain.WorkOrde
 			a.waitForSandboxV2(writeCtx, approval, latest, message)
 			return
 		}
+		if a.holdWorkOrderForImageChangeV2(writeCtx, approval.QuestID, launchErr) {
+			return
+		}
 		if errors.Is(launchErr, sandbox.ErrRuntimeVersionUnavailable) {
 			paused, saveErr := a.setWorkOrderQuestStatusV2(writeCtx, latest, domain.QuestPaused, message)
 			if saveErr != nil {
@@ -513,6 +516,12 @@ func (a *App) setWorkOrderQuestStatusV2(ctx context.Context, quest domain.Quest,
 		quest.Controller = map[string]any{}
 	}
 	quest.Controller["statusMessage"] = security.Redact(message)
+	// Фаза запуска живёт, пока запуск идёт: у квеста на паузе, в ожидании
+	// человека или с исходом она показывала «Подготавливаем инструменты
+	// sandbox» (TODO Q14). Следующий запуск ставит её заново.
+	if status == domain.QuestPaused || status == domain.QuestAwaitingUser || domain.IsTerminalQuestStatus(status) {
+		delete(quest.Controller, "launchPhase")
+	}
 	quest.UpdatedAt = time.Now().UTC()
 	if domain.IsTerminalQuestStatus(status) {
 		finished := quest.UpdatedAt

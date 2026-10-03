@@ -25,7 +25,8 @@ func runningQuestWithFlowChildrenForTest(t *testing.T, application *App, key str
 		t.Fatal(err)
 	}
 	now := time.Now().UTC()
-	run := domain.FlowRun{ID: "flowrun-" + key, FlowID: "flow-" + key, WorkspaceID: workspace.ID, QuestID: quest.ID, Status: domain.RunRunning, NodeStates: map[string]domain.FlowNodeState{}, StartedAt: now}
+	run := domain.FlowRun{ID: "flowrun-" + key, FlowID: "flow-" + key, WorkspaceID: workspace.ID, QuestID: quest.ID, Status: domain.RunRunning, StartedAt: now,
+		NodeStates: map[string]domain.FlowNodeState{"child-open-" + key: {Status: "waiting_approval"}, "child-done-" + key: {Status: "completed"}}}
 	if err = application.store.SaveFlowRun(ctx, run); err != nil {
 		t.Fatal(err)
 	}
@@ -84,6 +85,14 @@ func TestCancelClosesFlowChildrenMilestoneAndLaunchPhase(t *testing.T) {
 	}
 	if root.Controller["statusMessage"] != "Квест отменён" || root.Controller["currentMilestoneId"] != "milestone-1" {
 		t.Fatalf("контроллер после отмены: %v", root.Controller)
+	}
+	// Q14: узел, ждавший решения, после отмены не просит его в полосе Хаба.
+	run, err := application.store.GetFlowRun(ctx, "flowrun-cancel-tree")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if run.NodeStates["child-open-cancel-tree"].Status != "skipped" || run.NodeStates["child-done-cancel-tree"].Status != "completed" || run.Status != domain.RunCancelled {
+		t.Fatalf("прогон отменённого квеста ждёт решения: %s %+v", run.Status, run.NodeStates)
 	}
 }
 

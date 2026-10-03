@@ -3,7 +3,7 @@ import { masterAgentConsent } from './master-agent-card.js'
 import { countOf, list } from './format-units.js'
 import { masterCardMoreAttrs } from './master-card-open.js'
 import { manualReviewHtml } from './master-manual-review.js'
-import { DEFAULT_CRITERION_KIND, gitChoiceMissing, questChecklistHtml, questMenuHtml, workOrderGitHtml } from './master-quest-views.js'
+import { DEFAULT_CRITERION_KIND, gitChoiceMissing, imagePinNote, questChecklistHtml, questMenuHtml, workOrderGitHtml } from './master-quest-views.js'
 import { runtimePresentation } from './quest-status.js'
 
 const labels = {
@@ -90,7 +90,7 @@ export function masterWorkOrderCardsHtml(orders, esc, busyIds = new Set(), deps 
 	const sandbox=order.sandbox || {}
 	const sandboxTools=sandbox.toolchains || {}
 	const versionFields=['node','npm','php','composer','python','pip','go','rust','java','mvn','gradle','dotnet']
-	const versionsHtml=`<section class="master-v2-editor-simple"><b>Версии песочницы</b><p>Point предложил версии из CI и проекта. Изменения сохраняются новой версией наряда.</p>${versionFields.map(tool=>`<label><span>${esc(tool)}${sandbox.versionSources?.[tool]?` · ${esc(sandbox.versionSources[tool])}`:''}</span><input data-work-order-toolchain="${tool}" value="${esc(sandboxTools[tool]||'')}" placeholder="Авто"></label>`).join('')}${list(sandbox.versionConflicts).map(conflict=>`<small>${esc(conflict)}</small>`).join('')}<small>Образ: ${esc(sandbox.image||'будет выбран Point')}</small></section>`
+	const versionsHtml=`<section class="master-v2-editor-simple"><b>Версии песочницы</b><p>Point предложил версии из CI и проекта. Изменения сохраняются новой версией наряда.</p>${versionFields.map(tool=>`<label><span>${esc(tool)}${sandbox.versionSources?.[tool]?` · ${esc(sandbox.versionSources[tool])}`:''}</span><input data-work-order-toolchain="${tool}" value="${esc(sandboxTools[tool]||'')}" placeholder="Авто"></label>`).join('')}${list(sandbox.versionConflicts).map(conflict=>`<small>${esc(conflict)}</small>`).join('')}<small>Образ: ${esc(sandbox.image||'будет выбран Point')}${sandbox.imageDigest?` · ${esc(String(sandbox.imageDigest).slice(0,19))}`:''}</small></section>`
 	const editor=(order.state!=='approved' || runtime?.status==='paused') ? `<details class="master-v2-editor"${masterCardMoreAttrs(`order-edit:${order.id}`,{esc})}>
         <summary>Редактировать карточку без запроса к модели</summary>
         <div class="master-v2-editor-simple">
@@ -174,11 +174,11 @@ export function masterWorkOrderCardsHtml(orders, esc, busyIds = new Set(), deps 
 	const consented=consentDrafts.length===0 || masterAgentConsent.has(order.id)
 	// Пока исполнителя нет, запускать нечем, и кнопка об этом говорит прямо, а
 	// не молча блокируется: причина стоит рядом с ней и называет, где решение.
-	const consentNote=consented ? '' : `<small class="master-v2-consent-note">Сначала заведите ${consentDrafts.length > 1 ? 'исполнителей' : 'исполнителя'} — карточка ниже</small>`
+	const imagePin=imagePinNote(order, deps.ui?.state?.boot?.sandbox?.backend)
+	const consentNote=consented ? (imagePin.text ? `<small class="master-v2-consent-note">${esc(imagePin.text)}</small>` : '') : `<small class="master-v2-consent-note">Сначала заведите ${consentDrafts.length > 1 ? 'исполнителей' : 'исполнителя'} — карточка ниже</small>`
 	const lifecycleNote=draftAgents.length
 		? `<aside class="master-v2-warning"><b>Состав ждёт активации</b><p>${countOf(draftAgents.length,'черновик','черновика','черновиков')} блокирует запуск. Сохранение карточки не активирует агента.</p>${draftAgents.map(agent=>`<button type="button" class="hall-btn is-sm" data-action="open-agent-constructor-edit" data-id="${esc(agent.id)}">Открыть ${esc(agent.name || agent.roleFamily || 'черновик')}</button>`).join('')}</aside>`
 		: (unavailableAgents.length ? `<aside class="master-v2-warning"><b>Исполнитель недоступен</b><p>Дождитесь завершения оценки или выберите активного агента.</p></aside>` : '')
-	const approveLabel='Запустить квест'
 	// Созданный исполнитель — событие, а не строка под свёрнутыми подробностями.
 	// Утверждение создаёт агента в своей транзакции, и человек имеет право сразу
 	// увидеть, кто появился, и уйти в его мастерскую.
@@ -226,7 +226,7 @@ export function masterWorkOrderCardsHtml(orders, esc, busyIds = new Set(), deps 
         ${order.state==='approved'
           ? `<span class="master-v2-approved ${runtime?runtimeView.tone:'is-quiet'}">${runtime?runtimeView.mark:'·'} ${esc(approvedText)}</span>${runtime?'':questMenuHtml([{action:'delete-work-order-v2',id:order.id,label:'Убрать наряд',busy}],esc)}`
           : `<div class="hall-quest-acts">
-              <button type="button" class="hall-btn is-primary" data-action="approve-master-work-order-v2" data-id="${esc(order.id)}" data-version="${Number(order.version)||1}" data-digest="${esc(order.digest || '')}" ${ready&&consented&&!busy&&!gitChoiceMissing(order)?'':'disabled'}>${busy?'Запускаем…':esc(approveLabel)}</button>
+              <button type="button" class="hall-btn is-primary" data-action="approve-master-work-order-v2" data-id="${esc(order.id)}" data-version="${Number(order.version)||1}" data-digest="${esc(order.digest || '')}" ${ready&&consented&&!busy&&!imagePin.pending&&!gitChoiceMissing(order)?'':'disabled'}>${busy?'Запускаем…':'Запустить квест'}</button>
               ${questMenuHtml([{action:'revise-master-work-order-v2',id:order.id,label:'Обсудить с Мастером'}],esc)}
             </div>${consentNote}`}
       </footer>

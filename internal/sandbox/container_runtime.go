@@ -21,7 +21,71 @@ var runtimeVersionPattern = regexp.MustCompile(`^(?:\d+(?:\.\d+){0,2}|stable)$`)
 var runtimeActualVersion = regexp.MustCompile(`\d+(?:\.\d+){0,2}`)
 var ErrRuntimeVersionUnavailable = errors.New("requested sandbox tool version unavailable")
 
+// ErrRuntimeImageChanged — образ песочницы не тот, что закреплён в наряде до
+// утверждения (TODO Q17): локальный тег пересобран или заменён.
+var ErrRuntimeImageChanged = errors.New("sandbox image changed after approval")
+
+// ImageResolver разрешает образ песочницы без её создания. Наряд закрепляет
+// его дайджест до утверждения.
+type ImageResolver interface {
+	ResolveRuntimeImage(ctx context.Context, runtime RuntimeRequirements) (image, digest string, err error)
+}
+
+var _ ImageResolver = (*ContainerBackend)(nil)
+
+// ResolveRuntimeImage — образ, который получит песочница с этими
+// требованиями. Может собрать runtime-образ, как и Create.
+func (b *ContainerBackend) ResolveRuntimeImage(ctx context.Context, runtime RuntimeRequirements) (string, string, error) {
+	if err := b.validate(); err != nil {
+		return "", "", err
+	}
+	if err := b.ensureAvailable(ctx); err != nil {
+		return "", "", err
+	}
+	runtime.PinnedImageDigest = ""
+	image, digest, err := b.resolveRuntimeImage(ctx, "", runtime)
+	if err != nil {
+		return "", "", err
+	}
+	if !imageDigestPattern.MatchString(strings.ToLower(strings.TrimSpace(digest))) {
+		if digest, err = b.inspectImageDigest(ctx, image); err != nil {
+			return "", "", err
+		}
+	}
+	return image, strings.ToLower(strings.TrimSpace(digest)), nil
+}
+
+// resolveRuntimeImage выбирает образ и сверяет его с закреплённым в наряде.
 func (b *ContainerBackend) resolveRuntimeImage(ctx context.Context, requested string, runtime RuntimeRequirements) (string, string, error) {
+	image, digest, err := b.resolveUnpinnedRuntimeImage(ctx, requested, runtime)
+	if err != nil {
+		return "", "", err
+	}
+	pinned := strings.ToLower(strings.TrimSpace(runtime.PinnedImageDigest))
+	if pinned == "" {
+		return image, digest, nil
+	}
+	actual := strings.ToLower(strings.TrimSpace(digest))
+	if !imageDigestPattern.MatchString(actual) {
+		if actual, err = b.inspectImageDigest(ctx, image); err != nil {
+			return "", "", err
+		}
+	}
+	if actual != pinned {
+		return "", "", fmt.Errorf("%w: approved %s, now %s (%s)", ErrRuntimeImageChanged, shortImageDigest(pinned), shortImageDigest(actual), image)
+	}
+	return image, actual, nil
+}
+
+func shortImageDigest(digest string) string {
+	digest = strings.TrimPrefix(strings.TrimSpace(digest), "sha256:")
+	if len(digest) > 12 {
+		digest = digest[:12]
+	}
+	return "sha256:" + digest
+}
+
+func (b *ContainerBackend) resolveUnpinnedRuntimeImage(ctx context.Context, requested string, runtime RuntimeRequirements) (string, string, error) {
 	if len(runtime.UnsupportedTools) > 0 {
 		return "", "", fmt.Errorf("%w: unsupported package managers or tools %s", ErrRuntimeVersionUnavailable, strings.Join(runtime.UnsupportedTools, ", "))
 	}

@@ -42,8 +42,12 @@ func (a *App) SaveWorkOrderV2(ctx context.Context, order domain.WorkOrder) (doma
 	if err != nil {
 		return domain.WorkOrder{}, err
 	}
-	order = a.refreshWorkOrderRosterStateV2(ctx, order)
-	return a.store.SaveWorkOrderV2(ctx, order)
+	order = withCurrentImagePinV2(a.refreshWorkOrderRosterStateV2(ctx, order))
+	saved, err := a.store.SaveWorkOrderV2(ctx, order)
+	if err == nil {
+		a.startWorkOrderImagePinV2(saved)
+	}
+	return saved, err
 }
 
 // refreshWorkOrderRosterStateV2 makes ready a server invariant. A settled
@@ -212,10 +216,11 @@ func (a *App) ReviseWorkOrderV2(ctx context.Context, id string, request ReviseWo
 			}
 		}
 	}
-	saved, err := a.store.SaveWorkOrderV2(ctx, next)
+	saved, err := a.store.SaveWorkOrderV2(ctx, withCurrentImagePinV2(next))
 	if err != nil {
 		return domain.WorkOrder{}, err
 	}
+	a.startWorkOrderImagePinV2(saved)
 	if err = a.store.SaveWorkOrderRevisionReplayV2(ctx, request.IdempotencyKey, request.ExpectedVersion, request.ExpectedDigest, saved); err != nil {
 		return domain.WorkOrder{}, err
 	}
@@ -293,6 +298,9 @@ func (a *App) ApproveWorkOrderV2(ctx context.Context, id string, request Approve
 		return domain.WorkOrderApproval{}, fmt.Errorf("work order is not ready for approval: %s", order.State)
 	}
 	if err = requireRosterConsentV2(order, request.RosterConsent); err != nil {
+		return domain.WorkOrderApproval{}, err
+	}
+	if err = a.requireWorkOrderImagePinnedV2(order); err != nil {
 		return domain.WorkOrderApproval{}, err
 	}
 	// Ростер проверяется до каталогов и до транзакции. Утверждение заводит

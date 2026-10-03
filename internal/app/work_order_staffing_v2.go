@@ -202,6 +202,9 @@ func (a *App) resumeWorkOrderStaffingV2(ctx context.Context, workspaceID string)
 	var cfg domain.OrchestratorConfig
 	loaded := false
 	for _, order := range orders {
+		// Образ готового наряда, не закреплённый до остановки, закрепляется
+		// заново (TODO Q17).
+		a.startWorkOrderImagePinV2(order)
 		if order.State != "staffing" || !order.Roster.Selecting {
 			continue
 		}

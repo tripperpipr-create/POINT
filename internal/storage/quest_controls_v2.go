@@ -217,6 +217,10 @@ func cancelWorkOrderQuestTreeV2Tx(ctx context.Context, tx *sql.Tx, questID, now 
 		return err
 	}
 	// Тот же разбор, что восстанавливает вердикт шлюза: незавершённые milestone
-	// получают статус квеста, писательская аренда освобождается.
-	return reconcileCompletedWorkOrderGateV2Tx(ctx, tx, questID, domain.QuestCancelled, parseTime(now))
+	// получают статус квеста, писательская аренда освобождается, узлы Flow
+	// закрываются (TODO Q14).
+	if err := reconcileCompletedWorkOrderGateV2Tx(ctx, tx, questID, domain.QuestCancelled, parseTime(now)); err != nil {
+		return err
+	}
+	return closeQuestFlowRunsV2Tx(ctx, tx, questID, domain.QuestCancelled, parseTime(now))
 }

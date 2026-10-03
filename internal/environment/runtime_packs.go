@@ -163,8 +163,9 @@ func runtimeRequirements(stack domain.StackPresetRef, setup domain.SetupPlan, co
 		}
 	}
 	sort.Strings(unsupported)
+	pinned := strings.TrimSpace(spec.ImageDigest)
 	if len(selected) == 0 && len(unsupported) == 0 && len(conflicts) == 0 {
-		return sandbox.RuntimeRequirements{}
+		return sandbox.RuntimeRequirements{PinnedImageDigest: pinned}
 	}
 	tools := make([]string, 0, len(selected))
 	for tool := range selected {
@@ -191,7 +192,7 @@ func runtimeRequirements(stack domain.StackPresetRef, setup domain.SetupPlan, co
 	return sandbox.RuntimeRequirements{
 		ID: strings.TrimSpace(stack.ID), Version: strings.TrimSpace(stack.Version),
 		RequiredCommands: commands, ToolVersions: trustedVersions, UnsupportedTools: unsupported, VersionConflicts: conflicts,
-		Packages: packages, CandidateImages: candidates,
+		Packages: packages, CandidateImages: candidates, PinnedImageDigest: pinned,
 	}
 }
 

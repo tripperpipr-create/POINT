@@ -1,14 +1,14 @@
 # Execution sandbox
 
-Experimental `embedded` mode uses a Point-owned WSL 2 guest with a pinned Moby/Podman pack and Linux volumes. It refuses Windows bind/live execution, checks engine/image/security identity, coordinates active executions across windows and terminates only its owned guest after ten idle minutes. Both engines passed the seven native parity scenarios on the current PC under profile v2. Docker remains supported and global defaults remain `bind/shadow`. Provisioning, measurements and pending clean Windows/installed IDE acceptance are described in [embedded runtime implementation](implementation-embedded-runtime.md).
+`embedded` mode uses a Point-owned WSL 2 guest with a pinned Moby/Podman pack and Linux volumes. It refuses Windows bind/live execution, checks engine/image/security identity, coordinates active executions across windows and terminates only its owned guest after ten idle minutes. Both engines passed the seven native parity scenarios on the current PC under profile v2. Since 2026-10-02 Point ships the Moby pack, and the extension selects `embedded` when the user made no explicit choice (`vscode-extension/sandbox-settings.js`): volume workspaces, a warm stage container and the download cache. Docker remains supported; a core started without these settings still defaults to `bind`. Reuse of passed checks (`POINT_VERIFY_SERVICE`) defaults to `on` for every backend since 2026-10-03. Provisioning, measurements and pending clean Windows/installed IDE acceptance are described in [embedded runtime implementation](implementation-embedded-runtime.md).
 
-Current for Point `1.2.3` as of 2026-10-01. This document is the operational
+Current for Point `1.2.3` as of 2026-10-03. This document is the operational
 contract for executable agent tools. File mutation mode and operating system
 isolation are separate guarantees and must not be presented as the same thing.
 Product rules for Orchestrator supervision, confirmed-only git remotes and
 escalation of new egress hosts are in
 [AGENT-HUB-ORCHESTRATOR-NETWORK-POLICY.md](AGENT-HUB-ORCHESTRATOR-NETWORK-POLICY.md)
-(required; runtime still catching up).
+(required; runtime v1 implemented, live URL-intake passes pending in TODO Q21).
 
 ## File mutation modes
 
@@ -17,6 +17,21 @@ execution workspace and chooses a detached worktree for a clean Git workspace
 or a snapshot otherwise. A live sandbox is rejected before the run starts.
 WorkOrder execution selects the isolation declared in its approved workspace
 plan. The selected mode must be visible before launch.
+
+**System Fast Agent (`host_live`).** The system Fast Agent profile runs an
+approved Fast Agent task directly in the open project on the host: no
+container, worktree or copy, and the engine never hands it the Docker
+executor (`domain.HostLiveFastAgent`). It holds the project writer lease and
+keeps ASK/DENY tool policy, but has the OS identity of the user. It is not a
+sandboxed route and is never presented as one (threat model T23).
+
+**Sandbox image of a WorkOrder.** Before approval a ready WorkOrder pins the
+digest of the image its sandbox will get, together with a fingerprint of the
+image requirements (`sandbox.imageDigest`, `sandbox.imageBasis`). Approval is
+refused until the image is pinned. Every sandbox creation under that approval
+compares the resolved image with the pinned digest; a rebuilt or replaced tag
+pauses the quest with `ErrRuntimeImageChanged` instead of running under an
+approval given to another image (`internal/app/work_order_image_pin_v2.go`).
 
 **Legacy or explicitly selected live workspace.** Where live mutation is
 enabled, file tools write the open project and an immutable baseline supplies
@@ -29,14 +44,15 @@ under a temp root. The open project stays unchanged until reviewed delivery.
 
 ## Backends
 
-### Volume workspaces (experimental)
+### Volume workspaces
 
 The implemented 4a–4d behavior and Windows/Docker evidence are recorded in
-[the volume acceptance report](perf/sandbox-volume-2026-10-01.md). The user
-deferred live 4e quests, so this remains opt-in and the default stays `bind`.
+[the volume acceptance report](perf/sandbox-volume-2026-10-01.md). Live 4e
+quests are still pending. The embedded runtime always uses volumes; for Docker
+it remains opt-in.
 
 `POINT_SANDBOX_WORKSPACE=bind|volume` selects storage for a new isolated run;
-the default remains `bind`. A Flow records this choice at launch and its
+without it the core uses `bind`. A Flow records this choice at launch and its
 successors inherit it. Live workspaces and migrated records retain bind mounts
 and `legacy-v1` file rules. New isolated copies use `portable-v2` in either mode.
 Volume mode always creates a filtered host mirror, including for clean Git
@@ -108,9 +124,10 @@ distribution builds include them. Set `POINT_VOLUME_INTEGRATION=1` and
 compares fixed sources, image, resources and policy. Heavy commands default to
 five clean runs; `true` uses twenty warm calls. Setup/preparation are reported
 separately. The measured audit includes snapshots, patch diff and a durable JSON
-journal, and excludes model calls and the app event bus. Switching the default
-requires the complete parity/isolation gates, Windows performance targets,
-unchanged `pack-artifact` within 600 seconds and live Node/Go quest delivery.
+journal, and excludes model calls and the app event bus. Switching the Docker
+default to volumes requires the complete parity/isolation gates, Windows
+performance targets, unchanged `pack-artifact` within 600 seconds and live
+Node/Go quest delivery.
 
 `filtered-copy` is the compatibility backend for isolated copies. It creates an
 immutable baseline plus a writable execution copy (or a detached Git worktree)

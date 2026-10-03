@@ -31,6 +31,9 @@ func (s *SQLite) RecoverAbandonedWork(ctx context.Context, workspaceID string) e
 	if err := s.markInterrupted(ctx, workspaceID); err != nil {
 		return err
 	}
+	if err := s.closeClosedQuestResidueV2(ctx, workspaceID); err != nil {
+		return err
+	}
 	if err := s.recoverMasterLearning(ctx, workspaceID); err != nil {
 		return err
 	}

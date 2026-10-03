@@ -114,7 +114,7 @@ agent wants network/git outside allowlist
 3. ~~Project/repo allowlist для git remotes~~ — `TaskPermissions.ConfirmedGitRemotes`, seed from git intake URL; hard block `git_remote_unconfirmed`.
 4. ~~Ранний fail/ask при required registry host без DNS/egress~~ — `environment.ProbeNetworkHosts` на ApproveIntake (host DNS+TLS); unreachable → error до старта quest.
 5. ~~EvidenceBundle: supervision/network decisions~~ — поля `supervisionInterventions` / `networkDecisions`.
-6. Закрыть live PHP intake 2× PASS.
+6. Live PHP intake 2× PASS — открытая работа ведётся в [TODO.md](TODO.md), Q21.
 
 ### Что уже в runtime
 
@@ -131,5 +131,5 @@ agent wants network/git outside allowlist
 
 - ~~есть автотест на эскалацию нового host и неподтверждённого git remote~~ (`TestEnsureAndResolveEgressAsk`, `TestDeniedUnconfirmedGitRemote`);
 - ~~есть автотест, что повтор tool-плана вызывает Master intervention раньше hard stall~~ (`TestMasterWatchIntervenesOnDuplicatePlan`);
-- docs `sandbox` / `security` / `threat-model` ссылаются на этот контракт без противоречий;
+- docs `sandbox` / `security` / `threat-model` ссылаются на этот контракт без противоречий (сверено 03.10: T16, R6 и раздел надзора в security описывают внедрённый runtime);
 - live PHP intake не объявляется shipped при 0/2 PASS.

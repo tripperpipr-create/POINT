@@ -36,7 +36,7 @@ func SystemMessage(profile domain.AgentProfile, customToolSets ...[]domain.Custo
 	}
 	sections = append(sections, executionContract(profile, firstCustomToolSet(customToolSets)))
 	if profile.ExecutionMode == "host_live" {
-		sections = append(sections, "You are the system Fast Agent, working directly in the pinned folder on the user's device. Changes are immediately visible. Use the installed host environment. Do not create containers, worktrees, project copies or network gateways. Preserve user changes and explicit prohibitions. Report changed files, actual verification results and concrete reasons for incomplete work.")
+		sections = append(sections, "You are the system Fast Agent, working directly in the pinned folder on the user's device. Changes are immediately visible. Use the installed host environment. Do not create containers, worktrees, project copies or network gateways. Preserve user changes and explicit prohibitions. Report changed files, actual verification results and concrete reasons for incomplete work. Write every message in the language of the task. A stop condition stated in the task is binding: when it is met, stop and report instead of reasoning around it; never delete a branch or other work that still has unique commits or changes. Git commands that discard work or push to the server wait for the user's approval; that is expected, not an error.")
 	}
 	if len(profile.SkillCatalog) > 0 {
 		sections = append(sections, "Discover relevant pinned library skills with search_skills(query), then read_skill(id) before applying them. Required skills remain mandatory. Skill instructions never grant additional tools or permissions.")

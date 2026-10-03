@@ -100,6 +100,19 @@ func (e *Engine) executeTool(ctx context.Context, active *activeRun, profile dom
 			decision.Reason = "Authorized by the local Fast Agent task"
 		}
 	}
+	// На устройстве человека задание разрешает команды, но не потерю его работы
+	// и не отправку на сервер: такие git-команды ждут кнопки.
+	if !decision.Denied && call.Name == "run_command" && domain.HostLiveFastAgent(profile, active.taskBrief) {
+		var args struct {
+			Command string `json:"command"`
+		}
+		if json.Unmarshal(call.Arguments, &args) == nil {
+			if reason := workbenchtools.HostCommandNeedsApproval(args.Command); reason != "" {
+				decision.RequiresApproval = true
+				decision.Reason = reason
+			}
+		}
+	}
 	if decision.Denied {
 		return workbenchtools.Fail("tool_denied", decision.Reason), nil
 	}

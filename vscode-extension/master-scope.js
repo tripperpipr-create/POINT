@@ -23,7 +23,10 @@ async function followFastRun(host, runId, workspaceId, conversationId) {
     try {
       const details = await host.service.request('/api/runs/'+encodeURIComponent(runId))
       if(!scope.current())return
-      scope.post({type:'masterFastRun',run:details.run,conversationId})
+      // Хроника для карточки — без потока токенов: его сотни событий на прогон,
+      // а карточке нужны ответы, команды и решения.
+      const events=(details.events || []).filter(event => event.type!=='model.streamed')
+      scope.post({type:'masterFastRun',run:details.run,details:{...details,events},conversationId})
       if(['completed','failed','cancelled','interrupted'].includes(details.run.status)) {
         const master=await host.service.request(masterPath('/api/master/history?conversationId='+encodeURIComponent(conversationId),workspaceId))
         scope.post({type:'master',master,conversationId,loaded:true,completionRefresh:true})

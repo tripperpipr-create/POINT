@@ -78,6 +78,7 @@ const checks = [
   'smoke-master-chat-branch.cjs',
   'smoke-quest-git-views.mjs',
   'smoke-master-feed.js',
+  'smoke-master-fast-run.js',
   'smoke-master-feed-rules.mjs',
   'smoke-master-feed-motion.mjs',
   'smoke-chat-markdown.mjs',

@@ -29,10 +29,30 @@ export function createAgentWorkTranscript(dependencies) {
     formatMarkdown,
   } = dependencies
 
+  // Строка вызова называет, что именно агент делает: команду и зачем, путь
+  // файла, запрос поиска. Одно имя инструмента и номер хода («run_command ·
+  // шаг 16») не говорили человеку ничего.
+  function toolRow(payload, step) {
+    const args = data(payload.arguments)
+    const target = String(args.command || args.path || args.query || args.pattern || '').trim()
+    const shown = target.length > 160 ? `${target.slice(0, 159)}…` : target
+    const why = String(args.reason || '').trim()
+    return `<div class="tool agent-work-tool"><span aria-hidden="true">↳</span><div><strong>${esc(toolName(payload.tool))}</strong>${shown ? `<code title="${esc(target)}">${esc(shown)}</code>` : ''}<small>ход ${esc(step)}</small>${why ? `<p class="agent-work-tool-why">${esc(why)}</p>` : ''}</div></div>`
+  }
+
   function bodyHtml(text) {
     const raw = String(text || '')
     if (!raw) return ''
     return typeof formatMarkdown === 'function' ? formatMarkdown(raw) : `<p>${esc(raw)}</p>`
+  }
+
+  // Чем рискует человек, если разрешит: причину ядро пишет по-русски для
+  // опасных git-команд локальной полосы (удаление ветки, push). Под ней
+  // остаётся довод агента. Служебные английские причины политики не дублируются.
+  function riskLine(approval, args) {
+    const reason = String(approval.reason || '').trim()
+    if (!reason || !args.reason || reason === args.reason || !/[а-яё]/i.test(reason)) return ''
+    return `<p class="approval-risk">${esc(reason)}</p>`
   }
 
   function approvalCard(approval, anchor = false) {
@@ -44,7 +64,7 @@ export function createAgentWorkTranscript(dependencies) {
     const operation = args.kind === 'process' && Array.isArray(args.arguments)
       ? `<div class="process-approval"><span>Программа</span><code>${esc(args.program)}</code><span>ARGV · ${args.arguments.length}</span><ol>${args.arguments.map((argument, index) => `<li><b>${index}</b><code>${esc(JSON.stringify(argument))}</code></li>`).join('') || '<li><em>без аргументов</em></li>'}</ol></div>`
       : `<pre>${esc(args.command || JSON.stringify(args, null, 2))}</pre>`
-    return `<section class="approval agent-work-card ${pending ? 'is-pending' : ''} ${!pending && approval.status === 'denied' ? 'was-denied' : ''}" ${anchor ? 'id="pending-decision"' : ''}><header><span>!</span><div><strong>${esc(title)}</strong><p>${esc(args.reason || approval.reason)}</p>${pending ? '<em class="decision-mark">Ожидает решения</em>' : ''}</div></header>${operation}${args.cwd ? `<small>${esc(args.cwd)}${args.timeoutSeconds ? ` · тайм-аут ${esc(args.timeoutSeconds)} сек` : ''}</small>` : ''}${pending ? `<footer><button class="danger-button" data-action="resolve" data-id="${esc(approval.id)}" data-allow="false">Отклонить</button><button class="primary small-button" data-action="resolve" data-id="${esc(approval.id)}" data-allow="true">Разрешить один раз</button></footer>` : `<div class="resolved ${approval.status === 'denied' ? 'denied' : ''}">${approval.status === 'allowed' ? 'Разрешено' : 'Отклонено · агент продолжит без этого инструмента'}</div>`}</section>`
+    return `<section class="approval agent-work-card ${pending ? 'is-pending' : ''} ${!pending && approval.status === 'denied' ? 'was-denied' : ''}" ${anchor ? 'id="pending-decision"' : ''}><header><span>!</span><div><strong>${esc(title)}</strong>${riskLine(approval, args)}<p>${esc(args.reason || approval.reason)}</p>${pending ? '<em class="decision-mark">Ожидает решения</em>' : ''}</div></header>${operation}${args.cwd ? `<small>${esc(args.cwd)}${args.timeoutSeconds ? ` · тайм-аут ${esc(args.timeoutSeconds)} сек` : ''}</small>` : ''}${pending ? `<footer><button class="danger-button" data-action="resolve" data-id="${esc(approval.id)}" data-allow="false">Отклонить</button><button class="primary small-button" data-action="resolve" data-id="${esc(approval.id)}" data-allow="true">Разрешить один раз</button></footer>` : `<div class="resolved ${approval.status === 'denied' ? 'denied' : ''}">${approval.status === 'allowed' ? 'Разрешено' : 'Отклонено · агент продолжит без этого инструмента'}</div>`}</section>`
   }
 
   function patchCard(patch, approval, anchor = false, sandboxOnly = false) {
@@ -132,7 +152,7 @@ export function createAgentWorkTranscript(dependencies) {
         items.push(`<div class="notice ${warnings.length ? 'warning' : 'success'} agent-work-notice">${warnings.length ? '△' : '✓'} ${esc(source)} · изменений: ${esc(payload.totalChanges || 0)} · записано: ${esc(payload.recordedChanges || 0)}${options.sandboxOnly ? ' · в песочнице' : ''}${warnings.length ? ` · ${esc(warnings.join(' · '))}` : ''}</div>`)
       }
       if (event.type === 'tool.requested') {
-        items.push(`<div class="tool agent-work-tool"><span aria-hidden="true">↳</span><div><strong>${esc(toolName(payload.tool))}</strong><small>шаг ${event.step}</small></div></div>`)
+        items.push(toolRow(payload, event.step))
       }
       if (event.type === 'approval.requested') {
         const approval = approvals.get(String(payload.id || ''))

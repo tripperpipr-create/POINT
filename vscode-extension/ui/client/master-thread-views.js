@@ -943,7 +943,9 @@ export function createMasterThreadViews(dependencies) {
         ${/* Идущий ход — одним блоком (master-stream-view.js): «Думаю…», след,
              живой ответ, а после конца — тот же ответ, пока не придёт история. */''}
         ${masterStreamBlockHtml()}
-        ${masterFastRunHtml(ui.masterData?.fastRun,esc,icon)}
+        ${masterFastRunHtml(ui.masterData?.fastRun, ui.masterData?.fastRunDetails, {
+          esc, icon, statusLabels, agentWorkTranscriptHtml, pendingDecisionsHtml: masterPendingDecisionsHtml,
+        })}
         ${factsShown ? '' : masterFactsHtml(response?.facts)}
         ${proposalShown ? '' : masterThreadProposalHtml(response?.proposal?.id)}
         ${actionProposalShown ? '' : masterThreadActionProposalHtml(response?.actionProposal?.id)}

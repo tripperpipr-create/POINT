@@ -139,6 +139,51 @@ func TestHostFastAgentWritesLiveWithoutRosterOrDocker(t *testing.T) {
 		})
 	}
 }
+// hostGitModel просит удалить ветку, а после ответа человека отчитывается.
+type hostGitModel struct{ calls atomic.Int32 }
+
+func (m *hostGitModel) Stream(_ context.Context, _ providers.ModelRequest, emit func(providers.ModelEvent) error) error {
+	if m.calls.Add(1) == 1 {
+		return emit(providers.ModelEvent{Kind: providers.EventToolCall, ToolCall: &providers.ToolCall{ID: "delete", Name: "run_command", Arguments: json.RawMessage(`{"command":"git branch -D feature","reason":"remove the merged branch"}`)}})
+	}
+	return emit(providers.ModelEvent{Kind: providers.EventTextDelta, Delta: "Ветка не удалена: человек отклонил."})
+}
+
+// 03.10 Fast Agent удалил ветку с уникальными коммитами без спроса: на
+// локальной полосе такие git-команды ждут человека, а отказ команду не пускает.
+func TestHostFastAgentAsksBeforeDiscardingGitWork(t *testing.T) {
+	a, _, s := hostFastFixture(t, false)
+	a.engine.SetModelFactory(func(providers.Config) (providers.Model, error) { return &hostGitModel{}, nil })
+	run, err := a.StartFastAgent(FastAgentRequest{WorkspaceID: s.WorkspaceID, RequestID: "git-delete", Task: "Удали ветку feature"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var pending domain.Approval
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) && pending.ID == "" {
+		approvals, _ := a.store.ApprovalsByRun(context.Background(), run.ID)
+		for _, approval := range approvals {
+			if approval.Status == domain.ApprovalPending {
+				pending = approval
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if pending.ID == "" || pending.ToolName != "run_command" || !strings.Contains(pending.Reason, "ветк") {
+		t.Fatalf("branch deletion ran without asking: %+v", pending)
+	}
+	if err = a.ResolveApproval(pending.ID, false); err != nil {
+		t.Fatal(err)
+	}
+	a.engine.WaitFinalized(run.ID, 5*time.Second)
+	events, _ := a.store.ListByRun(context.Background(), run.ID)
+	for _, event := range events {
+		if event.Type == domain.EventToolStarted && strings.Contains(string(event.Data), "run_command") {
+			t.Fatalf("denied command started: %s", event.Data)
+		}
+	}
+}
+
 func TestHostFastAgentWriterLeaseAndCancellation(t *testing.T) {
 	a, _, s := hostFastFixture(t, false)
 	a.engine.SetModelFactory(func(providers.Config) (providers.Model, error) { return &hostFastModel{block: true}, nil })

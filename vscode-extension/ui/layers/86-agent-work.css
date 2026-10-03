@@ -147,6 +147,31 @@
   color: var(--hub-muted);
 }
 
+/* Что именно агент вызвал: команда моноширинно, довод — мелко под ней.
+   Без этого строка хроники говорила «run_command · шаг 16» и только. */
+.agent-work-tool > div {
+  min-width: 0;
+}
+
+.agent-work-tool code {
+  margin-left: var(--s-2);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: var(--t-small);
+  color: var(--hub-text);
+  overflow-wrap: anywhere;
+}
+
+.agent-work-tool .agent-work-tool-why {
+  margin: var(--s-1) 0 0;
+  font-size: var(--t-small);
+  color: var(--hub-muted);
+}
+
+/* Риск подтверждения (удаление ветки, push) — над доводом агента. */
+.approval header .approval-risk {
+  color: var(--point-ember, var(--vscode-editorWarning-foreground));
+}
+
 .agent-work-card.is-pending {
   border-color: color-mix(in srgb, var(--hub-accent, var(--mana)) 45%, var(--hub-border));
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--hub-accent, var(--mana)) 18%, transparent);

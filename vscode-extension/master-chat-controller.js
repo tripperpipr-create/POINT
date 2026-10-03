@@ -307,7 +307,7 @@ async function handleMasterMessage(message) {
           if ((this.workspaceFolder()?.uri?.fsPath || '') !== requestedProject) break
           workspaceId=String(master.sessions?.workspaceId || workspaceId);await setMasterScope(this,workspaceId)
           post({type:'master',master,viewId:message.viewId,requestId:message.requestId,loaded:true})
-          if(master.fastRun && ['pending','running','waiting','paused'].includes(master.fastRun.status))void followFastRun(this,master.fastRun.id,master.sessions.workspaceId,master.sessions.active)
+          if(master.fastRun && ['pending','running','waiting_approval','paused'].includes(master.fastRun.status))void followFastRun(this,master.fastRun.id,master.sessions.workspaceId,master.sessions.active)
           for(const turn of master.activeTurns || []) void followMasterTurn(this,turn)
           watchMasterWorkOrders(this,master)
           void this.postChatDirectory?.()

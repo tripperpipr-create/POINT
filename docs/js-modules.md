@@ -317,7 +317,7 @@ Flow (`isRootQuest`) живут в `vscode-extension/ui/client/quest-status.js`:
 
 ## Master and POINT chat scope (2026-10-01)
 
-`vscode-extension/master-scope.js` binds workspace/conversation identifiers and follows local Fast runs. `master-fast-settings.js` edits the global system profile. `master-chat-controller.js` owns scoped session operations, chat files and explicit continuation in a project. `ui/client/master-fast-run.js` renders local run progress; `master-session-views.js` exposes auto/discuss/plan/fast modes. These host modules are included by `distribution/apply-overlay.mjs`; client modules are built into the Hub bundle.
+`vscode-extension/master-scope.js` binds workspace/conversation identifiers and follows local Fast runs, posting the run with its chronicle (without `model.streamed` events). `master-fast-settings.js` edits the global system profile. `master-chat-controller.js` owns scoped session operations, chat files and explicit continuation in a project. `ui/client/master-fast-run.js` renders the local run as a `hall-work` card: localized status, Stop, pending approvals and the shared `agent-work-transcript.js` chronicle, whose tool rows show the command or path and the agent's reason (smoke: `scripts/smoke-master-fast-run.js`); `master-session-views.js` exposes auto/discuss/plan/fast modes. These host modules are included by `distribution/apply-overlay.mjs`; client modules are built into the Hub bundle.
 
 ## Unified Git workspace (2026-10-03)
 

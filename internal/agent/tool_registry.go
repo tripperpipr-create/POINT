@@ -64,7 +64,8 @@ func buildToolRegistryWithExecution(fs *workspace.FS, customTools []domain.Custo
 		FS: fs, NetworkPolicy: networkPolicy, AllowedNetworkHosts: allowedNetworkHosts,
 		ConfirmedGitRemotes: append([]string(nil), confirmedRemotes...), Grants: grants,
 		Executor: executor, SandboxImage: sandboxImage, RunID: runID, QuestID: correlation.QuestID,
-		Authoritative: !writerStageRole(correlation.StageRole),
+		Authoritative:  !writerStageRole(correlation.StageRole),
+		HostOwnRemotes: executor == nil && len(profiles) > 0 && profiles[0].ExecutionMode == "host_live",
 	}
 	toolItems := []workbenchtools.Tool{
 		workbenchtools.ProjectMap{FS: fs}, workbenchtools.SearchCode{FS: fs}, workbenchtools.ListFiles{FS: fs},

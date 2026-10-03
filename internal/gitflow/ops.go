@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -17,6 +18,8 @@ import (
 // origin/main, иначе простой `git push` с push.default=upstream ушёл бы в main.
 // created — ветку создали сейчас (её можно убрать при откате).
 func Checkout(ctx context.Context, runner Runner, dir, branch, baseCommit string) (created bool, err error) {
+	unlock := LockRepository(ctx, runner, dir)
+	defer unlock()
 	current, _ := run(ctx, runner, dir, "branch", "--show-current")
 	if current == branch {
 		return false, nil
@@ -37,6 +40,8 @@ func Checkout(ctx context.Context, runner Runner, dir, branch, baseCommit string
 // UndoCheckout возвращает прежнюю ветку и удаляет созданную, если на ней
 // ничего нового нет.
 func UndoCheckout(ctx context.Context, runner Runner, dir, previous, branch, baseCommit string) {
+	unlock := LockRepository(ctx, runner, dir)
+	defer unlock()
 	if previous != "" {
 		_, _ = run(ctx, runner, dir, "switch", previous)
 	}
@@ -60,7 +65,9 @@ func Identity(ctx context.Context, runner Runner, dir string) (string, string, e
 
 // Commit коммитит ровно paths (относительно dir) с сообщением message от
 // имени пользователя git. Чужие изменения рабочего дерева в коммит не попадают:
-// `git commit -- paths` берёт только названные пути.
+// Временный index берёт только названные пути.
+// Commit uses a temporary index for quest files. The user's real index is
+// never used to assemble the quest commit; existing staged blobs survive.
 func Commit(ctx context.Context, runner Runner, dir string, paths []string, message string) (string, error) {
 	if len(paths) == 0 {
 		return "", ErrNothingToCommit
@@ -68,11 +75,30 @@ func Commit(ctx context.Context, runner Runner, dir string, paths []string, mess
 	if _, _, err := Identity(ctx, runner, dir); err != nil {
 		return "", err
 	}
+	unlock := LockRepository(ctx, runner, dir)
+	defer unlock()
+	snapshot, err := ReadSnapshot(ctx, runner, dir)
+	if err != nil {
+		return "", err
+	}
+	if snapshot.Operation != "" {
+		return "", errors.New("сначала завершите текущую Git-операцию")
+	}
+	for _, change := range snapshot.Changes {
+		if change.Area == "conflict" {
+			return "", errors.New("сначала разрешите конфликты")
+		}
+	}
 	clean := make([]string, 0, len(paths))
+	root, err := run(ctx, runner, dir, "rev-parse", "--show-toplevel")
+	if err != nil {
+		return "", err
+	}
+	prefix, _ := run(ctx, runner, dir, "rev-parse", "--show-prefix")
 	for _, item := range paths {
-		value := filepath.ToSlash(filepath.Clean(strings.TrimSpace(item)))
-		if value == "." || value == ".." || strings.HasPrefix(value, "../") || filepath.IsAbs(value) {
-			return "", fmt.Errorf("unsafe commit path %q", item)
+		value := filepath.ToSlash(filepath.Clean(item))
+		if _, err = SafePath(root, prefix+value); err != nil {
+			return "", err
 		}
 		clean = append(clean, value)
 	}
@@ -83,14 +109,58 @@ func Commit(ctx context.Context, runner Runner, dir string, paths []string, mess
 	if status == "" {
 		return "", ErrNothingToCommit
 	}
-	if _, err = run(ctx, runner, dir, append([]string{"add", "-A", "--"}, clean...)...); err != nil {
+	envRunner, ok := runner.(interface{ WithEnvironment(...string) Runner })
+	if !ok {
+		return "", errors.New("Git runner cannot preserve the user's index")
+	}
+	file, err := os.CreateTemp("", "point-quest-index-*")
+	if err != nil {
 		return "", err
 	}
-	if _, err = run(ctx, runner, dir, append([]string{"commit", "-m", message, "--"}, clean...)...); err != nil {
-		_, _ = run(ctx, runner, dir, append([]string{"reset", "-q", "--"}, clean...)...)
+	indexPath := file.Name()
+	file.Close()
+	os.Remove(indexPath)
+	defer os.Remove(indexPath)
+	temp := envRunner.WithEnvironment("GIT_INDEX_FILE=" + indexPath)
+	head, _ := run(ctx, runner, dir, "rev-parse", "--verify", "HEAD")
+	if head != "" {
+		_, err = run(ctx, temp, dir, "read-tree", head)
+	} else {
+		_, err = run(ctx, temp, dir, "read-tree", "--empty")
+	}
+	if err != nil {
 		return "", err
 	}
-	return run(ctx, runner, dir, "rev-parse", "HEAD")
+	staged, err := runner.Run(ctx, dir, "diff", "--cached", "--name-only", "-z")
+	if err != nil {
+		return "", err
+	}
+	prepared := map[string]bool{}
+	for _, name := range strings.Split(string(staged), "\x00") {
+		prepared[name] = true
+	}
+	if _, err = run(ctx, temp, dir, append([]string{"add", "-A", "--"}, clean...)...); err != nil {
+		return "", err
+	}
+	if _, err = run(ctx, temp, dir, "commit", "-m", message); err != nil {
+		return "", err
+	}
+	commit, err := run(ctx, runner, dir, "rev-parse", "HEAD")
+	if err != nil {
+		return "", err
+	}
+	var reset []string
+	for _, name := range clean {
+		if !prepared[prefix+name] {
+			reset = append(reset, name)
+		}
+	}
+	if len(reset) > 0 {
+		if _, err = run(ctx, runner, dir, append([]string{"reset", "-q", "HEAD", "--"}, reset...)...); err != nil {
+			return commit, fmt.Errorf("commit %s created; refresh index: %w", commit, err)
+		}
+	}
+	return commit, nil
 }
 
 // PushResult — что сказал сервер.
@@ -113,6 +183,8 @@ type MergeRequest struct {
 // была на сервере и push ничего не обновил, GitLab MR не создаёт — тогда
 // вызывающий открывает NewMRURL.
 func Push(ctx context.Context, runner Runner, dir, remote, branch string, mr *MergeRequest) (PushResult, error) {
+	unlock := LockRepository(ctx, runner, dir)
+	defer unlock()
 	if remote == "" {
 		remote = "origin"
 	}

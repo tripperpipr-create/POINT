@@ -1,6 +1,6 @@
 ARG NODE_MAJOR=20
 FROM node:${NODE_MAJOR}-bookworm-slim AS node-build
-ARG NPM_VERSION=10.9.0
+ARG NPM_VERSION=10.9.9
 RUN npm install --global npm@${NPM_VERSION}
 
 FROM cgr.dev/chainguard/wolfi-base@sha256:03c6561658909fc4eadd0b2dc717375df40a22cc05455b8f82f1f1974e7e4427 AS egress-build
@@ -14,7 +14,7 @@ RUN CGO_ENABLED=0 go build -trimpath -ldflags '-s -w' -o /out/point-egress-gatew
 ARG NODE_MAJOR
 FROM cgr.dev/chainguard/wolfi-base@sha256:03c6561658909fc4eadd0b2dc717375df40a22cc05455b8f82f1f1974e7e4427
 ARG NODE_MAJOR
-ARG NPM_VERSION=10.9.0
+ARG NPM_VERSION=10.9.9
 RUN apk add --no-cache \
       ca-certificates-bundle=20260611-r0 \
       git=2.55.0-r5 \

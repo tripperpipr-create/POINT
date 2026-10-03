@@ -163,6 +163,20 @@ const feedOf = html => html.split('hall-brief-panel')[0]
     'наряд в подборе выглядит как готовый к запуску или молчит о подборе')
 }
 
+// ── Отказ подбора: причина и повтор (TODO Q15) ─────────────────────────────
+{
+  const failed = {
+    id: 'workorder-brief-1', state: 'staffing', version: 2, digest: 'sha256:failed',
+    goal: READY.goal, routing: { fixedModel: 'qwen' }, roster: { selectionError: 'комплектовщик не ответил' },
+  }
+  const ui = open({ ...READY }, { workOrders: [failed] })
+  ui.click('master-brief-toggle')
+  const html = ui.root.innerHTML
+  check('отказ подбора можно повторить',
+    html.includes('Подбор не удался') && html.includes('комплектовщик не ответил') && html.includes('data-action="restaff-master-work-order-v2"'),
+    'отказ подбора не назван или из него нет выхода, кроме нового хода Мастера')
+}
+
 // ── Раскрытая панель: весь состав, но без запуска ──────────────────────────
 {
   const ui = open({ ...DISCUSSION })

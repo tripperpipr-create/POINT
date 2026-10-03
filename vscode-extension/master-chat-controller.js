@@ -414,6 +414,15 @@ async function handleMasterMessage(message) {
 		  post({type:'masterWorkOrderRevised',workOrder,viewId:message.viewId})
 		  break
 		}
+        case 'restaffMasterWorkOrderV2': {
+          // Повтор проваленного подбора (TODO Q15): ядро пишет версию в подборе,
+          // фоновый подбор дописывает состав, наблюдение ведёт карточку.
+          const id=String(message.workOrderId || '')
+          const workOrder=await request('/api/v2/work-orders/'+encodeURIComponent(id)+'/restaff',{method:'POST',body:JSON.stringify({apiKey:await this.credentialForOrchestrator()})})
+          post({type:'masterWorkOrderRevised',workOrder,viewId:message.viewId})
+          void watchMasterWorkOrder(this,id,message.conversationId)
+          break
+        }
         case 'hireMasterWorkOrderAgentV2': {
           const id=String(message.workOrderId || '')
           const result=await request('/api/v2/work-orders/'+encodeURIComponent(id)+'/hire-agent',{

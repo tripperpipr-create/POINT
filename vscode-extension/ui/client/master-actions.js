@@ -1,12 +1,10 @@
 // Клик-ветки разговора с Мастером и карточки наряда.
 //
-// Двадцать три ветки об одном: лента, поиск по ней, ответы и управление
+// Двадцать четыре ветки об одном: лента, поиск по ней, ответы и управление
 // нарядом. В общем обработчике они лежали вперемешку с Docker, Гильдией и
-// прогонами и читались только вместе со всем файлом.
-//
-// Границу держит `masterClient`: активная беседа, её черновики и ленты — его,
-// а не глобального состояния. Ветка ничего не решает сама, она доносит
-// намерение до ядра и просит перерисовку.
+// прогонами и читались только вместе со всем файлом. Границу держит
+// `masterClient`: активная беседа, её черновики и ленты — его, а не
+// глобального состояния. Ветка ничего не решает: доносит намерение и просит перерисовку.
 
 import { closeMasterMention, masterMentionState } from './master-mention-ui.js'
 import { masterAgentConsent } from './master-agent-card.js'
@@ -42,6 +40,7 @@ export function handleMasterClickAction({ action, target, ui, applyMasterFind, f
     sendMasterMessage(target.dataset.message || '')
     return true
   }
+  if (action === 'restaff-master-work-order-v2') { vscode.postMessage({type:'restaffMasterWorkOrderV2',workOrderId:String(target.dataset.id || '')}); return true }
   if (action === 'approve-master-work-order-v2') {
     const id=String(target.dataset.id || '')
     if (!id || ui.masterWorkOrderBusy.has(id)) return

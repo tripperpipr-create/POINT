@@ -65,11 +65,11 @@ type InspectOptions struct {
 // Repositories — репозитории папки проекта: тот, в котором она лежит (корень
 // или подпапка), иначе вложенные по правилам DiscoverGitRepos.
 func Repositories(ctx context.Context, runner Runner, root string) []RepoReport {
-	if top, err := run(ctx, runner, root, "rev-parse", "--show-toplevel"); err == nil && top != "" {
-		return []RepoReport{{Path: ".", Dir: filepath.Clean(filepath.FromSlash(top))}}
-	}
 	var repos []RepoReport
-	for _, rel := range workbenchtools.DiscoverGitRepos(root) {
+	if top, err := run(ctx, runner, root, "rev-parse", "--show-toplevel"); err == nil && top != "" {
+		repos = append(repos, RepoReport{Path: ".", Dir: filepath.Clean(filepath.FromSlash(top))})
+	}
+	for _, rel := range workbenchtools.DiscoverGitRepos(root, true) {
 		if rel == "." {
 			continue
 		}
@@ -101,7 +101,10 @@ func InspectRepo(ctx context.Context, runner Runner, report RepoReport, options 
 			timeout = 8 * time.Second
 		}
 		fetchCtx, cancel := context.WithTimeout(ctx, timeout)
-		if _, err := run(fetchCtx, runner, dir, "fetch", "--prune", "--quiet", "origin"); err != nil {
+		unlock := LockRepository(fetchCtx, runner, dir)
+		_, fetchErr := run(fetchCtx, runner, dir, "fetch", "--prune", "--quiet", "origin")
+		unlock()
+		if err := fetchErr; err != nil {
 			report.FetchError = clip(err.Error(), 300)
 		}
 		cancel()

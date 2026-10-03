@@ -42,6 +42,18 @@ func (s *Server) hireWorkOrderAgentV2(w http.ResponseWriter, r *http.Request) {
 	s.result(w, value, err)
 }
 
+// restaffWorkOrderV2 повторяет проваленный подбор состава (TODO Q15).
+func (s *Server) restaffWorkOrderV2(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		APIKey string `json:"apiKey,omitempty"`
+	}
+	if !s.decode(w, r, &input) {
+		return
+	}
+	value, err := s.app.RestaffWorkOrderV2(r.Context(), r.PathValue("id"), input.APIKey)
+	s.result(w, value, err)
+}
+
 func (s *Server) approveWorkOrderV2(w http.ResponseWriter, r *http.Request) {
 	var input app.ApproveWorkOrderV2Request
 	if !s.decode(w, r, &input) {

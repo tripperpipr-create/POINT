@@ -69,3 +69,40 @@ func TestDiagnosisSeparatesPreexistingFailures(t *testing.T) {
 		t.Fatalf("общий класс этапа: %s", only.Class)
 	}
 }
+
+// Q11: в цепочке писателей нетронутый проект видит только первый. Исходная
+// проверка идёт у него с критериями последнего писателя, а писатель, чей
+// исходник — правки предыдущего этапа, её не делает.
+func TestBaselineRunsAtTheFirstWriterOfAChain(t *testing.T) {
+	f := newVerificationFixture(t)
+	ctx := context.Background()
+	baseline := t.TempDir()
+	if err := os.WriteFile(filepath.Join(baseline, "package.json"), []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	f.record.BaselinePath = baseline
+	f.record.ParentExecutionID = "execution_first"
+	if err := f.app.store.SaveSandbox(ctx, f.record); err != nil {
+		t.Fatal(err)
+	}
+	before := f.backend.runs()
+	if err := f.app.runBaselineVerificationV2(ctx, f.flowRun.ID, f.writer.ID, f.execution.ID); err != nil {
+		t.Fatal(err)
+	}
+	if f.backend.runs() != before {
+		t.Fatal("исходная проверка шла на дереве после правок предыдущего этапа")
+	}
+	f.record.ParentExecutionID = ""
+	if err := f.app.store.SaveSandbox(ctx, f.record); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.app.runBaselineVerificationV2(ctx, f.flowRun.ID, "node_first", f.execution.ID); err != nil {
+		t.Fatal(err)
+	}
+	if f.backend.runs() == before {
+		t.Fatal("первый писатель цепочки не получил исходную проверку")
+	}
+	if statuses := f.app.baselineCriterionStatuses(ctx, f.flowRun.ID); statuses["verify"] == "" {
+		t.Fatalf("исход исходной проверки первого писателя не записан: %v", statuses)
+	}
+}

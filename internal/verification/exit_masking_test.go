@@ -27,3 +27,20 @@ func TestMasksExitCode(t *testing.T) {
 		}
 	}
 }
+
+// Q08: в cmd.exe нет pipefail, и код конвейера — код последней команды.
+// Конвейер вне кавычек находится, `||`, `^|` и `|` в кавычках — нет.
+func TestTopLevelPipe(t *testing.T) {
+	for command, want := range map[string]bool{
+		"npm run verify | findstr ERROR": true,
+		"npm ci && npm run verify":       false,
+		"npm test || exit 1":             false,
+		`findstr "a|b" log.txt`:          false,
+		"echo a^|b":                      false,
+		"go test ./... 2>&1 | tail -20":  true,
+	} {
+		if got := TopLevelPipe(command); got != want {
+			t.Fatalf("TopLevelPipe(%q) = %v, want %v", command, got, want)
+		}
+	}
+}

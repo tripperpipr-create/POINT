@@ -197,6 +197,17 @@ func (a *App) gitlabSession(ctx context.Context) (gitlabSession, error) {
 		return gitlabSession{}, &gitlabFailure{GitLabNotConfigured, "GitLab не подключён",
 			"Общие настройки → Интеграции и MCP → GitLab: адрес сервера и личный токен"}
 	}
+	// Once migrated, old routes use the same connection transport as the workbench.
+	if _, settingErr := a.store.Setting(ctx, forgeSettingsKey); settingErr == nil {
+		p, connection, err := a.forgeProvider(ctx, "gitlab-legacy")
+		if err != nil {
+			return gitlabSession{server: server}, err
+		}
+		if rest, ok := p.(*gitlab.RESTClient); ok {
+			server.Settings["url"] = connection.URL
+			return gitlabSession{server: server, client: rest.LegacyClient()}, nil
+		}
+	}
 	view := a.mcpServerView(ctx, server, nil)
 	if !view.Trusted {
 		return gitlabSession{server: server}, &gitlabFailure{GitLabNotTrusted, "запуск сервера GitLab не одобрен",

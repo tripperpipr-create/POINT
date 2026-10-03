@@ -7,12 +7,14 @@ import (
 	"fmt"
 	"net/http"
 	"os/exec"
+	"runtime"
 	"strings"
 	"time"
 
 	"local-agent-workbench/internal/domain"
 	"local-agent-workbench/internal/osproc"
 	"local-agent-workbench/internal/security"
+	"local-agent-workbench/internal/verification"
 )
 
 // CompletionCheckRunner executes one approved completion command against the
@@ -26,6 +28,7 @@ type shellCompletionCheckRunner struct{}
 
 func (shellCompletionCheckRunner) Run(ctx context.Context, directory, command string) (int, string, error) {
 	output, err := completionShellCommand(ctx, directory, command).CombinedOutput()
+	output = append([]byte(completionPipeNote(command)), output...)
 	var exitError *exec.ExitError
 	if errors.As(err, &exitError) {
 		// A failing check is evidence, not an infrastructure error: the exit
@@ -36,6 +39,15 @@ func (shellCompletionCheckRunner) Run(ctx context.Context, directory, command st
 		return 0, string(output), err
 	}
 	return 0, string(output), nil
+}
+
+// completionPipeNote предупреждает в выводе проверки на хосте, что код
+// конвейера в cmd.exe — код последней команды: pipefail там нет (Q08).
+func completionPipeNote(command string) string {
+	if runtime.GOOS != "windows" || !verification.TopLevelPipe(command) {
+		return ""
+	}
+	return "[Point] cmd.exe без pipefail: код выхода — код последней команды конвейера, провал до неё в код не попадает.\n"
 }
 
 // completionCheckTimeout bounds one approved command. Without a ceiling a hung

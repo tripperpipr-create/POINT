@@ -84,179 +84,106 @@ assert.match(formatVcsError('Push недоступен', new Error('remote rejec
   assert.equal(broken.assign['a.js'], 'default', 'an assignment to a deleted folder falls back too')
 }
 
-const extensionSource = extensionHostSource()
-const infraSource = fs.readFileSync(path.resolve(__dirname, '..', 'vscode-extension', 'infra-controller.js'), 'utf8')
-const gitHostSource = `${extensionSource}\n${infraSource}`
-// Вебвью читается деревом модулей, а не парой файлов: обработчики переезжают
-// из main.js в свои модули (перетаскивание — в drag-drop.js), и проверка по
-// имени файла падала бы на переезде, а отрицательная — проходила вхолостую.
-const uiClientDir = path.resolve(__dirname, '..', 'vscode-extension', 'ui', 'client')
-const uiModules = fs.readdirSync(uiClientDir).filter(name => name.endsWith('.js')).sort()
-assert.ok(uiModules.includes('main.js') && uiModules.includes('git-views.js') && uiModules.length > 50, `webview module tree looks empty: ${uiModules.length}`)
-const uiSource = uiModules.map(name => fs.readFileSync(path.join(uiClientDir, name), 'utf8')).join('\n')
-const gitCss = fs.readFileSync(path.resolve(__dirname, '..', 'vscode-extension', 'ui', 'layers', '96-tool-windows1-git.css'), 'utf8')
 
-assert.match(extensionSource, /case 'gitAction'/, 'Git tool window must route its own actions')
-assert.match(extensionSource, /repo\.state\.untrackedChanges/, 'untracked files must be shown')
-assert.match(gitHostSource, /commitPaths\(root, commitMessage, paths, amend\)/, 'the commit must be assembled from the checked paths')
-assert.match(extensionSource, /args\.push\('--', \.\.\.paths\)/, 'commit must not go through the index')
-assert.match(gitHostSource, /useTrash: true/, 'discarding an untracked file must use the OS trash')
-assert.match(extensionSource, /repo\.push\(remoteName, head\.name, !head\.upstream\)/, 'first push must publish the current branch')
-// Переименование Git держит двумя записями: коммит обязан нести обе, иначе
-// старый путь остаётся висеть удалённым.
-assert.match(gitHostSource, /\[item\.path, item\.originalPath\]\.filter\(Boolean\)/, 'a renamed file must commit both of its paths')
-assert.match(gitHostSource, /action === 'commitAndPush'/, 'commit and push must be one action')
-// Расширение Git принимает то Uri, то строки. Ошибка возникает до запуска git,
-// поэтому вторая попытка безопасна — но она обязана существовать.
-assert.match(gitHostSource, /gitFileCommand\(repo, 'add'/, 'staging must survive both shapes of the Git API')
-assert.match(extensionSource, /list\.map\(uri => uri\.fsPath\)/, 'the fallback must pass plain paths')
-assert.doesNotMatch(uiSource, /function gitToolView\(\)[\s\S]*?localAgent\.vcsCommit[\s\S]*?function terminalToolView/, 'Git flow must stay inside the right tool window')
-assert.match(uiSource, /id="git-commit-form"/, 'Git tool must include an inline commit form')
-// Различия смотрят в редакторе: у него подсветка, навигация по изменениям и
-// правка прямо в сравнении. Панель отвечает за то, что войдёт в коммит.
-assert.match(uiSource, /data-action="git-select"/, 'a change row must be selectable')
-assert.match(uiSource, /action: 'openChange', path: file/, 'a change row must open the diff in the editor')
-assert.doesNotMatch(uiSource, /gitDiffBodyHtml/, 'the panel must not render diffs on its own')
-assert.doesNotMatch(gitHostSource, /gitDiffRows/, 'the core must not parse diffs for the panel')
-assert.match(extensionSource, /'stash', 'list'/, 'the panel must read the stash')
-// Журнал коммитов — вкладка редактора (Летопись, Alt+9), а не вторая лента в
-// узком окне: два списка одного и того же расходятся на первой же правке.
-// Поэтому у окна Git нет ни вкладки «История», ни запроса состава коммита.
-assert.doesNotMatch(uiSource, /id: 'history', label: 'История'/, 'the Git window must not carry a second commit log')
-assert.doesNotMatch(uiSource, /action: 'loadCommit'/, 'the Git window must not read commit contents on its own')
-assert.match(uiSource, /data-git-action="history"/, 'the Git window must open the journal instead')
-assert.match(gitHostSource, /action === 'history'[\s\S]{0,120}localAgent\.openChronicle/, 'the journal action must open the chronicle')
-assert.match(uiSource, /name="git-file"/, 'every change must carry its own commit checkbox')
-// Папка — одна строка с полным путём, под ней её файлы: как в макете.
-assert.match(uiSource, /function gitRowsHtml/, 'files must be grouped by their directory')
-assert.doesNotMatch(uiSource, /gitCompactDirs/, 'the nested tree must be gone')
-// Расширение git просыпается по встроенной «Летописи», а она скрыта: без
-// собственного толчка заголовок и строка состояния молчат о ветке до первого
-// открытия панели Git.
-assert.match(extensionSource, /void provider\.gitContext\(\)\.catch/, 'the extension must wake the Git extension on startup')
-const overlaySource = readOverlaySource()
-assert.match(overlaySource, /point-branch-chip/, 'the title bar must carry the branch chip')
-assert.match(overlaySource, /scmActiveRepositoryBranchName/, 'the chip must read the branch from the SCM context key')
-assert.match(extensionSource, /if \(amend\) args\.push\('--amend'\)/, 'the panel must be able to amend the last commit')
-assert.match(uiSource, /gitActionButton\('moveToList'/, 'changes must be movable between folders')
-assert.match(uiSource, /action: 'moveToList', path, list/, 'dragging a file between folders must move it')
-assert.match(uiSource, /Вне репозитория/, 'files unknown to Git must have their own group')
-assert.match(uiSource, /message\.type === 'gitActionResult'/, 'Git result must unlock and refresh the interface')
-// Панель собрана по макету Nocturne и живёт в своём пространстве имён.
-assert.match(gitCss, /\.nc-commit \{/, 'the commit bar must have its own styles')
-assert.match(gitCss, /\.nc-file \{/, 'change rows must have compact styles')
-assert.match(gitCss, /\.nc-file\.is-deleted \.nc-file-main strong \{ text-decoration: line-through; \}/, 'a deleted file must read as deleted')
-assert.match(gitCss, /--nc-list-w/, 'the list column must keep the width from the design')
+async function workbenchSmoke() {
+  const {createGitWorkbenchTools}=require('../vscode-extension/git-workbench-controller')
+  const calls=[]
+  const root='C:\\fixture',workspaceId='world-1'
+  const state={root,revision:'seen-revision',head:'abc',branch:'main',remote:'origin/main',remotes:[{name:'origin'}],
+    branches:['main'],changes:[{path:'shared.txt',area:'staged'},{path:'shared.txt',area:'working'}]}
+  const repo={rootUri:{fsPath:root}}
+  const tools=createGitWorkbenchTools({path,vscode:{window:{
+    showWarningMessage:async()=> 'Выполнить',
+  }}})
+  const provider={
+    gitContext:async()=>({repo}),gitWorkbenchState:{...state,workspaceId},
+    service:{request:async(route,opts)=>{
+      const body=JSON.parse(opts.body);calls.push({route,body})
+      return {snapshot:state,message:'done',commit:'abc'}
+    }},
+  }
+  await tools.runGitWorkbenchAction(provider,{action:'commit',message:'Prepared only',paths:['unselected.txt'],revision:'seen-revision',type:'gitAction'})
+  assert.equal(calls[0].route,'/api/v2/git/actions')
+  assert.equal(calls[0].body.revision,'seen-revision')
+  assert.equal(calls[0].body.workspaceId,workspaceId)
+  assert.equal(calls[0].body.repoRoot,root)
+  assert.equal(calls[0].body.type,undefined,'transport fields must not leak to core')
+  await tools.runGitWorkbenchAction(provider,{action:'stage',path:'shared.txt',revision:'old-view'})
+  assert.equal(calls[1].body.revision,'old-view','never silently replace the revision the user saw')
 
-const listeners = {}
-const posted = []
-const root = {
-  innerHTML: '',
-  addEventListener(type, callback) { listeners[`root:${type}`] = callback },
-  querySelector() { return null },
-  querySelectorAll() { return [] },
+  const listeners={},posted=[]
+  const source=fs.readFileSync(path.resolve(__dirname,'../vscode-extension/ui/client/git-workspace-ui.js'),'utf8').replace(/export function/g,'function').replace(/^import[^\n]+\n/,'')
+  const context={
+    document:{body:{dataset:{}},hidden:false},window:{addEventListener(){}},
+    setTimeout(){return 1},clearTimeout(){},setInterval(){return 1},clearInterval(){},
+    console,Map,Set,Promise,JSON,countOf:(count,one,few,many)=>count+' '+(count===1?one:count<5?few:many),
+  }
+  vm.createContext(context);vm.runInContext(source,context)
+  const fixture={workspaces:[{root,name:'fixture',branch:'main',changes:2}]}
+  let ui
+  const transport={postMessage(m){
+    posted.push(m)
+    const result=m.op==='inventory'?{workspaceId,repositories:fixture.workspaces}:m.op==='connections'?[]:
+      m.op==='bindings'?{candidates:[]}:m.op==='status'?{git:state}:[]
+    queueMicrotask(()=>ui.receive({type:'gitWorkspaceResult',id:m.id,ok:true,data:result}))
+  }}
+  ui=context.createGitWorkspaceUi({root:{},vscode:transport,render(){},persist(){},persisted:{screen:'changes'}})
+  ui.start()
+  await new Promise(resolve=>setImmediate(resolve))
+  assert.match(ui.view(),/Подготовленные/)
+  assert.match(ui.view(),/Неподготовленные/)
+  assert.match(ui.view(),/data-path="shared.txt" data-area="staged"/);assert.match(ui.view(),/data-path="shared.txt" data-area="working"/,'same path has independent staged and working actions')
+  ui.input({target:{id:'gw-commit',dataset:{gwField:'commit'},value:'keep me',type:'textarea'}})
+  const saved=ui.snapshot()
+  assert.equal(saved.drafts[workspaceId+':'+root].commit,'keep me')
+  await ui.click('gw-refresh',{dataset:{}})
+  assert.match(ui.view(),/keep me/,'draft survives refresh')
+
+  const actionsSource=fs.readFileSync(path.resolve(__dirname,'../vscode-extension/ui/client/git-actions.js'),'utf8').replace(/export function/g,'function')
+  vm.runInContext(actionsSource,context)
+  const panel={gitCommitDraft:'legacy',gitChecked:new Set(),gitKnown:new Set(),gitCollapsed:new Set()}
+  const memory=context.createGitPanelMemory(panel)
+  memory.select('world:a');panel.gitCommitDraft='A';panel.gitChecked.add('a.txt')
+  memory.select('world:b');assert.equal(panel.gitCommitDraft,'');panel.gitCommitDraft='B'
+  memory.select('world:a');assert.equal(panel.gitCommitDraft,'A');assert.ok(panel.gitChecked.has('a.txt'))
+  const restored={gitChecked:new Set(),gitKnown:new Set(),gitCollapsed:new Set()}
+  const reopened=context.createGitPanelMemory(restored,memory.snapshot())
+  reopened.select('world:b');assert.equal(restored.gitCommitDraft,'B')
+  const graph=context.graphRows([{hash:'merge',parents:['left','right']},{hash:'left',parents:['base']},{hash:'right',parents:['base']},{hash:'base',parents:[]}])
+  assert.match(graph[0].graph,/родителей: 2/)
+  assert.ok(graph[0].graph.match(/<path/g).length===2,'merge emits two parent connections')
+  assert.match(ui.view(),/Коммит включает только содержимое index/)
+
+  const commands=new Map(),opened=[],reviewWrites=[]
+  const makeUri=spec=>({...spec,toString:()=>JSON.stringify(spec)})
+  const review={sha:'head',diffRefs:{baseSha:'base',headSha:'head',startSha:'start'}}
+  const native={Uri:{from:makeUri,parse:raw=>makeUri(JSON.parse(raw))},
+    Range:class {constructor(line){this.start={line};this.end={line}}},CommentMode:{Preview:1},CommentThreadState:{},
+    workspace:{registerTextDocumentContentProvider(){return {dispose(){}}}},
+    window:{showErrorMessage(message){throw new Error(message)}},
+    comments:{createCommentController(){return {options:{},dispose(){}}}},
+    commands:{registerCommand(name,fn){commands.set(name,fn);return {dispose(){}}},
+      async executeCommand(name,...args){opened.push(args)}},
+  }
+  const editorModule={exports:{}}
+  vm.runInNewContext(fs.readFileSync(path.resolve(__dirname,'../vscode-extension/git-review-editors.js'),'utf8'),
+    {require:()=>native,module:editorModule,Map,Set,JSON,Date,console})
+  const editors=editorModule.exports.createReviewEditors({context:{subscriptions:[]}},async input=>{
+    if(input.action==='review')return {data:review}
+    if(input.action==='discussions')return {data:[]}
+    reviewWrites.push(input);return {data:{done:true}}
+  },async()=>{})
+  await editors.openDiff({review,file:{oldPath:'a.txt',newPath:'a.txt',
+    diff:'--- a/a.txt\n+++ b/a.txt\n@@ -10,3 +10,3 @@\n keep\n-old\n+new\n next\n'},
+    connectionId:'account',project:'group/repo',iid:7})
+  const [left,right]=opened[0]
+  for(const [uri,line] of [[right,10],[left,10],[right,11]]) {
+    await commands.get('localAgent.reviewReply')({text:'Review',thread:{uri,range:new native.Range(line),dispose(){}}})
+  }
+  assert.equal(reviewWrites[0].position.newLine,11);assert.equal(reviewWrites[0].position.oldLine,undefined)
+  assert.equal(reviewWrites[1].position.oldLine,11);assert.equal(reviewWrites[1].position.newLine,undefined)
+  assert.equal(reviewWrites[2].position.oldLine,12);assert.equal(reviewWrites[2].position.newLine,12)
+  assert.ok(reviewWrites.every(write=>write.expectedSha==='head'&&write.position.headSha==='head'))
+  console.log('smoke-git-workflow: ok (core routing, revision, separate index, graph, draft)')
 }
-const webviewContext = {
-  acquireVsCodeApi: () => ({
-    postMessage(message) { posted.push(message) },
-    getState() { return undefined },
-    setState() {},
-  }),
-  document: { getElementById: id => id === 'root' ? root : undefined, body: { dataset: { layout: 'tool-git' } } },
-  window: { addEventListener(type, callback) { listeners[`window:${type}`] = callback } },
-  console,
-  Date,
-  Map,
-  Set,
-  CSS: { escape(value) { return String(value) } },
-  requestAnimationFrame(callback) { callback(); return 0 },
-  cancelAnimationFrame() {},
-  // Отложенные таймеры в смоуке не срабатывают: иначе уведомление, которое в
-  // панели гаснет через четыре секунды, исчезает в тот же миг, и проверить
-  // «панель объяснила, что сделала» становится нечем.
-  setTimeout(callback, delay) { if (!delay) callback(); return 0 },
-  clearTimeout() {},
-}
-const webviewBundle = fs.readFileSync(path.resolve(__dirname, '..', 'vscode-extension', 'media', 'main.js'), 'utf8')
-vm.runInNewContext(webviewBundle, webviewContext, { filename: 'media/main.js' })
-listeners['window:message']({ data: {
-  type: 'state', service: { state: 'stopped' }, workspaceTrusted: true, workspace: 'fixture',
-  selectedTab: 'overview', boot: undefined, details: undefined,
-} })
-const gitSnapshot = {
-  kind: 'git', available: true, repository: 'fixture', root: 'C:\fixture', branch: 'main',
-  remote: 'origin/main', ahead: 1, behind: 2, repositories: [{ root: 'C:\fixture', name: 'fixture', selected: true }],
-  activeList: 'default',
-  changeLists: [
-    { id: 'default', name: 'Изменения', active: true, count: 1 },
-    { id: 'l1', name: 'Рефакторинг', active: false, count: 1 },
-  ],
-  changes: [
-    { path: 'src/staged.js', area: 'staged', staged: true, status: 0, list: 'default' },
-    { path: 'src/working.js', area: 'working', staged: false, status: 5, list: 'l1' },
-    { path: 'src/new.js', area: 'untracked', staged: false, status: 7, list: 'untracked' },
-  ],
-  commits: [{ shortHash: 'abc12345', message: 'Initial commit', author: 'Point', date: '2026-01-01T10:00:00Z', insertions: 4, deletions: 1 }],
-}
-listeners['window:message']({ data: { type: 'toolWindowState', snapshot: gitSnapshot } })
-for (const required of ['git-commit-form', 'Изменения', 'Рефакторинг', 'Вне репозитория', 'staged.js', 'new.js', 'Коммит и пуш', 'data-git-action="push"', 'data-git-action="pull"', 'data-action="git-tab"', 'class="nc-dir"', 'class="nc-icon"']) {
-  assert.ok(root.innerHTML.includes(required), `Git tool UI is missing: ${required}`)
-}
-// Отмечено то, что Git уже видел; новый файл ждёт отдельного решения.
-assert.ok(root.innerHTML.includes('выбрано 2 из 3'), 'tracked changes must be checked by default')
-assert.match(root.innerHTML, /value="src\/new\.js"(?![^>]*checked)/, 'an untracked file must not be checked on its own')
-
-function clickGit(action, extra = {}) {
-  listeners['root:click']({ target: { closest(selector) {
-    if (selector === '[data-example]') return null
-    if (selector === '[data-action]') return { dataset: { action, ...extra } }
-    return null
-  } } })
-}
-function changeGit(target) {
-  listeners['root:change']({ target: { closest() { return null }, ...target } })
-}
-
-// Дерево папок: вложенность, сворачивание и кнопка новой папки изменений.
-// Панель рисует дерево по сегментам пути, поэтому у каждой папки своя строка со
-// своим ключом сворачивания — по нему и проверяем, что она сворачивается.
-assert.ok(root.innerHTML.includes('data-list="dir:src"'), 'the tree must offer a collapsible folder row')
-assert.ok(root.innerHTML.includes('data-git-action="createList"'), 'the panel must offer a new change folder')
-assert.ok(root.innerHTML.includes('staged.js'), 'a file inside the folder must be visible while it is expanded')
-clickGit('git-collapse', { list: 'dir:src' })
-assert.ok(!root.innerHTML.includes('staged.js'), 'a collapsed folder must hide its files')
-assert.ok(root.innerHTML.includes('data-list="dir:src"'), 'a collapsed folder keeps its own row')
-clickGit('git-collapse', { list: 'dir:src' })
-assert.ok(root.innerHTML.includes('staged.js'), 'a folder must expand back')
-
-// Перенос файла в другую папку — то же действие, что и перетаскивание.
-clickGit('git-action', { gitAction: 'moveToList', path: 'src/working.js', list: 'default' })
-assert.deepEqual(
-  posted.find(message => message.type === 'gitAction' && message.action === 'moveToList'),
-  { type: 'gitAction', action: 'moveToList', path: 'src/working.js', list: 'default', stash: '', target: '', paths: [], repoRoot: 'C:\fixture' },
-)
-listeners['window:message']({ data: { type: 'gitActionResult', ok: true, action: 'moveToList', message: 'Перенесено', snapshot: gitSnapshot } })
-
-// Снятая отметка — решение человека: коммит собирается из оставшихся файлов.
-changeGit({ name: 'git-file', value: 'src/working.js', checked: false })
-listeners['root:input']({ target: { id: 'git-commit-message', value: 'Понятный Git-поток', closest() { return null } } })
-listeners['root:submit']({ preventDefault() {}, target: { id: 'git-commit-form' } })
-const commit = posted.find(message => message.type === 'gitAction' && message.action === 'commit')
-assert.ok(commit, 'Git commit form was not wired')
-assert.equal(commit.message, 'Понятный Git-поток')
-assert.deepEqual(commit.paths, ['src/staged.js'], 'only the checked files must reach the commit')
-
-listeners['window:message']({ data: { type: 'gitActionResult', ok: true, action: 'commit', message: 'Коммит создан', snapshot: { ...gitSnapshot, changes: [] } } })
-assert.ok(root.innerHTML.includes('Коммит создан'), 'successful Git action was not explained in the panel')
-
-// «Только эту» собирает коммит из одной папки, не трогая остальные отметки.
-listeners['window:message']({ data: { type: 'toolWindowState', snapshot: gitSnapshot } })
-clickGit('git-select-only', { list: 'l1' })
-assert.ok(root.innerHTML.includes('выбрано 1 из 3'), 'selecting a single folder must narrow the commit')
-listeners['root:input']({ target: { id: 'git-commit-message', value: 'Только рефакторинг', closest() { return null } } })
-clickGit('git-commit-push')
-const pushed = posted.find(message => message.type === 'gitAction' && message.action === 'commitAndPush')
-assert.ok(pushed, 'commit and push must be reachable in one click')
-assert.deepEqual(pushed.paths, ['src/working.js'], 'commit and push must use the same selection')
-
-console.log('smoke-git-workflow: ok')
+workbenchSmoke().catch(error=>{console.error(error);process.exitCode=1})

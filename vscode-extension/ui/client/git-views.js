@@ -99,14 +99,10 @@ export function createGitViews({
   }
 
   function gitCheckedPaths() {
-    return gitChanges().map(item => String(item.path)).filter(path => ui.checked.has(path))
+    return [...new Set(gitChanges().filter(item => item.area === 'staged').map(item => String(item.path)))]
   }
 
-  function gitGroupOf(item) {
-    if (item?.area === 'conflict') return 'conflict'
-    if (item?.area === 'untracked') return 'untracked'
-    return String(item?.list || 'default')
-  }
+  function gitGroupOf(item) { return item?.area || 'working' }
 
   function gitGroupPaths(id) {
     return gitChanges().filter(item => gitGroupOf(item) === id).map(item => String(item.path))
@@ -120,7 +116,7 @@ export function createGitViews({
       const path = String(item.path || '')
       if (!path || ui.known.has(path)) continue
       ui.known.add(path)
-      if (item.area !== 'untracked') ui.checked.add(path)
+      // Selection is for batch actions; index alone determines the commit.
     }
     if (!ui.foldedOnce && changes.length) {
       ui.foldedOnce = true
@@ -134,6 +130,7 @@ export function createGitViews({
     const data = [
       `data-action="git-action"`,
       `data-git-action="${esc(action)}"`,
+      options.area ? `data-area="${esc(options.area)}"` : '',
       options.path ? `data-path="${esc(options.path)}"` : '',
       options.list ? `data-list="${esc(options.list)}"` : '',
       options.stash ? `data-stash="${esc(options.stash)}"` : '',
@@ -178,13 +175,15 @@ export function createGitViews({
       }${gitActionButton('moveToList', '＋ Новый список...', 'quiet', { path, list: 'new' })}`
 
     return `<div class="nc-menu-body">
-      ${gitActionButton('openChange', 'Сравнить в редакторе', 'quiet', { path, shortcut: 'Ctrl+D' })}
+      ${gitActionButton('openChange', 'Сравнить в редакторе', 'quiet', { path, area: item.area, shortcut: 'Ctrl+D' })}
       ${gitActionButton('openFile', 'Перейти к файлу', 'quiet', { path, shortcut: 'F4' })}
       ${gitActionButton('discard', untracked ? 'Удалить файл...' : 'Откатить изменения...', 'quiet danger', {
         path,
         shortcut: 'Ctrl+Alt+Z',
         title: untracked ? 'Переместить новый файл в корзину' : 'Вернуть версию из последнего коммита',
       })}
+      ${gitActionButton(item.area === 'staged' ? 'unstageBlocks' : 'stageBlocks', item.area === 'staged' ? 'Снять подготовку блоков…' : 'Подготовить блоки…', 'quiet', { path })}
+      ${gitActionButton(item.area === 'staged' ? 'unstageLines' : 'stageLines', item.area === 'staged' ? 'Снять подготовку строк…' : 'Подготовить строки…', 'quiet', { path })}
       ${targets}
     </div>`
   }
@@ -215,8 +214,8 @@ export function createGitViews({
     const wasName = !oldPath || oldPath === path ? '' : oldName === name ? (oldDir || 'корня') : oldName
 
     return `<div class="nc-file is-${esc(kind)}${checked ? ' is-checked' : ''}${selected ? ' is-selected' : ''}" data-path="${esc(path)}"${item.area === 'untracked' ? '' : ' draggable="true"'}>
-      <input type="checkbox" name="git-file" value="${esc(path)}"${checked ? ' checked' : ''} aria-label="${esc(`${name} — включить в коммит`)}">
-      <button type="button" class="nc-file-main" data-action="git-select" data-path="${esc(path)}" title="${esc(hint)}">
+      <input type="checkbox" name="git-file" value="${esc(path)}"${checked ? ' checked' : ''} aria-label="${esc(`${name} — выбрать для группового действия`)}">
+      <button type="button" class="nc-file-main" data-action="git-select" data-area="${esc(item.area)}" data-path="${esc(path)}" title="${esc(hint)}">
         ${gitFileBadge(name, kind)}
         <strong>${esc(name)}</strong>
         ${ui.flat && dir ? `<small>${esc(dir)}</small>` : ''}
@@ -225,9 +224,10 @@ export function createGitViews({
         ${item.area === 'conflict' ? `<em class="nc-warn-mark" title="Конфликт">${gitIcon('warning', 12)}</em>` : ''}
         ${stats}
       </button>
+      ${item.area === 'conflict' ? gitActionButton('openMerge', 'Разрешить', 'quiet', { path }) : gitActionButton(item.area === 'staged' ? 'unstage' : 'stage', item.area === 'staged' ? '−' : '+', 'nc-icon-btn', { path, title: item.area === 'staged' ? 'Снять подготовку файла' : 'Подготовить файл' })}
       <div class="nc-menu">
-        <button type="button" class="nc-icon-btn nc-more" data-action="git-menu" data-menu="file:${esc(path)}" title="Действия с файлом" aria-label="${esc(`Действия с файлом ${name}`)}">${gitIcon('dots', 13)}</button>
-        ${ui.menuFor === `file:${path}` ? gitFileMenuHtml(item) : ''}
+        <button type="button" class="nc-icon-btn nc-more" data-action="git-menu" data-menu="file:${esc(item.area)}:${esc(path)}" title="Действия с файлом" aria-label="${esc(`Действия с файлом ${name}`)}">${gitIcon('dots', 13)}</button>
+        ${ui.menuFor === `file:${item.area}:${path}` ? gitFileMenuHtml(item) : ''}
       </div>
     </div>`
   }
@@ -290,7 +290,7 @@ export function createGitViews({
 
     return `<div class="nc-dir" data-path="${esc(path)}">
       <button type="button" class="nc-dir-twist" data-action="git-collapse" data-list="dir:${esc(path)}" aria-expanded="${collapsed ? 'false' : 'true'}" aria-label="${esc(collapsed ? `Раскрыть ${name}` : `Свернуть ${name}`)}">${gitIcon(collapsed ? 'caretRight' : 'caretDown', 13)}</button>
-      <input type="checkbox" name="git-dir" value="${esc(path)}"${isAllChecked ? ' checked' : ''}${isIndeterminate ? ' data-indeterminate="true"' : ''} aria-label="${esc(`${name} — включить папку в коммит`)}">
+      <input type="checkbox" name="git-dir" value="${esc(path)}"${isAllChecked ? ' checked' : ''}${isIndeterminate ? ' data-indeterminate="true"' : ''} aria-label="${esc(`${name} — выбрать папку для действия`)}">
       <button type="button" class="nc-dir-main" data-action="git-collapse" data-list="dir:${esc(path)}" title="${esc(`${path} · ${words}`)}">
         <i class="nc-dir-glyph">${gitIcon('folder', 13)}</i>
         <span>${gitDirLabel(segments)}</span>
@@ -340,7 +340,7 @@ export function createGitViews({
     const list = group.menu
     const paths = group.items.map(item => String(item.path))
     const only = group.items.length && group.selectable
-      ? `<button type="button" class="quiet" data-action="git-select-only" data-list="${esc(group.id)}" title="Отметить для коммита только файлы этого списка"><span>Отметить только этот список</span></button>`
+      ? `<button type="button" class="quiet" data-action="git-select-only" data-list="${esc(group.id)}" title="Выбрать файлы этого списка для группового действия"><span>Отметить только этот список</span></button>`
       : ''
     if (!list) {
       return `<div class="nc-menu-body">
@@ -369,8 +369,8 @@ export function createGitViews({
     const items = group.items
     const collapsed = ui.collapsed.has(group.id)
     const checked = items.filter(item => ui.checked.has(String(item.path))).length
-    const box = items.length
-      ? `<input type="checkbox" name="git-group" value="${esc(group.id)}"${checked === items.length ? ' checked' : ''}${checked > 0 && checked < items.length ? ' data-indeterminate="true"' : ''} aria-label="${esc(`${group.title} — включить в коммит`)}">`
+    const box = items.length && group.selectable
+      ? `<input type="checkbox" name="git-group" value="${esc(group.id)}"${checked === items.length ? ' checked' : ''}${checked > 0 && checked < items.length ? ' data-indeterminate="true"' : ''} aria-label="${esc(`${group.title} — выбрать для группового действия`)}">`
       : '<i class="nc-box-dot" aria-hidden="true"></i>'
     const menu = group.menu || (items.length && group.selectable)
 
@@ -405,7 +405,7 @@ export function createGitViews({
     if (conflicts) return 'Сначала разрешите конфликты'
     if (checked) return ''
     if (ui.amend) return 'Сменится только сообщение'
-    return changes ? 'Отметьте файлы для коммита' : 'Локальных изменений нет'
+    return changes ? 'Подготовьте изменения для коммита' : 'Локальных изменений нет'
   }
 
   function syncGitCommitButtons() {
@@ -422,7 +422,7 @@ export function createGitViews({
       if (!ui.pendingAction) submit.textContent = ui.amend ? 'Переписать' : 'Коммит'
     }
     if (push) push.disabled = blocked
-    if (picked) picked.textContent = `выбрано ${checked} из ${changes.length}`
+    if (picked) picked.textContent = `подготовлено файлов: ${checked}`
     if (hint && !ui.pendingAction) {
       const text = gitCommitHint(changes.length, checked, conflicts)
       hint.textContent = text
@@ -452,35 +452,13 @@ export function createGitViews({
 
   function gitGroups() {
     const changes = gitChanges()
-    const byPath = (a, b) => String(a.path).localeCompare(String(b.path), 'ru')
-    const groups = []
-    const conflicts = changes.filter(item => item.area === 'conflict').sort(byPath)
-    if (conflicts.length) {
-      groups.push({
-        id: 'conflict', tone: 'conflict', title: 'Конфликты', note: 'держат коммит',
-        items: conflicts, empty: '', selectable: false,
-      })
-    }
-    for (const list of gitLists()) {
-      groups.push({
-        id: list.id,
-        tone: 'change',
-        title: list.name,
-        note: list.active ? 'новое попадает сюда' : '',
-        items: changes.filter(item => gitGroupOf(item) === list.id).sort(byPath),
-        empty: 'Пусто. Перетащите сюда файлы из другого списка.',
-        selectable: true,
-        active: Boolean(list.active),
-        menu: list,
-      })
-    }
-    const untracked = changes.filter(item => gitGroupOf(item) === 'untracked').sort(byPath)
-    groups.push({
-      id: 'untracked', tone: 'untracked', title: 'Вне репозитория',
-      note: 'Git их ещё не видел',
-      items: untracked, empty: 'Новых файлов нет.', selectable: true,
-    })
-    return groups
+    return [
+      { id: 'conflict', tone: 'conflict', title: 'Конфликты', empty: '', selectable: false },
+      { id: 'staged', tone: 'change', title: 'Подготовленные изменения', empty: 'Добавьте файлы, блоки или строки в index.', selectable: false },
+      { id: 'working', tone: 'change', title: 'Неподготовленные изменения', empty: 'Рабочая копия совпадает с index.', selectable: false },
+      { id: 'untracked', tone: 'untracked', title: 'Новые файлы', empty: 'Новых файлов нет.', selectable: false },
+    ].map(group => ({ ...group, items: changes.filter(item => item.area === group.id).sort((a,b) => a.path.localeCompare(b.path,'ru')) }))
+      .filter(group => group.id !== 'conflict' || group.items.length)
   }
 
   function gitStashDetailHtml(data) {
@@ -565,6 +543,12 @@ export function createGitViews({
         ${repositories.length > 1 ? `<button type="button" class="nc-icon-btn" data-action="git-action" data-git-action="selectRepository" title="${esc(`Репозиторий · ${data.repository || ''}`)}"${busy ? ' disabled' : ''}>${gitIcon('file', 13)}</button>` : ''}
         <button type="button" class="nc-icon-btn" data-action="refresh-tool-window" title="${esc(`${branch} · ${syncText}. Обновить панель`)}" aria-label="Обновить">${gitIcon('refresh', 14)}</button>
       </header>
+      <div class="nc-git-context"><strong>${esc(data.repository || '')}</strong><span>${esc(branch)}</span><span>${esc(syncText)}</span>
+        <details><summary>Действия</summary><div class="nc-git-operations">
+          ${['fetch','createBranch','switchBranch','renameBranch','deleteBranch','addRemote','removeRemote','setUpstream','createTag','deleteTag','merge','rebase','cherry-pick','revert','forcePush'].map(action => gitActionButton(action, ({fetch:'Fetch',createBranch:'Новая ветка',switchBranch:'Переключить ветку',renameBranch:'Переименовать ветку',deleteBranch:'Удалить ветку',addRemote:'Добавить remote',removeRemote:'Удалить remote',setUpstream:'Upstream',createTag:'Создать тег',deleteTag:'Удалить тег',merge:'Merge',rebase:'Rebase',forcePush:'Force push с lease'})[action] || action,'quiet')).join('')}
+        </div></details>
+      </div>
+      ${data.operation ? `<div class="nc-banner"><strong>${esc(data.operation)}</strong>${gitActionButton('continue','Продолжить','quiet')}${gitActionButton('abort','Отменить операцию','quiet danger')}</div>` : ''}
       <div class="nc-body${tab.id === 'changes' ? ' is-single' : ''}">
         <section class="nc-list">
           <header class="nc-sub">
@@ -594,7 +578,7 @@ export function createGitViews({
       ${tab.id === 'changes' ? `
         <form id="git-commit-form" class="nc-commit">
           <div class="nc-commit-head">
-            <label class="nc-amend"><input type="checkbox" name="git-amend"${ui.amend ? ' checked' : ''}${commits.length ? '' : ' disabled'}><span>Дополнить</span></label>
+            <label class="nc-amend"><input type="checkbox" name="git-amend"${ui.amend ? ' checked' : ''}${commits.length ? '' : ' disabled'}><span>Amend</span></label>
             <div class="nc-menu">
               <button type="button" class="nc-ghost" data-action="git-menu" data-menu="message" title="История сообщений коммитов"${commits.length ? '' : ' disabled'}>${gitIcon('history', 12)}<span>История</span></button>
               ${ui.menuFor === 'message' ? `<div class="nc-menu-body">${commits.length
@@ -608,7 +592,7 @@ export function createGitViews({
               <button type="button" class="nc-chip-btn" data-action="git-insert-tag" data-tag="docs: ">docs</button>
             </div>
             <i class="nc-gap"></i>
-            <small id="git-commit-picked">выбрано ${checked.length} из ${changes.length}</small>
+            <small id="git-commit-picked">подготовлено файлов: ${checked.length}</small>
           </div>
           <textarea id="git-commit-message" maxlength="8192" placeholder="${esc(ui.amend ? 'Новое сообщение последнего коммита' : 'Что изменилось и почему')}"${busy ? ' disabled' : ''}>${esc(ui.commitDraft)}</textarea>
           <div class="nc-commit-foot">

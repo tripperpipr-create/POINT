@@ -681,6 +681,8 @@ class AgentViewProvider {
       || workspaceFolderForUri(vscode.window.activeTextEditor?.document?.uri)
   }
 
+  gitWorkspace() { return (this.gitWorkspaceController ||= require('./git-workspace-controller').createGitWorkspace(this)) }
+  async runGitWorkbenchAction(message) { return gitTools.runGitWorkbenchAction(this, message) }
   async gitContext(rootHint = '') { return gitTools.gitContext(this, rootHint) }
   bindGitApi(api) { return gitTools.bindGitApi(this, api) }
   bindGitRepository(repo) { return gitTools.bindGitRepository(this, repo) }
@@ -695,9 +697,7 @@ class AgentViewProvider {
   async gitNumstat(root) { return gitTools.gitNumstat(this, root) }
   async gitStashes(root) { return gitTools.gitStashes(this, root) }
   gitPushTargets(repo, upstream) { return gitTools.gitPushTargets(this, repo, upstream) }
-  async commitPaths(root, message, paths, amend = false) { return gitTools.commitPaths(this, root, message, paths, amend) }
   async gitFileCommand(repo, method, uris) { return gitTools.gitFileCommand(this, repo, method, uris) }
-  async pushCurrentBranch(repo) { return gitTools.pushCurrentBranch(this, repo) }
   async handleGitAction(message) { return gitTools.handleGitAction(this, message) }
   consumeCompanionRejection() {
     const rejected = Boolean(this.companionRejectedAnswer)
@@ -2521,7 +2521,6 @@ function activate(context) {
   const companionLenses = createCompanionCodeLensProvider()
   postCompanionIdeContext()
   const home = new PointHome(context, provider)
-  const chronicle = new PointChronicle(context, output)
   const bookmarks = createBookmarkController(context)
   const recentFiles = createRecentFilesTracker(context)
   bindRecentFiles(() => recentFiles.list())
@@ -2962,7 +2961,7 @@ function activate(context) {
     vscode.commands.registerCommand('localAgent.showIndexStatus', () => { revealInfra(); void indexController.refresh() }),
     vscode.commands.registerCommand('localAgent.open', () => { revealInfra(); provider.showWide(provider.onboardingComplete ? 'master' : 'onboarding') }),
     vscode.commands.registerCommand('localAgent.openRoster', () => { revealInfra(); provider.showWide('settings') }),
-    vscode.commands.registerCommand('localAgent.openChronicle', () => chronicle.show()),
+    vscode.commands.registerCommand('localAgent.openChronicle', () => provider.gitWorkspace().open('history')),
     vscode.commands.registerCommand('localAgent.openConnections', () => provider.showConnections()),
     vscode.commands.registerCommand('localAgent.openStatistics', () => { revealInfra(); provider.showStatistics() }),
     vscode.commands.registerCommand('localAgent.openDocker', () => { revealInfra(); provider.showDocker() }),

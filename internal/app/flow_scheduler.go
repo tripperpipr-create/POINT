@@ -371,6 +371,15 @@ func (a *App) scheduleWaitingAgentNodes(quest domain.Quest, flow domain.FlowGrap
 			if saveErr := a.store.SaveExecution(context.Background(), exec); saveErr != nil {
 				return saveErr
 			}
+			// Повтор продолжает с кандидата прерванной попытки (Q11).
+			delete(state.Output, attemptCarryOutputKey)
+			delete(state.Output, attemptCarryNoteKey)
+			if previous, _ := state.Output["previousExecutionId"].(string); strings.TrimSpace(previous) != "" && previous != exec.ID {
+				carry := a.carryPreviousAttemptV2(context.Background(), previous, exec)
+				state.Output[attemptCarryOutputKey] = carry
+				state.Output[attemptCarryNoteKey] = attemptCarryNote(carry)
+				slog.Info("flow stage attempt carried", "flow_run_id", flowRun.ID, "flow_node_id", node.ID, "from", previous, "files", len(carry.Files), "skipped", len(carry.Skipped), "reason", carry.Reason)
+			}
 			state.Output["needsSchedule"] = false
 			state.Output["executionId"] = exec.ID
 			state.Output["effectiveAgentId"] = effectiveAgentID

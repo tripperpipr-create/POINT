@@ -132,6 +132,8 @@ function createHubMessageRouter({ openWorkspaceFile }) {
         await handleQuestGitMessage.call(this, message); break
       case 'openPreparedDiff':
         await openPreparedDiff.call(this, message); break
+      case 'gitWorkspaceAction':
+        await this.gitWorkspace().handle(message); break
       case 'gitAction':
       case 'loadToolWindowState':
       case 'loadDocker':
@@ -341,6 +343,7 @@ function createHubMessageRouter({ openWorkspaceFile }) {
       case 'stopMasterChat':
       case 'approveMasterWorkOrderV2':
 		case 'reviseMasterWorkOrderV2':
+      case 'restaffMasterWorkOrderV2':
       case 'hireMasterWorkOrderAgentV2':
       case 'controlMasterWorkOrderQuestV2':
       case 'analyzeStageFailureWithMaster':

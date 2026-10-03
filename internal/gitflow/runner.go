@@ -32,7 +32,7 @@ type ExecRunner struct {
 func (r ExecRunner) Run(ctx context.Context, dir string, args ...string) ([]byte, error) {
 	cmd := osproc.CommandContext(ctx, "git", args...)
 	cmd.Dir = dir
-	cmd.Env = append(append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "LC_ALL=C"), r.Env...)
+	cmd.Env = append(append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "GIT_LITERAL_PATHSPECS=1", "GIT_EDITOR=true", "LC_ALL=C"), r.Env...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		message := strings.TrimSpace(string(out))
@@ -54,4 +54,10 @@ func (r ExecRunner) Run(ctx context.Context, dir string, args ...string) ([]byte
 func run(ctx context.Context, runner Runner, dir string, args ...string) (string, error) {
 	out, err := runner.Run(ctx, dir, args...)
 	return strings.TrimSpace(string(out)), err
+}
+
+// WithEnvironment gives an isolated index to a quest without changing globals.
+func (r ExecRunner) WithEnvironment(env ...string) Runner {
+	r.Env = append(append([]string{}, r.Env...), env...)
+	return r
 }

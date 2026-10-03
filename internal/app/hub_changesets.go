@@ -307,7 +307,9 @@ func (a *App) ApplyChangeSet(changeSetID string) (changesets.ApplyResult, error)
 		}
 	}
 	applier := changesets.Applier{Store: a.store}
+	unlock := a.lockWorkspaceGitWrites(context.Background(), ws.Path)
 	result, err := applier.Apply(context.Background(), ws.Path, changeSetID)
+	unlock()
 	if err != nil {
 		return changesets.ApplyResult{}, err
 	}
@@ -403,7 +405,9 @@ func (a *App) RevertChangeSet(changeSetID string) (changesets.ApplyResult, error
 		return changesets.ApplyResult{}, err
 	}
 	applier := changesets.Applier{Store: a.store}
+	unlock := a.lockWorkspaceGitWrites(context.Background(), ws.Path)
 	result, err := applier.Revert(context.Background(), ws.Path, changeSetID)
+	unlock()
 	if err != nil {
 		return changesets.ApplyResult{}, err
 	}

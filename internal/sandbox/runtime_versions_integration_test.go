@@ -22,7 +22,7 @@ func TestDockerRuntimeVersionsIntegration(t *testing.T) {
 	}
 	image, digest, err := b.resolveRuntimeImage(context.Background(), "", RuntimeRequirements{
 		ID: "node", RequiredCommands: []string{"node", "npm"},
-		ToolVersions:    map[string]string{"node": "20", "npm": "10.9.0"},
+		ToolVersions:    map[string]string{"node": "20", "npm": "10.9.9"},
 		CandidateImages: []string{"point-agent-sandbox-node20:1.0.0"},
 	})
 	if err != nil {

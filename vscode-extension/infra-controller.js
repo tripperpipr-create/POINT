@@ -6,6 +6,8 @@ const path = require('path')
 
 async function handleGitAction(message) {
   const action = String(message?.action || '')
+  const coreResult = await this.runGitWorkbenchAction(message)
+  if (coreResult !== undefined) return coreResult
   const { repositories, repo } = await this.gitContext(message?.repoRoot)
   if (action === 'selectRepository') {
     if (!repositories.length) throw new Error('В открытом проекте Git-репозитории не найдены.')
@@ -37,16 +39,6 @@ async function handleGitAction(message) {
   const selection = [...new Set((Array.isArray(message?.paths) ? message.paths : []).map(cleanPath).filter(Boolean))]
   const selected = changes.filter(item => selection.includes(item.path))
   const listById = id => lists.lists.find(item => item.id === String(id || ''))
-  // Переименование живёт в индексе двумя записями: удалением старого пути и
-  // добавлением нового. Убирая такой файл из коммита, надо убрать обе —
-  // иначе снятый с отметки файл всё равно уезжает в коммит удалением.
-  const entryUris = item => {
-    const uris = [item.uri]
-    if (item.originalPath && item.originalPath !== item.path) {
-      uris.push(vscode.Uri.file(path.join(root, item.originalPath)))
-    }
-    return uris
-  }
   const askListName = async (title, value = '') => {
     const name = String(await vscode.window.showInputBox({
       title, value, prompt: 'Как назвать папку изменений', placeHolder: 'Например: рефакторинг',
@@ -61,42 +53,24 @@ async function handleGitAction(message) {
     return name
   }
 
-  if (action === 'stashApply') {
-    const ref = String(message?.stash || '')
-    if (!ref) throw new Error('Запись полки не выбрана.')
-    await runGit(root, ['stash', 'apply', ref])
-    return `Полка возвращена в рабочую копию: ${ref}`
-  }
-  if (action === 'stashDrop') {
-    const ref = String(message?.stash || '')
-    if (!ref) throw new Error('Запись полки не выбрана.')
-    const confirm = await vscode.window.showWarningMessage(
-      `Удалить запись полки «${ref}»?`,
-      { modal: true, detail: 'Отложенные изменения будут потеряны — Git хранит их только здесь.' },
-      'Удалить',
-    )
-    if (!confirm) return 'Удаление отменено'
-    await runGit(root, ['stash', 'drop', ref])
-    return `Запись полки удалена: ${ref}`
-  }
-  if (action === 'stashPush') {
-    const title = String(await vscode.window.showInputBox({
-      title: 'Git · отложить изменения на полку',
-      prompt: 'Как назвать отложенное',
-      placeHolder: 'Например: правки перед ревью',
-    }) || '').trim()
-    if (!title) return 'Откладывание отменено'
-    await runGit(root, ['stash', 'push', '-u', '-m', title])
-    return `Отложено на полку: ${title}`
-  }
   if (action === 'setPushTarget') {
     // Цель отправки — выбор человека на этот сеанс, а не настройка Git:
     // менять upstream втихую панель не станет.
     this.gitPushTarget = String(message?.target || '')
     return this.gitPushTarget ? `Отправлять в ${this.gitPushTarget}` : 'Цель отправки сброшена'
   }
+  if (action === 'openMerge') {
+    await vscode.commands.executeCommand('git.openMergeEditor', requireChange().uri)
+    return 'Merge-редактор открыт'
+  }
   if (action === 'openChange') {
-    await vscode.commands.executeCommand('git.openChange', requireChange().uri)
+    const item = requireChange()
+    const api = (await this.gitContext(root)).api
+    if (message.area === 'staged' && api?.toGitUri) {
+      const left = api.toGitUri(vscode.Uri.file(path.join(root, item.originalPath || item.path)), 'HEAD')
+      const right = api.toGitUri(item.uri, '')
+      await vscode.commands.executeCommand('vscode.diff', left, right, item.path + ' · index', {preview:true})
+    } else await vscode.commands.executeCommand('git.openChange', item.uri)
     return 'Diff открыт в редакторе'
   }
   if (action === 'openFile') {
@@ -190,14 +164,14 @@ async function handleGitAction(message) {
       onlyUntracked ? 'В корзину' : 'Отменить изменения',
     )
     if (!confirm) return 'Откат отменён'
+    const tracked=targets.filter(item=>item.area!=='untracked')
+    if(tracked.length)await this.runGitWorkbenchAction({...message,action:'discardTracked',confirmed:true,
+      paths:[...new Set(tracked.flatMap(item=>[item.path,item.originalPath].filter(Boolean)))]})
     for (const item of targets) {
       if (item.area === 'untracked') {
         await vscode.workspace.fs.delete(item.uri, { recursive: true, useTrash: true })
         continue
       }
-      // Откат целиком: и то, что уже в индексе, и то, что рядом.
-      if (item.staged) await this.gitFileCommand(repo, 'revert', entryUris(item))
-      await this.gitFileCommand(repo, 'clean', entryUris(item))
     }
     if (targets.length === 1) {
       return onlyUntracked
@@ -207,76 +181,6 @@ async function handleGitAction(message) {
     return onlyUntracked
       ? `Перемещено в корзину файлов: ${targets.length}`
       : `Изменения отменены в файлах: ${targets.length}`
-  }
-  if (action === 'commit' || action === 'commitAndPush') {
-    const commitMessage = String(message?.message || '').replace(/\r\n/g, '\n').trim()
-    const conflicts = changes.filter(item => item.area === 'conflict')
-    if (!commitMessage) throw new Error('Напишите, что изменилось, перед созданием коммита.')
-    if (commitMessage.length > 8192) throw new Error('Сообщение коммита слишком длинное (максимум 8192 символа).')
-    if (conflicts.length) throw new Error('Сначала разрешите конфликты — коммит с ними не собрать.')
-    const amend = Boolean(message?.amend)
-    if (!selected.length && !amend) throw new Error('Отметьте хотя бы один файл — коммит соберётся из отмеченных.')
-    if (amend && !repo.state.HEAD?.commit) throw new Error('Править нечего: в этой ветке ещё нет коммитов.')
-    // Коммит собирается из отмеченных путей, а не из индекса: `git commit --
-    // <пути>` берёт содержимое рабочего дерева ровно по ним и всё остальное
-    // оставляет как есть. Через индекс было бы проще, но пришлось бы сначала
-    // снять с подготовки чужую работу — а её никто не просил трогать, и
-    // переименование, которое панель показывает одной строкой, при этом
-    // разваливалось на удаление и новый файл.
-    //
-    // Новые файлы Git по имени не найдёт: пока он о них не знает, путь для
-    // него не путь. Их добавление и есть та самая отметка в панели.
-    const fresh = selected.filter(item => item.area === 'untracked')
-    if (fresh.length) await this.gitFileCommand(repo, 'add', fresh.map(item => item.uri))
-    const paths = [...new Set(selected.flatMap(item => [item.path, item.originalPath].filter(Boolean)))]
-    await this.commitPaths(root, commitMessage, paths, amend)
-    const title = commitMessage.split('\n', 1)[0].slice(0, 60)
-    const count = `${selected.length}`
-    const done = amend
-      ? (selected.length ? `Последний коммит переписан и принял ${count} — «${title}»` : `Сообщение последнего коммита: «${title}»`)
-      : `Коммит на ${count} — «${title}»`
-    if (action !== 'commitAndPush') return done
-    const pushed = await this.pushCurrentBranch(repo)
-    return pushed ? `${done} · отправлено в ${pushed.remote}/${pushed.branch}` : `${done} · отправка отменена`
-  }
-  if (action === 'fetch') {
-    await repo.fetch({ all: true, prune: true })
-    return 'Данные с удалённых репозиториев обновлены'
-  }
-  if (action === 'pull') {
-    if ((repo.state.mergeChanges || []).length) throw new Error('Pull недоступен, пока есть неразрешённые конфликты.')
-    const dirty = changes.length > 0
-    if (dirty) {
-      const confirm = await vscode.window.showWarningMessage('В рабочей копии есть локальные изменения. Выполнить Pull?', { modal: true, detail: 'Git попробует объединить входящие изменения с вашей работой.' }, 'Выполнить Pull')
-      if (!confirm) return 'Pull отменён'
-    }
-    await repo.pull()
-    return 'Входящие изменения получены'
-  }
-  if (action === 'push') {
-    const pushed = await this.pushCurrentBranch(repo)
-    return pushed ? `Ветка ${pushed.branch} отправлена в ${pushed.remote}` : 'Push отменён'
-  }
-  if (action === 'switchBranch') {
-    const branches = [...new Set((repo.state.refs || []).filter(item => Number(item?.type) === 0 && item?.name).map(item => String(item.name)))]
-    if (!branches.length) throw new Error('Локальные ветки не найдены.')
-    const current = String(repo.state.HEAD?.name || '')
-    const selected = await vscode.window.showQuickPick(branches.map(name => ({ label: name, description: name === current ? 'текущая' : '' })), { title: 'Git · переключить ветку', placeHolder: current || 'Выберите ветку' })
-    if (!selected?.label || selected.label === current) return 'Ветка не изменена'
-    await repo.checkout(selected.label)
-    return `Открыта ветка ${selected.label}`
-  }
-  if (action === 'createBranch') {
-    const name = String(await vscode.window.showInputBox({ title: 'Git · новая ветка', prompt: 'Короткое имя без пробелов', placeHolder: 'feature/понятное-имя', validateInput: value => {
-      const branch = String(value || '').trim()
-      if (!branch) return 'Введите имя ветки'
-      const forbidden = ['~', '^', ':', '?', '*', '[', '\\']
-      if (/\s/.test(branch) || forbidden.some(mark => branch.includes(mark)) || branch.includes('..') || branch.startsWith('/') || branch.endsWith('/') || branch.endsWith('.')) return 'Это имя нельзя использовать для ветки Git'
-      return undefined
-    } }) || '').trim()
-    if (!name) return 'Создание ветки отменено'
-    await repo.createBranch(name, true)
-    return `Создана и открыта ветка ${name}`
   }
   if (action === 'history') {
     await vscode.commands.executeCommand('localAgent.openChronicle')
@@ -293,13 +197,14 @@ async function handleInfraMessage(message) {
         const result = await this.handleGitAction(message)
         const snapshot = await this.toolWindowSnapshot('git')
         this.postToolWindow('git', {
-          type: 'gitActionResult', ok: true, action,
+          type: 'gitActionResult', ok: true, action, repoRoot:message.repoRoot, workspaceId:message.workspaceId,
           message: String(result || 'Готово'), snapshot,
         })
       } catch (error) {
         this.postToolWindow('git', {
-          type: 'gitActionResult', ok: false, action,
+          type: 'gitActionResult', ok: false, action, repoRoot:message.repoRoot, workspaceId:message.workspaceId,
           message: formatVcsError('Git', error),
+          snapshot: await this.toolWindowSnapshot('git').catch(() => undefined),
         })
       }
       break

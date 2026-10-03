@@ -1,3 +1,4 @@
+const { createGitWorkbenchTools } = require('./git-workbench-controller')
 // Git и снимки окон инструментов.
 //
 // Самый крупный связный кусок `AgentViewProvider` и самый далёкий от его
@@ -11,6 +12,7 @@
 // пришлось.
 
 function createGitTools({ GIT_LISTS_KEY, dispatchGitAction, normalizedWorkspaceRoot, path, runGit, vscode }) {
+  const workbench = createGitWorkbenchTools({ vscode, path })
   async function gitContext(provider, rootHint = '') {
     const folder = provider.workspaceFolder()
     const gitExt = vscode.extensions.getExtension('vscode.git')
@@ -31,6 +33,7 @@ function createGitTools({ GIT_LISTS_KEY, dispatchGitAction, normalizedWorkspaceR
   function bindGitApi(provider, api) {
     if (!api || provider.gitApiListener) return
     const refresh = () => {
+      if(provider.toolWindows.get('git-workspace')?.visible) void provider.toolWindows.get('git-workspace').webview.postMessage({type:'gitWorkspaceChanged'})
       if (!provider.toolWindows.has('git')) return
       void provider.refreshToolWindowSnapshot('git')
     }
@@ -46,6 +49,7 @@ function createGitTools({ GIT_LISTS_KEY, dispatchGitAction, normalizedWorkspaceR
     provider.gitRepositoryListener?.dispose?.()
     provider.gitRepositoryKey = key
     provider.gitRepositoryListener = repo.state?.onDidChange?.(() => {
+      if(provider.toolWindows.get('git-workspace')?.visible) void provider.toolWindows.get('git-workspace').webview.postMessage({type:'gitWorkspaceChanged'})
       if (!provider.toolWindows.has('git')) return
       if (provider.gitRefreshTimer) clearTimeout(provider.gitRefreshTimer)
       provider.gitRefreshTimer = setTimeout(() => {
@@ -143,85 +147,12 @@ function createGitTools({ GIT_LISTS_KEY, dispatchGitAction, normalizedWorkspaceR
     }
     if (kind === 'git') {
       const { folder, repositories, repo } = await provider.gitContext()
-      const repositoryChoices = repositories.map(item => ({
-        root: item.rootUri?.fsPath || '',
-        name: path.basename(item.rootUri?.fsPath || '') || item.rootUri?.fsPath || 'Git',
-        selected: item === repo,
-      }))
       if (!repo?.state) {
         provider.paintGitViewChrome({ available: false })
-        return { kind, available: false, project: folder?.name || '', repositories: repositoryChoices }
+        return { kind, available: false, project: folder?.name || '',
+          repositories: repositories.map(item => ({ root: item.rootUri?.fsPath || '' })) }
       }
-      const head = repo.state.HEAD || {}
-      const tracked = provider.gitChanges(repo)
-      const lists = await provider.syncGitLists(repo.rootUri?.fsPath || '', tracked)
-      // Панель рисует до трёхсот строк: полторы тысячи новых файлов в дереве —
-      // это не список, а стена. Сколько осталось за краем, она говорит вслух.
-      const stats = await provider.gitNumstat(repo.rootUri?.fsPath || '')
-      const changes = tracked.slice(0, 300).map(({ uri, ...item }) => ({
-        ...item,
-        list: item.area === 'untracked' ? 'untracked' : (lists.assign[item.path] || lists.active),
-        // Новый файл Git ещё не с чем сравнивать — у него нет ни плюсов, ни минусов.
-        add: item.area === 'untracked' ? 0 : Number(stats[item.path]?.add || 0),
-        del: item.area === 'untracked' ? 0 : Number(stats[item.path]?.del || 0),
-      }))
-      const hidden = Math.max(0, tracked.length - changes.length)
-      const changeLists = lists.lists.map(item => ({
-        id: item.id,
-        name: item.name,
-        active: item.id === lists.active,
-        count: changes.filter(change => change.list === item.id).length,
-      }))
-      const branches = [...new Set([
-        String(head.name || ''),
-        ...(repo.state.refs || []).filter(item => Number(item?.type) === 0).map(item => String(item?.name || '')),
-      ].filter(Boolean))].slice(0, 120)
-      let commits = []
-      let historyError = ''
-      try {
-        commits = (await repo.log({ maxEntries: 8, shortStats: true })).map(item => {
-          const date = item.authorDate || item.commitDate
-          return {
-            hash: String(item.hash || ''),
-            shortHash: String(item.hash || '').slice(0, 8),
-            message: String(item.message || '').split(/\r?\n/, 1)[0].slice(0, 240),
-            author: String(item.authorName || item.authorEmail || ''),
-            date: date instanceof Date ? date.toISOString() : String(date || ''),
-            files: Number(item.shortStat?.files || 0),
-            insertions: Number(item.shortStat?.insertions || 0),
-            deletions: Number(item.shortStat?.deletions || 0),
-          }
-        })
-      } catch (error) {
-        historyError = error instanceof Error ? error.message : String(error)
-      }
-      let workingStats = {}
-      let stagedStats = {}
-      try { workingStats = await repo.diffWithHEADShortStats() || {} } catch { /* unborn HEAD or binary-only diff */ }
-      try { stagedStats = await repo.diffIndexWithHEADShortStats() || {} } catch { /* unborn HEAD or empty index */ }
-      const upstream = head.upstream
-        ? `${String(head.upstream.remote || '')}/${String(head.upstream.name || '')}`.replace(/^\//, '')
-        : ''
-      // Ветка и число изменений принадлежат не только содержимому панели: на
-      // рейке слева Point теперь единственный вход в Git, и то, что раньше
-      // показывал бейдж штатного SCM, обязано быть здесь.
-      provider.paintGitViewChrome({ available: true, branch: String(head.name || ''), count: tracked.length })
-      return {
-        kind, available: true, project: folder?.name || '', root: repo.rootUri?.fsPath || '',
-        repository: path.basename(repo.rootUri?.fsPath || '') || folder?.name || '', repositories: repositoryChoices,
-        branch: String(head.name || ''), detached: !head.name && Boolean(head.commit), head: String(head.commit || ''),
-        ahead: Number(head.ahead || 0), behind: Number(head.behind || 0),
-        remote: upstream, remotes: (repo.state.remotes || []).map(item => ({ name: String(item.name || ''), readOnly: Boolean(item.isReadOnly) })),
-        branches, changes, changeLists, activeList: lists.active, commits, historyError,
-        changesTotal: tracked.length, changesHidden: hidden,
-        stashes: await provider.gitStashes(repo.rootUri?.fsPath || ''),
-        pushTargets: provider.gitPushTargets(repo, upstream),
-        operation: repo.state.rebaseCommit ? 'rebase' : (repo.state.mergeChanges || []).length ? 'merge' : '',
-        stats: {
-          working: { files: Number(workingStats.files || 0), insertions: Number(workingStats.insertions || 0), deletions: Number(workingStats.deletions || 0) },
-          staged: { files: Number(stagedStats.files || 0), insertions: Number(stagedStats.insertions || 0), deletions: Number(stagedStats.deletions || 0) },
-        },
-      }
+      return workbench.gitWorkbenchSnapshot(provider, repo)
     }
     return { kind }
   }
@@ -279,25 +210,6 @@ function createGitTools({ GIT_LISTS_KEY, dispatchGitAction, normalizedWorkspaceR
     const unique = [...new Set([upstream, ...remotes].filter(Boolean))].slice(0, 12)
     return unique.map(name => ({ name, tracked: name === upstream }))
   }
-  async function commitPaths(provider, root, message, paths, amend = false) {
-    // Правка последнего коммита без путей меняет одно сообщение; с путями —
-    // добавляет в него отмеченные файлы. Оба случая штатные для `--amend`.
-    const args = ['commit']
-    if (amend) args.push('--amend')
-    args.push('-m', message)
-    if (paths.length) args.push('--', ...paths)
-    try {
-      await runGit(root, args, 2 * 1024 * 1024, 120_000)
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error || '')
-      // Git объясняет отсутствие подписи автора тремя абзацами с примерами для
-      // командной строки. В панели от них толку нет.
-      if (/Please tell me who you are|empty ident|unable to auto-detect email/i.test(detail)) {
-        throw new Error('Git не знает, кто вы. Задайте имя и почту: git config --global user.name «Имя» и user.email «почта».')
-      }
-      throw error
-    }
-  }
   async function gitFileCommand(provider, repo, method, uris) {
     const list = (uris || []).filter(Boolean)
     if (!list.length) return
@@ -309,35 +221,17 @@ function createGitTools({ GIT_LISTS_KEY, dispatchGitAction, normalizedWorkspaceR
       await repo[method](list.map(uri => uri.fsPath))
     }
   }
-  async function pushCurrentBranch(provider, repo) {
-    const head = repo.state.HEAD || {}
-    if (!head.name) throw new Error('Создайте или выберите ветку перед Push.')
-    // Человек мог выбрать в панели другую цель — тогда она главнее upstream.
-    const chosen = String(provider.gitPushTarget || '')
-    let remoteName = chosen ? chosen.split('/', 1)[0] : String(head.upstream?.remote || '')
-    if (!remoteName) {
-      const writable = (repo.state.remotes || []).filter(item => !item.isReadOnly)
-      if (!writable.length) throw new Error('Сначала добавьте удалённый репозиторий.')
-      if (writable.length === 1) remoteName = writable[0].name
-      else {
-        const selected = await vscode.window.showQuickPick(writable.map(item => ({ label: item.name })), { title: 'Git · куда отправить ветку' })
-        if (!selected?.label) return null
-        remoteName = selected.label
-      }
-    }
-    await repo.push(remoteName, head.name, !head.upstream)
-    return { remote: remoteName, branch: head.name }
-  }
   async function handleGitAction(provider, message) {
     return dispatchGitAction.call(this, message)
   }
 
   return {
+    runGitWorkbenchAction: (provider, message) => workbench.runGitWorkbenchAction(provider, message),
     gitContext, bindGitApi, bindGitRepository, gitChanges,
     gitLists, saveGitLists, syncGitLists, paintGitViewChrome,
     postToolWindow, refreshToolWindowSnapshot, toolWindowSnapshot, gitNumstat,
-    gitStashes, gitPushTargets, commitPaths, gitFileCommand,
-    pushCurrentBranch, handleGitAction,
+    gitStashes, gitPushTargets, gitFileCommand,
+    handleGitAction,
   }
 }
 

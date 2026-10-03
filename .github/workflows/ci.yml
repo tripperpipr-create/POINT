@@ -131,7 +131,7 @@ jobs:
           for major in 20 22; do
             docker build --pull -f Dockerfile.sandbox-node --build-arg NODE_MAJOR="$major" -t "point-agent-sandbox-node${major}:1.0.0" .
             docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges=true --user 10001:10001 "point-agent-sandbox-node${major}:1.0.0" node --version | grep -E "^v${major}\."
-            docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges=true --user 10001:10001 "point-agent-sandbox-node${major}:1.0.0" npm --version | grep -Fx '10.9.0'
+            docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges=true --user 10001:10001 "point-agent-sandbox-node${major}:1.0.0" npm --version | grep -Fx '10.9.9'
           done
       - name: Generate sandbox CycloneDX SBOM
         uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
@@ -154,6 +154,37 @@ jobs:
           format: json
           output: sandbox-trivy.json
           exit-code: '1'
+      # Пакеты Node 20/22 подбираются для проектов, требующих npm 10 (TODO Q04,
+      # Q18). Их пакеты ОС проходят тот же затвор HIGH/CRITICAL. Внутренние
+      # библиотеки самого npm 10.9.9 (pacote, sigstore и др.) чинятся только
+      # в npm 11, поэтому по ним — отчёт без отказа.
+      - name: Reject high or critical OS vulnerabilities in Node 20 pack
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        with:
+          image-ref: point-agent-sandbox-node20:1.0.0
+          version: 'v0.74.0'
+          scanners: vuln
+          vuln-type: os
+          severity: CRITICAL,HIGH
+          exit-code: '1'
+      - name: Reject high or critical OS vulnerabilities in Node 22 pack
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        with:
+          image-ref: point-agent-sandbox-node22:1.0.0
+          version: 'v0.74.0'
+          scanners: vuln
+          vuln-type: os
+          severity: CRITICAL,HIGH
+          exit-code: '1'
+      - name: Report npm library vulnerabilities in Node packs
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        with:
+          image-ref: point-agent-sandbox-node20:1.0.0
+          version: 'v0.74.0'
+          scanners: vuln
+          vuln-type: library
+          severity: CRITICAL,HIGH
+          exit-code: '0'
       - name: Verify process, filesystem and controlled egress isolation
         env:
           POINT_SANDBOX_DOCKER_TEST: '1'
@@ -163,7 +194,7 @@ jobs:
         env:
           POINT_SANDBOX_DOCKER_TEST: '1'
           POINT_SANDBOX_IMAGE: point-agent-sandbox-node20:1.0.0
-          POINT_SANDBOX_EXPECT_NPM: '10.9.0'
+          POINT_SANDBOX_EXPECT_NPM: '10.9.9'
         run: |
           export POINT_SANDBOX_EXPECT_NODE="$(docker run --rm --network none point-agent-sandbox-node20:1.0.0 node --version)"
           go test ./internal/sandbox -run DockerSandboxIntegration -count=1 -v

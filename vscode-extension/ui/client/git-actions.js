@@ -35,7 +35,7 @@ export function handleGitClickAction({
     return true
   }
   if (action === 'git-select') {
-    gitSelectFile(String(target.dataset.path || ''))
+    gitSelectFile(String(target.dataset.path || ''), String(target.dataset.area || ''))
     return true
   }
   if (action === 'git-select-stash') {
@@ -83,7 +83,7 @@ export function handleGitClickAction({
     return true
   }
   // «Только эту» — короткий путь к тому, ради чего папки и заведены: собрать
-  // коммит из одной работы, не снимая отметки с остальных по одной.
+  // групповое действие, не снимая отметки с остальных по одной.
   if (action === 'git-select-only') {
     const id = String(target.dataset.list || '')
     ui.gitChecked = new Set(gitGroupPaths(id))
@@ -132,6 +132,9 @@ export function handleGitClickAction({
       type: 'gitAction',
       action: gitAction,
       path: target.dataset.path || '',
+      area: target.dataset.area || '',
+      revision: toolWindowData.git?.revision || '',
+      workspaceId: toolWindowData.git?.workspaceId || '',
       list: target.dataset.list || '',
       stash: target.dataset.stash || '',
       target: gitAction === 'setPushTarget' ? ui.gitTarget : '',
@@ -204,4 +207,28 @@ export function handleGitChangeAction({
     return true
   }
   return false
+}
+
+
+export function createGitPanelMemory(ui, persisted={}) {
+  const repositories={...(persisted.repositories||{})}
+  let key=''
+  const sets=['gitChecked','gitKnown','gitCollapsed']
+  const fields=['gitCommitDraft','gitFoldedOnce','gitFlat','gitSelected','gitSelectedStash','gitTarget']
+  function remember() {
+    if(key) repositories[key]=Object.fromEntries([...fields.map(name=>[name,ui[name]]),
+      ...sets.map(name=>[name,[...ui[name]]])])
+  }
+  function select(next) {
+    if(next===key)return
+    remember()
+    const previous=key;key=next
+    const saved=repositories[key]
+    // The first repository adopts the legacy panel draft once.
+    if(!previous&&!saved&&next&&Object.keys(repositories).length===0)return
+    for(const name of fields)ui[name]=saved?.[name]??(name==='gitFlat'||name==='gitFoldedOnce'?false:'')
+    for(const name of sets)ui[name]=new Set(saved?.[name]||[])
+    ui.gitAmend=false;ui.gitNotice=undefined;ui.gitPendingAction='';ui.gitMenuFor=''
+  }
+  return {select,snapshot:()=>{remember();return {key,repositories}}}
 }

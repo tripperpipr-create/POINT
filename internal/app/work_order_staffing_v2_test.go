@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -120,5 +121,51 @@ func TestSelectingWorkOrderCannotBeReady(t *testing.T) {
 	order := domain.WorkOrder{ID: "w", Version: 1, State: "ready", Goal: "g", Criteria: []domain.AcceptanceCriterion{{ID: "c", Text: "t", Kind: "manual"}}, Roster: domain.AgentRosterPlan{Selecting: true}}
 	if err := domain.ValidateWorkOrder(order); err == nil || !strings.Contains(err.Error(), "selection") {
 		t.Fatalf("ready в подборе принят: %v", err)
+	}
+}
+
+// Q15: проваленный подбор повторяется кнопкой «Подобрать снова»: следующая
+// версия снова в подборе, без причины отказа, и подбор дописывает состав.
+func TestFailedStaffingCanBeRetried(t *testing.T) {
+	application, world := rosterTestApp(t, "dispatcher")
+	agent := rosterTestAgent(t, application, "Backend", "Backend-разработчик", "Держит серверную часть проекта")
+	holdStaffing(application)
+	ctx := context.Background()
+	proposal := rosterTestProposal(world.ID, "qp-restaff", "Собрать backend API с /health", false)
+	id, err := application.saveMasterWorkOrderV2(ctx, &proposal, nil, "conversation-restaff", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = application.RestaffWorkOrderV2(ctx, id, ""); err == nil {
+		t.Fatal("повтор подбора, который идёт и не проваливался")
+	}
+	cfg, err := application.masterConfig(ctx, world.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pending, err := application.WorkOrderV2(ctx, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err = application.applyWorkOrderStaffingV2(ctx, pending, nil, "", agentSelectionResult{}, errors.New("комплектовщик не ответил"), cfg); err != nil {
+		t.Fatal(err)
+	}
+	failed, err := application.WorkOrderV2(ctx, id)
+	if err != nil || failed.Roster.SelectionError == "" || failed.Roster.Selecting {
+		t.Fatalf("отказ подбора не записан: %#v %v", failed.Roster, err)
+	}
+	retried, err := application.RestaffWorkOrderV2(ctx, id, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if retried.Version != failed.Version+1 || !retried.Roster.Selecting || retried.Roster.SelectionError != "" || retried.State != "staffing" {
+		t.Fatalf("повтор подбора: v%d %#v %s", retried.Version, retried.Roster, retried.State)
+	}
+	if err = application.completeWorkOrderStaffingV2(ctx, id, cfg, ""); err != nil {
+		t.Fatal(err)
+	}
+	staffed, err := application.WorkOrderV2(ctx, id)
+	if err != nil || len(staffed.Roster.Permanent) != 1 || staffed.Roster.Permanent[0].ID != agent.ID {
+		t.Fatalf("повторный подбор не дописал состав: %#v %v", staffed.Roster, err)
 	}
 }

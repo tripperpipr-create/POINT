@@ -16,6 +16,7 @@ import { createInfrastructureViews } from './infrastructure-views.js'
 import { createToolWindowFrame } from './tool-window-frame.js'
 import { createChangeSetViews } from './change-set-views.js'
 import { createCompanionMarkdownFormatter } from './companion-markdown.js'
+import { createGitWorkspaceUi } from './git-workspace-ui.js'
 import { createGitViews } from './git-views.js'
 import { createViewRuntime } from './view-runtime.js'
 import { createQuestOverviewViews } from './quest-overview-views.js'
@@ -28,7 +29,7 @@ import { createAgentWorkTranscript } from './agent-work-transcript.js'
 import { createAgentWorkflowEditors } from './agent-workflow-editors.js'
 import { createAgentConstructor, CONSTRUCTOR_STEPS as AGENT_CONSTRUCTOR_STEPS } from './agent-constructor.js'
 import { createHubRuntimeUi } from './hub-runtime-ui.js'
-import { handleGitClickAction, handleGitChangeAction } from './git-actions.js'
+import { handleGitClickAction, handleGitChangeAction, createGitPanelMemory } from './git-actions.js'
 import { handleHubClickAction } from './hub-actions.js'
 import { handleCompanionClickAction } from './companion-actions.js'
 import { handleOnboardingClickAction } from './onboarding-actions.js'
@@ -104,7 +105,7 @@ function isCompanionView() {
   const layout = document.body?.dataset?.layout
   return layout === 'companion' || layout === 'companion-popup' || layout === 'companion-peek' || layout === 'companion-sidebar'
 }
-const persisted = vscode.getState() || {}
+const persisted = vscode.getState() || {};const gitWorkspaceUi = toolWindowKind() === 'git-workspace' ? createGitWorkspaceUi({root,vscode,render,persist:persistDraft,persisted:persisted.gitWorkspace}) : undefined
 const tabAlias = { chat: 'quests', quest: 'quests', settings: 'agents', workflows: 'flows', history: 'history', changes: 'changes', changesets: 'changesets', journal: 'journal', databases: 'databases', db: 'databases' }
 function canonicalTab(tab) { return tabAlias[tab] || tab || 'overview' }
 let selectedIntakeId = ''
@@ -675,7 +676,7 @@ function resetProjectScopedState() {
 
   // Git у каждого мира свой. Отмеченные файлы и свёрнутые папки сбрасывались и
   // раньше, а выбранная строка, полка и цель — нет, хотя это тот же репозиторий.
-  gitCommitDraft = ''
+  gitPanelMemory.select('');gitCommitDraft = ''
   gitChecked = new Set()
   gitKnown = new Set()
   gitCollapsed = new Set()
@@ -701,6 +702,7 @@ function resetProjectScopedState() {
 function persistDraft() {
   masterClient.remember(masterData?.sessions?.active || masterClient.active,masterDraft,root.querySelector('#master-thread')?.scrollTop)
   vscode.setState({
+    gitWorkspace: gitWorkspaceUi?.snapshot(), gitPanel: gitPanelMemory.snapshot(),
     projectKey,
     taskDraft,
     questGoalDraft,
@@ -1900,7 +1902,7 @@ const modularUiState = {
   get toolEquipAfterSave() { return toolEquipAfterSave }, set toolEquipAfterSave(value) { toolEquipAfterSave = value },
   get workflowDraft() { return workflowDraft }, set workflowDraft(value) { workflowDraft = value },
 }
-
+const gitPanelMemory=createGitPanelMemory(modularUiState,persisted.gitPanel)
 // Разговор с помощником — отдельный модуль: отправка, поток и приём ответа
 // связаны номером запроса и читаются только вместе.
 const {
@@ -2287,9 +2289,8 @@ function schedulePaintRun() {
 
 function paint() {
   const snapshot = captureUi()
-  // Галерея, первый запуск и переключение мира решаются до вкладок: домом стал
-  // чат, а галерея — отдельный экран по явному вызову. Разбор случаев живёт
-  // в master-chat-directory.js рядом с самим списком.
+  if (gitWorkspaceUi) { root.innerHTML = gitWorkspaceUi.view(); restoreUi(snapshot); persistDraft(); return }
+  // Галерея и первый запуск определяются до вкладок в master-chat-directory.js.
   const before = chatScreenBeforeTabs({ gallery: isProjectGalleryOpen() && isWide, wide: isWide })
   if (before !== undefined) { root.innerHTML = before; restoreUi(snapshot); return }
   if (isCompanionView()) {
@@ -2413,6 +2414,7 @@ root.addEventListener('click', event => {
   const target = event.target.closest('[data-action]')
   if (!target) return
   const action = target.dataset.action
+  if (gitWorkspaceUi && action.startsWith('gw-')) { void gitWorkspaceUi.click(action,target); return }
   if (action === 'save-global-models') {
     const defaults = {}
     for (const role of ['master', 'archivist', 'agent']) {
@@ -2809,6 +2811,7 @@ root.addEventListener('click', event => {
 })
 
 root.addEventListener('change', event => {
+  if (gitWorkspaceUi?.input(event)) return
   if (readMasterAgentCardInput(event.target)) { persistDraft(); render(); return }
   // Список исполнителей и важность — те же правки предложения, только через
   // флажок и выпадающий список: они приходят не событием ввода, а изменением.
@@ -2869,6 +2872,7 @@ root.addEventListener('change', event => {
   }
 })
 root.addEventListener('input', event => {
+  if (gitWorkspaceUi?.input(event)) return
   // Набранное в карточке исполнителя снимается на каждом знаке. Прежние формы
   // создания снимали значения только при отправке, и любой ход Мастера,
   // приход квеста или фоновое обновление ростера стирали написанное молча.
@@ -3050,11 +3054,11 @@ root.addEventListener('submit', event => {
 // Выбор файла открывает сравнение в редакторе. Панель показывает, ЧТО войдёт
 // в коммит; смотреть, ЧЕМ отличается файл, надо там же, где его правят, — в
 // редакторе, с его подсветкой, навигацией по изменениям и правкой прямо в диффе.
-function gitSelectFile(file) {
+function gitSelectFile(file, area = '') {
   if (!file) return
   gitSelected = file
   gitMenuFor = ''
-  vscode.postMessage({ type: 'gitAction', action: 'openChange', path: file, paths: [], repoRoot: toolWindowData.git?.root || '' })
+  vscode.postMessage({ type: 'gitAction', action: 'openChange', path: file, area, paths: [], repoRoot: toolWindowData.git?.root || '' })
   render()
 }
 
@@ -3076,6 +3080,8 @@ function submitGitCommit(action) {
     message: gitCommitDraft,
     paths,
     amend: gitAmend,
+    revision: toolWindowData.git?.revision || '',
+    workspaceId: toolWindowData.git?.workspaceId || '',
     repoRoot: toolWindowData.git?.root || '',
   })
 }
@@ -3219,6 +3225,7 @@ const applyWorldStateMessage = createWorldStateInbox({
 
 window.addEventListener('message', event => {
   const message=event.data
+  if (gitWorkspaceUi?.receive(message)) return
   if (acknowledgesForm(submittingForm, message)) submittingForm = ''
   if (acceptMasterFastRun(message,modularUiState,masterClient.active,render)) return
   if (message.type === 'collectGarbage') {
@@ -3261,7 +3268,7 @@ window.addEventListener('message', event => {
     render()
     return
   }
-  if (message.type === 'gitActionResult') {
+  if (message.type === 'gitActionResult') { if(message.repoRoot&&message.repoRoot!==toolWindowData.git?.root)return
     gitPendingAction = ''
     submittingForm = ''
     if (message.snapshot && typeof message.snapshot === 'object') {
@@ -3291,7 +3298,7 @@ window.addEventListener('message', event => {
     const snapshot = message.snapshot && typeof message.snapshot === 'object' ? message.snapshot : {}
     const kind = String(snapshot.kind || toolWindowKind())
     toolWindowData = { ...toolWindowData, [kind]: { ...snapshot, loaded: true } }
-    if (kind === 'git') syncGitChecked(gitChanges())
+    if (kind === 'git') {gitPanelMemory.select([snapshot.workspaceId,snapshot.root].join(':'));syncGitChecked(gitChanges())}
     render()
     return
   }
@@ -3771,4 +3778,5 @@ if (persisted.selectedTab && !restoredTabPosted && !isCompanionView()) {
 persistDraft()
 render()
 vscode.postMessage({ type: 'ready', surface: document.body?.dataset?.layout || '' })
-if (isToolWindow()) vscode.postMessage({ type: 'loadToolWindowState', kind: toolWindowKind() })
+gitWorkspaceUi?.start()
+if (isToolWindow() && !gitWorkspaceUi) vscode.postMessage({ type: 'loadToolWindowState', kind: toolWindowKind() })

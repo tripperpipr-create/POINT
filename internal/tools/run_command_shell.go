@@ -19,7 +19,7 @@ func (t RunCommand) runCommandShellNote() string {
 			" pipefail is on, so `cmd 2>&1 | tail -20` returns the exit code of cmd." +
 			" Every call starts a fresh container: only the workspace persists, /tmp and anything installed outside the workspace are gone by the next call, so chain dependent steps in one command."
 	case runtime.GOOS == "windows":
-		return " It runs through cmd.exe on Windows."
+		return " It runs through cmd.exe on Windows, which has no pipefail: `cmd | findstr x` returns the exit code of findstr, so do not pipe a command whose exit code matters; run it alone or chain steps with &&."
 	default:
 		return hostShellNote()
 	}

@@ -122,3 +122,27 @@ func TestHostRunCommandKeepsExitCodeThroughPipe(t *testing.T) {
 		t.Fatalf("pipe hid the exit code: %+v", output)
 	}
 }
+
+// Q08: в cmd.exe pipefail нет. Код конвейера — код последней команды, и
+// вывод говорит модели об этом прямо, а описание инструмента — заранее.
+func TestWindowsHostPipeSaysWhoseExitCodeItIs(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("cmd.exe only")
+	}
+	fs, err := workspace.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	tool := RunCommand{FS: fs}
+	if !strings.Contains(tool.runCommandShellNote(), "no pipefail") {
+		t.Fatalf("описание не предупреждает о конвейере: %q", tool.runCommandShellNote())
+	}
+	piped := tool.Execute(context.Background(), json.RawMessage(`{"command":"echo building | findstr building","reason":"pipe"}`))
+	if !strings.Contains(string(piped.Output), "exitCodeOf") {
+		t.Fatalf("код конвейера выдан за код всей команды: %s", piped.Output)
+	}
+	plain := tool.Execute(context.Background(), json.RawMessage(`{"command":"echo building","reason":"plain"}`))
+	if strings.Contains(string(plain.Output), "exitCodeOf") {
+		t.Fatalf("пометка конвейера у команды без него: %s", plain.Output)
+	}
+}

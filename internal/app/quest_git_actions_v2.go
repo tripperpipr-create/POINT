@@ -13,6 +13,7 @@ import (
 
 	"local-agent-workbench/internal/changesets"
 	"local-agent-workbench/internal/domain"
+	"local-agent-workbench/internal/forge"
 	"local-agent-workbench/internal/gitflow"
 	"local-agent-workbench/internal/orchestrator"
 	"local-agent-workbench/internal/security"
@@ -290,12 +291,40 @@ func (a *App) pushQuestRepoV2(ctx context.Context, state questGitContext, item d
 	a.recordQuestGitV2(ctx, state, domain.QuestGitAction{OpID: opID, Repo: item.Path, Action: action, Phase: "started", Branch: item.Branch, CommitID: item.CommitID, Remote: remote, Trigger: trigger})
 	pushCtx, cancel := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancel()
-	result, err := gitflow.Push(pushCtx, a.gitActionRunner(), dir, "origin", item.Branch, request)
+	var forgeBinding *forge.Binding
+	if withMR {
+		links, linkErr := a.ForgeBindings(ctx, GitTarget{WorkspaceID: state.order.WorkspaceID, RepoRoot: dir})
+		if linkErr != nil {
+			return "", linkErr
+		}
+		if len(links.Candidates) != 1 {
+			return "", errors.New("выберите связь репозитория с аккаунтом GitLab в пространстве Git")
+		}
+		forgeBinding = &links.Candidates[0]
+	}
+	remoteName := "origin"
+	if forgeBinding != nil {
+		remoteName = forgeBinding.Remote
+	}
+	a.recordQuestGitV2(ctx, state, domain.QuestGitAction{OpID: opID, Repo: item.Path, Action: action, Phase: "started", Branch: item.Branch, CommitID: item.CommitID, Remote: remote, Trigger: trigger})
+	result, err := gitflow.Push(pushCtx, a.gitActionRunner(), dir, remoteName, item.Branch, nil)
 	if err != nil {
 		a.recordQuestGitV2(ctx, state, domain.QuestGitAction{OpID: opID, Repo: item.Path, Action: action, Phase: "failed", Branch: item.Branch, CommitID: item.CommitID, Remote: remote, Error: security.Redact(err.Error()), Trigger: trigger})
 		return "", err
 	}
 	mrURL := result.MRURL
+	if withMR {
+		response, createErr := a.RunForgeRequest(ctx, forge.Request{ConnectionID: forgeBinding.ConnectionID,
+			Project: forgeBinding.Project, Action: "create", Title: request.Title, Description: request.Description,
+			SourceBranch: item.Branch, TargetBranch: request.Target})
+		if createErr != nil {
+			a.recordQuestGitV2(ctx, state, domain.QuestGitAction{OpID: opID, Repo: item.Path, Action: action, Phase: "failed", Branch: item.Branch, CommitID: item.CommitID, Remote: remote, Error: security.Redact(createErr.Error()), Trigger: trigger})
+			return "", fmt.Errorf("ветка отправлена; создание MR: %w", createErr)
+		}
+		if review, ok := response.Data.(forge.Review); ok {
+			mrURL = review.WebURL
+		}
+	}
 	a.recordQuestGitV2(ctx, state, domain.QuestGitAction{OpID: opID, Repo: item.Path, Action: action, Phase: "succeeded", Branch: item.Branch, CommitID: item.CommitID, Remote: remote, MRURL: mrURL, Message: clipText(result.Output, 2000), Trigger: trigger})
 	if !withMR {
 		return fmt.Sprintf("%s: ветка %s отправлена в origin", item.Path, item.Branch), nil

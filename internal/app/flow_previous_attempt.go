@@ -134,6 +134,9 @@ func compactArguments(raw json.RawMessage) string {
 // previousAttemptContext — элемент контекста повторной попытки этапа.
 func previousAttemptContext(flowRun domain.FlowRun, nodeID string) (domain.RunContextInput, bool) {
 	summary, _ := flowRun.NodeStates[nodeID].Output["previousAttempt"].(string)
+	if note, _ := flowRun.NodeStates[nodeID].Output[attemptCarryNoteKey].(string); strings.TrimSpace(note) != "" {
+		summary = strings.TrimSpace(summary + "\n" + note)
+	}
 	if strings.TrimSpace(summary) == "" {
 		return domain.RunContextInput{}, false
 	}

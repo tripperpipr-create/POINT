@@ -31,8 +31,8 @@ var gitRepoSkipDirs = map[string]bool{
 // DiscoverGitRepos — относительные (через /) пути каталогов с .git внутри
 // корня: сам корень записывается как ".", вложенные — до трёх уровней вглубь,
 // не больше 32. .git-файл (worktree, submodule) считается так же, как каталог.
-// Внутрь найденного репозитория поиск не спускается.
-func DiscoverGitRepos(root string) []string {
+// includeNested разрешает поиск внутри найденных репозиториев для Git workspace.
+func DiscoverGitRepos(root string, includeNested ...bool) []string {
 	repos := []string{}
 	if hasGitEntry(root) {
 		repos = append(repos, ".")
@@ -59,7 +59,9 @@ func DiscoverGitRepos(root string) []string {
 				if len(repos) < gitRepoSearchLimit {
 					repos = append(repos, childRel)
 				}
-				continue
+				if len(includeNested) == 0 || !includeNested[0] {
+					continue
+				}
 			}
 			walk(child, childRel, depth+1)
 		}

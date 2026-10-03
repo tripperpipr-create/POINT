@@ -208,7 +208,13 @@ export function createMasterBriefPanel({
     // У задания с брифом род и версию называет шапка самой карточки — второй
     // строкой над ней они повторялись бы слово в слово.
     const sub = started || !item.brief ? `<div class="hall-brief-panel-sub">${head}</div>` : ''
-    return `${sub}${body}`
+    // Отказ подбора называет причину и даёт повтор (TODO Q15): прежде выйти из
+    // него можно было только новым ходом Мастера.
+    const selectionError = !started && order?.state === 'staffing' && !order?.roster?.selecting ? String(order?.roster?.selectionError || '') : ''
+    const restaff = selectionError
+      ? `<aside class="master-v2-warning"><b>Подбор не удался</b><p>${esc(selectionError)}</p><button type="button" class="hall-btn is-sm" data-action="restaff-master-work-order-v2" data-id="${esc(order.id)}">Подобрать снова</button></aside>`
+      : ''
+    return `${sub}${restaff}${body}`
   }
 
   // Вкладка «Команда»: кто работает, кто в отряде задания, кто есть в проекте.

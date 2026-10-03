@@ -27,3 +27,31 @@ func MasksExitCode(command string) (string, bool) {
 	}
 	return "", false
 }
+
+// TopLevelPipe сообщает, есть ли в команде конвейер вне кавычек: одиночная
+// `|`, не `||` и не экранированная `^|` cmd.exe. Без pipefail (cmd.exe на
+// Windows) код такой команды — код последней в конвейере (Q08).
+func TopLevelPipe(command string) bool {
+	var quote rune
+	runes := []rune(command)
+	for index := 0; index < len(runes); index++ {
+		char := runes[index]
+		switch {
+		case quote != 0:
+			if char == quote {
+				quote = 0
+			}
+		case char == '"' || char == '\'':
+			quote = char
+		case char == '^':
+			index++
+		case char == '|':
+			if index+1 < len(runes) && runes[index+1] == '|' {
+				index++
+				continue
+			}
+			return true
+		}
+	}
+	return false
+}

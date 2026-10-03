@@ -33,6 +33,8 @@ func New(application *app.App, eventHub *events.Hub, logger *slog.Logger, allowe
 func (s *Server) Handler() http.Handler { return s.middleware(s.masterScopeHandler(s.mux)) }
 
 func (s *Server) routes() {
+	s.registerGitWorkbenchRoutes()
+	s.registerForgeRoutes()
 	s.mux.HandleFunc("GET /api/system/fast-agent", s.getFastAgentConfig)
 	s.mux.HandleFunc("PUT /api/system/fast-agent", s.saveFastAgentConfig)
 	s.mux.HandleFunc("GET /api/master/files", s.masterFiles)
@@ -127,6 +129,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/v2/work-orders/{id}/diffs", s.listWorkOrderDiffsV2)
 	s.mux.HandleFunc("POST /api/v2/work-orders/{id}/revise", s.reviseWorkOrderV2)
 	s.mux.HandleFunc("POST /api/v2/work-orders/{id}/hire-agent", s.hireWorkOrderAgentV2)
+	s.mux.HandleFunc("POST /api/v2/work-orders/{id}/restaff", s.restaffWorkOrderV2)
 	s.mux.HandleFunc("POST /api/v2/work-orders/{id}/approve", s.approveWorkOrderV2)
 	s.mux.HandleFunc("POST /api/v2/master/quests/{id}/{action}", s.controlWorkOrderQuestV2)
 	s.mux.HandleFunc("POST /api/v2/master/quests/{id}/git/{action}", s.runQuestGitActionV2)

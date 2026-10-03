@@ -167,6 +167,7 @@ profile and per-run `host_live` execution. See
 | `DELETE` | `/api/v2/work-orders/{id}` | Delete a WorkOrder with its revisions; refused while its quest is open |
 | `GET` | `/api/v2/work-orders/{id}/diffs` | Read machine-readable diffs produced after an approved work order is revised |
 | `POST` | `/api/v2/work-orders/{id}/revise` | Create a new immutable `WorkOrder` revision and pause its active quest when required |
+| `POST` | `/api/v2/work-orders/{id}/restaff` | Retry a failed background roster selection: only a WorkOrder in `staffing` with `roster.selectionError`; writes the next version with `roster.selecting` and starts selection again with an optional transient `apiKey` |
 | `POST` | `/api/v2/work-orders/{id}/hire-agent` | Atomically create or reuse an agent, replace an exact roster draft and return the updated WorkOrder; requires version, digest and idempotency key |
 | `POST` | `/api/v2/work-orders/{id}/approve` | Atomically approve an exact version/digest, materialize its roster/workspace, build the Flow and launch it; an optional transient `apiKey` comes from desktop SecretStorage and is never persisted. With an image-based sandbox backend, approval is refused until `sandbox.imageDigest` is pinned (see below) |
 
@@ -479,3 +480,37 @@ actions address an explicit `project` and do not depend on the link. See
 The existing WorkOrder revision/approval flow signs new plans. An already failed stage can propose `dependencyPlan` through the existing stage-retry proposal/control API. Such a proposal always requires human approval, is included in the proposal digest, and overlays the immutable approved order only for that quest. Historical proposals retain their digest. Retrying Accept preserves completed writer stages and the original criteria; no separate preparation route exists.
 
 Events `dependencies.started`, `dependencies.finished`, `dependencies.failed`, `verification.started`, and `verification.finished` carry quest, execution, Flow and node correlation. A preparation failure produces unavailable check evidence with `preparationFailed: true`; criteria do not execute. Completion distinguishes `implementationReady` from `acceptancePassed`, and an unsuccessful independent check cannot emit `accepted_after_revision`.
+
+## Unified Git workspace (2026-10-03)
+
+All local mutation requests carry an explicit `workspaceId`, `repoRoot` and the opaque `revision` returned by status. Repository roots are validated against the current workspace inventory. A changed HEAD, branch, refs, remotes, operation, index or changed file contents rejects the operation before writing. Reads with a foreign workspace are rejected too.
+
+| Method | Path | Contract |
+| --- | --- | --- |
+| `GET` | `/api/v2/git/repositories` | `{workspaceId,repositories:[{root,name,branch,changes,operation,problem}]}` |
+| `GET` | `/api/v2/git/status` | Query `workspaceId,repoRoot`; returns `{workspaceId,git}`. Git has head, branch, detached, revision, upstream in remote, ahead/behind, operation, pullConfigured, remotes, branches and independent staged/working/untracked/conflict changes. |
+| `POST` | `/api/v2/git/read` | Target plus `kind`: history, diff, compare, files, content, blame, stash, stashes. History query supports search/author/path/ref/skip; returns up to 100 commits with real parent hashes. Diff supports area=staged and optional path. Compare takes base/head/path; content takes head/path. |
+| `POST` | `/api/v2/git/actions` | Target, revision, action and typed arguments paths/patch/message/ref/name/remote/url/amend/confirmed/strategy. Stage/unstage, patch staging, commit/commitAndPush, fetch/push/forcePush/pull, branches/remotes/upstream/tags/stash, merge/rebase/cherry-pick/revert, continue/abort, applyPatch. Success returns snapshot/message/commit. Failure 409 returns error.message and result; a successfully created commit remains visible if push fails. |
+| `POST` | `/api/v2/git/setup` | workspaceId, action=clone/init, name (one new directory in the workspace, or "." for init), url for clone. Existing repositories are never overwritten. |
+| `GET` | `/api/v2/git/assistance` | Target query; returns the configured Git helper connectionId, never its secret. |
+| `POST` | `/api/v2/git/suggest` | Target, purpose=commit/description/diff/ci/conflict, revision, API key supplied by host, optional forge request and bounded source text. Returns revision/purpose/text/patch. No tools and no writes; the user previews and explicitly applies the result. |
+
+Manual commit uses the real index. File selection and named change lists are metadata only. Quest commits assemble an isolated temporary index from task paths and preserve already staged user blobs. Core Git mutations, task commits/checkouts/fetch and change-set delivery share repository write coordination. Git uses the user's Git credentials; tokens for forge APIs never enter Git configuration.
+
+## Forge provider API (2026-10-03)
+
+| Method | Path | Contract |
+| --- | --- | --- |
+| `GET` | `/api/v2/forge/connections` | Connections with id/provider/name/url/caPath/secretRef/enabled; tokens are omitted. Lazily imports the former GitLab secret reference once. |
+| `PUT` | `/api/v2/forge/connections` | Connection fields plus optional token. Assigns an ID on create; keeps the stored secretRef on edit. Changing server requires a token for the new address. |
+| `DELETE` | `/api/v2/forge/connections/{id}` | Removes that connection and its bindings from the persisted config. |
+| `POST` | `/api/v2/forge/secrets/unlock` | values map keyed only by configured secret references; contents stay in memory. Host persists tokens in SecretStorage. |
+| `GET` | `/api/v2/forge/bindings` | Query workspaceId/repoRoot; returns saved bindings and candidates, each with remote/connectionId/project/mode. Multiple accounts require an explicit choice. |
+| `PUT` | `/api/v2/forge/bindings` | Explicit workspaceId/repoRoot/remote and mode=auto/manual/off; manual includes connectionId/project. Binding is specific to one repository and remote. |
+| `POST` | `/api/v2/forge/request` | Explicit connectionId, action, project as appropriate; iid for MR actions. Returns state=ok/response(data,nextPage,capabilities) or state=error/reason/problem/uncertain. |
+
+Provider actions: status, reviews (scope=mine/review/all, page), review, changes, discussions, approvals, file(path/ref), pipelines, jobs(pipelineId), log/logs(jobId), users, create, update, comment, reply, resolve, approve, unapprove, merge, retryJob, retryPipeline. Models are defined in `internal/forge`; GitLab normalizes REST payloads in `internal/integrations/gitlab`. Service-specific terminology remains MR for GitLab.
+
+MR writes require expectedSha matching the current review. Inline comment position includes oldPath/newPath, oldLine/newLine and baseSha/headSha/startSha matching current diffRefs. Merge additionally requires confirmed=true and transmits SHA to GitLab. Create searches for an existing opened source/target MR before making one. Writes are never automatically retried: uncertain transport/5xx results require checking service state first. Tokens are tied to a connection and redirects are disabled.
+
+Old GitLab routes remain supported. After migration, the old screen client is a response-shape adapter over the direct REST transport; an unmigrated installation keeps its previous behavior until entering the unified workspace. MCP remains a separate agent-tool transport with its own permissions.

@@ -215,3 +215,36 @@ func (a *App) resumeWorkOrderStaffingV2(ctx context.Context, workspaceID string)
 		a.startWorkOrderStaffingV2(order.ID, cfg, "")
 	}
 }
+
+// RestaffWorkOrderV2 — повтор подбора после отказа (TODO Q15). Отказ оставлял
+// наряд в составе с причиной, и выйти из него можно было только новым ходом
+// Мастера. Кнопка «Подобрать снова» пишет следующую версию в подборе и
+// запускает его заново.
+func (a *App) RestaffWorkOrderV2(ctx context.Context, id, apiKey string) (domain.WorkOrder, error) {
+	a.staffing.save.Lock()
+	current, err := a.store.GetWorkOrderV2(ctx, strings.TrimSpace(id))
+	if err != nil {
+		a.staffing.save.Unlock()
+		return domain.WorkOrder{}, err
+	}
+	if err = a.guardWorld(current.WorkspaceID); err != nil {
+		a.staffing.save.Unlock()
+		return domain.WorkOrder{}, err
+	}
+	if current.State != "staffing" || current.Roster.Selecting || strings.TrimSpace(current.Roster.SelectionError) == "" {
+		a.staffing.save.Unlock()
+		return domain.WorkOrder{}, errors.New("подбор этого наряда не проваливался: повторять нечего")
+	}
+	next := current
+	next.Version++
+	next.UpdatedAt = time.Now().UTC()
+	next.Roster = domain.AgentRosterPlan{Selecting: true}
+	saved, err := a.store.SaveWorkOrderV2(ctx, next)
+	a.staffing.save.Unlock()
+	if err != nil {
+		return domain.WorkOrder{}, err
+	}
+	cfg, _ := a.masterConfig(ctx, saved.WorkspaceID)
+	a.startWorkOrderStaffingV2(saved.ID, cfg, apiKey)
+	return saved, nil
+}

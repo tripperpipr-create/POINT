@@ -140,6 +140,13 @@ func TestFlowFallbackCreatesFreshExecutionWithReadyExplicitAgent(t *testing.T) {
 	first := executions[0]
 	first.Status, first.Error = domain.RunFailed, "temporary transport error"
 	_ = application.store.SaveExecution(context.Background(), first)
+	firstSandbox, err := application.store.GetSandbox(context.Background(), first.SandboxID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(filepath.Join(firstSandbox.Path, "found.txt"), []byte("lock без ssh2\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	recoveredRun, recovered, err := application.recoverFlowNodeFailure(flowRun.ID, "work", first)
 	if err != nil || !recovered {
 		t.Fatalf("recovered=%v err=%v", recovered, err)
@@ -159,6 +166,22 @@ func TestFlowFallbackCreatesFreshExecutionWithReadyExplicitAgent(t *testing.T) {
 	}
 	if !foundFallback {
 		t.Fatalf("fallback execution missing: %#v", executions)
+	}
+	// Q11: повтор продолжает с кандидата прерванной попытки. Повтор с
+	// отказывающей моделью успевает завершиться, и его итог заменяет выход
+	// узла, поэтому перенос проверяется по самой песочнице повтора.
+	var retry domain.ExecutionInstance
+	for _, execution := range executions {
+		if execution.ProjectAgentID == fallback.ID {
+			retry = execution
+		}
+	}
+	retrySandbox, err := application.store.GetSandbox(context.Background(), retry.SandboxID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if data, readErr := os.ReadFile(filepath.Join(retrySandbox.Path, "found.txt")); readErr != nil || string(data) != "lock без ssh2\n" {
+		t.Fatalf("retry sandbox lost the interrupted candidate: %q %v", data, readErr)
 	}
 }
 

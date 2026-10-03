@@ -38,7 +38,7 @@ function createIntegrationsController(provider) {
   function register(context) {
     gitlab.register(context)
     context.subscriptions.push(vscode.commands.registerCommand('localAgent.openIntegrations', () => provider.showWide('integrations')))
-    context.subscriptions.push(vscode.commands.registerCommand('localAgent.openGitLabWindow', () => gitlab.openWindow()))
+    context.subscriptions.push(vscode.commands.registerCommand('localAgent.openGitLabWindow', () => provider.gitWorkspace().open('reviews')))
     // Связь проекта с GitLab — выбор проекта, а не общая настройка: команда
     // ведёт во вкладку Гильдии «GitLab» открытого мира.
     context.subscriptions.push(vscode.commands.registerCommand('localAgent.gitlabProjectLink', () => provider.showWide('project-gitlab')))

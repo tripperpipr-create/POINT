@@ -37,6 +37,8 @@ export function createUiSnapshot({ root, ui, masterClient, applyMasterComposeRes
       onboarding: root.querySelector('.onboarding')?.scrollTop ?? 0,
       // Дерево изменений перерисовывается от каждой правки в редакторе: без
       // переноса прокрутки список прыгал бы к началу под рукой.
+      gitWorkspace: root.querySelector('.git-workspace')?.scrollTop ?? 0,
+      gitWorkspaceRepo: root.querySelector('.git-workspace')?.dataset.gwRepo,
       gitTree: root.querySelector('.point-git-tree')?.scrollTop ?? 0,
       companionThread: companionThread ? {
         top: companionThread.scrollTop,
@@ -77,6 +79,8 @@ export function createUiSnapshot({ root, ui, masterClient, applyMasterComposeRes
     if (setupContent && snapshot.setupContent != null) setupContent.scrollTop = snapshot.setupContent
     const onboarding = root.querySelector('.onboarding')
     if (onboarding && snapshot.onboarding != null) onboarding.scrollTop = snapshot.onboarding
+    const gitWorkspace = root.querySelector('.git-workspace')
+    if (gitWorkspace) gitWorkspace.scrollTop = snapshot.gitWorkspaceRepo===gitWorkspace.dataset.gwRepo ? snapshot.gitWorkspace : Number(gitWorkspace.dataset.gwScroll)||0
     const gitTree = root.querySelector('.point-git-tree')
     if (gitTree && snapshot.gitTree != null) gitTree.scrollTop = snapshot.gitTree
     const companionThread = root.querySelector('#companion-thread')

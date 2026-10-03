@@ -13,6 +13,7 @@ import (
 	"local-agent-workbench/internal/agent"
 	"local-agent-workbench/internal/domain"
 	"local-agent-workbench/internal/filepolicy"
+	"local-agent-workbench/internal/flowruntime"
 	"local-agent-workbench/internal/sandbox"
 	"local-agent-workbench/internal/security"
 )
@@ -49,7 +50,7 @@ func (a *App) runBaselineVerificationV2(ctx context.Context, flowRunID, nodeID, 
 	if done, err := a.store.BaselineVerificationV2(ctx, flowRunID); err == nil && done.ID != "" {
 		return nil
 	}
-	plan, ok := a.preAcceptPlanFor(ctx, flowRunID, nodeID)
+	plan, ok := a.baselinePlanFor(ctx, flowRunID, nodeID)
 	if !ok {
 		return nil
 	}
@@ -60,6 +61,12 @@ func (a *App) runBaselineVerificationV2(ctx context.Context, flowRunID, nodeID, 
 	record, err := a.store.GetSandbox(ctx, exec.SandboxID)
 	if err != nil {
 		return err
+	}
+	// Исходник писателя с родителем — дерево после правок предыдущих этапов,
+	// а не нетронутый проект. Исходную проверку делает писатель, начавший с
+	// самого проекта.
+	if len(sandboxParentExecutionIDs(record)) > 0 {
+		return nil
 	}
 	if strings.TrimSpace(record.BaselinePath) == "" {
 		return fmt.Errorf("sandbox %s has no immutable baseline", record.ID)
@@ -108,6 +115,37 @@ func (a *App) runBaselineVerificationV2(ctx context.Context, flowRunID, nodeID, 
 	}
 	slog.Info("baseline verification finished", "flow_run_id", flowRunID, "all_passed", batch.AllOK, "criteria", len(batch.Criteria))
 	return nil
+}
+
+// baselinePlanFor — критерии и сеть приёмки для исходной проверки. Писатель
+// не обязан быть последним перед приёмкой: в цепочке нетронутый проект видит
+// только первый, и план берётся у последнего писателя того же Flow.
+func (a *App) baselinePlanFor(ctx context.Context, flowRunID, nodeID string) (preAcceptPlan, bool) {
+	if plan, ok := a.preAcceptPlanFor(ctx, flowRunID, nodeID); ok {
+		return plan, true
+	}
+	flowRun, err := a.store.GetFlowRun(ctx, flowRunID)
+	if err != nil {
+		return preAcceptPlan{}, false
+	}
+	flow, ok, err := flowruntime.FlowFromSnapshot(flowRun)
+	if err != nil {
+		return preAcceptPlan{}, false
+	}
+	if !ok {
+		if flow, err = a.store.GetFlow(ctx, flowRun.FlowID); err != nil {
+			return preAcceptPlan{}, false
+		}
+	}
+	for _, node := range flow.Nodes {
+		if node.ID == nodeID || !domain.FlowNodeWriteFiles(node) {
+			continue
+		}
+		if _, last := lastWriterBeforeAccept(flow, node.ID); last {
+			return a.preAcceptPlanFor(ctx, flowRunID, node.ID)
+		}
+	}
+	return preAcceptPlan{}, false
 }
 
 func baselineFailedCriteria(criteria []agent.CriterionEvidence) []string {

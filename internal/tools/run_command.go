@@ -27,6 +27,7 @@ import (
 	"local-agent-workbench/internal/osproc"
 	"local-agent-workbench/internal/sandbox"
 	"local-agent-workbench/internal/security"
+	"local-agent-workbench/internal/verification"
 	"local-agent-workbench/internal/workspace"
 )
 
@@ -258,6 +259,10 @@ func (t RunCommand) Execute(ctx context.Context, raw json.RawMessage) domain.Too
 		}
 	}
 	output := map[string]any{"stdout": security.Redact(stdout.String()), "stderr": security.Redact(stderr.String()), "exitCode": exitCode, "durationMs": duration.Milliseconds(), "timedOut": timedOut}
+	// cmd.exe не знает pipefail: код конвейера — код последней команды (Q08).
+	if t.Executor == nil && volumeExecutor == nil && runtime.GOOS == "windows" && verification.TopLevelPipe(input.Command) {
+		output["exitCodeOf"] = "the last command of the pipeline: cmd.exe has no pipefail, so an earlier failure is not in exitCode"
+	}
 	// Сетевая атрибуция — доказательство для команды, которая ходила в сеть.
 	// Для `ls` она была пятью пустыми полями в каждом выводе, который читает
 	// модель.

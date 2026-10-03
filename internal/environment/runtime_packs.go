@@ -184,7 +184,7 @@ func runtimeRequirements(stack domain.StackPresetRef, setup domain.SetupPlan, co
 	} else if strings.HasPrefix(trustedVersions["node"], "22") {
 		candidates = append(candidates, Node22ManagedImage)
 	} else if trustedVersions["node"] == "" && versionMajor(trustedVersions["npm"]) == "10" {
-		// npm 10 без названной ноды: оба пакета Node собираются с npm 10.9.0
+		// npm 10 без названной ноды: оба пакета Node собираются с npm 10.9.9
 		// (Dockerfile.sandbox-node), образ по умолчанию несёт npm 12. Версию
 		// всё равно подтверждает проба образа, а не это предположение.
 		candidates = append(candidates, Node20ManagedImage, Node22ManagedImage)

@@ -144,3 +144,7 @@ Point / Electron
 Что уже отделено на уровне продукта: имена, dataFolder, Copilot/chat chrome, аккаунты, нативная Главная, Инвентарь/Летопись/Агенты/Реликвии, JetBrains-навигация. Что по-прежнему наследуется от Code-OSS: Monaco, workbench layout engine, протокол расширений VS Code API, встроенные language grammars и upstream command IDs в палитре (часть команд ядра всё ещё с английскими upstream-именами до полного gulp с nls).
 
 Для текущей локальной среды сборка нативных модулей использует флаг компилятора `/Qspectre`, а при отсутствии Spectre-mitigated CRT libraries связывается со стандартным VC runtime. Для официального production-релиза рекомендуется установить Spectre libraries через Visual Studio Installer и подписывать итоговые EXE.
+
+## Unified Git workspace candidate
+
+The overlay includes git-workbench-controller.js, git-index-patches.js, git-workspace-controller.js and git-review-editors.js. Build source UI and the core together; generated media is not edited directly. Legacy Chronicle/GitLab commands enter the common editor tab. Multiple provider credentials remain in SecretStorage and repository bindings migrate without copying token values to persisted settings. Before shipping, complete the live local Git and owner GitLab scenarios in [git-workspace.md](../docs/git-workspace.md); source checks alone do not certify the installed IDE.

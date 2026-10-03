@@ -775,6 +775,11 @@ for (const [file, maximum] of Object.entries({
   // Подпись состояния: поле вне её не доезжает до вкладок (см. модуль).
   'vscode-extension/hub-state-signature.js': 90,
   'vscode-extension/git-tool-controller.js': 400,
+  'vscode-extension/git-workbench-controller.js': 170,
+  'vscode-extension/git-workspace-controller.js': 210,
+  'vscode-extension/git-review-editors.js': 210,
+  'vscode-extension/git-index-patches.js': 100,
+  'vscode-extension/ui/client/git-workspace-ui.js': 370,
   'vscode-extension/hub-surfaces-controller.js': 400,
   'vscode-extension/hub-polling-controller.js': 300,
   'vscode-extension/companion-thread-controller.js': 250,

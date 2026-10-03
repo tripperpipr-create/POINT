@@ -7,7 +7,7 @@ import (
 
 // Copy only conversation context; executable proposals, turns and memory identities stay in the source scope.
 func (s *SQLite) CopyMasterContext(ctx context.Context, source, target, from, to, anchorID string) error {
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.beginTx(ctx)
 	if err != nil {
 		return err
 	}

@@ -10,7 +10,7 @@ func (s *SQLite) ReplaceMasterMemory(ctx context.Context, w, proposedID, targetI
 	if proposedID == targetID {
 		return errors.New("выберите другую запись памяти")
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.beginTx(ctx)
 	if err != nil {
 		return err
 	}

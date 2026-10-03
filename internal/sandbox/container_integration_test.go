@@ -73,7 +73,9 @@ func TestDockerSandboxIntegration(t *testing.T) {
 		fmt.Sprintf(`test "$(node --version)" = %q`, sandboxExpectedVersion("POINT_SANDBOX_EXPECT_NODE", "v24.20.0")),
 		fmt.Sprintf(`test "$(npm --version)" = %q`, sandboxExpectedVersion("POINT_SANDBOX_EXPECT_NPM", "12.0.2")),
 		`go version | grep -Eq '^go version go1\.26\.7 linux/'`,
-		`python3 --version | grep -qx 'Python 3.13.15'`,
+		// Сборка wolfi 3.13.15_git20260912 (исправление CVE-2026-82049)
+		// называет себя «3.13.15+».
+		`python3 --version | grep -Eqx 'Python 3\.13\.15\+?'`,
 		`if test -f /sys/fs/cgroup/memory.max; then ` +
 			`test "$(cat /sys/fs/cgroup/memory.max)" = "134217728"; ` +
 			`test "$(cat /sys/fs/cgroup/pids.max)" = "32"; ` +
@@ -89,7 +91,7 @@ func TestDockerSandboxIntegration(t *testing.T) {
 	payload, _ := json.Marshal(map[string]any{"command": command, "reason": "verify container filesystem boundary", "timeoutSeconds": 30})
 	result := (tools.RunCommand{FS: fs, Executor: backend, NetworkPolicy: "DENY"}).Execute(context.Background(), payload)
 	if !result.OK || !strings.Contains(string(result.Output), `"exitCode":0`) {
-		t.Fatalf("isolated command failed: %#v", result)
+		t.Fatalf("isolated command failed: %s %+v", result.Output, result.Error)
 	}
 	written, err := os.ReadFile(filepath.Join(root, "result.txt"))
 	if err != nil || string(written) != "isolated" {
@@ -117,18 +119,44 @@ func TestDockerSandboxIntegration(t *testing.T) {
 		t.Fatalf("exact allowlisted TLS egress failed: %#v", allowedResult)
 	}
 
-	for name, blockedCommand := range map[string]string{
-		"unlisted fqdn": `python3 -c "import urllib.request; urllib.request.urlopen('https://example.com/', timeout=5)"`,
-		"plain http":    `python3 -c "import urllib.request; urllib.request.urlopen('http://registry.npmjs.org/', timeout=5)"`,
-		"direct ip":     `python3 -c "import socket; socket.create_connection(('1.1.1.1', 443), 2)"`,
+	// Два слоя запрета. run_command сам отказывает, когда видит в команде
+	// неразрешённый адрес (network_denied / network_target_invalid), — такой
+	// отказ засчитывается, но шлюз песочницы он не проверяет. Поэтому у
+	// каждой цели есть и вариант с адресом, собранным во время выполнения:
+	// его разбор не видит, команда обязана запуститься и упасть на шлюзе.
+	// Прежняя проверка (с 29.09) засчитывала любой отказ инструмента, даже
+	// неготовую песочницу, — и шлюз фактически не проверялся.
+	for name, blocked := range map[string]struct{ plain, hidden string }{
+		"unlisted fqdn": {
+			`python3 -c "import urllib.request; urllib.request.urlopen('https://example.com/', timeout=5)"`,
+			`python3 -c "import urllib.request; urllib.request.urlopen('https://' + 'exam' + 'ple.com/', timeout=5)"`,
+		},
+		"plain http": {
+			`python3 -c "import urllib.request; urllib.request.urlopen('http://registry.npmjs.org/', timeout=5)"`,
+			`python3 -c "import urllib.request; urllib.request.urlopen('ht' + 'tp://registry.npmjs.org/', timeout=5)"`,
+		},
+		"direct ip": {
+			`python3 -c "import socket; socket.create_connection(('1.1.1.1', 443), 2)"`,
+			`python3 -c "import socket; socket.create_connection(('.'.join(['1'] * 4), 443), 2)"`,
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			payload, _ := json.Marshal(map[string]any{"command": blockedCommand, "reason": "verify controlled egress deny", "timeoutSeconds": 15})
-			result := (tools.RunCommand{
-				FS: fs, Executor: backend, NetworkPolicy: "ALLOWLIST", AllowedNetworkHosts: allowlist, RunID: "integration-egress-deny",
-			}).Execute(context.Background(), payload)
-			if result.OK && strings.Contains(string(result.Output), `"exitCode":0`) {
-				t.Fatalf("controlled gateway allowed %s: %#v", name, result)
+			run := func(command string) domain.ToolResult {
+				payload, _ := json.Marshal(map[string]any{"command": command, "reason": "verify controlled egress deny", "timeoutSeconds": 15})
+				return (tools.RunCommand{
+					FS: fs, Executor: backend, NetworkPolicy: "ALLOWLIST", AllowedNetworkHosts: allowlist, RunID: "integration-egress-deny",
+				}).Execute(context.Background(), payload)
+			}
+			plain := run(blocked.plain)
+			switch {
+			case plain.OK && strings.Contains(string(plain.Output), `"exitCode":0`):
+				t.Fatalf("controlled gateway allowed %s: %#v", name, plain)
+			case !plain.OK && (plain.Error == nil || (plain.Error.Code != "network_denied" && plain.Error.Code != "network_target_invalid")):
+				t.Fatalf("%s refused for a reason other than network policy: %#v", name, plain.Error)
+			}
+			hidden := run(blocked.hidden)
+			if !hidden.OK || !strings.Contains(string(hidden.Output), `"exitCode":`) || strings.Contains(string(hidden.Output), `"exitCode":0`) {
+				t.Fatalf("%s with a runtime-built target must reach the sandbox gateway and fail there: %#v", name, hidden)
 			}
 		})
 	}

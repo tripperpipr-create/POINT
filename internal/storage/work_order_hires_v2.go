@@ -64,7 +64,7 @@ func (s *SQLite) WorkOrderHireReplayV2(ctx context.Context, orderID, draftID, ke
 // HireWorkOrderAgentV2 commits the agent, optional blueprint and roster revision
 // together. A retry returns the original result without creating a second agent.
 func (s *SQLite) HireWorkOrderAgentV2(ctx context.Context, orderID, draftID, key string, version int, digest, requestHash string, agent domain.ProjectAgent, blueprint *domain.AgentBlueprint, existing, runnable bool) (WorkOrderHireResult, error) {
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.beginTx(ctx)
 	if err != nil {
 		return WorkOrderHireResult{}, err
 	}

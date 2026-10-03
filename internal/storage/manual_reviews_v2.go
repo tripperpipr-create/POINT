@@ -99,7 +99,7 @@ func (s *SQLite) ReviewManualCriterionV2(ctx context.Context, review domain.Manu
 	if review.Decision != domain.ManualReviewAccepted && review.Decision != domain.ManualReviewRejected {
 		return "", fmt.Errorf("неизвестное решение %q: нужно accepted или rejected", review.Decision)
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.beginTx(ctx)
 	if err != nil {
 		return "", err
 	}

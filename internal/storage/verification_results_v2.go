@@ -78,6 +78,18 @@ func (s *SQLite) PassedVerificationResultV2(ctx context.Context, questID, batchK
 	return result, true, nil
 }
 
+// PassedVerificationOnTreeV2 — есть ли в прогоне Flow целиком прошедшая
+// проверка Point на этом дереве. Обход модельного ревью опирается на неё:
+// без проверки ревью не пропускается (TODO Q09).
+func (s *SQLite) PassedVerificationOnTreeV2(ctx context.Context, flowRunID, treeDigest string) (bool, error) {
+	if flowRunID == "" || treeDigest == "" {
+		return false, nil
+	}
+	var found int
+	err := s.db.QueryRowContext(ctx, `SELECT COUNT(1) FROM verification_results_v2 WHERE flow_run_id=? AND tree_digest=? AND all_passed=1`, flowRunID, treeDigest).Scan(&found)
+	return found > 0, err
+}
+
 // VerificationResultV2 — запись по id: затвор доказательств сверяет по ней
 // переиспользованную проверку.
 func (s *SQLite) VerificationResultV2(ctx context.Context, id string) (domain.VerificationResult, bool, error) {

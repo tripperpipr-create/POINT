@@ -24,7 +24,7 @@ func forgetMasterExamplesTx(ctx context.Context, tx *sql.Tx, predicate string, a
 // Compare-and-activate keeps rollback, deleting source examples and a finishing
 // background worker atomic. A stale worker can never resurrect a withdrawn job.
 func (s *SQLite) ActivateMasterSkillTrial(ctx context.Context, job domain.MasterLearningJob, r domain.MasterSkillRevision) error {
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.beginTx(ctx)
 	if err != nil {
 		return err
 	}

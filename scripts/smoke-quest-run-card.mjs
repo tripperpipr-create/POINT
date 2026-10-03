@@ -105,6 +105,7 @@ expect(/<details class="quest-prepared-file">[\s\S]*?HealthController\.php[\s\S]
 const preparedReason = visible(blockedHtml.match(/<p class="quest-prepared-reason">[\s\S]*?<\/p>/)?.[0] || '')
 expect(preparedReason.includes('Не перенесено: Работа заблокирована') && !preparedReason.includes('work is not proven'), 'reason for non-delivery is missing or machine-worded')
 expect(/data-action="master-ask"[^>]*data-question="Подготовь новую версию наряда[^"]*"[^>]*>Новая версия наряда/.test(blockedHtml), 'no way to a new work order version')
+expect(/data-action="open-prepared-diff"[^>]*data-change-set="[^"]+"[^>]*data-item="[^"]+"[^>]*>Открыть в редакторе/.test(blockedHtml), 'prepared file cannot be opened in the IDE diff editor')
 expect(!/<li class="is-failed"[^>]*>[\s\S]{0,300}composer\.json содержит/.test(blockedHtml), 'a passed check is painted as failed on a blocked quest')
 expect(!blocked.includes('Загружаем журнал'), 'a quest stopped by a verdict promises a journal that will never load')
 expect(!blockedHtml.includes('data-control="resume"'), 'a quest with a final verdict offers a retry the core refuses')

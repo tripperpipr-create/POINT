@@ -13,7 +13,7 @@ func (s *SQLite) DeleteExecutionSandbox(ctx context.Context, executionID, sandbo
 	if executionID == "" || sandboxID == "" {
 		return errors.New("execution and sandbox ids are required")
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.beginTx(ctx)
 	if err != nil {
 		return err
 	}

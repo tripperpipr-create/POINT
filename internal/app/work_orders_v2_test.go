@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"local-agent-workbench/internal/agent"
 	"local-agent-workbench/internal/domain"
 	"local-agent-workbench/internal/sandbox"
 )
@@ -624,4 +625,34 @@ func assignReadyRosterForTest(t *testing.T, application *App, order *domain.Work
 	order.Roster = domain.AgentRosterPlan{Permanent: []domain.AgentDraft{{
 		ID: agent.ID, Existing: true, Name: agent.Name, Role: agent.RoleDescription, Mission: agent.Mission,
 	}}}
+}
+
+// Q10: исполнитель получает слова человека — первый запрос и уточнения, — а
+// не цель в пересказе Мастера. Прежний наряд без них отдаёт цель, и его
+// дайджест не меняется.
+func TestExecutionBriefCarriesHumanWords(t *testing.T) {
+	order := managedWorkOrderV2()
+	legacyDigest := domain.WorkOrderDigest(order)
+	legacy, err := taskBriefFromWorkOrderV2(order)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if legacy.SourceRequest != order.Goal || len(legacy.Clarifications) != 0 {
+		t.Fatalf("прежний наряд: %q %q", legacy.SourceRequest, legacy.Clarifications)
+	}
+	order.SourceRequest = "Добавь деплой на тестовые серверы"
+	order.Clarifications = []string{"Только из незащищённых веток"}
+	if domain.WorkOrderDigest(order) == legacyDigest {
+		t.Fatal("слова человека не входят в утверждаемый дайджест")
+	}
+	brief, err := taskBriefFromWorkOrderV2(order)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if brief.SourceRequest != order.SourceRequest || len(brief.Clarifications) != 1 || brief.Clarifications[0] != "Только из незащищённых веток" {
+		t.Fatalf("исполнитель не получил слова человека: %q %q", brief.SourceRequest, brief.Clarifications)
+	}
+	if contract := agent.TaskContractInstructions(&brief); !strings.Contains(contract, "Только из незащищённых веток") {
+		t.Fatal("уточнение не дошло до договора исполнителя")
+	}
 }

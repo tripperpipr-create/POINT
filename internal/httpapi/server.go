@@ -192,6 +192,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/global-models", s.globalModels)
 	s.mux.HandleFunc("POST /api/global-models", s.saveGlobalModels)
 	s.mux.HandleFunc("POST /api/orchestrator/policy", s.orchestratorPolicy)
+	s.mux.HandleFunc("GET /api/change-sets/{id}/items/{itemId}/content", s.changeItemContent)
 	s.mux.HandleFunc("POST /api/change-sets/{id}/apply", s.applyChangeSet)
 	s.mux.HandleFunc("POST /api/change-sets/{id}/reject", s.rejectChangeSet)
 	s.mux.HandleFunc("POST /api/change-sets/{id}/revert", s.revertChangeSet)

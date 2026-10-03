@@ -13,7 +13,7 @@ RUN apk add --no-cache \
       ca-certificates-bundle=20260611-r0 \
       git=2.55.0-r5 \
       build-base=1-r9 \
-      python-3.13=3.13.15-r4 \
+      python-3.13=3.13.15_git20260912-r0 \
       ripgrep=15.2.0-r2 \
       go-1.26=1.26.7-r0 \
       nodejs-24=24.20.0-r1 \

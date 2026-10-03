@@ -81,7 +81,7 @@ var questPurgeJournalTables = map[string]string{
 // удалено. Счётчик — не украшение отчёта: человек нажал одну кнопку и обязан
 // увидеть, что именно за ней исчезло.
 func (s *SQLite) PurgeQuest(ctx context.Context, workspaceID, questID string) (map[string]int, error) {
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.beginTx(ctx)
 	if err != nil {
 		return nil, err
 	}

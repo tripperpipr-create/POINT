@@ -8,7 +8,7 @@ import (
 )
 
 func (s *SQLite) ForkMasterConversation(ctx context.Context, w, id, messageID string) (string, error) {
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.beginTx(ctx)
 	if err != nil {
 		return "", err
 	}

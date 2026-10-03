@@ -56,6 +56,7 @@ function preparedReason(runtime, found) {
     const paths = list(conflicted.set.resolutions).filter(item => item?.strategy === 'unresolved').map(item => item.path)
     return `Набор изменений в конфликте с проектом${paths.length ? `: ${paths.slice(0, 3).join(', ')}` : ''}.`
   }
+  if (evidence.deliverySkipReason) return `Не перенесено: ${String(evidence.deliverySkipReason)}.`
   if (evidence.deliveryConflict) return 'Перенос остановлен конфликтом с текущим состоянием проекта.'
   if (String(evidence.deliveryTarget || '') === 'isolated_review') return 'Перенос ручной: результат ждёт решения в наборах изменений.'
   // Сообщение квеста — по-русски; строка шлюза — машинная и уже разобрана в
@@ -74,7 +75,10 @@ export function preparedFilesHtml(order, ui, esc) {
     const entry = found.get(String(path))
     const head = `<span class="hall-step-icon">${icon('file')}</span><span>${esc(path)}</span>`
     if (!entry?.item?.diff) return `<li>${head}</li>`
-    return `<li><details class="quest-prepared-file"><summary>${head}${diffCountHtml(diffStats(entry.item.diff))}</summary>${diffHtml(entry.item.diff, esc, { limit: 200 })}</details></li>`
+    const open = entry.set?.id && entry.item?.id
+      ? `<div class="quest-actions"><div><button type="button" class="hall-btn" data-action="open-prepared-diff" data-change-set="${esc(entry.set.id)}" data-item="${esc(entry.item.id)}" data-path="${esc(path)}">Открыть в редакторе</button></div></div>`
+      : ''
+    return `<li><details class="quest-prepared-file"><summary>${head}${diffCountHtml(diffStats(entry.item.diff))}</summary>${open}${diffHtml(entry.item.diff, esc, { limit: 200 })}</details></li>`
   }).join('')
   const rest = prepared.length - shown.length
   const reason = preparedReason(runtime, found)
@@ -85,4 +89,11 @@ export function preparedFilesHtml(order, ui, esc) {
     ? `<div class="quest-actions"><div><button type="button" class="hall-btn" data-action="master-ask" data-question="${esc(question)}">Новая версия наряда</button></div></div>`
     : ''
   return `<div class="quest-section quest-prepared"><h4>Подготовлено, не доставлено · ${countOf(prepared.length, 'файл', 'файла', 'файлов')}</h4><p class="quest-prepared-reason">${esc(reason)}</p><ul class="quest-files">${rows}</ul>${rest > 0 ? `<small class="quest-more">и ещё ${countOf(rest, 'файл', 'файла', 'файлов')}</small>` : ''}${next}</div>`
+}
+
+// Полный файл до и после — в diff-редакторе IDE (prepared-diff-controller.js).
+export function handlePreparedAction({ action, target, vscode }) {
+  if (action !== 'open-prepared-diff') return false
+  vscode.postMessage({ type: 'openPreparedDiff', changeSetId: String(target.dataset.changeSet || ''), itemId: String(target.dataset.item || ''), path: String(target.dataset.path || '') })
+  return true
 }

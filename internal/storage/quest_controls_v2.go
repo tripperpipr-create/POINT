@@ -106,7 +106,7 @@ func (s *SQLite) ControlWorkOrderQuestV2(ctx context.Context, questID, action, m
 	if action == "message" && (message == "" || len(message) > 32768) {
 		return "", errors.New("quest message must contain 1 to 32768 bytes")
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.beginTx(ctx)
 	if err != nil {
 		return "", err
 	}

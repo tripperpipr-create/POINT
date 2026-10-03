@@ -40,7 +40,7 @@ func (s *SQLite) SaveRunCheckpoint(ctx context.Context, checkpoint domain.RunChe
 	if err != nil {
 		return err
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.beginTx(ctx)
 	if err != nil {
 		return err
 	}

@@ -512,7 +512,7 @@ const sandboxImage = read('Dockerfile.sandbox')
 for (const token of [
   'cgr.dev/chainguard/wolfi-base@sha256:03c6561658909fc4eadd0b2dc717375df40a22cc05455b8f82f1f1974e7e4427',
   'ca-certificates-bundle=20260611-r0', 'git=2.55.0-r5', 'build-base=1-r9',
-  'python-3.13=3.13.15-r4', 'ripgrep=15.2.0-r2', 'go-1.26=1.26.7-r0',
+  'python-3.13=3.13.15_git20260912-r0', 'ripgrep=15.2.0-r2', 'go-1.26=1.26.7-r0',
   'nodejs-24=24.20.0-r1', 'npm=12.0.2-r0', 'apk add --no-cache',
   'adduser -D -u 10001', 'USER 10001:10001', 'WORKDIR /workspace',
 ]) {

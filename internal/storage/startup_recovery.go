@@ -58,7 +58,7 @@ func (s *SQLite) MarkInterrupted(ctx context.Context) error {
 
 func (s *SQLite) markInterrupted(ctx context.Context, workspaceID string) error {
 	now := time.Now().UTC().Format(time.RFC3339Nano)
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.beginTx(ctx)
 	if err != nil {
 		return err
 	}

@@ -22,7 +22,7 @@ func (s *SQLite) SaveWorkOrderV2(ctx context.Context, order domain.WorkOrder) (d
 	if order.State == "approved" {
 		return domain.WorkOrder{}, errors.New("approved work orders can only be written by the approval transaction")
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.beginTx(ctx)
 	if err != nil {
 		return domain.WorkOrder{}, err
 	}
@@ -162,7 +162,7 @@ func (s *SQLite) GetWorkOrderV2(ctx context.Context, id string) (domain.WorkOrde
 //
 // Хроника запусков и улики не трогаются: они принадлежат работе, а не договору.
 func (s *SQLite) DeleteWorkOrderV2(ctx context.Context, workspaceID, workOrderID string) error {
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.beginTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -502,7 +502,7 @@ func (s *SQLite) ApproveWorkOrderV2(ctx context.Context, id string, version int,
 	if id == "" || version <= 0 || digest == "" || idempotencyKey == "" {
 		return domain.WorkOrderApproval{}, errors.New("work order id, version, digest and idempotencyKey are required")
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.beginTx(ctx)
 	if err != nil {
 		return domain.WorkOrderApproval{}, err
 	}

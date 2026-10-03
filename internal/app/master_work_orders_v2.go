@@ -62,6 +62,7 @@ func (a *App) saveMasterWorkOrderV2(ctx context.Context, proposal *domain.QuestP
 		ID: orderID, ProposalID: proposal.ID, WorkspaceID: proposal.WorkspaceID,
 		ConversationID: strings.TrimSpace(conversationID),
 		Version:        1, State: "discussion", Goal: brief.Goal,
+		SourceRequest: brief.SourceRequest, Clarifications: append([]string(nil), brief.Clarifications...),
 		Scope: append([]string(nil), brief.Scope...), OutOfScope: append([]string(nil), brief.OutOfScope...),
 		OpenQuestions: append([]string(nil), brief.OpenQuestions...), Criteria: append([]domain.AcceptanceCriterion(nil), brief.Criteria...),
 		Sources: append([]domain.SourceSnapshotRef(nil), sources...),

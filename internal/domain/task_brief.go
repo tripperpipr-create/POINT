@@ -23,7 +23,12 @@ const (
 // Approval fields are server-owned. A digest detects content changes, not user identity.
 // Only a handler that has verified a user's approval may call ApproveTaskBrief.
 type TaskBrief struct {
-	SourceRequest   string                `json:"sourceRequest,omitempty"`
+	SourceRequest string `json:"sourceRequest,omitempty"`
+	// Clarifications — следующие реплики человека по этому заданию, дословно и
+	// по порядку (TODO Q10). Уточнение «только незащищённые ветки» из второй
+	// реплики прежде терялось: до исполнителя доходил только первый запрос
+	// и пересказ Мастера.
+	Clarifications  []string              `json:"clarifications,omitempty"`
 	Version         int                   `json:"version"`
 	ApprovedVersion int                   `json:"approvedVersion,omitempty"`
 	State           string                `json:"state"`
@@ -150,6 +155,7 @@ func NormalizeTaskBrief(b TaskBrief) TaskBrief {
 		b.Mode = TaskModeUndecided
 	}
 	b.Goal, b.ResultKind, b.Audience = strings.TrimSpace(b.Goal), strings.TrimSpace(b.ResultKind), strings.TrimSpace(b.Audience)
+	b.Clarifications = BoundedClarifications(b.Clarifications)
 	b.Scope, b.OutOfScope, b.OpenQuestions = briefStrings(b.Scope), briefStrings(b.OutOfScope), briefStrings(b.OpenQuestions)
 	b.Decisions = append([]BriefDecision(nil), b.Decisions...)
 	for i := range b.Decisions {
@@ -439,4 +445,41 @@ func validateConfirmedGitRemote(remote string) error {
 		return fmt.Errorf("confirmed git remote must be an https or ssh URL, got %q", remote)
 	}
 	return nil
+}
+
+// Пределы уточнений человека в брифе: свежие важнее, ранние уже учтены
+// Мастером в цели, критериях и решениях.
+const (
+	maxBriefClarifications     = 8
+	maxBriefClarificationRunes = 2000
+)
+
+// BoundedClarifications обрезает уточнения: пустые выбрасываются, каждое не
+// длиннее предела, остаются последние.
+func BoundedClarifications(values []string) []string {
+	var result []string
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if runes := []rune(value); len(runes) > maxBriefClarificationRunes {
+			value = string(runes[:maxBriefClarificationRunes]) + "…"
+		}
+		result = append(result, value)
+	}
+	if len(result) > maxBriefClarifications {
+		result = result[len(result)-maxBriefClarifications:]
+	}
+	return result
+}
+
+// AppendClarification добавляет реплику человека к уточнениям задания, если
+// это не исходный запрос и не повтор последнего уточнения.
+func AppendClarification(source string, clarifications []string, message string) []string {
+	message = strings.TrimSpace(message)
+	if message == "" || message == strings.TrimSpace(source) || (len(clarifications) > 0 && clarifications[len(clarifications)-1] == message) {
+		return BoundedClarifications(clarifications)
+	}
+	return BoundedClarifications(append(append([]string(nil), clarifications...), message))
 }

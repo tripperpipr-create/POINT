@@ -342,6 +342,39 @@ func (a *App) RejectChangeSet(changeSetID string) (domain.ChangeSet, error) {
 	return rejected, err
 }
 
+// ChangeItemContent — исходное и предложенное содержимое файла из набора
+// изменений: по нему IDE открывает diff подготовленного, но не доставленного
+// файла (TODO Q13). Полный текст в обычной выдаче набора не отдаётся — там
+// ограниченный diff, — поэтому здесь отдельный запрос по одному файлу.
+type ChangeItemContent struct {
+	Path     string `json:"path"`
+	Kind     string `json:"kind"`
+	Original string `json:"original"`
+	Proposed string `json:"proposed"`
+}
+
+const maxChangeItemContentBytes = 4 << 20
+
+func (a *App) ChangeItemContent(changeSetID, itemID string) (ChangeItemContent, error) {
+	set, err := a.store.GetChangeSet(context.Background(), changeSetID)
+	if err != nil {
+		return ChangeItemContent{}, err
+	}
+	if err = a.guardWorld(set.WorkspaceID); err != nil {
+		return ChangeItemContent{}, err
+	}
+	for _, item := range set.Items {
+		if item.ID != itemID {
+			continue
+		}
+		if len(item.OriginalContent) > maxChangeItemContentBytes || len(item.ProposedContent) > maxChangeItemContentBytes {
+			return ChangeItemContent{}, fmt.Errorf("файл %s больше %d МиБ — откройте его diff в наборе изменений", item.Path, maxChangeItemContentBytes>>20)
+		}
+		return ChangeItemContent{Path: item.Path, Kind: item.Kind, Original: item.OriginalContent, Proposed: item.ProposedContent}, nil
+	}
+	return ChangeItemContent{}, fmt.Errorf("в наборе %s нет файла %s", changeSetID, itemID)
+}
+
 // recordChangeSetEvidence связывает решение человека по набору правок с
 // нарядом квеста: отказ от результата — наблюдение для разбора квеста.
 func (a *App) recordChangeSetEvidence(set domain.ChangeSet, outcome string) {

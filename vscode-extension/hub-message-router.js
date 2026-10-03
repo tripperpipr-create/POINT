@@ -16,6 +16,7 @@ const { handleLearningMessage } = require('./learning-controller')
 const { handleToolingMessage } = require('./tooling-controller')
 const { handleCursorMessage } = require('./cursor-controller')
 const { handleQuestGitMessage } = require('./quest-git-controller')
+const { openPreparedDiff } = require('./prepared-diff-controller')
 const { TOOL_WINDOW_COMMANDS } = require('./extension-utils')
 
 function orchestratorConfigPayload(config = {}) {
@@ -129,6 +130,8 @@ function createHubMessageRouter({ openWorkspaceFile }) {
         await this.integrations().handle(message); break
       case 'questGitAction': case 'openQuestGitUrl':
         await handleQuestGitMessage.call(this, message); break
+      case 'openPreparedDiff':
+        await openPreparedDiff.call(this, message); break
       case 'gitAction':
       case 'loadToolWindowState':
       case 'loadDocker':

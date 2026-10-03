@@ -157,7 +157,7 @@ func firstN(values []string, n int) []string {
 // Queue and claim are transactions: concurrent turns cannot consume the same
 // evidence twice or start two evaluations. No model calls inside transactions.
 func (s *SQLite) QueueMasterLearning(ctx context.Context, ws, phase, skillID, baselineID string, candidates ...string) error {
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.beginTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -233,7 +233,7 @@ func (s *SQLite) QueueMasterLearning(ctx context.Context, ws, phase, skillID, ba
 // ClaimMasterLearning takes fresh jobs before deferred ones: a job deferred for
 // a lasting reason used to be claimed first on every wake and held the queue.
 func (s *SQLite) ClaimMasterLearning(ctx context.Context, ws string) (domain.MasterLearningJob, error) {
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.beginTx(ctx)
 	if err != nil {
 		return domain.MasterLearningJob{}, err
 	}
@@ -292,7 +292,7 @@ func (s *SQLite) ReserveMasterLearning(ctx context.Context, ws string, tokens in
 	if tokens <= 0 {
 		return "", fmt.Errorf("invalid learning reservation")
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.beginTx(ctx)
 	if err != nil {
 		return "", err
 	}

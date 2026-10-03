@@ -17,7 +17,7 @@ func (s *SQLite) BeginDeliveredAppControlV2(ctx context.Context, idempotencyKey 
 	if idempotencyKey == "" {
 		return domain.DeliveredApplicationControl{}, false, errors.New("idempotencyKey is required")
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.beginTx(ctx)
 	if err != nil {
 		return domain.DeliveredApplicationControl{}, false, err
 	}

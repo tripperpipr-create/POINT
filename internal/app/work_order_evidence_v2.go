@@ -124,6 +124,7 @@ func (a *App) finalizeWorkOrderQuestAfterFlowV2(approval domain.WorkOrderApprova
 		bundle.DeliveryTarget = "isolated_review"
 	}
 	bundle.PreparedFiles = subtractStringsV2(bundle.PreparedFiles, bundle.ChangedFiles)
+	bundle.DeliverySkipReason = deliverySkipReasonV2(bundle, flowSucceeded, machineReady)
 	markWorkOrderCriterionStatusesV2(approval.WorkOrder, &bundle)
 	// Проваленная проверка на хосте при оставшихся попытках — не вердикт, а
 	// следующая попытка с отчётом о том, что увидел хост.
@@ -1053,4 +1054,21 @@ func uniqueSortedStringsV2(values []string) []string {
 	}
 	sort.Strings(result)
 	return result
+}
+
+// deliverySkipReasonV2 называет, почему подготовленное не доставлено.
+func deliverySkipReasonV2(bundle domain.EvidenceBundle, flowSucceeded, machineReady bool) string {
+	switch {
+	case len(bundle.PreparedFiles) == 0:
+		return ""
+	case bundle.DeliveryConflict:
+		return "перенос остановлен конфликтом с текущим состоянием проекта"
+	case bundle.DeliveryTarget == "isolated_review":
+		return "перенос ручной: результат ждёт решения в наборах изменений"
+	case !flowSucceeded:
+		return "работа квеста не завершилась успешно"
+	case !machineReady:
+		return "машинные проверки не подтвердили результат"
+	}
+	return "перенос не выполнен"
 }

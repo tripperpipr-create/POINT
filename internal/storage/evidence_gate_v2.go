@@ -13,7 +13,7 @@ import (
 )
 
 func (s *SQLite) FinalizeWorkOrderQuestV2(ctx context.Context, questID string, bundle domain.EvidenceBundle) (domain.QuestStatus, error) {
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.beginTx(ctx)
 	if err != nil {
 		return domain.QuestBlocked, err
 	}

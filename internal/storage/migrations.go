@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 		if existing > 0 {
 			continue
 		}
-		tx, err := s.db.BeginTx(ctx, nil)
+		tx, err := s.beginTx(ctx)
 		if err != nil {
 			return err
 		}

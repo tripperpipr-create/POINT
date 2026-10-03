@@ -147,7 +147,7 @@ func (s *SQLite) GetMCPServer(ctx context.Context, id string) (domain.MCPServer,
 }
 
 func (s *SQLite) DeleteMCPServer(ctx context.Context, id string) error {
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.beginTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -192,7 +192,7 @@ func scanMCPServer(row dbScanner) (domain.MCPServer, error) {
 
 // ReplaceMCPTools записывает свежий снимок инструментов сервера целиком.
 func (s *SQLite) ReplaceMCPTools(ctx context.Context, serverID string, tools []domain.MCPTool) error {
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.beginTx(ctx)
 	if err != nil {
 		return err
 	}

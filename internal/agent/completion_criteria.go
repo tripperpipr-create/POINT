@@ -227,7 +227,7 @@ func (t *completionTracker) ContractInstructions() string {
 	return strings.Join([]string{
 		"<point_task_completion_contract>",
 		"Use the approved task brief below as the fixed scope, delivery format and acceptance criteria. Do not invent extra required work or weaken a criterion.",
-		"sourceRequest preserves the original user contract. Later approved decisions and criteria take precedence where they explicitly revise that request.",
+		"sourceRequest preserves the original user contract and clarifications are the same person's later messages, in order and verbatim; keep their exact terms and conditions. Later approved decisions and criteria take precedence where they explicitly revise that request.",
 		string(encoded),
 		checksInstruction,
 		"Diagnostics are observations, not automatic scope additions. Report unresolved diagnostics honestly; a previously passing check that now fails must not be hidden or relabeled.",

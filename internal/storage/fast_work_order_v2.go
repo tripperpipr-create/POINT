@@ -85,7 +85,7 @@ func (s *SQLite) commitApprovedWorkOrderV2(ctx context.Context, launch FastAgent
 	if err != nil {
 		return domain.WorkOrderApproval{}, err
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.beginTx(ctx)
 	if err != nil {
 		return domain.WorkOrderApproval{}, err
 	}

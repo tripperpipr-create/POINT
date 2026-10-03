@@ -217,6 +217,10 @@ type EvidenceBundle struct {
 	// PreparedFiles are paths of change sets the quest produced but never
 	// delivered: pending work is neither "no work" nor a delivery.
 	PreparedFiles []string `json:"preparedFiles,omitempty"`
+	// DeliverySkipReason — почему подготовленные файлы не доставлены, словами
+	// для человека (TODO Q13). Прежде причину приходилось угадывать по
+	// косвенным признакам пакета.
+	DeliverySkipReason string `json:"deliverySkipReason,omitempty"`
 }
 
 type IntakeSession struct {

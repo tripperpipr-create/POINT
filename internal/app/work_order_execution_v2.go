@@ -380,17 +380,24 @@ func taskBriefFromWorkOrderV2(order domain.WorkOrder) (domain.TaskBrief, error) 
 			remotes = append(remotes, source.Locator)
 		}
 	}
+	// Исполнитель получает слова человека, а не только цель в пересказе
+	// Мастера; у прежних нарядов без них остаётся цель.
+	source := order.SourceRequest
+	if source == "" {
+		source = order.Goal
+	}
 	draft := domain.TaskBrief{
-		SourceRequest: order.Goal,
-		Version:       order.Version,
-		State:         "ready",
-		Mode:          domain.TaskModeProject,
-		Goal:          order.Goal,
-		ResultKind:    "workspace_change",
-		Scope:         append([]string(nil), order.Scope...),
-		OutOfScope:    append([]string(nil), order.OutOfScope...),
-		Decisions:     decisions,
-		Criteria:      append([]domain.AcceptanceCriterion(nil), order.Criteria...),
+		SourceRequest:  source,
+		Clarifications: append([]string(nil), order.Clarifications...),
+		Version:        order.Version,
+		State:          "ready",
+		Mode:           domain.TaskModeProject,
+		Goal:           order.Goal,
+		ResultKind:     "workspace_change",
+		Scope:          append([]string(nil), order.Scope...),
+		OutOfScope:     append([]string(nil), order.OutOfScope...),
+		Decisions:      decisions,
+		Criteria:       append([]domain.AcceptanceCriterion(nil), order.Criteria...),
 		Permissions: domain.TaskPermissions{
 			WriteFiles: true, ExecuteCommands: true,
 			ProvisionProjectAgents: len(order.Roster.Temporary) > 0,

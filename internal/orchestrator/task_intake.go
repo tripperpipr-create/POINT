@@ -218,6 +218,9 @@ func (s ChatService) DiscussTask(ctx context.Context, req ChatRequest) (ChatResp
 	brief.SourceRequest = req.Message
 	if prior != nil && prior.Brief != nil {
 		brief.SourceRequest = prior.Brief.SourceRequest
+		// Реплика, после которой Мастер переоформил задание, — уточнение
+		// человека; оно идёт исполнителю дословно, а не только пересказом.
+		brief.Clarifications = domain.AppendClarification(brief.SourceRequest, prior.Brief.Clarifications, req.Message)
 	}
 	brief.Version = 1
 	if prior != nil && prior.Brief != nil {

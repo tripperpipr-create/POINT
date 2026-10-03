@@ -20,39 +20,44 @@ import (
 // Model output may draft it, but only NormalizeWorkOrder and ApproveWorkOrder
 // may create the immutable contract used by execution.
 type WorkOrder struct {
-	ID              string                `json:"id"`
-	ProposalID      string                `json:"proposalId,omitempty"`
-	Digest          string                `json:"digest,omitempty"`
-	WorkspaceID     string                `json:"workspaceId,omitempty"`
-	ConversationID  string                `json:"conversationId,omitempty"`
-	Version         int                   `json:"version"`
-	ApprovedVersion int                   `json:"approvedVersion,omitempty"`
-	ApprovedDigest  string                `json:"approvedDigest,omitempty"`
-	State           string                `json:"state"` // discussion | ready | approved
-	Goal            string                `json:"goal"`
-	Scope           []string              `json:"scope"`
-	OutOfScope      []string              `json:"outOfScope,omitempty"`
-	Assumptions     []string              `json:"assumptions,omitempty"`
-	OpenQuestions   []string              `json:"openQuestions,omitempty"`
-	Sources         []SourceSnapshotRef   `json:"sources,omitempty"`
-	Criteria        []AcceptanceCriterion `json:"criteria"`
-	Milestones      []MilestonePlan       `json:"milestones"`
-	Workspace       WorkspacePlan         `json:"workspace"`
-	Stack           StackPresetRef        `json:"stack"`
-	Sandbox         RuntimeSpec           `json:"sandbox,omitempty"`
-	Setup           SetupPlan             `json:"setupPlan,omitempty"`
-	Dependencies    *DependencyPlan       `json:"dependencyPlan,omitempty"`
-	Roster          AgentRosterPlan       `json:"roster"`
-	Routing         ModelRoutingPolicy    `json:"routing"`
-	Network         []NetworkGrant        `json:"network,omitempty"`
-	Secrets         []SecretRequirement   `json:"secrets,omitempty"`
-	Budget          BudgetEnvelope        `json:"budget"`
-	Completion      CompletionProfile     `json:"completion"`
-	Delivery        DeliveryPolicy        `json:"delivery"`
-	Git             *GitPlan              `json:"git,omitempty"`
-	Runtime         *WorkOrderRuntime     `json:"runtime,omitempty"`
-	CreatedAt       time.Time             `json:"createdAt"`
-	UpdatedAt       time.Time             `json:"updatedAt"`
+	ID              string `json:"id"`
+	ProposalID      string `json:"proposalId,omitempty"`
+	Digest          string `json:"digest,omitempty"`
+	WorkspaceID     string `json:"workspaceId,omitempty"`
+	ConversationID  string `json:"conversationId,omitempty"`
+	Version         int    `json:"version"`
+	ApprovedVersion int    `json:"approvedVersion,omitempty"`
+	ApprovedDigest  string `json:"approvedDigest,omitempty"`
+	State           string `json:"state"` // discussion | ready | approved
+	Goal            string `json:"goal"`
+	// SourceRequest и Clarifications — слова человека: первый запрос и его
+	// уточнения (TODO Q10). Входят в утверждаемый дайджест; у прежних нарядов
+	// пусты и в дайджест не попадают.
+	SourceRequest  string                `json:"sourceRequest,omitempty"`
+	Clarifications []string              `json:"clarifications,omitempty"`
+	Scope          []string              `json:"scope"`
+	OutOfScope     []string              `json:"outOfScope,omitempty"`
+	Assumptions    []string              `json:"assumptions,omitempty"`
+	OpenQuestions  []string              `json:"openQuestions,omitempty"`
+	Sources        []SourceSnapshotRef   `json:"sources,omitempty"`
+	Criteria       []AcceptanceCriterion `json:"criteria"`
+	Milestones     []MilestonePlan       `json:"milestones"`
+	Workspace      WorkspacePlan         `json:"workspace"`
+	Stack          StackPresetRef        `json:"stack"`
+	Sandbox        RuntimeSpec           `json:"sandbox,omitempty"`
+	Setup          SetupPlan             `json:"setupPlan,omitempty"`
+	Dependencies   *DependencyPlan       `json:"dependencyPlan,omitempty"`
+	Roster         AgentRosterPlan       `json:"roster"`
+	Routing        ModelRoutingPolicy    `json:"routing"`
+	Network        []NetworkGrant        `json:"network,omitempty"`
+	Secrets        []SecretRequirement   `json:"secrets,omitempty"`
+	Budget         BudgetEnvelope        `json:"budget"`
+	Completion     CompletionProfile     `json:"completion"`
+	Delivery       DeliveryPolicy        `json:"delivery"`
+	Git            *GitPlan              `json:"git,omitempty"`
+	Runtime        *WorkOrderRuntime     `json:"runtime,omitempty"`
+	CreatedAt      time.Time             `json:"createdAt"`
+	UpdatedAt      time.Time             `json:"updatedAt"`
 }
 
 // WorkOrderRuntime is derived operational state. It is not part of the
@@ -316,6 +321,8 @@ func NormalizeWorkOrder(in WorkOrder) WorkOrder {
 		in.State = "discussion"
 	}
 	in.Goal = strings.TrimSpace(in.Goal)
+	in.SourceRequest = strings.TrimSpace(in.SourceRequest)
+	in.Clarifications = BoundedClarifications(in.Clarifications)
 	in.Scope = briefStrings(in.Scope)
 	in.OutOfScope = briefStrings(in.OutOfScope)
 	in.Assumptions = briefStrings(in.Assumptions)

@@ -123,7 +123,7 @@ ON CONFLICT(id) DO UPDATE SET display_name=excluded.display_name, base_url=exclu
 // же транзакцией, иначе два «по умолчанию» жили бы одновременно и выбор снова
 // стал бы угадыванием.
 func (s *SQLite) SetDefaultConnection(ctx context.Context, id string) error {
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.beginTx(ctx)
 	if err != nil {
 		return err
 	}

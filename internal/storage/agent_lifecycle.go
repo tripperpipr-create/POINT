@@ -13,7 +13,7 @@ import (
 )
 
 func (s *SQLite) ReplaceAgentSelectionBindings(ctx context.Context, workOrderID, conversationID, workspaceID, digest string, revision int, agentIDs []string) error {
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.beginTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -117,7 +117,7 @@ func (s *SQLite) SaveAgentLifecycleEvent(ctx context.Context, event domain.Agent
 // RejectProjectAgentDraft removes the draft and every descendant atomically.
 // The lifecycle event survives the deletion and is the audit/reselection input.
 func (s *SQLite) RejectProjectAgentDraft(ctx context.Context, id string, event domain.AgentLifecycleEvent) error {
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.beginTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -162,7 +162,7 @@ func (s *SQLite) RejectProjectAgentDraft(ctx context.Context, id string, event d
 // materially changed brief produces a new selection digest. Unlike rejection,
 // it does not blacklist the family for the new brief revision.
 func (s *SQLite) DeleteSupersededProjectAgentDraft(ctx context.Context, id string, event domain.AgentLifecycleEvent) error {
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.beginTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -202,7 +202,7 @@ func (s *SQLite) DeleteSupersededProjectAgentDraft(ctx context.Context, id strin
 // descendants while retaining an immutable lifecycle event. This is used only
 // after evaluation or an explicit Blueprint decision.
 func (s *SQLite) DeleteTemporaryProjectAgent(ctx context.Context, id string, event domain.AgentLifecycleEvent) error {
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.beginTx(ctx)
 	if err != nil {
 		return err
 	}

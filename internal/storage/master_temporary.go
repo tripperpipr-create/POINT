@@ -10,7 +10,7 @@ func (s *SQLite) PurgeTemporaryMasterConversations(ctx context.Context) error {
 // Пустой мир — все миры. Сессия ядра проекта — это сессия его мира: временная
 // беседа соседнего проекта живёт, пока живо его ядро.
 func (s *SQLite) purgeTemporaryMasterConversations(ctx context.Context, workspaceID string) error {
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.beginTx(ctx)
 	if err != nil {
 		return err
 	}

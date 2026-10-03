@@ -119,6 +119,11 @@ func (s *Server) applyChangeSet(w http.ResponseWriter, r *http.Request) {
 	s.result(w, value, err)
 }
 
+func (s *Server) changeItemContent(w http.ResponseWriter, r *http.Request) {
+	value, err := s.app.ChangeItemContent(r.PathValue("id"), r.PathValue("itemId"))
+	s.result(w, value, err)
+}
+
 func (s *Server) rejectChangeSet(w http.ResponseWriter, r *http.Request) {
 	value, err := s.app.RejectChangeSet(r.PathValue("id"))
 	s.result(w, value, err)

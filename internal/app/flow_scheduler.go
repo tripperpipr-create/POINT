@@ -419,9 +419,9 @@ func (a *App) scheduleWaitingAgentNodes(quest domain.Quest, flow domain.FlowGrap
 				stackID = approval.WorkOrder.Stack.ID
 			}
 		}
-		if stageAllowsLLMBypass(role, lineage, stackID) {
+		if stageAllowsLLMBypass(role, lineage, stackID) && (role != domain.StageRoleImplReview || a.implementationCheckedOnTree(context.Background(), flowRun, exec)) {
 			updated, passErr := a.completeStagePassthrough(flowRun, node, exec,
-				"serial inherited tip already integrated; skipped redundant "+role+" LLM stage")
+				"serial inherited tip already integrated and checked by Point; skipped redundant "+role+" LLM stage")
 			if passErr != nil {
 				return passErr
 			}

@@ -196,6 +196,7 @@ profile and per-run `host_live` execution. See
 | `POST` | `/api/executions/{id}/cursor/complete` | Persist the externally completed Cursor execution result |
 | `POST` | `/api/executions/{id}/change-set` | Build an incremental ChangeSet from the execution sandbox vs its immutable baseline |
 | `POST` | `/api/executions/{id}/revert` | Revert an execution's applied publication when safe |
+| `GET` | `/api/change-sets/{id}/items/{itemId}/content` | Original and proposed content of one ChangeSet file (own world only, up to 4 MiB per side) for the IDE diff editor of a prepared but undelivered quest file |
 | `POST` | `/api/change-sets/{id}/apply` | Apply a reviewed ChangeSet into the live workspace after every `dependsOn` prerequisite is applied |
 | `POST` | `/api/change-sets/{id}/reject` | Reject a ChangeSet only when no active execution or non-terminal ChangeSet depends on it |
 | `POST` | `/api/change-sets/{id}/revert` | Revert an applied ChangeSet if its published files are unchanged and no later ChangeSet depends on it |

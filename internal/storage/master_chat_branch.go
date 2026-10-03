@@ -46,7 +46,7 @@ func (s *SQLite) SetMasterChatBranchOffer(ctx context.Context, workspaceID, chat
 // the app before this transaction. A moved plan receives a new revision; the
 // older immutable revisions remain as an audit trail in their original world.
 func (s *SQLite) MoveMasterChatToWorktree(ctx context.Context, sourceID, chatID, targetPath, branchName, branchBase, commit string) (domain.Workspace, error) {
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.beginTx(ctx)
 	if err != nil {
 		return domain.Workspace{}, err
 	}

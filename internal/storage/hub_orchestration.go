@@ -256,7 +256,7 @@ func (s *SQLite) DeleteFlow(ctx context.Context, workspaceID, flowID string) err
 // один и тот же идентификатор, пришедший из чужого окна, вычистил бы карточку
 // соседнего проекта.
 func (s *SQLite) DeleteQuest(ctx context.Context, workspaceID, questID string) error {
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.beginTx(ctx)
 	if err != nil {
 		return err
 	}

@@ -182,7 +182,7 @@ func (s *SQLite) GetSandboxByExecution(ctx context.Context, executionID string) 
 }
 
 func (s *SQLite) SaveChangeSet(ctx context.Context, set domain.ChangeSet) error {
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.beginTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -197,7 +197,7 @@ func (s *SQLite) SaveChangeSet(ctx context.Context, set domain.ChangeSet) error 
 // closes every branch-local set it replaces. This prevents a crash from
 // leaving both the aggregate and its source branches independently applicable.
 func (s *SQLite) SaveParallelMergeChangeSet(ctx context.Context, merge domain.ChangeSet, sources []domain.ChangeSet) error {
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.beginTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -219,7 +219,7 @@ func (s *SQLite) SaveParallelMergeChangeSet(ctx context.Context, merge domain.Ch
 // SQLite transaction. The filesystem is prepared first and removed by the
 // caller if this durable commit fails.
 func (s *SQLite) SaveParallelMergeExecution(ctx context.Context, exec domain.ExecutionInstance, sandbox domain.SandboxRecord, merge *domain.ChangeSet, sources []domain.ChangeSet) error {
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.beginTx(ctx)
 	if err != nil {
 		return err
 	}

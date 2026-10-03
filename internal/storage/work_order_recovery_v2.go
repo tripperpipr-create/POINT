@@ -84,7 +84,7 @@ ORDER BY quest.updated_at,quest.id`)
 // cancelled -> verifying transition, guarded by the same predicates as the
 // scanner. It does not run agents, commands or Change Set application.
 func (s *SQLite) PrepareBrokenWorkOrderFinalizationV2(ctx context.Context, approval domain.WorkOrderApproval) (bool, error) {
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.beginTx(ctx)
 	if err != nil {
 		return false, err
 	}

@@ -36,12 +36,10 @@ func open(path string, shared bool) (*SQLite, error) {
 		// Fail locked opens instead of hanging forever when another Point/core holds the DB.
 		dsn = path + "?_pragma=busy_timeout(5000)"
 	}
-	db, err := sql.Open("sqlite", dsn)
-	if err != nil {
-		return nil, err
-	}
+	db := openQuietSQLite(dsn)
 	db.SetMaxOpenConns(1)
 	store := &SQLite{db: db, shared: shared}
+	var err error
 	if _, err = db.Exec(`PRAGMA busy_timeout=5000`); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("sqlite busy_timeout: %w", err)

@@ -252,7 +252,7 @@ FROM companion_action_proposals WHERE workspace_id=? ORDER BY updated_at DESC`, 
 }
 
 func (s *SQLite) SaveIDEObservationBatch(ctx context.Context, workspaceID, kind string, replace bool, items []domain.IDEObservation) error {
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.beginTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -347,7 +347,7 @@ func (s *SQLite) SaveQuestProposal(ctx context.Context, proposal domain.QuestPro
 	if err != nil {
 		return err
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.beginTx(ctx)
 	if err != nil {
 		return err
 	}

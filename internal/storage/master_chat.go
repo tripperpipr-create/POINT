@@ -61,7 +61,7 @@ func (s *SQLite) SaveMasterConversationSummary(ctx context.Context, w, id, summa
 }
 
 func (s *SQLite) DeleteMasterConversation(ctx context.Context, w, id string) error {
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.beginTx(ctx)
 	if err != nil {
 		return err
 	}
@@ -350,7 +350,7 @@ func (s *SQLite) RecoverPointMasterTurns(ctx context.Context, w string) error {
 // мир — все миры; ядро проекта передаёт свой, потому что живой ход соседнего
 // проекта ведёт его собственное ядро (startup_recovery.go).
 func (s *SQLite) interruptMasterTurns(ctx context.Context, workspaceID string) error {
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.beginTx(ctx)
 	if err != nil {
 		return err
 	}

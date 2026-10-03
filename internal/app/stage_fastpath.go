@@ -31,28 +31,13 @@ func stageAllowsLLMBypass(role, sandboxLineage, stackID string) bool {
 	case domain.StageRoleIntegrate:
 		return stackID == "php-symfony-7"
 	case domain.StageRoleImplReview:
-		return true
+		// Ревью при двух и более писателях — независимый проверяющий (Q12):
+		// без модели он не закрывается никогда. E6: пропуск закрыл ревью за
+		// 10 с, хотя lock-файл расходился с манифестом.
+		return false
 	default:
 		return false
 	}
-}
-
-// implementationCheckedOnTree — прошла ли на дереве песочницы этапа проверка
-// Point. E6 (29.09): Implementation review и приёмка закрылись за 10 и 27 с
-// без единого запуска модели, хотя lock-файл расходился с манифестом. Пропуск
-// модельного ревью допустим, только когда дерево, которое оно смотрело бы,
-// уже целиком прошло критерии приёмки.
-func (a *App) implementationCheckedOnTree(ctx context.Context, flowRun domain.FlowRun, exec domain.ExecutionInstance) bool {
-	record, err := a.store.GetSandbox(ctx, exec.SandboxID)
-	if err != nil || record.Path == "" {
-		return false
-	}
-	tree, err := sandbox.TreeDigestWithRules(record.Path, record.FileRulesVersion)
-	if err != nil {
-		return false
-	}
-	found, err := a.store.PassedVerificationOnTreeV2(ctx, flowRun.ID, tree)
-	return err == nil && found
 }
 
 func stageUsesDeterministicBootstrap(role string) bool {

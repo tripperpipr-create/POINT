@@ -40,21 +40,35 @@ type workOrderStaffing struct {
 // startWorkOrderStaffingV2 запускает подбор наряда; прежний подбор того же
 // наряда отменяется — его версия уже устарела.
 func (a *App) startWorkOrderStaffingV2(workOrderID string, cfg domain.OrchestratorConfig, apiKey string) {
-	jobs := &a.staffing
+	a.staffing.start(workOrderID, workOrderStaffingTimeout, true, func(ctx context.Context) {
+		if err := a.completeWorkOrderStaffingV2(ctx, workOrderID, cfg, apiKey); err != nil && !errors.Is(err, context.Canceled) {
+			slog.Warn("work order staffing failed", "work_order_id", workOrderID, "error", security.Redact(err.Error()))
+		}
+	})
+}
+
+// start — фоновая задача ядра по ключу: отменяется и дожидается при
+// остановке. replace отменяет идущую задачу того же ключа, иначе новая не
+// запускается, пока прежняя идёт.
+func (jobs *workOrderStaffing) start(key string, timeout time.Duration, replace bool, work func(context.Context)) bool {
 	jobs.mu.Lock()
 	if jobs.stopping {
 		jobs.mu.Unlock()
-		return
+		return false
 	}
 	if jobs.jobs == nil {
 		jobs.jobs = map[string]*staffingJob{}
 	}
-	if previous := jobs.jobs[workOrderID]; previous != nil {
+	if previous := jobs.jobs[key]; previous != nil {
+		if !replace {
+			jobs.mu.Unlock()
+			return false
+		}
 		previous.cancel()
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), workOrderStaffingTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	job := &staffingJob{cancel: cancel}
-	jobs.jobs[workOrderID] = job
+	jobs.jobs[key] = job
 	jobs.wg.Add(1)
 	jobs.mu.Unlock()
 	go func() {
@@ -63,15 +77,14 @@ func (a *App) startWorkOrderStaffingV2(workOrderID string, cfg domain.Orchestrat
 			cancel()
 			jobs.mu.Lock()
 			// Отменённую задачу могла сменить новая: удаляется только своя.
-			if jobs.jobs[workOrderID] == job {
-				delete(jobs.jobs, workOrderID)
+			if jobs.jobs[key] == job {
+				delete(jobs.jobs, key)
 			}
 			jobs.mu.Unlock()
 		}()
-		if err := a.completeWorkOrderStaffingV2(ctx, workOrderID, cfg, apiKey); err != nil && !errors.Is(err, context.Canceled) {
-			slog.Warn("work order staffing failed", "work_order_id", workOrderID, "error", security.Redact(err.Error()))
-		}
+		work(ctx)
 	}()
+	return true
 }
 
 func (a *App) stopWorkOrderStaffing() {

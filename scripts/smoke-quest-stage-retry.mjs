@@ -91,3 +91,14 @@ const dependencyCard = workOrderExecutionParts(dependencyAmended, {}, { esc })?.
 assert.ok(dependencyCard.includes('lk-backend/source') && dependencyCard.includes('npm ci --include=dev') && dependencyCard.includes('data-proposal-digest="sha256:dependencies"'), 'dependency amendment is concrete and digest approved')
 
 assert.ok(dependencyCard.includes('package-lock.json') && dependencyCard.includes('node_modules'), 'approval includes manifests and expected paths')
+
+// Q14: проверка на хосте упёрлась в среду — результат уже в проекте, квест
+// ждёт человека с причиной и кнопками «Проверить снова» и «Завершить квест».
+const hostHeld = { id: 'order-2', runtime: { questId: 'quest-2', status: 'awaiting_user', stages: [], hostRecheck: { actions: ['порт 8080 занят программой вне Docker'], count: 1 } } }
+const hostCard = workOrderExecutionParts(hostHeld, {}, { esc })?.stall || ''
+assert.ok(hostCard.includes('порт 8080 занят') && hostCard.includes('data-control="recheck"') && hostCard.includes('Проверить снова') && hostCard.includes('data-control="finalize"'), 'host environment hold offers recheck and finalize')
+const hostPosted = []
+handleMasterClickAction({ action: 'control-master-work-order-v2', target: { dataset: { id: 'order-2', questId: 'quest-2', control: 'recheck' }, closest: () => null }, ui: { masterWorkOrderBusy: new Set() }, render() {}, vscode: { postMessage: message => hostPosted.push(message) } })
+assert.equal(hostPosted[0]?.action, 'recheck', 'recheck reaches the extension')
+hostHeld.runtime.status = 'completed'
+assert.equal(workOrderExecutionParts(hostHeld, {}, { esc })?.stall || '', '', 'a closed quest shows no recheck')

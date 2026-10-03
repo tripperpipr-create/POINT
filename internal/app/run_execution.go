@@ -654,6 +654,14 @@ func (a *App) StartRun(request StartRunRequest) (domain.Run, error) {
 						slog.Warn("flow node recovery unavailable", "flow_run_id", flowRunID, "node_id", flowNodeID, "execution_id", execID, "error", recoveryErr)
 					}
 				}
+				// Вердикт независимого проверяющего (Q12): проваленный критерий
+				// проваливает этап, и квест ждёт решения человека.
+				reviewError, reviewVerdicts := "", []reviewCriterionVerdict(nil)
+				if success && !recovered {
+					if reviewError, reviewVerdicts = a.independentReviewFailure(context.Background(), flowRunID, flowNodeID, finished.Result); reviewError != "" {
+						success = false
+					}
+				}
 				if recovered {
 					_ = a.scheduleFlowAgentExecutionsFromRun(flowRun)
 				} else {
@@ -670,6 +678,12 @@ func (a *App) StartRun(request StartRunRequest) (domain.Run, error) {
 						"executionId": execID, "runId": finished.ID, "result": finished.Result, "status": finished.Status,
 						"error": execution.Error, "changedFiles": append([]string(nil), finished.ChangedFiles...),
 					})
+					if reviewError != "" {
+						completionOutput["error"] = reviewError
+					}
+					if len(reviewVerdicts) > 0 {
+						completionOutput["reviewVerdict"] = reviewVerdicts
+					}
 					a.attachCompletionEvidence(context.Background(), finished.ID, completionOutput)
 					flowRun, completeErr = runtime.CompleteAgentNode(context.Background(), flowRunID, flowNodeID, success, completionOutput)
 					if completeErr == nil {

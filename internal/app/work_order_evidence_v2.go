@@ -74,6 +74,7 @@ func (a *App) finalizeWorkOrderQuestAfterFlowV2(approval domain.WorkOrderApprova
 	bundle := a.buildWorkOrderEvidenceV2(ctx, approval, quest, flowSucceeded)
 	machineReady := workOrderMachineEvidenceSatisfiedV2(approval.WorkOrder, bundle)
 	var hostChecks []domain.VerificationCheck
+	var preHost *domain.EvidenceBundle
 	if flowSucceeded && machineReady && approval.WorkOrder.Delivery.ApplyMode == "automatic" {
 		if quest.Status == domain.QuestVerifying {
 			quest, err = a.setWorkOrderQuestStatusV2(ctx, quest, domain.QuestApplying, "Проверки пройдены; переносим результат в проект")
@@ -97,25 +98,11 @@ func (a *App) finalizeWorkOrderQuestAfterFlowV2(approval domain.WorkOrderApprova
 			// The agent container intentionally has neither. Run only the exact
 			// commands frozen in the approved WorkOrder, then let the completion
 			// profile restore and verify the final service state.
-			composeChecks := a.runDeferredComposeCriteriaV2(ctx, approval.WorkOrder, approval.WorkOrder.Workspace.Path, &bundle)
-			hostChecks = composeChecks
-			if failed := failedHostCriteriaV2(composeChecks, approval.WorkOrder); len(failed) > 0 {
-				bundle.KnownLimitations = append(bundle.KnownLimitations,
-					"Результат перенесён в проект, но не прошёл проверки на хосте: "+strings.Join(failed, "; "))
-			}
-			// The profile runs on the delivered revision: build, tests and a
-			// started service prove the result the user will actually open,
-			// not the sandbox copy that produced it.
-			profile := a.runCompletionProfileV2(ctx, approval.WorkOrder, approval.WorkOrder.Workspace.Path)
-			bundle.VerificationChecks = append(bundle.VerificationChecks, profile...)
-			// The result stays in the project even when its own checks fail —
-			// deleting hours of work would be worse — so the card has to say
-			// plainly what the user is now looking at.
-			if failed := failedCompletionCheckKindsV2(profile); len(failed) > 0 {
-				bundle.KnownLimitations = append(bundle.KnownLimitations,
-					"Результат перенесён в проект, но не прошёл проверки профиля: "+strings.Join(failed, ", "))
-			}
-			bundle.DeliveryVerified = true
+			// Итог до проверок на хосте сохраняется: отказ среды (занятый
+			// порт) повторяет проверки на той же доставленной ревизии (Q14).
+			snapshot := cloneEvidenceBundleV2(bundle)
+			preHost = &snapshot
+			hostChecks = a.runWorkOrderHostPhaseV2(ctx, approval.WorkOrder, &bundle)
 		}
 	} else if flowSucceeded && machineReady && approval.WorkOrder.Delivery.ApplyMode == "manual" {
 		// In professional mode delivery means a verified isolated result is
@@ -123,12 +110,25 @@ func (a *App) finalizeWorkOrderQuestAfterFlowV2(approval domain.WorkOrderApprova
 		bundle.DeliveryVerified = true
 		bundle.DeliveryTarget = "isolated_review"
 	}
+	a.concludeWorkOrderQuestV2(ctx, approval, quest, bundle, preHost, hostChecks, flowSucceeded, machineReady, true)
+}
+
+// concludeWorkOrderQuestV2 — завершение после доставки и проверок: расписка,
+// затвор доказательств, итог и git. allowHold разрешает вместо вердикта
+// остановиться на отказе среды; повтор проверки по решению человека и
+// «Завершить квест» зовут его же.
+func (a *App) concludeWorkOrderQuestV2(ctx context.Context, approval domain.WorkOrderApproval, quest domain.Quest, bundle domain.EvidenceBundle, preHost *domain.EvidenceBundle, hostChecks []domain.VerificationCheck, flowSucceeded, machineReady, allowHold bool) {
 	bundle.PreparedFiles = subtractStringsV2(bundle.PreparedFiles, bundle.ChangedFiles)
 	bundle.DeliverySkipReason = deliverySkipReasonV2(bundle, flowSucceeded, machineReady)
 	markWorkOrderCriterionStatusesV2(approval.WorkOrder, &bundle)
 	// Проваленная проверка на хосте при оставшихся попытках — не вердикт, а
 	// следующая попытка с отчётом о том, что увидел хост.
 	if flowSucceeded && bundle.DeliveryVerified && a.startWorkOrderRepairAttemptV2(ctx, approval, quest, bundle, hostChecks) {
+		return
+	}
+	// Отказ среды на хосте — не вердикт: человек освобождает порт и просит
+	// проверить снова (Q14, work_order_host_recheck_v2.go).
+	if allowHold && preHost != nil && flowSucceeded && bundle.DeliveryVerified && a.holdForHostEnvironmentV2(ctx, approval, quest, bundle, *preHost, hostChecks) {
 		return
 	}
 	if bundle.DeliveryTarget == "" {
@@ -1071,4 +1071,44 @@ func deliverySkipReasonV2(bundle domain.EvidenceBundle, flowSucceeded, machineRe
 		return "машинные проверки не подтвердили результат"
 	}
 	return "перенос не выполнен"
+}
+
+// runWorkOrderHostPhaseV2 — проверки на доставленной ревизии: команды Compose
+// из утверждённого наряда и профиль завершения. Результат остаётся в проекте,
+// даже если проверки не прошли, — карточка говорит об этом прямо.
+func (a *App) runWorkOrderHostPhaseV2(ctx context.Context, order domain.WorkOrder, bundle *domain.EvidenceBundle) []domain.VerificationCheck {
+	// Compose controls need the host Docker daemon and the delivered files.
+	// The agent container intentionally has neither. Run only the exact
+	// commands frozen in the approved WorkOrder, then let the completion
+	// profile restore and verify the final service state.
+	composeChecks := a.runDeferredComposeCriteriaV2(ctx, order, order.Workspace.Path, bundle)
+	if failed := failedHostCriteriaV2(composeChecks, order); len(failed) > 0 {
+		bundle.KnownLimitations = append(bundle.KnownLimitations,
+			"Результат перенесён в проект, но не прошёл проверки на хосте: "+strings.Join(failed, "; "))
+	}
+	// The profile runs on the delivered revision: build, tests and a
+	// started service prove the result the user will actually open,
+	// not the sandbox copy that produced it.
+	profile := a.runCompletionProfileV2(ctx, order, order.Workspace.Path)
+	bundle.VerificationChecks = append(bundle.VerificationChecks, profile...)
+	if failed := failedCompletionCheckKindsV2(profile); len(failed) > 0 {
+		bundle.KnownLimitations = append(bundle.KnownLimitations,
+			"Результат перенесён в проект, но не прошёл проверки профиля: "+strings.Join(failed, ", "))
+	}
+	bundle.DeliveryVerified = true
+	return composeChecks
+}
+
+// cloneEvidenceBundleV2 — глубокая копия: срезы итога дописываются дальше, и
+// сохранённое состояние не должно их разделять.
+func cloneEvidenceBundleV2(bundle domain.EvidenceBundle) domain.EvidenceBundle {
+	raw, err := json.Marshal(bundle)
+	if err != nil {
+		return bundle
+	}
+	var clone domain.EvidenceBundle
+	if json.Unmarshal(raw, &clone) != nil {
+		return bundle
+	}
+	return clone
 }

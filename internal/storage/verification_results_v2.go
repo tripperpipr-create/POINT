@@ -78,16 +78,29 @@ func (s *SQLite) PassedVerificationResultV2(ctx context.Context, questID, batchK
 	return result, true, nil
 }
 
-// PassedVerificationOnTreeV2 — есть ли в прогоне Flow целиком прошедшая
-// проверка Point на этом дереве. Обход модельного ревью опирается на неё:
-// без проверки ревью не пропускается (TODO Q09).
-func (s *SQLite) PassedVerificationOnTreeV2(ctx context.Context, flowRunID, treeDigest string) (bool, error) {
-	if flowRunID == "" || treeDigest == "" {
-		return false, nil
+// BaselineVerificationV2 — исходная проверка прогона Flow на нетронутом
+// дереве (TODO Q11). Пустая запись без ошибки — проверки не было.
+func (s *SQLite) BaselineVerificationV2(ctx context.Context, flowRunID string) (domain.VerificationResult, error) {
+	return s.LatestVerificationV2(ctx, flowRunID, "baseline")
+}
+
+// LatestVerificationV2 — последняя проверка прогона Flow из источника
+// (baseline, pre_accept, accept). Пустая запись без ошибки — проверки не было.
+func (s *SQLite) LatestVerificationV2(ctx context.Context, flowRunID, source string) (domain.VerificationResult, error) {
+	row := s.db.QueryRowContext(ctx, `SELECT id,workspace_id,quest_id,execution_id,run_id,batch_key,tree_digest,image_digest,all_passed,evidence_json,created_at FROM verification_results_v2 WHERE flow_run_id=? AND source=? ORDER BY created_at DESC,rowid DESC LIMIT 1`, flowRunID, source)
+	result := domain.VerificationResult{FlowRunID: flowRunID, Source: source}
+	var passed int
+	var evidence, created string
+	if err := row.Scan(&result.ID, &result.WorkspaceID, &result.QuestID, &result.ExecutionID, &result.RunID, &result.BatchKey, &result.TreeDigest, &result.ImageDigest, &passed, &evidence, &created); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.VerificationResult{}, nil
+		}
+		return domain.VerificationResult{}, err
 	}
-	var found int
-	err := s.db.QueryRowContext(ctx, `SELECT COUNT(1) FROM verification_results_v2 WHERE flow_run_id=? AND tree_digest=? AND all_passed=1`, flowRunID, treeDigest).Scan(&found)
-	return found > 0, err
+	result.AllPassed = passed == 1
+	result.Evidence = []byte(evidence)
+	result.CreatedAt = parseTime(created)
+	return result, nil
 }
 
 // VerificationResultV2 — запись по id: затвор доказательств сверяет по ней

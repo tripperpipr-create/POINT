@@ -18,8 +18,8 @@ func TestStageAllowsLLMBypassOnlyForInheritedSerialStages(t *testing.T) {
 	if stageAllowsLLMBypass(domain.StageRoleIntegrate, "inherited", "recommended-web") {
 		t.Fatal("generic integrate still needs to create missing shared manifests and deployment files")
 	}
-	if !stageAllowsLLMBypass(domain.StageRoleImplReview, "inherited", "recommended-web") {
-		t.Fatal("serial impl_review should bypass LLM")
+	if stageAllowsLLMBypass(domain.StageRoleImplReview, "inherited", "recommended-web") {
+		t.Fatal("the independent review (Q12) must never close without the model")
 	}
 	if stageAllowsLLMBypass(domain.StageRoleIntegrate, "merged_parallel_join", "php-symfony-7") {
 		t.Fatal("parallel merge integrate must keep LLM/merge agent")

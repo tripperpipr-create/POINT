@@ -27,6 +27,9 @@ type StageFailureCheck struct {
 	Cause       string `json:"cause"`
 	Hint        string `json:"hint,omitempty"`
 	Class       string `json:"class"`
+	// Baseline — исход той же проверки на нетронутом дереве (Q11): «failed»
+	// значит, что она падала и до правок этапа.
+	Baseline string `json:"baseline,omitempty"`
 }
 
 // StageFailureDiagnosis — итог по этапу.
@@ -94,6 +97,7 @@ func (a *App) stageFailureDiagnosisV2(ctx context.Context, run domain.FlowRun, n
 	}
 	if execution.RunID != "" {
 		if events, err := a.store.ListByRun(ctx, execution.RunID); err == nil && diagnosis.fromEvidence(events) {
+			diagnosis.markBaseline(a.baselineCriterionStatuses(ctx, run.ID))
 			return diagnosis
 		}
 	}
@@ -168,4 +172,28 @@ func (d *StageFailureDiagnosis) fromEvidence(events []domain.Event) bool {
 		return len(d.Checks) > 0
 	}
 	return false
+}
+
+// markBaseline отделяет «падало и до правки» от регрессии кода (Q11). Такая
+// проверка — дефект исходного проекта или самой проверки: повтор этапа той же
+// стратегией её не починит, а политика повтора без человека её не повторит.
+func (d *StageFailureDiagnosis) markBaseline(statuses map[string]string) {
+	if len(statuses) == 0 {
+		return
+	}
+	d.Class = ""
+	for index := range d.Checks {
+		check := &d.Checks[index]
+		switch statuses[check.CriterionID] {
+		case "failed":
+			check.Baseline = "failed"
+			check.Class = diagnostics.FailureCriterion
+			check.Hint = strings.TrimSpace("проверка падала и до правок этапа — дефект исходного проекта или самой проверки, а не кода этапа. " + check.Hint)
+		case "satisfied":
+			check.Baseline = "passed"
+		}
+		if failureClassRank[check.Class] > failureClassRank[d.Class] {
+			d.Class = check.Class
+		}
+	}
 }

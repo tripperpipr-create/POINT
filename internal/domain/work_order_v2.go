@@ -97,6 +97,10 @@ type WorkOrderRuntime struct {
 	// StageRetryProposal — предложение Мастера повторить этап с правками.
 	StageFailure       map[string]any `json:"stageFailure,omitempty"`
 	StageRetryProposal map[string]any `json:"stageRetryProposal,omitempty"`
+	// HostRecheck — проверка на хосте упёрлась в среду, и квест ждёт человека:
+	// что нужно сделать и в который раз (TODO Q14). Сохранённые пакеты итога
+	// в выдачу не идут.
+	HostRecheck map[string]any `json:"hostRecheck,omitempty"`
 	// PreAcceptCheck — последний прогон критериев, который Point сделал сам
 	// перед приёмкой: человек видит, что проверки уже шли и чем кончились.
 	PreAcceptCheck *WorkOrderPreAcceptCheck `json:"preAcceptCheck,omitempty"`

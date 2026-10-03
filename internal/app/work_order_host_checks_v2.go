@@ -248,14 +248,14 @@ func composePortConflictHintV2(ctx context.Context, directory, output string, ru
 	}
 	match := composePortFailureV2.FindStringSubmatch(output)
 	if match == nil {
-		return "Нужно действие: порт приложения уже занят другим процессом; освободите его или смените порт в Compose, затем попросите Мастера повторить наряд."
+		return "Нужно действие: порт приложения уже занят другим процессом; освободите его или смените порт в Compose, затем нажмите «Проверить снова» в карточке квеста."
 	}
 	port := match[1]
 	lookupCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 	code, holders, err := runner.Run(lookupCtx, directory, `docker ps --filter publish=`+port+` --format "{{.Names}} {{.Labels}}"`)
 	if err != nil || code != 0 || strings.TrimSpace(holders) == "" {
-		return "Нужно действие: порт " + port + " занят программой вне Docker; освободите его или смените порт в Compose, затем попросите Мастера повторить наряд."
+		return "Нужно действие: порт " + port + " занят программой вне Docker; освободите его или смените порт в Compose, затем нажмите «Проверить снова» в карточке квеста."
 	}
 	line := strings.TrimSpace(strings.SplitN(strings.TrimSpace(holders), "\n", 2)[0])
 	name, labels, _ := strings.Cut(line, " ")
@@ -277,7 +277,7 @@ func composePortConflictHintV2(ctx context.Context, directory, output string, ru
 		}
 		owner += ")"
 	}
-	return "Нужно действие: порт " + port + " занят — " + owner + ". Остановите его (docker stop " + name + ") или смените порт в Compose, затем попросите Мастера повторить наряд."
+	return "Нужно действие: порт " + port + " занят — " + owner + ". Остановите его (docker stop " + name + ") или смените порт в Compose, затем нажмите «Проверить снова» в карточке квеста."
 }
 
 // failedHostCriteriaV2 names failed host checks by their criterion and last

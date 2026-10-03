@@ -202,12 +202,16 @@ func flowNodeContext(quest domain.Quest, flow domain.FlowGraph, flowRun domain.F
 	inputs := make([]domain.RunContextInput, 0, 4)
 	currentName := nodeID
 	currentAgent := ""
+	independent := false
 	for _, node := range flow.Nodes {
 		if node.ID == nodeID {
 			if strings.TrimSpace(node.Name) != "" {
 				currentName = node.Name
 			}
 			currentAgent = node.AgentID
+			// Независимый проверяющий (Q12) судит по diff и проверкам, а не по
+			// тому, что писатели рассказали о своей работе.
+			independent = domain.FlowNodeStageRole(node) == domain.StageRoleImplReview
 			break
 		}
 	}
@@ -266,8 +270,11 @@ func flowNodeContext(quest domain.Quest, flow domain.FlowGraph, flowRun domain.F
 		if reviewed := changeSetHandoff(changeSets, executionID); len(reviewed) > 0 {
 			handoff["changeSets"] = reviewed
 		}
-		if summary := handoffResultSummary(state.Output); summary != "" {
+		if summary := handoffResultSummary(state.Output); summary != "" && !independent {
 			handoff["summary"] = summary
+		}
+		if independent {
+			delete(handoff, "result")
 		}
 		data, err := json.Marshal(handoff)
 		if err != nil {

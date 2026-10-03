@@ -1,7 +1,7 @@
 import { masterPlanHtml, masterPlanState } from './master-plan-views.js'
 import { formatElapsed, list } from './format-units.js'
 import { stageFlowNode, stageLabel, stageLabelText } from './stage-labels.js'
-import { stageFailureHtml } from './stage-failure-views.js'
+import { hostRecheckHtml, stageFailureHtml } from './stage-failure-views.js'
 
 // Экран выполнения утверждённого наряда.
 //
@@ -158,7 +158,7 @@ export function workOrderExecutionParts(order, ui, deps = {}) {
       ${stall.nodeName || stall.nodeId ? `<small>Этап «${esc(stallName || stall.nodeName || stall.nodeId)}»</small>` : ''}
       ${stall.error && !runtime.stageFailure?.diagnosis?.checks?.length ? `<p>${esc(stall.error)}</p>` : ''}
       ${stall.waitReason === 'stage_failed' ? stageFailureHtml(order, runtime, esc) : ''}
-    </div>` : ''
+    </div>` : hostRecheckHtml(order, runtime, esc)
   const plan = launchPlan(runtime, esc) || masterPlanHtml('Этапы', workOrderStageRows(order, ui, deps), esc, { limit: 12 })
   const transcript = transcriptFor(order, ui, deps)
   const provisioning = ['runtime_provisioning', 'runtime_building'].includes(runtime.launchPhase)

@@ -66,3 +66,12 @@ export function stageFailureHtml(order, runtime, esc) {
   const proposal = runtime?.stageRetryProposal
   return `${diagnosisHtml(failure, esc)}${autopilotHtml(failure, proposal, esc)}${proposalHtml(order, runtime, proposal, esc)}${buttonsHtml(order, runtime, failure, esc)}`
 }
+
+// Проверка на хосте упёрлась в среду (Q14): результат уже в проекте; проверить
+// снова на той же ревизии или вынести вердикт по полученному итогу.
+export function hostRecheckHtml(order, runtime, esc) {
+  const held = runtime?.hostRecheck
+  if (!held || runtime.status !== 'awaiting_user') return ''
+  const actions = (Array.isArray(held.actions) ? held.actions : []).map(item => `<li>${esc(item)}</li>`).join('')
+  return `<div class="work-order-exec-stall"><b>Проверка на хосте упёрлась в среду</b><small>Результат уже в проекте · остановка ${Number(held.count) || 1} из 3</small>${actions ? `<ul>${actions}</ul>` : ''}<div>${controlButton(order, runtime, 'recheck', 'Проверить снова', 'hall-btn is-primary', esc)}${controlButton(order, runtime, 'finalize', 'Завершить квест', 'hall-btn', esc)}</div></div>`
+}

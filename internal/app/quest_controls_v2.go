@@ -74,6 +74,16 @@ func (a *App) ControlWorkOrderQuestV2(ctx context.Context, questID, action strin
 		result.Status, err = a.retryFailedWorkOrderStageV2(ctx, quest, request.APIKey, plan)
 		return result, err
 	}
+	// Проверка на хосте, упёршаяся в среду (Q14): проверить снова на той же
+	// ревизии или вынести вердикт по полученному итогу.
+	if action == "recheck" {
+		result.Status, err = a.recheckWorkOrderHostV2(ctx, quest)
+		return result, err
+	}
+	if action == "finalize" && hostRecheckPending(quest) {
+		result.Status, err = a.finalizeHeldHostCheckV2(ctx, quest)
+		return result, err
+	}
 	if action == "finalize" {
 		result.Status, err = a.settleFailedWorkOrderStageV2(ctx, quest)
 		return result, err
@@ -200,7 +210,7 @@ func validateWorkOrderRuntimeControl(status domain.QuestStatus, action string) e
 	switch action {
 	case "message":
 		return nil
-	case "retry", "finalize":
+	case "retry", "finalize", "recheck":
 		if status == domain.QuestAwaitingUser {
 			return nil
 		}

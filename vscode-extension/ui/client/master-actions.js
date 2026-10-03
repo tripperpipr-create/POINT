@@ -77,7 +77,7 @@ export function handleMasterClickAction({ action, target, ui, applyMasterFind, f
     const control=String(target.dataset.control || '')
     // Занятый наряд — обработанный клик: повторное нажатие «Паузы» не должно
     // уходить дальше по цепочке обработчиков только потому, что первое ещё идёт.
-    if (!id || !questId || !['pause','resume','cancel','message','retry','finalize'].includes(control) || ui.masterWorkOrderBusy.has(id)) return true
+    if (!id || !questId || !['pause','resume','cancel','message','retry','finalize','recheck'].includes(control) || ui.masterWorkOrderBusy.has(id)) return true
     // Запущенный наряд — прогон, а не карточка: только `.master-v2-order` терял бы поле сообщения ровно там, где оно и нужно.
     const card=target.closest?.('.master-v2-order, .master-v2-run')
     const message=control==='message' ? String(card?.querySelector?.('[data-work-order-message]')?.value || '').trim() : ''

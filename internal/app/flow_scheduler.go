@@ -419,9 +419,9 @@ func (a *App) scheduleWaitingAgentNodes(quest domain.Quest, flow domain.FlowGrap
 				stackID = approval.WorkOrder.Stack.ID
 			}
 		}
-		if stageAllowsLLMBypass(role, lineage, stackID) && (role != domain.StageRoleImplReview || a.implementationCheckedOnTree(context.Background(), flowRun, exec)) {
+		if stageAllowsLLMBypass(role, lineage, stackID) {
 			updated, passErr := a.completeStagePassthrough(flowRun, node, exec,
-				"serial inherited tip already integrated and checked by Point; skipped redundant "+role+" LLM stage")
+				"serial inherited tip already integrated; skipped redundant "+role+" LLM stage")
 			if passErr != nil {
 				return passErr
 			}
@@ -491,7 +491,7 @@ func (a *App) scheduleWaitingAgentNodes(quest domain.Quest, flow domain.FlowGrap
 			QuestID: executionQuestID, FlowRunID: flowRun.ID, FlowNodeID: node.ID, ExecutionID: exec.ID,
 			StageRole:           startRole,
 			CompletionCheckKind: checkKind,
-			ContextItems:        flowNodeContext(quest, flow, flowRun, node.ID, changeSets),
+			ContextItems:        a.stageContextItems(quest, flow, flowRun, node, changeSets),
 			ModelBinding:        modelBinding,
 			WorkContract:        &contract,
 		})
@@ -508,6 +508,10 @@ func (a *App) scheduleWaitingAgentNodes(quest domain.Quest, flow domain.FlowGrap
 		}
 		if checkKind == "merged-result" || node.Kind == domain.FlowNodeVerifier {
 			a.syncIntakeStatus(context.Background(), flowRun.QuestID, domain.IntakeVerifying, "")
+		}
+		// Исходная проверка — параллельно с работой пишущего этапа (Q11).
+		if approvalErr == nil && domain.FlowNodeWriteFiles(node) {
+			a.startBaselineVerificationV2(flowRun.ID, node.ID, exec.ID)
 		}
 		runningOrStarting++
 	}

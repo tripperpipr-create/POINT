@@ -331,6 +331,9 @@ WHERE approval.work_order_id=? ORDER BY approval.version DESC LIMIT 1`, order.ID
 	if runtime.Status == domain.QuestAwaitingUser {
 		runtime.StageFailure, _ = state["stageFailure"].(map[string]any)
 		runtime.StageRetryProposal, _ = state["stageRetryProposal"].(map[string]any)
+		if held, ok := state["hostRecheck"].(map[string]any); ok {
+			runtime.HostRecheck = map[string]any{"actions": held["actions"], "count": held["count"], "at": held["at"]}
+		}
 	}
 	runtime.UpdatedAt = parseTime(updated)
 	if bundle, evidenceErr := s.GetEvidenceBundle(ctx, runtime.QuestID); evidenceErr == nil {

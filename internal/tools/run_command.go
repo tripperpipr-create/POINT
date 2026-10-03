@@ -49,6 +49,11 @@ type RunCommand struct {
 	AllowedNetworkHosts []string
 	ConfirmedGitRemotes []string
 	Grants              *NetworkGrantBook
+	// HostOwnRemotes — локальная полоса (Fast Agent в папке человека): git
+	// fetch/pull/push к remote, уже настроенным в этом репозитории, не требуют
+	// подтверждённого списка и не считаются сетью агента. Push всё равно ждёт
+	// кнопки человека — см. HostCommandNeedsApproval.
+	HostOwnRemotes bool
 }
 
 func (t RunCommand) Definition() domain.ToolDefinition {
@@ -98,9 +103,31 @@ func (t RunCommand) Execute(ctx context.Context, raw json.RawMessage) domain.Too
 	if err != nil {
 		return finish(FailWithHint("invalid_cwd", err.Error(), "use a workspace-relative directory such as src, or omit cwd to run at the workspace root"))
 	}
-	grantedRemotes := t.Grants.RemotesFor(t.RunID, t.QuestID)
-	if denied := deniedUnconfirmedGitRemoteReason(input.Command, t.ConfirmedGitRemotes, grantedRemotes); denied != "" {
-		return finish(FailWithHint("git_remote_unconfirmed", denied, "do not invent remotes; wait for Master/user confirmation of the exact repository URL"))
+	var remotes map[string]string
+	if gitRemoteTrafficPattern.MatchString(input.Command) {
+		remotesDir := t.FS.Root()
+		if t.Executor == nil {
+			remotesDir = cwd
+		}
+		remotes = configuredGitRemotes(ctx, remotesDir)
+	}
+	// 03.10 Fast Agent не смог сделать `git pull` в папке человека: список
+	// подтверждённых remote на локальной полосе пуст всегда, а за ним стоял ещё
+	// сетевой DENY. Свой remote человека проходит оба затвора; всё прочее сетевое
+	// в той же команде — нет.
+	// `git -C dir pull` сверяется с remote каталога dir, если он в рабочей области.
+	remotesAt := func(dir string) map[string]string {
+		if dir == "" {
+			return remotes
+		}
+		return t.workspaceGitRemotes(ctx, cwd, dir)
+	}
+	ownRemote := t.HostOwnRemotes && t.Executor == nil && ownRemoteGitTraffic(input.Command, remotesAt)
+	if !ownRemote {
+		grantedRemotes := t.Grants.RemotesFor(t.RunID, t.QuestID)
+		if denied := deniedUnconfirmedGitRemoteReason(input.Command, t.ConfirmedGitRemotes, grantedRemotes, remotes); denied != "" {
+			return finish(FailWithHint("git_remote_unconfirmed", denied, "do not invent remotes; wait for Master/user confirmation of the exact repository URL"))
+		}
 	}
 	effectiveHosts := append([]string{}, t.AllowedNetworkHosts...)
 	effectiveHosts = append(effectiveHosts, t.Grants.QuestHostsFor(t.QuestID)...)
@@ -108,7 +135,11 @@ func (t RunCommand) Execute(ctx context.Context, raw json.RawMessage) domain.Too
 	if policyErr != nil {
 		return finish(Fail("network_policy_invalid", policyErr.Error()))
 	}
-	targets, targetErr := explicitNetworkTargets(input.Command)
+	var targets []string
+	var targetErr error
+	if !ownRemote {
+		targets, targetErr = explicitNetworkTargets(input.Command)
+	}
 	if targetErr != nil {
 		return finish(FailWithHint("network_target_invalid", targetErr.Error(), "use one explicit HTTPS FQDN and port; unknown destinations cannot be approved"))
 	}
@@ -146,7 +177,7 @@ func (t RunCommand) Execute(ctx context.Context, raw json.RawMessage) domain.Too
 		result.Error.PolicyDigest = policy.Digest
 		return finish(result)
 	}
-	if !sandbox.HasControlledEgress(t.Executor) {
+	if !ownRemote && !sandbox.HasControlledEgress(t.Executor) {
 		if denied := deniedNetworkCommandReason(input.Command, t.NetworkPolicy, effectiveHosts); denied != "" {
 			result := FailWithHint("network_denied", denied, "use an explicit allowed TLS destination inside the configured process sandbox")
 			result.Error.PolicyDigest = policy.Digest
@@ -199,7 +230,7 @@ func (t RunCommand) Execute(ctx context.Context, raw json.RawMessage) domain.Too
 	}
 	if t.Executor == nil {
 		cmd.Dir = cwd
-		cmd.Env = sanitizedProcessEnv()
+		cmd.Env = hostProcessEnv()
 	}
 	max := t.MaxOutput
 	if max <= 0 {
@@ -368,7 +399,7 @@ func (w *limitedWriter) String() string {
 
 var backgroundCommand = regexp.MustCompile(`(?i)(^|[;&|]\s*)(nohup|disown|start)(\s|$)`)
 
-var networkCommandPattern = regexp.MustCompile(`(?i)\b(curl|wget|invoke-webrequest|iwr|git\s+(clone|fetch|pull|push)|go\s+get|npm\s+(install|i)|pnpm\s+(install|add)|yarn\s+(add|install)|pip(?:3)?\s+install)\b`)
+var networkCommandPattern = regexp.MustCompile(`(?i)\b(curl|wget|invoke-webrequest|iwr|` + gitCommand + `(clone|fetch|pull|push)|go\s+get|npm\s+(install|i)|pnpm\s+(install|add)|yarn\s+(add|install)|pip(?:3)?\s+install)\b`)
 var explicitURLRequiredPattern = regexp.MustCompile(`(?i)\b(curl|wget|invoke-webrequest|iwr)\b`)
 
 var networkURLPattern = regexp.MustCompile(`(?i)https?://[^\s"'` + "`" + `<>]+`)
@@ -463,11 +494,11 @@ var deniedCommandPatterns = []*regexp.Regexp{
 	// Ad-hoc HTTP servers burn the implement step budget; accept runs declared checks.
 	regexp.MustCompile(`(?i)\bphp\s+-S\b`),
 	// Git history/remote mutation that agents must never run via shell, even after approval.
-	regexp.MustCompile(`(?i)\bgit\s+push\b[^\n;&|]*(\s(-f|--force|--force-with-lease)\b)`),
-	regexp.MustCompile(`(?i)\bgit\s+push\s+(-f|--force|--force-with-lease)\b`),
-	regexp.MustCompile(`(?i)\bgit\s+reset\b[^\n;&|]*--hard\b`),
-	regexp.MustCompile(`(?i)\bgit\s+clean\b[^\n;&|]*-[a-zA-Z]*f`),
-	regexp.MustCompile(`(?i)\bgit\s+(filter-branch|filter-repo)\b`),
+	regexp.MustCompile(`(?i)` + gitCommand + `push\b[^\n;&|]*(\s(-f|--force|--force-with-lease)\b)`),
+	regexp.MustCompile(`(?i)` + gitCommand + `push\s+(-f|--force|--force-with-lease)\b`),
+	regexp.MustCompile(`(?i)` + gitCommand + `reset\b[^\n;&|]*--hard\b`),
+	regexp.MustCompile(`(?i)` + gitCommand + `clean\b[^\n;&|]*-[a-zA-Z]*f`),
+	regexp.MustCompile(`(?i)` + gitCommand + `(filter-branch|filter-repo)\b`),
 }
 
 func deniedCommandReason(command string) string {
@@ -491,7 +522,36 @@ func deniedCommandReason(command string) string {
 	return ""
 }
 
-var gitDestructivePattern = regexp.MustCompile(`(?i)\bgit\s+(push|reset|clean|filter-branch|filter-repo)\b`)
+// Действия, которые на локальной полосе теряют работу человека или уходят на
+// сервер. Запрещать их нельзя — человек сам просит удалить ветку или
+// отправить коммит, — но решает он, а не модель: 03.10 Fast Agent удалил ветку
+// с уникальными коммитами вопреки условию остановки из задачи.
+var hostApprovalPatterns = []struct {
+	pattern *regexp.Regexp
+	reason  string
+}{
+	// Без (?i): `-d` безопасен — git сам откажет удалять несмерженное.
+	{regexp.MustCompile(gitCommand + `branch\b[^\n;&|]*(\s-[a-zA-Z]*D|\s--delete\b[^\n;&|]*\s(-f|--force)\b|\s(-f|--force)\b[^\n;&|]*\s(-d|--delete)\b)`), "Удаление ветки без проверки слияния: несмерженные коммиты потеряются"},
+	{regexp.MustCompile(`(?i)` + gitCommand + `stash\s+(drop|clear)\b`), "Удаление отложенных изменений (stash)"},
+	{regexp.MustCompile(`(?i)` + gitCommand + `(checkout|switch)\b[^\n;&|]*\s(-f|--force|--discard-changes)\b`), "Переключение с потерей незакоммиченных правок"},
+	{regexp.MustCompile(`(?i)` + gitCommand + `checkout\s+(\S+\s+)?--\s+\.`), "Откат незакоммиченных правок во всей папке"},
+	{regexp.MustCompile(`(?i)` + gitCommand + `restore\b[^\n;&|]*\s\.(\s|$)`), "Откат незакоммиченных правок во всей папке"},
+	{regexp.MustCompile(`(?i)` + gitCommand + `push\b`), "Отправка коммитов на сервер"},
+}
+
+// HostCommandNeedsApproval — причина спросить человека перед командой на его
+// устройстве, или "". Разрушительное без возврата (force-push, reset --hard)
+// сюда не попадает: его отбивает deniedCommandReason раньше.
+func HostCommandNeedsApproval(command string) string {
+	for _, item := range hostApprovalPatterns {
+		if item.pattern.MatchString(command) {
+			return item.reason
+		}
+	}
+	return ""
+}
+
+var gitDestructivePattern = regexp.MustCompile(`(?i)` + gitCommand + `(push|reset|clean|filter-branch|filter-repo)\b`)
 
 var phpBuiltInServerPattern = regexp.MustCompile(`(?i)\bphp\s+-S\b`)
 

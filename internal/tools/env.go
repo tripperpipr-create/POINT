@@ -53,3 +53,17 @@ func sanitizedProcessEnv() []string {
 	}
 	return out
 }
+
+// hostProcessEnv — окружение команды на устройстве человека. Сверх общего
+// списка ему нужен свой SSH (ключ через агент, plink), иначе `git pull` по ssh
+// падает там, где у человека в терминале работает; и git не должен ждать
+// пароля с клавиатуры, которой у процесса нет.
+func hostProcessEnv() []string {
+	out := sanitizedProcessEnv()
+	for _, key := range []string{"GIT_SSH", "GIT_SSH_COMMAND", "GIT_SSH_VARIANT", "SSH_AUTH_SOCK"} {
+		if value, ok := os.LookupEnv(key); ok {
+			out = append(out, key+"="+value)
+		}
+	}
+	return append(out, "GIT_TERMINAL_PROMPT=0")
+}

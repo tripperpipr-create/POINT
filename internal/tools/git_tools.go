@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -427,8 +428,8 @@ type GitLog struct {
 func (t GitLog) Definition() domain.ToolDefinition {
 	return domain.ToolDefinition{
 		Name:        "git_log",
-		Description: "List recent Git commits of the workspace: hash, author, ISO date, ref names and subject, newest first. Read-only. Call this when asked about commit history, recent changes, or who changed something — the supplied context carries no history." + gitReposNote(t.FS),
-		InputSchema: schema(`{"type":"object","properties":{` + gitRepoSchemaProperty + `,"limit":{"type":"integer","minimum":1,"maximum":200,"description":"How many commits to return, newest first. Default 20."},"path":{"type":"string","description":"Optional workspace-relative path; only commits touching it are returned."},"contains":{"type":"string","description":"Optional case-insensitive substring the commit message must contain."}},"additionalProperties":false}`),
+		Description: "List recent Git commits of the selected repository and revision (default HEAD): hash, author, ISO date, ref names and subject, newest first. Read-only. Call this when asked about commit history, recent changes, or who changed something — the supplied context carries no history. Use revision for a branch, tag or SHA, never path. Examples: {\"revision\":\"origin/vue-tests\"}; {\"repo\":\"app\",\"revision\":\"v1.0\",\"path\":\"app/src/main.go\"}." + gitReposNote(t.FS),
+		InputSchema: schema(`{"type":"object","properties":{` + gitRepoSchemaProperty + `,"revision":{"type":"string","description":"Optional single commit revision: local or remote branch, tag, SHA, or HEAD~1. Defaults to HEAD. Ranges are not supported."},"limit":{"type":"integer","minimum":1,"maximum":200,"description":"How many commits to return, newest first. Default 20."},"path":{"type":"string","description":"Optional workspace-relative path; only commits touching it are returned."},"contains":{"type":"string","description":"Optional case-insensitive substring the commit message must contain."}},"additionalProperties":false}`),
 	}
 }
 
@@ -436,6 +437,7 @@ func (t GitLog) Execute(ctx context.Context, raw json.RawMessage) domain.ToolRes
 	started := time.Now()
 	var input struct {
 		Repo     string `json:"repo"`
+		Revision string `json:"revision"`
 		Limit    int    `json:"limit"`
 		Path     string `json:"path"`
 		Contains string `json:"contains"`
@@ -448,6 +450,15 @@ func (t GitLog) Execute(ctx context.Context, raw json.RawMessage) domain.ToolRes
 	root, repo, bad := resolveGitRepo(ctx, t.FS, input.Repo, input.Path)
 	if bad != nil {
 		return logExecute(ctx, "git_log", started, *bad)
+	}
+	revision := strings.TrimSpace(input.Revision)
+	var revisionSHA string
+	if revision != "" {
+		var err error
+		revisionSHA, err = gitLogRevision(ctx, root, revision)
+		if err != nil {
+			return logExecute(ctx, "git_log", started, Fail("invalid_revision", "revision must resolve to a single commit in the selected repository"))
+		}
 	}
 	limit := t.MaxCommits
 	if limit <= 0 {
@@ -467,8 +478,16 @@ func (t GitLog) Execute(ctx context.Context, raw json.RawMessage) domain.ToolRes
 	if needle := strings.TrimSpace(input.Contains); needle != "" {
 		args = append(args, "--fixed-strings", "--regexp-ignore-case", "--grep="+needle)
 	}
+	if revisionSHA != "" {
+		args = append(args, revisionSHA)
+	}
 	pathFilter, bad := repoRelativePath(t.FS, root, input.Path)
 	if bad != nil {
+		if _, pathErr := t.FS.Resolve(input.Path, false); errors.Is(pathErr, os.ErrNotExist) {
+			if _, err := gitLogRevision(ctx, root, input.Path); err == nil {
+				return logExecute(ctx, "git_log", started, FailWithHint("invalid_path", "path is a Git revision, not an existing file path", "pass the branch, tag or SHA in revision; path is only a file filter"))
+			}
+		}
 		return logExecute(ctx, "git_log", started, *bad)
 	}
 	if pathFilter != "" {
@@ -509,12 +528,41 @@ func (t GitLog) Execute(ctx context.Context, raw json.RawMessage) domain.ToolRes
 		// коммит» верен на момент последнего `git fetch`.
 		"note": "local history only; commits pushed by others appear after a fetch",
 	}
+	if revisionSHA != "" {
+		payload["revision"] = revision
+		payload["revisionSHA"] = revisionSHA
+	}
 	if pathFilter != "" {
 		payload["path"] = pathFilter
 	}
 	result := OK(payload)
 	result.Truncated = len(commits) >= limit
 	return logExecute(ctx, "git_log", started, result, "commits", len(commits), "limit", limit, "path", pathFilter)
+}
+
+// Resolve only one commit, then pass the resulting object ID as a positional
+// argument to log. Option-looking input and range syntax never reach git log.
+func gitLogRevision(ctx context.Context, root, revision string) (string, error) {
+	revision = strings.TrimSpace(revision)
+	if revision == "" || strings.HasPrefix(revision, "-") || strings.Contains(revision, "..") || strings.ContainsAny(revision, "\x00\r\n") {
+		return "", fmt.Errorf("invalid single revision")
+	}
+	cmd := osproc.CommandContext(ctx, "git", "rev-parse", "--verify", "--end-of-options", revision+"^{commit}")
+	cmd.Dir = root
+	out, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+	sha := strings.TrimSpace(string(out))
+	if len(sha) != 40 && len(sha) != 64 {
+		return "", fmt.Errorf("invalid commit ID")
+	}
+	for _, ch := range sha {
+		if !(ch >= '0' && ch <= '9' || ch >= 'a' && ch <= 'f') {
+			return "", fmt.Errorf("invalid commit ID")
+		}
+	}
+	return sha, nil
 }
 
 // GitTags — метки репозитория: имя, коммит, дата, подпись аннотации.

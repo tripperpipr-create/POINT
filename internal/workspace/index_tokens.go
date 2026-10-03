@@ -112,27 +112,6 @@ func uniqueStrings(values []string) []string {
 	return result
 }
 
-func extractSymbols(lines []string) []string {
-	var result []string
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		prefixes := []string{"func ", "type ", "class ", "interface ", "def ", "function ", "export function ", "export class "}
-		for _, prefix := range prefixes {
-			if strings.HasPrefix(trimmed, prefix) {
-				value := strings.TrimSpace(strings.TrimPrefix(trimmed, prefix))
-				if cut := strings.IndexAny(value, "({:< =\t"); cut >= 0 {
-					value = value[:cut]
-				}
-				if value != "" {
-					result = append(result, value)
-				}
-				break
-			}
-		}
-	}
-	return result
-}
-
 var languageByExt = map[string]string{
 	".go": "Go", ".js": "JavaScript", ".mjs": "JavaScript", ".cjs": "JavaScript",
 	".ts": "TypeScript", ".tsx": "TypeScript", ".jsx": "JavaScript",

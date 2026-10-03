@@ -371,12 +371,12 @@ func addIndexedContent(index *projectIndex, relative string, info os.FileInfo, c
 			end = len(lines)
 		}
 		body := strings.Join(lines[start:end], "")
-		symbols := extractSymbols(lines[start:end])
+		symbols := extractSymbols(language, lines[start:end])
 		chunk := IndexedChunk{Path: relative, StartLine: start + 1, EndLine: end, Language: language, Symbols: symbols, Content: body, FileSHA256: content.SHA256, IndexedSHA256: indexedDigest}
 		chunkID := len(index.chunks)
 		index.chunks = append(index.chunks, chunk)
 		if liveDerived {
-			for _, token := range expandedTokens(relative + "\n" + strings.Join(symbols, " ") + "\n" + body) {
+			for _, token := range chunkTokens(relative, symbols, body) {
 				index.tokens[token] = append(index.tokens[token], chunkID)
 			}
 			index.symbols = append(index.symbols, symbols...)
@@ -442,7 +442,7 @@ func rebuildIndexDerived(index *projectIndex) {
 		index.indexedBytes += meta.IndexedBytes
 	}
 	for chunkID, chunk := range index.chunks {
-		for _, token := range expandedTokens(chunk.Path + "\n" + strings.Join(chunk.Symbols, " ") + "\n" + chunk.Content) {
+		for _, token := range chunkTokens(chunk.Path, chunk.Symbols, chunk.Content) {
 			index.tokens[token] = append(index.tokens[token], chunkID)
 		}
 		index.symbols = append(index.symbols, chunk.Symbols...)
@@ -536,4 +536,22 @@ func (f *FS) recentlyCommittedPaths(ctx context.Context) map[string]int {
 		}
 	}
 	return counts
+}
+
+// chunkTokens — токены фрагмента. Сжатое имя символа идёт отдельным токеном:
+// точный поиск по «/api/documents» или «DocumentsController.list» находит
+// фрагмент одним списком, без перебора частей.
+func chunkTokens(path string, symbols []string, content string) []string {
+	tokens := expandedTokens(path + "\n" + strings.Join(symbols, " ") + "\n" + content)
+	seen := make(map[string]bool, len(tokens))
+	for _, token := range tokens {
+		seen[token] = true
+	}
+	for _, symbol := range symbols {
+		if compact := compactToken(symbol); len(compact) >= 3 && !seen[compact] {
+			seen[compact] = true
+			tokens = append(tokens, compact)
+		}
+	}
+	return tokens
 }

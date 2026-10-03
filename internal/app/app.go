@@ -47,6 +47,7 @@ type App struct {
 	workOrderLaunchCancels  map[string]context.CancelFunc
 	workOrderLaunchWG       sync.WaitGroup
 	workOrderLaunchStopping bool
+	staffing                workOrderStaffing
 	ctx                     context.Context
 	dataDir                 string
 	databasePath            string
@@ -443,6 +444,7 @@ func (a *App) Shutdown(ctx context.Context) {
 	}
 	a.stopMasterTurns()
 	a.stopWorkOrderLaunches()
+	a.stopWorkOrderStaffing()
 	a.stopMCPServers()
 	a.stopMasterWatch()
 	a.stopSandboxWatchV2()

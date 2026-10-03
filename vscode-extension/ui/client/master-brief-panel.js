@@ -40,6 +40,14 @@ function shortGoal(goal) {
   return runes.length > 24 ? runes.slice(0, 23).join('').trimEnd() + '…' : runes.join('')
 }
 
+// Состав подбирает ядро уже после ответа Мастера (TODO Q15): пока идёт подбор,
+// утвердить наряд нельзя, и вкладка говорит, чего ждёт.
+function staffingLabel(order) {
+  if (order?.roster?.selecting) return 'Подбираю исполнителей…'
+  if (order?.roster?.selectionError) return 'Подбор не удался'
+  return 'Собираем состав'
+}
+
 export function createMasterBriefPanel({
   esc, countOf, ui, taskProposalById, proposalEditorHtml,
   taskBriefBodyHtml, taskBriefActionsHtml, taskBriefReady, taskBriefStateLabel,
@@ -114,7 +122,7 @@ export function createMasterBriefPanel({
     const goal = String(item.brief?.goal || item.title || '')
     const open = Boolean(ui.masterBriefPanelOpen)
     return `<div class="hall-brief-tabs" id="master-brief-tabs" role="tablist" data-keynav="row" aria-label="Панели разговора">
-      <button type="button" role="tab" tabindex="0" id="master-brief-tab" class="hall-brief-tab${open ? ' is-on' : ''}${ready ? ' is-ready' : ''}${started ? ' is-live' : ''}" aria-selected="${open ? 'true' : 'false'}" aria-controls="master-brief-panel" data-action="master-brief-toggle" title="${esc(goal)}"><span>${esc(shortGoal(goal))}</span><small>${esc(order?.state === 'staffing' ? 'Собираем состав' : briefTabState(item))}</small></button>
+      <button type="button" role="tab" tabindex="0" id="master-brief-tab" class="hall-brief-tab${open ? ' is-on' : ''}${ready ? ' is-ready' : ''}${started ? ' is-live' : ''}" aria-selected="${open ? 'true' : 'false'}" aria-controls="master-brief-panel" data-action="master-brief-toggle" title="${esc(goal)}"><span>${esc(shortGoal(goal))}</span><small>${esc(order?.state === 'staffing' ? staffingLabel(order) : briefTabState(item))}</small></button>
     </div>`
   }
 
@@ -196,7 +204,7 @@ export function createMasterBriefPanel({
     const order = proposalWorkOrder(item)
     const head = started
       ? `<b>Квест</b><small>${esc(live?.statusText || 'выполняется')}${live?.step != null ? ` · ход ${esc(live.step)}` : ''}</small>`
-      : `<b>Задание</b><small>${item.brief ? `Версия ${Number(item.brief.version)} · ` : ''}${esc(order?.state === 'staffing' ? 'Собираем состав' : taskBriefStateLabel(item.brief, rosterHasAgent()))}</small>`
+      : `<b>Задание</b><small>${item.brief ? `Версия ${Number(item.brief.version)} · ` : ''}${esc(order?.state === 'staffing' ? staffingLabel(order) : taskBriefStateLabel(item.brief, rosterHasAgent()))}</small>`
     // У задания с брифом род и версию называет шапка самой карточки — второй
     // строкой над ней они повторялись бы слово в слово.
     const sub = started || !item.brief ? `<div class="hall-brief-panel-sub">${head}</div>` : ''

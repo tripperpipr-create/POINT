@@ -32,8 +32,10 @@ import (
 // Режим задаёт POINT_VERIFY_SERVICE:
 //   - off    — ничего не делается, как до сервиса;
 //   - shadow — проверка перед приёмкой идёт, приёмка гоняет всё сама и
-//     записывает, совпал бы переиспользованный исход (умолчание);
-//   - on     — приёмка переиспользует целиком прошедший исход при совпавшем ключе.
+//     записывает, совпал бы переиспользованный исход;
+//   - on     — приёмка переиспользует целиком прошедший исход при совпавшем ключе
+//     (умолчание с 03.10.2026: в квесте e94cc приёмка 9 минут повторяла
+//     проверки, прошедшие на том же дереве, образе и командах).
 
 const (
 	verifyServiceOff    = "off"
@@ -45,10 +47,10 @@ func verifyServiceMode() string {
 	switch strings.ToLower(strings.TrimSpace(os.Getenv("POINT_VERIFY_SERVICE"))) {
 	case verifyServiceOff:
 		return verifyServiceOff
-	case verifyServiceOn:
-		return verifyServiceOn
+	case verifyServiceShadow:
+		return verifyServiceShadow
 	}
-	return verifyServiceShadow
+	return verifyServiceOn
 }
 
 const verificationBatchKeyVersion = "point-verification-batch-v4"

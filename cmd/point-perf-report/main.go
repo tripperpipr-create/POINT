@@ -104,8 +104,9 @@ type summary struct {
 }
 
 type report struct {
-	Summary summary      `json:"summary"`
-	Flows   []flowReport `json:"flows"`
+	Summary summary       `json:"summary"`
+	Flows   []flowReport  `json:"flows"`
+	Master  *masterReport `json:"master,omitempty"`
 }
 
 func defaultDatabase() string {
@@ -120,9 +121,10 @@ func defaultDatabase() string {
 func main() {
 	database := flag.String("db", defaultDatabase(), "путь к hub-v2.db")
 	flows := flag.Int("flows", 10, "сколько последних прогонов Flow разобрать")
+	masterTurns := flag.Int("master", 20, "сколько последних ходов Мастера разобрать (0 — не разбирать)")
 	asJSON := flag.Bool("json", false, "вывести JSON вместо таблицы")
 	flag.Parse()
-	result, err := build(*database, *flows)
+	result, err := build(*database, *flows, *masterTurns)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "point-perf-report:", err)
 		os.Exit(1)
@@ -136,7 +138,7 @@ func main() {
 	printReport(os.Stdout, result)
 }
 
-func build(path string, limit int) (report, error) {
+func build(path string, limit, masterTurns int) (report, error) {
 	db, err := sql.Open("sqlite", "file:"+filepath.ToSlash(path)+"?mode=ro&_pragma=busy_timeout(5000)")
 	if err != nil {
 		return report{}, err
@@ -202,6 +204,11 @@ func build(path string, limit int) (report, error) {
 	})
 	if len(result.Summary.TopCommands) > 12 {
 		result.Summary.TopCommands = result.Summary.TopCommands[:12]
+	}
+	if masterTurns > 0 {
+		if result.Master, err = buildMaster(db, masterTurns); err != nil {
+			return report{}, err
+		}
 	}
 	return result, nil
 }
@@ -463,4 +470,5 @@ func printReport(out io.Writer, r report) {
 			fmt.Fprintf(out, "  %7s  %3d×  %s\n", seconds(c.TotalMs), c.Calls, c.Command)
 		}
 	}
+	printMaster(out, r.Master)
 }

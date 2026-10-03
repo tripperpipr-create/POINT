@@ -315,3 +315,30 @@ func (f *FS) relevantChunksCurrent(chunks []RelevantChunk) (bool, error) {
 	}
 	return true, nil
 }
+
+// SearchContextReady подбирает фрагменты только по уже готовому индексу: без
+// сборки, обхода на расхождения и обновления. Нужен там, где ждать нельзя, —
+// перед первым кругом Мастера: индекса нет — пусто, а не полминуты сборки.
+// Фрагменты, чей файл изменился после индексации, отбрасываются: устаревший
+// код в подсказке хуже никакого.
+func (f *FS) SearchContextReady(query string, maxChunks, maxChars int) []RelevantChunk {
+	index := f.peekReadyIndex()
+	if index == nil {
+		return nil
+	}
+	queryTokens := expandedTokens(query)
+	if len(queryTokens) == 0 {
+		return nil
+	}
+	if len(queryTokens) > 64 {
+		queryTokens = queryTokens[:64]
+	}
+	search := selectRelevantChunks(index, query, queryTokens, maxChunks, maxChars)
+	current := make([]RelevantChunk, 0, len(search.Chunks))
+	for _, chunk := range search.Chunks {
+		if ok, err := f.relevantChunksCurrent([]RelevantChunk{chunk}); err == nil && ok {
+			current = append(current, chunk)
+		}
+	}
+	return current
+}

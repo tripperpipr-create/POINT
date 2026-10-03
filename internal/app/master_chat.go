@@ -128,6 +128,7 @@ func (a *App) masterChatService(ctx context.Context, briefing orchestrator.Proje
 	}
 	return orchestrator.ChatService{
 		ReadTools: reading,
+		Prefetch:  masterPrefetcher(fs),
 		Store:     a.store,
 		NewID:     domain.NewID,
 		ModelFactory: a.budgetedModelFactory(modelBudgetScope{

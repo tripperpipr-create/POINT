@@ -59,4 +59,5 @@ func (a *App) recoverAbandonedWorld(ctx context.Context, workspaceID string) {
 	// A quest left in a live state belongs to a process that no longer exists;
 	// resolve that before anything else can read it as progress.
 	a.pauseInterruptedWorkOrderQuestsV2(ctx, workspaceID)
+	a.resumeWorkOrderStaffingV2(ctx, workspaceID)
 }

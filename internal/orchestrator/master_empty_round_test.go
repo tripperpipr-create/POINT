@@ -14,6 +14,9 @@ import (
 func TestMasterEmptyRoundAfterResearchGetsAnswerRound(t *testing.T) {
 	model := &turnModel{rounds: []roundScript{
 		{text: "Посмотрю файлы.", calls: []providers.ToolCall{toolCall("r1", "read_file", map[string]string{"path": "app.go"})}},
+		// Быстрый круг после чтения решил ответить — ответ пишет круг с
+		// размышлением, и пустым оказывается уже он (форма E5).
+		{text: "Ответ без раздумий."},
 		{think: "думаю"},
 		{text: "Причина в app.go: поток закрывается раньше записи."},
 	}}
@@ -31,10 +34,13 @@ func TestMasterEmptyRoundAfterResearchGetsAnswerRound(t *testing.T) {
 	if response.Reply != "Посмотрю файлы.\n\nПричина в app.go: поток закрывается раньше записи." {
 		t.Fatalf("ответ по собранному не получен: %q", response.Reply)
 	}
-	if len(model.requests) != 3 {
-		t.Fatalf("кругов %d вместо 3", len(model.requests))
+	if len(model.requests) != 4 {
+		t.Fatalf("кругов %d вместо 4", len(model.requests))
 	}
-	last := model.requests[2]
+	if !model.requests[1].DisableThinking || model.requests[2].DisableThinking {
+		t.Fatal("круг после чтения идёт без размышления, его переигровка — с размышлением")
+	}
+	last := model.requests[3]
 	if !last.DisableThinking {
 		t.Fatal("восстановительный круг должен идти без размышления")
 	}
@@ -52,6 +58,7 @@ func TestMasterEmptyRoundAfterResearchGetsAnswerRound(t *testing.T) {
 func TestMasterSecondEmptyRoundIsAnError(t *testing.T) {
 	model := &turnModel{rounds: []roundScript{
 		{text: "Посмотрю файлы.", calls: []providers.ToolCall{toolCall("r1", "read_file", map[string]string{"path": "app.go"})}},
+		{text: "Ответ без раздумий."},
 		{think: "думаю"},
 	}}
 	service := ChatService{Store: newChatStoreStub(), ReadTools: readingToolsStub{}, ModelFactory: model.factory()}
@@ -64,7 +71,7 @@ func TestMasterSecondEmptyRoundIsAnError(t *testing.T) {
 	if response.Mode != "deterministic" || response.FallbackReason != errMasterEmptyAnswer.Error() {
 		t.Fatalf("ход с одним обещанием принят как ответ: mode=%q reason=%q reply=%q", response.Mode, response.FallbackReason, response.Reply)
 	}
-	if len(model.requests) != 3 {
+	if len(model.requests) != 4 {
 		t.Fatalf("восстановительный круг должен быть один: кругов %d", len(model.requests))
 	}
 }

@@ -180,6 +180,8 @@ if (!isTransientWorkOrder({ runtime: { status: 'paused', waitingForSandbox: true
   throw new Error('a quest paused by the core is dropped from watch and never continues')
 }
 if (isTransientWorkOrder({ runtime: { status: 'paused' } })) throw new Error('a human pause is watched as if it were running')
+// Состав дописывает ядро после хода Мастера: наряд в подборе наблюдается.
+if (!isTransientWorkOrder({ state: 'staffing', roster: { selecting: true } })) throw new Error('a work order in roster selection is not watched and never shows its roster')
 if (!transport.includes('watchMasterWorkOrder(') || !transport.includes('watchMasterWorkOrders(')) {
   throw new Error('transport does not follow a live WorkOrder quest')
 }

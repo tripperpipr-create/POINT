@@ -44,7 +44,10 @@ function sandboxEnvironment(config, inherited, bridge) {
   const preferred = explicitGlobal(config, 'sandboxBackend') ?? inherited.POINT_SANDBOX_BACKEND ?? (bundled ? 'embedded' : undefined)
   const backend = String(globalSetting(config, 'sandboxBackend', preferred, 'filtered-copy')).toLowerCase()
   if (!['filtered-copy', 'docker', 'container', 'embedded'].includes(backend)) throw new Error(`Неизвестная среда исполнения Point: ${backend}`)
-  const env = { POINT_SANDBOX_BACKEND: backend === 'container' ? 'docker' : backend }
+  // Reuse of passed checks applies to every backend, not only to Moby.
+  const verify = String(globalSetting(config, 'verificationReuse', inherited.POINT_VERIFY_SERVICE, 'on'))
+  if (!['off', 'shadow', 'on'].includes(verify)) throw new Error(`Неизвестный режим переиспользования проверок: ${verify}`)
+  const env = { POINT_SANDBOX_BACKEND: backend === 'container' ? 'docker' : backend, POINT_VERIFY_SERVICE: verify }
   const image = String(config.get('sandboxImage', '') || '').trim()
   if (image) env.POINT_SANDBOX_IMAGE = image
   if (backend !== 'embedded') return env
@@ -56,13 +59,10 @@ function sandboxEnvironment(config, inherited, bridge) {
   const memory = Number(globalSetting(config, 'sandboxMemoryGiB', undefined, 2))
   if (!Number.isInteger(cpus) || cpus < 1 || cpus > 16) throw new Error('Лимит CPU Moby должен быть целым числом от 1 до 16')
   if (!Number.isInteger(memory) || memory < 1 || memory > 32) throw new Error('Лимит памяти Moby должен быть целым числом ГиБ от 1 до 32')
-  const verify = String(globalSetting(config, 'verificationReuse', inherited.POINT_VERIFY_SERVICE, 'shadow'))
-  if (!['off', 'shadow', 'on'].includes(verify)) throw new Error(`Неизвестный режим переиспользования проверок: ${verify}`)
   return { ...env, POINT_EMBEDDED_RUNTIME: manifest, POINT_RUNTIME_BRIDGE: bridge,
     POINT_SANDBOX_WORKSPACE: 'volume', POINT_LIVE_WORKSPACE: '0', POINT_SANDBOX_REQUIRE_STRONG: 'true',
     POINT_SANDBOX_MEMORY: `${memory}g`, POINT_SANDBOX_CPUS: String(cpus), POINT_SANDBOX_PIDS: '256',
-    POINT_SANDBOX_USER: '10001:10001', POINT_SANDBOX_WARM_CONTAINER: 'on', POINT_SANDBOX_DOWNLOAD_CACHE: 'on',
-    POINT_VERIFY_SERVICE: verify }
+    POINT_SANDBOX_USER: '10001:10001', POINT_SANDBOX_WARM_CONTAINER: 'on', POINT_SANDBOX_DOWNLOAD_CACHE: 'on' }
 }
 
 function configureSandbox(service, config, inherited, binary) {

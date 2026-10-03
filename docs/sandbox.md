@@ -241,7 +241,7 @@ POINT_SANDBOX_CPUS=2
 POINT_SANDBOX_PIDS=256
 ```
 
-`POINT_VERIFY_SERVICE` (`off`, `shadow` — the default, `on`) controls the
+`POINT_VERIFY_SERVICE` (`off`, `shadow`, `on` — the default) controls the
 verification service described in [architecture.md](architecture.md): whether
 Point checks the last writing stage against the acceptance criteria and whether
 acceptance may reuse a run that fully passed on the same tree and image.

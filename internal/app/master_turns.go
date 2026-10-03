@@ -241,7 +241,9 @@ func (a *App) startMasterTurn(ctx context.Context, req MasterChatRequest, comple
 					flushReply()
 				}
 				return
-			case "reasoning":
+			case "reasoning", "round":
+				// Замер круга (round) — запись для point-perf-report, строку
+				// ожидания он не трогает.
 				// Размышление не меняет состояние хода: оно идёт и в ожидании модели,
 				// и между обращениями к инструментам. Событие уходит в ленту, а строка
 				// состояния и запись хода остаются прежними — иначе каждая мысль стоила

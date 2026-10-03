@@ -223,6 +223,7 @@ func TestAcceptReusesAPassOnlyForTheSameTree(t *testing.T) {
 	if err := sandbox.CopyCarried(f.root, acceptRoot); err != nil {
 		t.Fatal(err)
 	}
+	t.Setenv("POINT_VERIFY_SERVICE", "shadow")
 	shadow := f.acceptOn(t, acceptRoot, "shadow")
 	if f.backend.runs() != afterCheck+1 || shadow.Status != domain.RunCompleted {
 		t.Fatalf("shadow mode must still run the checks: runs=%d status=%s", f.backend.runs(), shadow.Status)
@@ -294,5 +295,18 @@ func TestVerificationBatchKeyBindsEverythingTheOutcomeDependsOn(t *testing.T) {
 		if other == base {
 			t.Fatalf("the key ignores a change of the %s", name)
 		}
+	}
+}
+
+// С 03.10 умолчание — переиспользование: приёмка не повторяет проверки,
+// прошедшие на том же дереве, в том же образе и теми же командами.
+func TestVerifyServiceDefaultsToReuse(t *testing.T) {
+	t.Setenv("POINT_VERIFY_SERVICE", "")
+	if mode := verifyServiceMode(); mode != verifyServiceOn {
+		t.Fatalf("умолчание %q", mode)
+	}
+	t.Setenv("POINT_VERIFY_SERVICE", "shadow")
+	if mode := verifyServiceMode(); mode != verifyServiceShadow {
+		t.Fatalf("явный shadow потерян: %q", mode)
 	}
 }

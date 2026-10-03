@@ -151,6 +151,18 @@ const feedOf = html => html.split('hall-brief-panel')[0]
     'создать недостающего агента из разговора невозможно')
 }
 
+// ── Состав подбирает ядро после ответа: вкладка называет подбор ────────────
+{
+  const selecting = {
+    id: 'workorder-brief-1', state: 'staffing', version: 1, digest: 'sha256:selecting',
+    goal: READY.goal, routing: { fixedModel: 'qwen' }, roster: { selecting: true },
+  }
+  const html = open({ ...READY }, { workOrders: [selecting] }).root.innerHTML
+  check('подбор состава назван на вкладке',
+    html.includes('Подбираю исполнителей') && !feedOf(html).includes('master-v2-order'),
+    'наряд в подборе выглядит как готовый к запуску или молчит о подборе')
+}
+
 // ── Раскрытая панель: весь состав, но без запуска ──────────────────────────
 {
   const ui = open({ ...DISCUSSION })

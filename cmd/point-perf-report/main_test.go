@@ -84,7 +84,7 @@ func TestBuildUsesFlowBoundsAndUncorrelatedAcceptEvents(t *testing.T) {
 		}
 	}
 	db.Close()
-	r, e := build(p, 1)
+	r, e := build(p, 1, 0)
 	if e != nil {
 		t.Fatal(e)
 	}

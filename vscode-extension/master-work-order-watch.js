@@ -37,6 +37,9 @@ function activeStageRunId(order) {
 // готов продолжиться сам, остаётся под наблюдением: иначе карточка замирала
 // на «Ждёт Docker» и после того, как Docker запустили.
 function isTransientWorkOrder(order) {
+  // Состав и ветку подбирает ядро после хода Мастера: наряд допишется
+  // следующей версией, и карточка должна её увидеть.
+  if (order?.roster?.selecting) return true
   const runtime = order?.runtime
   if (TRANSIENT.has(String(runtime?.status || ''))) return true
   return runtime?.status === 'paused' && Boolean(runtime.waitingForSandbox || runtime.resumeAfterRestart)
@@ -106,7 +109,7 @@ function watchMasterWorkOrder(host, workOrderId, conversationId) {
         continue
       }
       if (!scope.current()) return
-      const next = runtimeSignature(order?.runtime)
+      const next = `${runtimeSignature(order?.runtime)}|v${order?.version || 0}${order?.roster?.selecting ? ':selecting' : ''}`
       if (next !== signature) {
         signature = next
         scope.post({ type: 'masterWorkOrder', workOrder: order, conversationId })

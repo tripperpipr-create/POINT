@@ -198,6 +198,12 @@ type AgentRosterPlan struct {
 	AgentIDs  []string       `json:"agentIds,omitempty"`
 	Permanent []AgentDraft   `json:"permanent,omitempty"`
 	Temporary []SubagentPlan `json:"temporary,omitempty"`
+	// Selecting — состав и ветку подбирают вне хода Мастера (TODO Q15):
+	// наряд сохранён, ход кончился, фоновая задача допишет версию с составом.
+	// Пока подбор идёт, наряд не утверждаем. SelectionError — почему подбор
+	// не удался. Оба поля omitempty: дайджест прежних нарядов не меняется.
+	Selecting      bool   `json:"selecting,omitempty"`
+	SelectionError string `json:"selectionError,omitempty"`
 }
 
 type ModelRoutingPolicy struct {
@@ -453,6 +459,9 @@ func ValidateWorkOrder(order WorkOrder) error {
 	}
 	if len(order.Criteria) == 0 {
 		problems = append(problems, "at least one acceptance criterion is required")
+	}
+	if order.Roster.Selecting && order.State != "staffing" {
+		problems = append(problems, "roster selection is still running; the work order cannot be ready")
 	}
 	criterionIDs := map[string]bool{}
 	for _, criterion := range order.Criteria {

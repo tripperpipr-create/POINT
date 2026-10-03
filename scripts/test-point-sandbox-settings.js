@@ -24,7 +24,7 @@ try {
   assert.equal(env.POINT_SANDBOX_CPUS, '2')
   assert.equal(env.POINT_SANDBOX_WARM_CONTAINER, 'on')
   assert.equal(env.POINT_SANDBOX_DOWNLOAD_CACHE, 'on')
-  assert.equal(env.POINT_VERIFY_SERVICE, 'shadow')
+  assert.equal(env.POINT_VERIFY_SERVICE, 'on')
   fs.writeFileSync(manifest, JSON.stringify({ engine: 'podman' }))
   assert.throws(() => sandboxEnvironment(config, {}, ''), /другого движка/)
   fs.writeFileSync(manifest, JSON.stringify({ engine: 'moby' }))
@@ -46,6 +46,7 @@ try {
   assert.equal(sandboxEnvironment(config, {}, '').POINT_SANDBOX_BACKEND, 'embedded', 'missing runtime must stay unavailable, never fall back to host')
   global.sandboxBackend = 'docker'
   assert.equal(sandboxEnvironment(config, {}, '').POINT_SANDBOX_BACKEND, 'docker')
+  assert.equal(sandboxEnvironment(config, {}, '').POINT_VERIFY_SERVICE, 'on', 'reuse of passed checks is not Moby-only')
   global.sandboxBackend = 'filtered-copy'
   assert.equal(sandboxEnvironment(config, {}, '').POINT_SANDBOX_BACKEND, 'filtered-copy')
   delete global.sandboxBackend

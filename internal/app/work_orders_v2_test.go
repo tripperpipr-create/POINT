@@ -65,6 +65,7 @@ func TestMasterProposalBecomesSingleApprovableWorkOrderV2(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	application.waitWorkOrderStaffing()
 	order, err := application.WorkOrderV2(context.Background(), id)
 	if err != nil {
 		t.Fatal(err)
@@ -568,6 +569,7 @@ func TestMasterKeepsOneWorkOrderPerConversationV2(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	application.waitWorkOrderStaffing()
 	// Ход после ответа человека: модель не назвала proposalId, поэтому
 	// предложение у него новое — карточка обязана остаться прежней.
 	second := proposal("qp-second", "Каркас Symfony 7 с работающим /health", "ready", nil)
@@ -575,6 +577,7 @@ func TestMasterKeepsOneWorkOrderPerConversationV2(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	application.waitWorkOrderStaffing()
 	if secondID != firstID {
 		t.Fatalf("уточнение создало второй наряд: %q после %q", secondID, firstID)
 	}
@@ -585,7 +588,8 @@ func TestMasterKeepsOneWorkOrderPerConversationV2(t *testing.T) {
 	if len(orders) != 1 {
 		t.Fatalf("в ленте разговора %d карточек, ожидалась одна: %#v", len(orders), orders)
 	}
-	if orders[0].Version != 2 || orders[0].State != "staffing" || orders[0].Goal != "Каркас Symfony 7 с работающим /health" {
+	// Уточнение — новая версия; состав фоновый подбор дописывает ещё одной.
+	if orders[0].Version < 2 || orders[0].State != "staffing" || orders[0].Goal != "Каркас Symfony 7 с работающим /health" {
 		t.Fatalf("наряд не принял уточнение новой версией: %#v", orders[0])
 	}
 	// Другой разговор — другая работа: его карточку уборка не трогает.
@@ -594,6 +598,7 @@ func TestMasterKeepsOneWorkOrderPerConversationV2(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	application.waitWorkOrderStaffing()
 	if otherID == firstID {
 		t.Fatalf("чужой разговор продолжил наряд первого: %q", otherID)
 	}

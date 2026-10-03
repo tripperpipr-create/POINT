@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 )
@@ -107,15 +108,37 @@ func (f *FS) peekReadyIndex() *projectIndex {
 
 // missingIndexedPaths stats known indexed files and returns paths that disappeared.
 // Cheaper than a full-tree drift walk when a ready snapshot already answered the query.
+//
+// Проверяется только существование, поэтому хватает Lstat по пути внутри
+// корня, без полного Resolve со сверкой ссылок: на Windows тот стоил ~1 мс на
+// файл, и каждый search_code в cf-bitrix (16 тысяч файлов в индексе) ждал
+// 15–16 с (замер 03.10). Файлы проверяются параллельно.
 func (f *FS) missingIndexedPaths(index *projectIndex) []string {
 	if index == nil || len(index.files) == 0 {
 		return nil
 	}
-	missing := make([]string, 0)
+	paths := make([]string, 0, len(index.files))
 	for relative := range index.files {
-		if _, err := f.statIndexedPath(relative); errors.Is(err, os.ErrNotExist) {
-			missing = append(missing, relative)
-		}
+		paths = append(paths, relative)
+	}
+	workers := min(8, max(1, len(paths)/256))
+	found := make([][]string, workers)
+	var wg sync.WaitGroup
+	for worker := 0; worker < workers; worker++ {
+		wg.Add(1)
+		go func(worker int) {
+			defer wg.Done()
+			for index := worker; index < len(paths); index += workers {
+				if _, err := os.Lstat(filepath.Join(f.root, filepath.FromSlash(paths[index]))); errors.Is(err, os.ErrNotExist) {
+					found[worker] = append(found[worker], paths[index])
+				}
+			}
+		}(worker)
+	}
+	wg.Wait()
+	missing := make([]string, 0)
+	for _, part := range found {
+		missing = append(missing, part...)
 	}
 	return missing
 }

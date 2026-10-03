@@ -67,6 +67,7 @@ func rosterTestOrder(t *testing.T, application *App, proposal domain.QuestPropos
 	if err != nil {
 		t.Fatal(err)
 	}
+	application.waitWorkOrderStaffing()
 	order, err := application.WorkOrderV2(context.Background(), id)
 	if err != nil {
 		t.Fatal(err)

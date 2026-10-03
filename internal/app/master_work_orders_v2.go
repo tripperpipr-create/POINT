@@ -146,6 +146,10 @@ func (a *App) saveMasterWorkOrderV2(ctx context.Context, proposal *domain.QuestP
 	order.Setup = masterSetupPlanV2(order.Stack.ID, brief)
 	order.Network = masterNetworkGrantsV2(brief, sources, order.Setup, appendUniqueStrings(masterToolchainsV2(brief, order.Workspace), dependencyToolchains...))
 	order.Completion = masterCompletionProfileV2(order)
+	// Чтение текущей версии и запись следующей — под одним замком с фоновым
+	// подбором (work_order_staffing_v2.go), иначе обе взяли бы одну версию.
+	a.staffing.save.Lock()
+	defer a.staffing.save.Unlock()
 	current, getErr := a.store.GetWorkOrderV2(ctx, order.ID)
 	if getErr == nil {
 		order.Version = current.Version + 1
@@ -167,51 +171,31 @@ func (a *App) saveMasterWorkOrderV2(ctx context.Context, proposal *domain.QuestP
 	if getErr == nil {
 		previous = &current
 	}
-	gitKey := ""
+	apiKey := ""
 	if len(apiKeys) > 0 {
-		gitKey = apiKeys[0]
+		apiKey = apiKeys[0]
 	}
-	order.Git, order.Delivery.CommitMode = a.masterWorkOrderGitV2(ctx, order, previous, cfg, gitKey)
-	selection := agentSelectionResult{}
 	if order.State == "staffing" {
-		apiKey := ""
-		if len(apiKeys) > 0 {
-			apiKey = apiKeys[0]
-		}
-		selection, err = a.selectAgentsForWorkOrder(ctx, order, cfg, apiKey)
-		if err != nil {
-			return "", err
-		}
-		order.Roster = a.rosterFromSelection(ctx, selection)
-		if len(selection.Drafts) == 0 && len(selection.AgentIDs) > 0 {
-			order.State = "ready"
+		// Состав и ветку подбирает фоновая задача после хода (TODO Q15). До
+		// неё наряд несёт прежний git-план с выбором человека.
+		order.Roster = domain.AgentRosterPlan{Selecting: true}
+		if previous != nil && previous.Git != nil {
+			plan := *previous.Git
+			order.Git, order.Delivery.CommitMode = &plan, previous.Delivery.CommitMode
 		}
 	} else {
 		// Selection is intentionally delayed until the brief is decision-complete.
+		order.Git, order.Delivery.CommitMode = a.masterWorkOrderGitV2(ctx, order, previous, cfg, apiKey)
 		order.Roster = domain.AgentRosterPlan{}
 	}
 	saved, err := a.SaveWorkOrderV2(ctx, order)
 	if err != nil {
 		return "", err
 	}
-	if order.State == "ready" || order.State == "staffing" {
-		if err = a.store.ReplaceAgentSelectionBindings(ctx, saved.ID, saved.ConversationID, saved.WorkspaceID, selection.Digest, saved.Version, selection.AgentIDs); err != nil {
-			return "", err
-		}
-		kind := "agent_selection_completed"
-		if order.State == "staffing" {
-			kind = "agent_selection_needs_creation"
-		}
-		_ = a.store.SaveAgentLifecycleEvent(ctx, domain.AgentLifecycleEvent{
-			ID: domain.NewID("agentlife"), WorkspaceID: saved.WorkspaceID, WorkOrderID: saved.ID,
-			Kind: kind, Detail: map[string]any{
-				"selectionDigest": selection.Digest, "revision": saved.Version, "agentIds": selection.AgentIDs,
-				"draftCount": len(selection.Drafts), "state": order.State,
-				"model": cfg.Model, "fallbackReason": selection.Fallback, "validation": "accepted",
-			}, CreatedAt: saved.UpdatedAt,
-		})
-	}
 	a.dropStaleWorkOrdersForConversationV2(ctx, saved.WorkspaceID, conversationID, saved.ID)
+	if saved.Roster.Selecting {
+		a.startWorkOrderStaffingV2(saved.ID, cfg, apiKey)
+	}
 	return saved.ID, nil
 }
 

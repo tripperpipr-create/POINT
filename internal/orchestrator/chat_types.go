@@ -53,6 +53,9 @@ type ChatService struct {
 	// настроена: тогда отвечает детерминированный движок.
 	ModelFactory     ModelFactory
 	SelectionSignals func(context.Context, string) map[string]CandidateSignal
+	// Prefetch — код проекта, найденный готовым индексом по реплике человека
+	// до первого круга (master_prefetch.go). Пусто — подсказки нет.
+	Prefetch func(ctx context.Context, message string) string
 }
 
 type ChatRequest struct {

@@ -343,11 +343,68 @@ func TestGitLabProjectLinkIsOptional(t *testing.T) {
 	if response := application.GitLabMergeRequests(ctx, "review"); response.Reason != GitLabNotLinked {
 		t.Fatalf("list after opting out: %+v", response)
 	}
+	// Общее окно из общих настроек смотрит на все проекты, какой бы ни была
+	// папка и её связь: «Не связывать» папки его не гасит.
+	if all := decodeData[GitLabStatusView](t, application.GitLabStatus(ctx, GitLabStatusAll)); !all.Linked || all.Binding.Mode != domain.GitLabBindAll || all.Binding.Workspace != "" || all.User == nil {
+		t.Fatalf("general window status: %+v", all)
+	}
+	if mine := decodeData[GitLabMergeRequestsView](t, application.GitLabAllMergeRequests(ctx, "mine")); mine.Project != "" || len(mine.Items) == 0 {
+		t.Fatalf("general window list: %+v", mine)
+	}
+	if response := application.GitLabAllMergeRequests(ctx, "project"); response.Reason != GitLabNoProject {
+		t.Fatalf("general window has no project list: %+v", response)
+	}
 	// Возврат к git remote связывает снова.
 	if back := decodeData[GitLabBindingView](t, application.SaveGitLabBinding(ctx, GitLabBindingUpsert{Mode: domain.GitLabBindAuto})); back.Project != "billing/payments" {
 		t.Fatalf("auto binding: %+v", back)
 	}
 	if mine := decodeData[GitLabMergeRequestsView](t, application.GitLabMergeRequests(ctx, "mine")); mine.Project != "billing/payments" {
 		t.Fatalf("list after linking back: %+v", mine)
+	}
+}
+
+// Сервер, сохранённый прошлой версией Point, запускался со своим снимком
+// рецепта: без list_projects в GITLAB_TOOLS раздел «Проекты» отвечал «сервер
+// не отдаёт инструмент», и «Проверить» этого не лечил. Ядро сверяет запись с
+// рецептом, переписывает её и честно просит доверие к новой команде.
+func TestGitLabStaleRecipeIsRefreshedAndAsksTrust(t *testing.T) {
+	application := newTestApp(t)
+	useFakeGitLab(t, application)
+	ctx := context.Background()
+	view, err := application.SaveGitLabPlugin(GitLabPluginUpsert{URL: "https://gitlab.example.test", Token: "glpat-abcdefghijklmnopqrstuvwx"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	stale, err := application.store.GetMCPServer(ctx, view.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stale.Env["GITLAB_TOOLS"] = "whoami,list_merge_requests"
+	if err = application.store.SaveMCPServer(ctx, stale); err != nil {
+		t.Fatal(err)
+	}
+	old := application.mcpServerView(ctx, stale, nil)
+	if _, err = application.TrustMCPServer(old.ID, old.PendingDigest); err != nil {
+		t.Fatal(err)
+	}
+
+	status := application.GitLabStatus(ctx, "")
+	if status.Reason != GitLabNotTrusted || !strings.Contains(status.Problem, "обновил") {
+		t.Fatalf("stale recipe status: %+v", status)
+	}
+	refreshed, err := application.store.GetMCPServer(ctx, view.ID)
+	if err != nil || !strings.Contains(refreshed.Env["GITLAB_TOOLS"], "list_projects") {
+		t.Fatalf("recipe not refreshed: %+v, %v", refreshed.Env, err)
+	}
+	fresh := application.mcpServerView(ctx, refreshed, nil)
+	if _, err = application.TrustMCPServer(fresh.ID, fresh.PendingDigest); err != nil {
+		t.Fatal(err)
+	}
+	if projects := application.GitLabProjects(ctx, "", "member"); projects.State != "ok" {
+		t.Fatalf("projects after re-trust: %+v", projects)
+	}
+	// Совпадающая запись не переписывается: доверие не сбрасывается зря.
+	if again := application.GitLabStatus(ctx, ""); again.State != "ok" {
+		t.Fatalf("status after re-trust: %+v", again)
 	}
 }

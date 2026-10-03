@@ -39,7 +39,6 @@ const shortSha = sha => String(sha || '').slice(0, 8)
 
 function createGitLabController({ vscode, provider, request, secrets, unlock, publishServers }) {
   const panels = new Map()
-  let toolPanel
   // Откуда разрешено открывать ссылки «в браузере»: только свой GitLab.
   let origin = ''
 
@@ -59,12 +58,12 @@ function createGitLabController({ vscode, provider, request, secrets, unlock, pu
   // карточки MR, остальное — Гильдия.
   function deliver(surface, message) {
     const target = String(surface || '')
-    if (target === 'tool') {
-      for (const key of ['gitlab', 'gitlab-panel']) void provider.toolWindows.get(key)?.webview.postMessage(message)
+    if (target === 'tool' || target === 'tool-all') {
+      for (const key of target === 'tool-all' ? ['gitlab-global'] : ['gitlab', 'gitlab-panel']) void provider.toolWindows.get(key)?.webview.postMessage(message)
       return
     }
-    if (target.startsWith('mr:')) {
-      void panels.get(target.slice(3))?.webview.postMessage(message)
+    if (target.startsWith('mr:') || target.startsWith('project:')) {
+      void (target.startsWith('mr:') ? panels.get(target.slice(3)) : provider.toolWindows.get(`gitlab-${target}`))?.webview.postMessage(message)
       return
     }
     provider.post(message)
@@ -77,7 +76,7 @@ function createGitLabController({ vscode, provider, request, secrets, unlock, pu
   // пишем напрямую: provider.post раздаёт и окнам инструментов.
   function announceChange({ tool = true, cards = true, hub = false } = {}) {
     const message = { type: 'gitlabChanged' }
-    if (tool) for (const key of ['gitlab', 'gitlab-panel']) void provider.toolWindows.get(key)?.webview.postMessage(message)
+    if (tool) for (const key of ['gitlab', 'gitlab-panel', 'gitlab-global']) void provider.toolWindows.get(key)?.webview.postMessage(message)
     if (cards) for (const panel of panels.values()) void panel.webview.postMessage(message)
     if (hub) for (const view of [provider.view, provider.panel]) void view?.webview.postMessage(message)
   }
@@ -112,24 +111,25 @@ function createGitLabController({ vscode, provider, request, secrets, unlock, pu
     }, undefined, provider.context.subscriptions)
   }
 
-  function openWindow() {
-    if (toolPanel) return toolPanel.reveal(vscode.ViewColumn.Active)
-    const panel = vscode.window.createWebviewPanel('point.gitlabTools', 'GitLab', vscode.ViewColumn.Active, {
+  // Вкладка окна GitLab: проекта (из его настроек) или общая (из общих
+  // настроек) — две вкладки, у каждой своя поверхность в provider.toolWindows.
+  function openWindow(all = false) {
+    const key = all ? 'gitlab-global' : 'gitlab-panel'
+    if (provider.toolWindows.get(key)) return provider.toolWindows.get(key).reveal(vscode.ViewColumn.Active)
+    const panel = vscode.window.createWebviewPanel('point.gitlabTools', all ? 'GitLab · все проекты' : 'GitLab', vscode.ViewColumn.Active, {
       enableScripts: true,
       retainContextWhenHidden: true,
       localResourceRoots: [vscode.Uri.joinPath(provider.context.extensionUri, 'media')],
     })
-    toolPanel = panel
-    provider.toolWindows.set('gitlab-panel', panel)
-    provider.toolWindowStateSignatures?.delete('gitlab-panel')
-    panel.webview.html = provider.html(panel.webview, 'tool-gitlab')
+    provider.toolWindows.set(key, panel)
+    provider.toolWindowStateSignatures?.delete(key)
+    panel.webview.html = provider.html(panel.webview, 'tool-gitlab').replace('data-layout="tool-gitlab"', `data-layout="tool-gitlab"${all ? ' data-gitlab-scope="all"' : ''}`)
     const listeners = [panel.webview.onDidReceiveMessage(message => provider.handleMessage(message)),
       panel.onDidChangeViewState(() => provider.onHubVisibility(provider.hubVisible()))]
     panel.onDidDispose(() => {
       for (const listener of listeners) listener.dispose()
-      if (toolPanel === panel) toolPanel = undefined
-      if (provider.toolWindows.get('gitlab-panel') === panel) provider.toolWindows.delete('gitlab-panel')
-      provider.toolWindowStateSignatures?.delete('gitlab-panel')
+      if (provider.toolWindows.get(key) === panel) provider.toolWindows.delete(key)
+      provider.toolWindowStateSignatures?.delete(key)
       if (!provider.hubVisible()) provider.onHubVisibility(false)
     })
   }
@@ -198,7 +198,7 @@ function createGitLabController({ vscode, provider, request, secrets, unlock, pu
 
   async function reloadMergeRequest(surface, project, iid) {
     const response = await call(`/api/integrations/gitlab/merge-request${query({ project, iid })}`)
-    deliver(surface, { type: 'gitlabMr', response })
+    deliver(surface, { type: 'gitlabMr', response, project, iid })
   }
 
   async function savePlugin(message) {
@@ -225,7 +225,7 @@ function createGitLabController({ vscode, provider, request, secrets, unlock, pu
         case 'status': {
           // plugin — здоровье плагина для общей карточки; без него — окно
           // проекта, которому несвязанный проект сервер не запускает.
-          const scope = message.scope === 'plugin' ? 'plugin' : ''
+          const scope = message.scope === 'plugin' ? 'plugin' : surface === 'tool-all' ? 'all' : ''
           const response = await call(`/api/integrations/gitlab/status${query({ scope })}`)
           remember(response)
           deliver(surface, { type: 'gitlabStatus', scope, response })
@@ -248,7 +248,7 @@ function createGitLabController({ vscode, provider, request, secrets, unlock, pu
         }
         case 'mergeRequests': {
           const scope = String(message.scope || 'mine')
-          const response = await call(`/api/integrations/gitlab/merge-requests${query({ scope })}`)
+          const response = await call(`/api/integrations/gitlab/merge-requests${query({ scope, all: surface === 'tool-all' ? 1 : 0 })}`)
           deliver(surface, { type: 'gitlabMergeRequests', scope, response })
           return
         }
@@ -267,19 +267,19 @@ function createGitLabController({ vscode, provider, request, secrets, unlock, pu
           openMergeRequest(message)
           return
         case 'openWindow':
-          openWindow()
+          openWindow(message.scope === 'all')
           return
         case 'mr':
           await reloadMergeRequest(surface, project, iid)
           return
         case 'discussions': {
           const response = await call(`/api/integrations/gitlab/merge-request/discussions${query({ project, iid })}`)
-          deliver(surface, { type: 'gitlabDiscussions', response })
+          deliver(surface, { type: 'gitlabDiscussions', response, project, iid })
           return
         }
         case 'changes': {
           const response = await call(`/api/integrations/gitlab/merge-request/changes${query({ project, iid })}`)
-          deliver(surface, { type: 'gitlabChanges', response })
+          deliver(surface, { type: 'gitlabChanges', response, project, iid })
           return
         }
         case 'openDiff':
@@ -293,7 +293,7 @@ function createGitLabController({ vscode, provider, request, secrets, unlock, pu
             method: 'POST',
             body: JSON.stringify({ project, iid, discussionId: String(message.discussionId || ''), body: String(message.body || '') }),
           })
-          deliver(surface, { type: 'gitlabDiscussions', response, posted: response?.state === 'ok' })
+          deliver(surface, { type: 'gitlabDiscussions', response, project, iid, posted: response?.state === 'ok' })
           return
         }
         case 'approval': {

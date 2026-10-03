@@ -81,8 +81,7 @@ func TestIndexSkipsIgnoredAndDatabaseVolumesWithoutGit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	value, _ := indexes.Load(fs.root)
-	files := value.(*indexSlot).index.files
+	files := fs.indexSlot().index.files
 	for _, unwanted := range []string{"docker/logs/access.json", "docker/mysql/cf/table.txt", "dumps/full.sql"} {
 		if _, ok := files[unwanted]; ok {
 			t.Fatalf("%s indexed: %+v", unwanted, status)
@@ -97,7 +96,7 @@ func TestIndexSkipsIgnoredAndDatabaseVolumesWithoutGit(t *testing.T) {
 	if _, err = fs.UpdateIndex(context.Background(), []string{"docker/logs/new.json"}, nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := value.(*indexSlot).index.files["docker/logs/new.json"]; ok {
+	if _, ok := fs.indexSlot().index.files["docker/logs/new.json"]; ok {
 		t.Fatal("incremental update brought an ignored file back")
 	}
 	matches, _, _, err := fs.SearchWithStats(context.Background(), SearchOptions{Query: "/api/documents"})

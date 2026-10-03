@@ -116,7 +116,7 @@ type Tree struct {
 }
 
 type rawProject struct {
-	ID                userID   `json:"id"`
+	ID                jsonInt  `json:"id"`
 	Name              string   `json:"name"`
 	PathWithNamespace string   `json:"path_with_namespace"`
 	Description       *string  `json:"description"`
@@ -126,9 +126,9 @@ type rawProject struct {
 	HTTPURL           string   `json:"http_url_to_repo"`
 	SSHURL            string   `json:"ssh_url_to_repo"`
 	LastActivityAt    string   `json:"last_activity_at"`
-	StarCount         int      `json:"star_count"`
-	ForksCount        int      `json:"forks_count"`
-	OpenIssuesCount   int      `json:"open_issues_count"`
+	StarCount         jsonInt  `json:"star_count"`
+	ForksCount        jsonInt  `json:"forks_count"`
+	OpenIssuesCount   jsonInt  `json:"open_issues_count"`
 	Topics            []string `json:"topics"`
 	TagList           []string `json:"tag_list"`
 	Archived          bool     `json:"archived"`
@@ -138,10 +138,10 @@ type rawProject struct {
 	} `json:"namespace"`
 	Permissions *struct {
 		ProjectAccess *struct {
-			AccessLevel int `json:"access_level"`
+			AccessLevel jsonInt `json:"access_level"`
 		} `json:"project_access"`
 		GroupAccess *struct {
-			AccessLevel int `json:"access_level"`
+			AccessLevel jsonInt `json:"access_level"`
 		} `json:"group_access"`
 	} `json:"permissions"`
 }
@@ -149,8 +149,8 @@ type rawProject struct {
 func (c *Client) project(raw rawProject) Project {
 	view := Project{ID: int(raw.ID), Path: clip(raw.PathWithNamespace, 255), Name: clip(raw.Name, 255),
 		Visibility: clip(raw.Visibility, 20), WebURL: c.sameOrigin(raw.WebURL), HTTPURL: c.sameOrigin(raw.HTTPURL),
-		SSHURL: c.sshURL(raw.SSHURL), LastActivityAt: parseTime(raw.LastActivityAt), Stars: raw.StarCount,
-		Forks: raw.ForksCount, OpenIssues: raw.OpenIssuesCount, Archived: raw.Archived}
+		SSHURL: c.sshURL(raw.SSHURL), LastActivityAt: parseTime(raw.LastActivityAt), Stars: int(raw.StarCount),
+		Forks: int(raw.ForksCount), OpenIssues: int(raw.OpenIssuesCount), Archived: raw.Archived}
 	if raw.Description != nil {
 		view.Description = clip(strings.TrimSpace(*raw.Description), maxDescriptionLn)
 	}
@@ -177,10 +177,10 @@ func (c *Client) project(raw rawProject) Project {
 	}
 	if raw.Permissions != nil {
 		if raw.Permissions.ProjectAccess != nil {
-			view.AccessLevel = raw.Permissions.ProjectAccess.AccessLevel
+			view.AccessLevel = int(raw.Permissions.ProjectAccess.AccessLevel)
 		}
-		if raw.Permissions.GroupAccess != nil && raw.Permissions.GroupAccess.AccessLevel > view.AccessLevel {
-			view.AccessLevel = raw.Permissions.GroupAccess.AccessLevel
+		if raw.Permissions.GroupAccess != nil && int(raw.Permissions.GroupAccess.AccessLevel) > view.AccessLevel {
+			view.AccessLevel = int(raw.Permissions.GroupAccess.AccessLevel)
 		}
 	}
 	return view
@@ -300,8 +300,8 @@ type rawCommit struct {
 	ParentIDs     []string `json:"parent_ids"`
 	WebURL        string   `json:"web_url"`
 	Stats         *struct {
-		Additions *int `json:"additions"`
-		Deletions *int `json:"deletions"`
+		Additions *jsonInt `json:"additions"`
+		Deletions *jsonInt `json:"deletions"`
 	} `json:"stats"`
 }
 
@@ -327,10 +327,10 @@ func (c *Client) commit(raw rawCommit) Commit {
 	if raw.Stats != nil {
 		stats := CommitStats{}
 		if raw.Stats.Additions != nil {
-			stats.Additions = *raw.Stats.Additions
+			stats.Additions = int(*raw.Stats.Additions)
 		}
 		if raw.Stats.Deletions != nil {
-			stats.Deletions = *raw.Stats.Deletions
+			stats.Deletions = int(*raw.Stats.Deletions)
 		}
 		view.Stats = &stats
 	}

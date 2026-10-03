@@ -29,7 +29,7 @@ import (
 // на третьем круге неотличимо от зависшей модели.
 func streamMasterModel(ctx context.Context, model providers.Model, request providers.ModelRequest, selfHostedRuntime bool, trace *masterTrace, onEvent func(providers.ModelEvent) error) error {
 	started := time.Now()
-	err := model.Stream(ctx, request, onEvent)
+	err := measureMasterModel(ctx, model, request, trace, onEvent)
 	if err == nil || !providers.IsTruncatedReasoningError(err) {
 		return err
 	}
@@ -54,7 +54,7 @@ func streamMasterModel(ctx context.Context, model providers.Model, request provi
 		})
 		request.MaxOutputTokens = grown
 		retryStarted := time.Now()
-		if err = model.Stream(ctx, request, onEvent); err == nil || !providers.IsTruncatedReasoningError(err) {
+		if err = measureMasterModel(ctx, model, request, trace, onEvent); err == nil || !providers.IsTruncatedReasoningError(err) {
 			return err
 		}
 		if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) < time.Since(retryStarted) {
@@ -68,7 +68,7 @@ func streamMasterModel(ctx context.Context, model providers.Model, request provi
 	retry := request
 	retry.DisableThinking = true
 	retry.ReasoningEffort = ""
-	return model.Stream(ctx, retry, onEvent)
+	return measureMasterModel(ctx, model, retry, trace, onEvent)
 }
 
 // masterOutputBudget — предел вывода хода Мастера. Платному рантайму он
@@ -86,4 +86,40 @@ func masterOutputBudget(cfg domain.OrchestratorConfig, window int) int {
 		grown = half
 	}
 	return max(output, grown)
+}
+
+type masterTimingKey struct{}
+type masterTimingSink func(string, map[string]any)
+
+// WithMasterTiming records model attempts in the owning turn, including calls
+// outside a traced round (for example brief repair). It carries no model input.
+func WithMasterTiming(ctx context.Context, sink func(string, map[string]any)) context.Context {
+	return context.WithValue(ctx, masterTimingKey{}, masterTimingSink(sink))
+}
+
+func measureMasterModel(ctx context.Context, model providers.Model, request providers.ModelRequest, trace *masterTrace, onEvent func(providers.ModelEvent) error) error {
+	started := time.Now()
+	var input, output int64
+	err := model.Stream(ctx, request, func(event providers.ModelEvent) error {
+		if event.Kind == providers.EventUsage {
+			input = max(input, int64(event.InputTokens))
+			output = max(output, int64(event.OutputTokens))
+		}
+		return onEvent(event)
+	})
+	ended := time.Now()
+	detail := map[string]any{
+		"startedAt": started.UTC(), "endedAt": ended.UTC(), "durationMs": ended.Sub(started).Milliseconds(),
+		"inputTokens": input, "outputTokens": output, "failed": err != nil, "model": request.Model,
+		"thinking": !request.DisableThinking,
+	}
+	if trace != nil {
+		detail["round"] = trace.round
+	}
+	if sink, ok := ctx.Value(masterTimingKey{}).(masterTimingSink); ok {
+		sink("model_call", detail)
+	} else {
+		trace.send("model_call", "", detail)
+	}
+	return err
 }

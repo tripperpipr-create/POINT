@@ -44,7 +44,7 @@ check('кнопка открывает Интеграции разрешённо
 tool.send({ type: 'gitlabChanged' })
 check('смена подключения перечитывает состояние', tool.take().some(m => m.action === 'status'))
 tool.send({ type: 'gitlabStatus', response: ok({ configured: true, url: 'https://gitlab.example.test', user: anna, linked: true,
-  binding: { mode: 'auto', project: 'billing/payments', branch: 'fix/webhook-retry' } }) })
+  binding: { mode: 'auto', project: 'billing/payments', branch: 'fix/webhook-retry', workspace: 'payments' } }) })
 sent = tool.take()
 check('после состояния окно спрашивает «Мои»', sent.some(m => m.action === 'mergeRequests' && m.scope === 'mine' && m.surface === 'tool'), JSON.stringify(sent))
 tool.send({ type: 'gitlabMergeRequests', scope: 'mine', response: ok({ scope: 'mine', project: 'billing/payments', items: [
@@ -124,6 +124,46 @@ quiet.state({ workspacePath: 'C:/work/payments', service: { state: 'stopped' } }
 check('остановленное ядро ничего не спрашивает', !quiet.take().some(m => m.action === 'status'))
 quiet.state({ workspacePath: 'C:/work/payments' })
 check('поднятое ядро перечитывает состояние окна', quiet.take().some(m => m.action === 'status' && m.surface === 'tool'))
+
+// ── Широкое окно: MR открывается справа от списка ──────────────────────────
+const wide = bootWebview({ layout: 'tool-gitlab', wide: true })
+wide.state()
+wide.send({ type: 'gitlabStatus', response: ok({ configured: true, url: 'https://gitlab.example.test', user: anna, linked: true,
+  binding: { mode: 'auto', project: 'billing/payments', branch: 'fix/webhook-retry', workspace: 'payments' } }) })
+wide.send({ type: 'gitlabMergeRequests', scope: 'mine', response: ok({ scope: 'mine', items: [
+  { projectPath: 'billing/payments', iid: 12, title: 'Идемпотентность', sourceBranch: 'fix/webhook-retry', author: anna, mergeStatus: 'mergeable' }] }) })
+check('широкое окно без выбора зовёт выбрать MR', wide.root.innerHTML.includes('Выберите merge request'))
+wide.take()
+wide.click({ action: 'gitlab-open-mr', project: 'billing/payments', iid: '12', title: 'Идемпотентность' })
+sent = wide.take()
+check('в широком окне MR не уходит во вкладку', !sent.some(m => m.action === 'openMr'), JSON.stringify(sent))
+for (const action of ['mr', 'discussions', 'changes']) {
+  check(`деталь окна спрашивает ${action}`, sent.some(m => m.action === action && m.surface === 'tool' && m.project === 'billing/payments' && m.iid === 12), JSON.stringify(sent))
+}
+const detailMr = { iid: 12, title: 'Идемпотентность', state: 'opened', sourceBranch: 'fix/webhook-retry', targetBranch: 'main', author: anna, mergeStatus: 'mergeable', diffRefs: { headSha: head }, sha: head }
+wide.send({ type: 'gitlabMr', project: 'billing/payments', iid: 99, response: ok({ mergeRequest: { ...detailMr, iid: 99, title: 'Чужой MR из второго окна' }, approvals: { rules: [] }, pipelines: [] }) })
+check('ответ о чужом MR отброшен', !wide.root.innerHTML.includes('Чужой MR'))
+wide.send({ type: 'gitlabMr', project: 'billing/payments', iid: 12, response: ok({ mergeRequest: detailMr, approvals: { rules: [] }, pipelines: [] }) })
+html = wide.root.innerHTML
+check('деталь MR справа: строка состояния и merge', html.includes('gl-line') && html.includes('Готов к слиянию') && html.includes('data-action="gitlab-merge"'), html.slice(0, 400))
+check('строка списка выделена', html.includes('gl-row is-selected'))
+wide.click({ action: 'gitlab-open-mr', project: 'billing/payments', iid: '12', tabOpen: '1' })
+check('значок шапки детали открывает вкладку', wide.take().some(m => m.action === 'openMr' && m.iid === 12))
+
+// ── Общее окно из общих настроек: все проекты, без привязки к папке ───────
+const general = bootWebview({ layout: 'tool-gitlab', dataset: { gitlabScope: 'all' } })
+general.state()
+sent = general.take()
+check('общее окно спрашивает от своей поверхности', sent.some(m => m.action === 'status' && m.surface === 'tool-all'), JSON.stringify(sent))
+general.send({ type: 'gitlabStatus', response: ok({ configured: true, url: 'https://gitlab.example.test', user: anna, linked: true, binding: { mode: 'all' } }) })
+html = general.root.innerHTML
+check('общее окно — «Все проекты» без выбора связи папки', html.includes('Все проекты') && !html.includes('data-action="gitlab-binding-toggle"'), html.slice(0, 600))
+general.take()
+general.click({ action: 'gitlab-section', section: 'mrs' })
+check('MR общего окна — от поверхности tool-all', general.take().some(m => m.action === 'mergeRequests' && m.surface === 'tool-all'))
+const hub = bootWebview({ layout: 'wide' })
+hub.click({ action: 'gitlab-open-window', scope: 'all' })
+check('кнопка общих настроек открывает общее окно', hub.take().some(m => m.action === 'openWindow' && m.scope === 'all'))
 
 // ── Карточка MR ────────────────────────────────────────────────────────────
 const card = bootWebview({ layout: 'gitlab-mr', dataset: { gitlabProject: 'billing/payments', gitlabIid: '12' } })

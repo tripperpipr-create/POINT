@@ -248,22 +248,32 @@ Flow (`isRootQuest`) живут в `vscode-extension/ui/client/quest-status.js`:
 - `vscode-extension/ui/client/gitlab-project-view.js` — Гильдия → «GitLab»:
   связь текущего проекта с GitLab тем же редактором, что в шапке окна;
 - `vscode-extension/ui/client/gitlab-common.js` — общее для экранов GitLab:
-  значки, слова статусов, время, инициалы (`glAvatar`), сбой (`problemHtml`)
-  и вердикт (`verdictHtml`): каждый экран GitLab начинается с фразы «можно ли
-  и что мешает», причины — словами и ссылками на свой экран;
+  значки, слова статусов, время, инициалы (`glAvatar`), сбой (`problemHtml`),
+  строка состояния карточек (`statusLine`: «можно ли и что мешает», причины —
+  словами и ссылками на свой экран) и вердикт пустых экранов (`verdictHtml`);
 - `vscode-extension/ui/client/gitlab-views.js` — окно GitLab в регистре окна
-  Git (`nc-*`): списки MR и пайплайнов, редактор связи;
+  Git (`nc-*`): списки MR и пайплайнов, редактор связи, раскладка «список +
+  деталь»; без открытой папки — каталог первым и без вкладки пайплайнов;
+- `vscode-extension/ui/client/gitlab-window.js` — правая колонка широкого окна:
+  выбранный MR или проект на общем состоянии карточек, ответы о чужом MR
+  отбрасываются по project и iid; в узкой панели строка открывает вкладку;
 - `vscode-extension/ui/client/gitlab-mr-views.js` — карточка MR вкладкой
-  редактора; описание и заметки проходят `companion-markdown.js`;
+  редактора или справа в окне (`mrBody`); описание и заметки проходят
+  `companion-markdown.js`;
 - `vscode-extension/ui/client/gitlab-project-actions.js` — состояние, ответы
   хоста и нажатия проектов: раздел «Проекты» окна и карточка проекта;
 - `vscode-extension/ui/client/gitlab-projects-list.js` — список проектов
-  окна с поиском, сгруппированный по доступу;
+  окна с поиском: избранное сверху, затем по группам GitLab или по доступу,
+  архив внизу;
+- `vscode-extension/ui/client/gitlab-project-filters.js` — избранное, фильтр
+  групп и раскладка; выбор хранит хост по серверу GitLab (`prefs`/`savePrefs`);
 - `vscode-extension/ui/client/gitlab-project-card.js` — карточка проекта
-  вкладкой редактора: вердикт о локальной копии, README, файлы, коммиты,
-  ветки.
+  вкладкой редактора или справа в окне (`projectBody`): строка о локальной
+  копии, README, файлы, коммиты, ветки, пайплайны ветки.
 
-Оформление — слой `vscode-extension/ui/layers/96a-integrations.css`. Смоуки
+Оформление: окно, карточки MR и проекта — слой
+`vscode-extension/ui/layers/96b-gitlab-window.css`; общие детали, вердикт и
+страница «Интеграции» — `96a-integrations.css`. Смоуки
 `scripts/smoke-mcp-integrations.js`, `scripts/smoke-gitlab-tool-window.js` и
 `scripts/smoke-gitlab-projects.js` гоняют собранный `media/main.js` через общий стенд
 `scripts/lib/webview-harness.js`.

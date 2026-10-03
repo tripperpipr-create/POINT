@@ -213,6 +213,7 @@ export function createMasterStreamView ({ root, ui, esc, countOf, formatStreamin
   // ответа, мысль — одну строку следа (её правит masterTraceMindPatch), всё
   // остальное — блок целиком.
   function accept (type) {
+    if (['round','turn_started','turn_timing','model_call','read_tool'].includes(type)) return
     schedule(type === 'reply' ? BODY : BLOCK)
   }
 

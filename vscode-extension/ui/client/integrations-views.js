@@ -133,7 +133,7 @@ export function createIntegrationsViews({ getState, shell, toolPageHeading }) {
       <footer class="int-actions">
         ${!server.trusted ? `<button type="button" class="gl-btn is-primary" data-action="mcp-trust" data-id="${GITLAB_ID}"${state.busy ? ' disabled' : ''}>Доверяю…</button>` : ''}
         <button type="button" class="gl-btn" data-action="gitlab-plugin-check"${state.busy ? ' disabled' : ''}>Проверить</button>
-        <button type="button" class="gl-btn" data-action="gitlab-open-window">Окно GitLab</button>
+        <button type="button" class="gl-btn${server.trusted ? ' is-primary' : ''}" data-action="gitlab-open-window" data-scope="all" title="Общее окно GitLab: все ваши проекты и MR, без привязки к папке">${glIcon('mr', 13)}<span>Все проекты GitLab</span></button>
         <button type="button" class="gl-btn${state.toolsOpen === GITLAB_ID ? ' is-on' : ''}" data-action="mcp-tools-toggle" data-id="${GITLAB_ID}">Инструменты</button>
         <button type="button" class="gl-btn${state.logOpen === GITLAB_ID ? ' is-on' : ''}" data-action="mcp-log" data-id="${GITLAB_ID}">Журнал</button>
         <i class="nc-gap"></i>

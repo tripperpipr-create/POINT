@@ -12,7 +12,8 @@ const vm = require('vm')
 
 const mainPath = path.join(__dirname, '..', '..', 'vscode-extension', 'media', 'main.js')
 
-function bootWebview({ layout = 'wide', dataset = {} } = {}) {
+// wide — окно шире 900px: matchMedia отвечает «да» (раскладка «список + деталь»).
+function bootWebview({ layout = 'wide', dataset = {}, wide = false } = {}) {
   const listeners = {}
   const posted = []
   const root = {
@@ -24,7 +25,7 @@ function bootWebview({ layout = 'wide', dataset = {} } = {}) {
   const context = {
     acquireVsCodeApi: () => ({ postMessage(message) { posted.push(message) }, getState() {}, setState() {} }),
     document: { getElementById: id => (id === 'root' ? root : undefined), body: { dataset: { layout, ...dataset } } },
-    window: { addEventListener(type, callback) { listeners[`window:${type}`] = callback } },
+    window: { addEventListener(type, callback) { listeners[`window:${type}`] = callback }, ...(wide ? { matchMedia: () => ({ matches: true, addEventListener() {} }) } : {}) },
     console, Date, Map, Set, CSS: { escape: value => String(value) },
     requestAnimationFrame(callback) { callback(); return 0 },
     cancelAnimationFrame() {},

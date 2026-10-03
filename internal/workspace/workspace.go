@@ -91,6 +91,7 @@ func (f *FS) skipDirectory(absolute string, index bool) bool {
 
 type FS struct {
 	root         string
+	indexRoot    string
 	maxReadBytes int64
 	FileRules    string
 	MutationHook func()
@@ -135,7 +136,11 @@ func Open(root string) (*FS, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &FS{root: filepath.Clean(canonical), maxReadBytes: 1024 * 1024}, nil
+	indexRoot := filepath.Clean(canonical)
+	if runtime.GOOS == "windows" {
+		indexRoot = strings.ToLower(indexRoot)
+	}
+	return &FS{root: filepath.Clean(canonical), indexRoot: indexRoot, maxReadBytes: 1024 * 1024}, nil
 }
 
 func (f *FS) Root() string { return f.root }

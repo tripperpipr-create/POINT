@@ -103,6 +103,44 @@ func TestMasterTurnStreamsDeduplicatesAndCancels(t *testing.T) {
 	if err != nil || len(events) < 2 {
 		t.Fatalf("events missing: %+v %v", events, err)
 	}
+	deadline = time.Now().Add(5 * time.Second)
+	for {
+		done := false
+		for _, event := range events {
+			if event.Type == "done" {
+				done = true
+			}
+		}
+		if done {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("terminal event missing")
+		}
+		time.Sleep(10 * time.Millisecond)
+		events, err = a.MasterTurnEvents(ctx, turn.ID, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	kinds := map[string]int{}
+	for _, event := range events {
+		switch event.Type {
+		case "turn_started", "model_call", "turn_timing":
+			kinds[event.Type]++
+			var detail struct {
+				WorkspaceID string    `json:"workspaceId"`
+				TurnID      string    `json:"turnId"`
+				StartedAt   time.Time `json:"startedAt"`
+			}
+			if e := json.Unmarshal([]byte(event.Detail), &detail); e != nil || detail.WorkspaceID != world.ID || detail.TurnID != turn.ID || detail.StartedAt.IsZero() {
+				t.Fatalf("timing correlation: %+v %v", event, e)
+			}
+		}
+	}
+	if kinds["turn_started"] != 1 || kinds["model_call"] != 1 || kinds["turn_timing"] != 1 {
+		t.Fatalf("timing events lost or duplicated: %v", kinds)
+	}
 	replay, err := a.MasterTurnEvents(ctx, turn.ID, events[0].Sequence)
 	if err != nil || len(replay) != len(events)-1 {
 		t.Fatalf("event replay: %+v %v", replay, err)

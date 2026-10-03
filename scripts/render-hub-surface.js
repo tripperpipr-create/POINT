@@ -94,7 +94,9 @@ const context = {
     getElementById: id => (id === 'root' ? root : undefined),
     body: { dataset: { layout: requestedLayout, ...(requestedSurface === 'gitlab-mr' ? { gitlabProject: 'billing/payments', gitlabIid: '12' } : {}), ...(requestedSurface === 'gitlab-project' ? { gitlabProject: 'billing/payments' } : {}) } },
   },
-  window: { addEventListener(type, callback) { listeners[`window:${type}`] = callback } },
+  // Окно GitLab «список + деталь»: варианты wide и global рисуют широкое окно.
+  window: { addEventListener(type, callback) { listeners[`window:${type}`] = callback },
+    ...(['wide', 'global'].includes(process.argv[3]) ? { matchMedia: () => ({ matches: true, addEventListener() {} }) } : {}) },
   console, Date, Map, Set, CSS: { escape(value) { return String(value) } },
   requestAnimationFrame(callback) { callback(); return 0 },
   cancelAnimationFrame() {},
@@ -1396,6 +1398,25 @@ if (['tool-gitlab', 'gitlab-mr', 'gitlab-project', 'integrations', 'project-gitl
       send({ type: 'gitlabJobs', pipeline: 3301, response: ok({ project: 'billing/payments', pipelineId: 3301, jobs }) })
     }
     if (variant === 'binding') click({ action: 'gitlab-binding-toggle' })
+    // Широкое окно: выбранный MR открыт справа от списка.
+    if (variant === 'wide') {
+      click({ action: 'gitlab-open-mr', project: 'billing/payments', iid: '12' })
+      send({ type: 'gitlabMr', project: 'billing/payments', iid: 12, response: ok({ mergeRequest: { ...mergeRequests[0], description: 'Повторная доставка вебхука больше не создаёт второй платёж: ключ идемпотентности хранится 24 часа.\n\n- [x] ключ в `internal/billing/idempotency.go`\n- [ ] нагрузочный тест',
+        diffRefs: { headSha: head }, webUrl: 'https://gitlab.example.test/billing/payments/-/merge_requests/12' },
+        approvals: { rules: [{ name: 'Code owners', required: 1, approved: true, approvedBy: [boris] }, { name: 'Security', required: 1, approved: false }] }, pipelines: pipelines.slice(0, 1), approvedByMe: false }) })
+      send({ type: 'gitlabDiscussions', project: 'billing/payments', iid: 12, response: ok({ discussions: [{ id: 'd3b4', resolvable: true, resolved: false, notes: [{ id: 502, author: boris, body: 'Здесь нужен **таймаут**, иначе ретрай зависнет.', createdAt: yesterday(16, 5), position: { newPath: 'internal/billing/retry.go', newLine: 27 } }] }] }) })
+      send({ type: 'gitlabChanges', project: 'billing/payments', iid: 12, response: ok({ files: [{ oldPath: 'internal/billing/retry.go', newPath: 'internal/billing/retry.go' }, { oldPath: '', newPath: 'internal/billing/idempotency.go', new: true }] }) })
+    }
+    // Окно без папки: каталог первым, избранное, проект открыт справа.
+    if (variant === 'global') {
+      send({ type: 'gitlabStatus', response: ok({ serverId: 'mcp-gitlab', configured: true, url: 'https://gitlab.example.test', user: anna, linked: true, binding: { mode: 'all', note: 'папка не открыта — показаны MR по всем вашим проектам' } }) })
+      send({ type: 'gitlabPrefs', server: 'https://gitlab.example.test', prefs: { favorites: ['billing/invoices', 'platform/deploy-bot'], groups: [], groupBy: 'ns' } })
+      send({ type: 'gitlabProjects', scope: 'member', search: '', local: { 'billing/payments': 'C:\\work\\payments' }, response: ok({ scope: 'member', current: '', items: gitlabProjects }) })
+      click({ action: 'gitlab-open-project', project: 'billing/invoices' })
+      send({ type: 'gitlabProject', response: ok({ project: gitlabProjects[1], current: false }), clone: { exists: false } })
+      send({ type: 'gitlabTree', path: '', ref: 'main', response: ok({ tree: { path: '', ref: 'main', entries: [{ name: 'cmd', path: 'cmd', type: 'tree' }, { name: 'README.md', path: 'README.md', type: 'blob' }] } }) })
+      send({ type: 'gitlabReadme', path: 'README.md', response: ok({ content: '# invoices\n\nСчета и акты в PDF для бухгалтерии партнёров.\n\n## Запуск\n\n```\nmake run\n```' }) })
+    }
     // Проекты: список по активности, папка связана с billing/payments.
     if (variant === 'projects' || variant === 'unlinked-projects') {
       if (variant === 'unlinked-projects') send({ type: 'gitlabStatus', response: ok({ serverId: 'mcp-gitlab', configured: true, url: 'https://gitlab.example.test', linked: false,

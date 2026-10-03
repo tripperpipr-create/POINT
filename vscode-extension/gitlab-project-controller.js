@@ -13,12 +13,14 @@ const path = require('path')
 const { SCHEME } = require('./gitlab-controller')
 
 const GITLAB_TIMEOUT_MS = 130_000
-const CLONES_KEY = 'point.gitlab.clones'
+const CLONES_KEY = 'point.gitlab.clones', PREFS_KEY = 'point.gitlab.prefs'
 const PROJECT_PATTERN = /^[A-Za-z0-9_.][A-Za-z0-9_./-]{0,254}$/
 const REF_PATTERN = /^[A-Za-z0-9_.][A-Za-z0-9_./+@-]{0,254}$/
 const SHA_PATTERN = /^[0-9a-f]{7,64}$/
 const ACTIONS = new Set(['projects', 'project', 'openProject', 'commits', 'commit', 'branches', 'tree', 'readme', 'openFile',
-  'openCommitDiff', 'clone', 'openClone', 'copyUrl'])
+  'openCommitDiff', 'clone', 'openClone', 'copyUrl', 'prefs', 'savePrefs'])
+// Избранное и фильтр окна «Проекты» по серверу GitLab: только пути и флаги.
+const cleanPrefs = value => ({ favorites: [...new Set((Array.isArray(value?.favorites) ? value.favorites : []).map(String).filter(item => PROJECT_PATTERN.test(item)))].slice(0, 500), groups: [...new Set((Array.isArray(value?.groups) ? value.groups : []).map(String).filter(item => PROJECT_PATTERN.test(item)))].slice(0, 100), groupBy: value?.groupBy === 'access' ? 'access' : 'ns', favOnly: value?.favOnly === true, mrFav: value?.mrFav === true })
 
 function query(params) {
   const search = new URLSearchParams()
@@ -84,8 +86,8 @@ function createGitLabProjectController({ vscode, provider, request, unlock }) {
 
   function deliver(surface, message) {
     const target = String(surface || '')
-    if (target === 'tool') {
-      for (const key of ['gitlab', 'gitlab-panel']) void provider.toolWindows.get(key)?.webview.postMessage(message)
+    if (target === 'tool' || target === 'tool-all' || target === 'tool-every') {
+      for (const key of { tool: ['gitlab', 'gitlab-panel'], 'tool-all': ['gitlab-global'] }[target] || ['gitlab', 'gitlab-panel', 'gitlab-global']) void provider.toolWindows.get(key)?.webview.postMessage(message)
       return
     }
     if (target.startsWith('project:')) {
@@ -208,12 +210,17 @@ function createGitLabProjectController({ vscode, provider, request, unlock }) {
         case 'projects': {
           const scope = message.scope === 'owned' ? 'owned' : 'member'
           const search = String(message.search || '').slice(0, 100)
-          deliver(surface, { type: 'gitlabProjects', scope, search, response: await call(`/api/integrations/gitlab/projects${query({ scope, search })}`) })
+          deliver(surface, { type: 'gitlabProjects', scope, search, local: Object.fromEntries(Object.entries(clones()).filter(([, record]) => record?.path && fs.existsSync(path.join(record.path, '.git'))).map(([key, record]) => [key, record.path])), response: await call(`/api/integrations/gitlab/projects${query({ scope, search })}`) })
           break
         }
         case 'openProject':
           openProject(message)
           break
+        case 'prefs': case 'savePrefs': {
+          const server = String(message.server || '').slice(0, 300), all = provider.context.globalState?.get?.(PREFS_KEY) || {}, prefs = cleanPrefs(action === 'savePrefs' ? message.prefs : all[server])
+          if (action === 'savePrefs') await provider.context.globalState?.update?.(PREFS_KEY, { ...all, [server]: prefs })
+          deliver('tool-every', { type: 'gitlabPrefs', server, prefs }); break
+        }
         case 'project': {
           const project = projectPath(message.project)
           const response = await call(`/api/integrations/gitlab/project${query({ project })}`)

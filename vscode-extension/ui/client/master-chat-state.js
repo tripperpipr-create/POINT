@@ -46,7 +46,7 @@ export function createMasterChatState(saved = {}) {
       // строки ожидания имя инструмента, который как раз работает.
       else if (event.type==='reasoning') turn.thinking=true
       // Замер круга — для отчёта о скорости, строку ожидания не трогает.
-      else if (event.type==='round') {}
+      else if (['round','turn_started','turn_timing','model_call','read_tool'].includes(event.type)) {}
       else if (event.type==='tool_result') turn.status='tools'
       // Повтор идёт столько же, сколько первая попытка: строка ожидания
       // обязана назвать его, иначе второй круг неотличим от зависшей модели.

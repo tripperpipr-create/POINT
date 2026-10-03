@@ -30,13 +30,26 @@ type GitLabMergeRequestsView struct {
 
 // GitLabMergeRequests — «Мои», «На моём ревью», «Все открытые» проекта папки.
 func (a *App) GitLabMergeRequests(ctx context.Context, scope string) GitLabResponse {
+	return a.gitlabMergeRequests(ctx, scope, false)
+}
+
+// GitLabAllMergeRequests — список общего окна: MR владельца во всех проектах,
+// какая бы папка ни была открыта; «Все открытые» проекта здесь нет.
+func (a *App) GitLabAllMergeRequests(ctx context.Context, scope string) GitLabResponse {
+	return a.gitlabMergeRequests(ctx, scope, true)
+}
+
+func (a *App) gitlabMergeRequests(ctx context.Context, scope string, all bool) GitLabResponse {
 	selected := gitlab.Scope(scope)
 	if selected != gitlab.ScopeMine && selected != gitlab.ScopeReview && selected != gitlab.ScopeProject {
 		return a.gitlabRespond(domain.MCPServer{}, nil, gitlabBadRequest("неизвестный раздел %q", clipText(scope, 20)))
 	}
-	binding, err := a.gitlabFolderBinding(ctx)
-	if err != nil {
-		return a.gitlabRespond(domain.MCPServer{}, nil, err)
+	binding := gitlabAllBinding()
+	if !all {
+		var err error
+		if binding, err = a.gitlabFolderBinding(ctx); err != nil {
+			return a.gitlabRespond(domain.MCPServer{}, nil, err)
+		}
 	}
 	session, err := a.gitlabSession(ctx)
 	if err != nil {

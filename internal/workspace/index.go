@@ -54,8 +54,9 @@ type indexedFileMetadata struct {
 var indexes sync.Map // workspace root -> *indexSlot
 
 type indexSlot struct {
-	mu    sync.Mutex
-	index *projectIndex
+	mu         sync.Mutex
+	index      *projectIndex
+	generation uint64
 	// warming закрывается, когда фоновая сборка закончится; пока он не nil,
 	// вторая сборка на тот же корень не запускается.
 	warming chan struct{}
@@ -144,8 +145,21 @@ func (f *FS) missingIndexedPaths(index *projectIndex) []string {
 }
 
 func (f *FS) indexSlot() *indexSlot {
-	value, _ := indexes.LoadOrStore(f.root, &indexSlot{})
+	root := f.indexRoot
+	if root == "" {
+		root = f.root
+	}
+	value, _ := indexes.LoadOrStore(root, &indexSlot{})
 	return value.(*indexSlot)
+}
+
+// IndexGeneration identifies published snapshots and invalidations within this process.
+// It is shared by FS instances opened on the same root, and is not an API field.
+func (f *FS) IndexGeneration() uint64 {
+	slot := f.indexSlot()
+	slot.mu.Lock()
+	defer slot.mu.Unlock()
+	return slot.generation
 }
 
 func (f *FS) IndexStatus() IndexStatus {
@@ -169,6 +183,7 @@ func (f *FS) InvalidateIndex() {
 	slot := f.indexSlot()
 	slot.mu.Lock()
 	defer slot.mu.Unlock()
+	slot.generation++
 	if slot.index == nil {
 		return
 	}

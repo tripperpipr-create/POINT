@@ -18,6 +18,7 @@ import (
 )
 
 func (a *App) StartMasterTurnV2(ctx context.Context, req MasterTurnV2Request) (domain.MasterTurn, error) {
+	ctx = context.WithValue(ctx, masterTurnStartKey{}, time.Now())
 	var scopeErr error
 	ctx, scopeErr = a.WithMasterWorkspace(ctx, req.WorkspaceID)
 	if scopeErr != nil {
@@ -82,9 +83,15 @@ func (a *App) StartMasterTurn(ctx context.Context, req MasterChatRequest) (domai
 	return a.startMasterTurn(ctx, req, nil)
 }
 
+type masterTurnStartKey struct{}
+
 type masterTurnCompletion func(context.Context, MasterChatView) (string, error)
 
 func (a *App) startMasterTurn(ctx context.Context, req MasterChatRequest, complete masterTurnCompletion) (domain.MasterTurn, error) {
+	started, ok := ctx.Value(masterTurnStartKey{}).(time.Time)
+	if !ok {
+		started = time.Now()
+	}
 	var scopeErr error
 	ctx, scopeErr = a.WithMasterWorkspace(ctx, req.WorkspaceID)
 	if scopeErr != nil {
@@ -107,7 +114,9 @@ func (a *App) startMasterTurn(ctx context.Context, req MasterChatRequest, comple
 	if req.Model != "" {
 		cfg.Model = req.Model
 	}
+	factsStarted := time.Now()
 	briefing := a.masterProjectFacts(ctx)
+	factsDuration := time.Since(factsStarted)
 	service, sessions, err := a.sessionMasterService(ctx, a.masterChatService(ctx, briefing), req.ConversationID)
 	if err != nil {
 		return domain.MasterTurn{}, err
@@ -186,6 +195,7 @@ func (a *App) startMasterTurn(ctx context.Context, req MasterChatRequest, comple
 	// Ход после возврата принадлежит вызывающему коду. Горутина получает свою
 	// копию: иначе первая запись Status могла совпасть с копированием результата
 	// return и детектор гонок справедливо видел общий объект.
+	preparation := time.Since(started)
 	handedOff = true
 	go func(turn domain.MasterTurn) {
 		defer unlock()
@@ -214,6 +224,13 @@ func (a *App) startMasterTurn(ctx context.Context, req MasterChatRequest, comple
 			a.notifyMasterTurn(key)
 		}
 		emit := func(kind, text string) { emitDetail(kind, text, "") }
+		emitTiming := func(kind string, detail map[string]any) {
+			detail["workspaceId"], detail["turnId"] = w, turn.ID
+			payload, _ := json.Marshal(detail)
+			emitDetail(kind, "", string(payload))
+		}
+		emitTiming("turn_started", map[string]any{"startedAt": started.UTC(), "preparationMs": preparation.Milliseconds(), "factsMs": factsDuration.Milliseconds()})
+		runCtx = orchestrator.WithMasterTiming(runCtx, emitTiming)
 		// Растущий ответ пишется не чаще masterReplySaveInterval; непоказанный
 		// хвост уходит перед любым другим событием хода, чтобы порядок в ленте
 		// остался прежним: текст, потом шаг, который за ним последовал.
@@ -241,7 +258,7 @@ func (a *App) startMasterTurn(ctx context.Context, req MasterChatRequest, comple
 					flushReply()
 				}
 				return
-			case "reasoning", "round":
+			case "reasoning", "round", "model_call", "read_tool":
 				// Замер круга (round) — запись для point-perf-report, строку
 				// ожидания он не трогает.
 				// Размышление не меняет состояние хода: оно идёт и в ожидании модели,
@@ -249,7 +266,16 @@ func (a *App) startMasterTurn(ctx context.Context, req MasterChatRequest, comple
 				// состояния и запись хода остаются прежними — иначе каждая мысль стоила
 				// бы записи в таблицу ходов.
 				flushReply()
-				emitDetail(kind, text, detail)
+				if kind == "round" || kind == "read_tool" || kind == "model_call" {
+					var fields map[string]any
+					if json.Unmarshal([]byte(detail), &fields) == nil && fields != nil {
+						emitTiming(kind, fields)
+					} else {
+						emitDetail(kind, text, detail)
+					}
+				} else {
+					emitDetail(kind, text, detail)
+				}
 				return
 			default:
 				flushReply()
@@ -298,6 +324,8 @@ func (a *App) startMasterTurn(ctx context.Context, req MasterChatRequest, comple
 			}
 		}
 		a.saveMasterTurnState(turn, "final")
+		ended := time.Now()
+		emitTiming("turn_timing", map[string]any{"startedAt": started.UTC(), "endedAt": ended.UTC(), "durationMs": ended.Sub(started).Milliseconds(), "preparationMs": preparation.Milliseconds(), "status": turn.Status})
 		emit("done", turn.Status)
 		if turn.Status == "completed" {
 			a.refreshMasterSummary(w, turn.ConversationID, cfg, req.APIKey)

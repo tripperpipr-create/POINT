@@ -9,8 +9,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
+	"maps"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -208,7 +211,12 @@ func (a *App) gitlabSession(ctx context.Context) (gitlabSession, error) {
 			return gitlabSession{server: server, client: rest.LegacyClient()}, nil
 		}
 	}
+	server = a.gitlabRefreshRecipe(ctx, server)
 	view := a.mcpServerView(ctx, server, nil)
+	if !view.Trusted && server.TrustDigest != "" {
+		return gitlabSession{server: server}, &gitlabFailure{GitLabNotTrusted, "Point обновил команду запуска сервера GitLab",
+			"Общие настройки → Интеграции и MCP → GitLab: посмотрите новую команду и нажмите «Доверяю»"}
+	}
 	if !view.Trusted {
 		return gitlabSession{server: server}, &gitlabFailure{GitLabNotTrusted, "запуск сервера GitLab не одобрен",
 			"Общие настройки → Интеграции и MCP → GitLab: посмотрите команду и нажмите «Доверяю»"}
@@ -230,6 +238,34 @@ func (a *App) gitlabSession(ctx context.Context) (gitlabSession, error) {
 		tools = liveMCPTools(probed.Tools)
 	}
 	return gitlabSession{server: server, client: gitlab.NewClient(mcpToolCaller{a, server.ID}, server.Settings["url"], tools)}, nil
+}
+
+// gitlabRefreshRecipe сверяет сохранённую команду сервера с рецептом этой
+// версии Point. Рецепт — код (gitlab.Recipe), а запись в базе — его снимок на
+// момент сохранения карточки: сервер, сохранённый до раздела «Проекты», так и
+// запускался без list_projects в GITLAB_TOOLS, и «Проверить» перечитывал тот
+// же урезанный список. Расхождение переписывает запись рецептом; команда
+// запуска при этом новая, и доверие к ней владелец даёт заново.
+func (a *App) gitlabRefreshRecipe(ctx context.Context, server domain.MCPServer) domain.MCPServer {
+	if server.Transport != domain.MCPTransportStdio {
+		return server
+	}
+	launch, err := gitlabRecipe(gitlab.Settings{URL: server.Settings["url"], CAPath: server.Settings["caPath"]})
+	if err != nil || server.Command == launch.Command && slices.Equal(server.Args, launch.Args) && maps.Equal(server.Env, launch.Env) {
+		return server
+	}
+	view, err := a.saveMCPServer(MCPServerUpsert{
+		ID: server.ID, DisplayName: server.DisplayName, Kind: server.Kind, Transport: server.Transport,
+		Command: launch.Command, Args: launch.Args, Env: launch.Env, SecretEnv: launch.SecretEnv, Settings: server.Settings,
+	})
+	if err != nil {
+		slog.Warn("gitlab recipe refresh failed", "error", security.Redact(err.Error()))
+		return server
+	}
+	if refreshed, getErr := a.store.GetMCPServer(ctx, server.ID); getErr == nil {
+		return refreshed
+	}
+	return view.MCPServer
 }
 
 func liveMCPTools(tools []domain.MCPTool) []string {
@@ -411,12 +447,20 @@ type GitLabStatusView struct {
 	Capabilities  map[gitlab.Feature]gitlab.Capability `json:"capabilities,omitempty"`
 }
 
-// Чей статус спрашивают: окна проекта (по умолчанию) или карточки плагина в
-// общих настройках. Карточке нужно здоровье сервера в любом проекте.
+// Чей статус спрашивают: окна проекта (по умолчанию), карточки плагина в
+// общих настройках (здоровье сервера в любом проекте) или общего окна GitLab,
+// открытого из общих настроек: оно смотрит на все проекты владельца, какая бы
+// папка ни была открыта.
 const (
 	GitLabStatusProject = "project"
 	GitLabStatusPlugin  = "plugin"
+	GitLabStatusAll     = "all"
 )
+
+// gitlabAllBinding — привязка общего окна: все проекты, без папки.
+func gitlabAllBinding() GitLabBindingView {
+	return GitLabBindingView{Mode: domain.GitLabBindAll, Note: "общее окно GitLab — все ваши проекты, без привязки к папке"}
+}
 
 // GitLabStatus — состояние окна. Даже при сбое в data остаются адрес и
 // привязка: окно показывает, что подключено, и кнопку следующего шага.
@@ -425,14 +469,18 @@ const (
 func (a *App) GitLabStatus(ctx context.Context, scope string) GitLabResponse {
 	status := GitLabStatusView{ServerID: gitlabServerID, Pinned: gitlab.ServerPackage + "@" + gitlab.ServerVersion}
 	server, err := a.store.GetMCPServer(ctx, gitlabServerID)
-	if scope != "" && scope != GitLabStatusProject && scope != GitLabStatusPlugin {
+	if scope != "" && scope != GitLabStatusProject && scope != GitLabStatusPlugin && scope != GitLabStatusAll {
 		return a.gitlabRespond(server, nil, gitlabBadRequest("неизвестная область статуса %q", clipText(scope, 20)))
 	}
 	configured := err == nil
 	if configured {
 		status.Configured, status.URL = true, server.Settings["url"]
 	}
-	status.Binding = a.gitlabBinding(ctx, server)
+	if scope == GitLabStatusAll {
+		status.Binding = gitlabAllBinding()
+	} else {
+		status.Binding = a.gitlabBinding(ctx, server)
+	}
 	status.Linked = status.Binding.linked()
 	if configured && !status.Linked && scope != GitLabStatusPlugin {
 		return a.gitlabRespond(server, status, nil)

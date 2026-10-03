@@ -182,16 +182,16 @@ func (c *Client) Project(ctx context.Context, path string) (ProjectInfo, error) 
 		return ProjectInfo{}, err
 	}
 	var raw struct {
-		ID                int    `json:"id"`
-		PathWithNamespace string `json:"path_with_namespace"`
-		Name              string `json:"name"`
-		DefaultBranch     string `json:"default_branch"`
-		WebURL            string `json:"web_url"`
+		ID                jsonInt `json:"id"`
+		PathWithNamespace string  `json:"path_with_namespace"`
+		Name              string  `json:"name"`
+		DefaultBranch     string  `json:"default_branch"`
+		WebURL            string  `json:"web_url"`
 	}
 	if _, err = c.invoke(ctx, tool, map[string]any{"project_id": path}, &raw); err != nil {
 		return ProjectInfo{}, err
 	}
-	return ProjectInfo{ID: raw.ID, Path: clip(raw.PathWithNamespace, 255), Name: clip(raw.Name, 255),
+	return ProjectInfo{ID: int(raw.ID), Path: clip(raw.PathWithNamespace, 255), Name: clip(raw.Name, 255),
 		DefaultBranch: clip(raw.DefaultBranch, 255), WebURL: c.sameOrigin(raw.WebURL)}, nil
 }
 
@@ -264,7 +264,7 @@ func (c *Client) Approvals(ctx context.Context, project string, iid int) (Approv
 	var raw struct {
 		Rules []struct {
 			Name              string    `json:"name"`
-			ApprovalsRequired int       `json:"approvals_required"`
+			ApprovalsRequired jsonInt   `json:"approvals_required"`
 			Approved          bool      `json:"approved"`
 			ApprovedBy        []rawUser `json:"approved_by"`
 		} `json:"rules"`
@@ -273,9 +273,9 @@ func (c *Client) Approvals(ctx context.Context, project string, iid int) (Approv
 		return Approvals{}, err
 	}
 	approvals := Approvals{Rules: []ApprovalRule{}}
-	seen := map[userID]bool{}
+	seen := map[jsonInt]bool{}
 	for _, rule := range raw.Rules {
-		approvals.Rules = append(approvals.Rules, ApprovalRule{Name: clip(rule.Name, 200), Required: rule.ApprovalsRequired,
+		approvals.Rules = append(approvals.Rules, ApprovalRule{Name: clip(rule.Name, 200), Required: int(rule.ApprovalsRequired),
 			Approved: rule.Approved, ApprovedBy: users(rule.ApprovedBy)})
 		for _, user := range rule.ApprovedBy {
 			if !seen[user.ID] {

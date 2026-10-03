@@ -40,10 +40,10 @@ func (c *RESTClient) read(ctx context.Context, q forge.Request) (forge.Response,
 			var project struct {
 				Permissions struct {
 					ProjectAccess *struct {
-						AccessLevel int `json:"access_level"`
+						AccessLevel jsonInt `json:"access_level"`
 					} `json:"project_access"`
 					GroupAccess *struct {
-						AccessLevel int `json:"access_level"`
+						AccessLevel jsonInt `json:"access_level"`
 					} `json:"group_access"`
 				} `json:"permissions"`
 			}
@@ -52,10 +52,10 @@ func (c *RESTClient) read(ctx context.Context, q forge.Request) (forge.Response,
 			}
 			level := 0
 			if project.Permissions.ProjectAccess != nil {
-				level = project.Permissions.ProjectAccess.AccessLevel
+				level = int(project.Permissions.ProjectAccess.AccessLevel)
 			}
-			if project.Permissions.GroupAccess != nil && project.Permissions.GroupAccess.AccessLevel > level {
-				level = project.Permissions.GroupAccess.AccessLevel
+			if project.Permissions.GroupAccess != nil && int(project.Permissions.GroupAccess.AccessLevel) > level {
+				level = int(project.Permissions.GroupAccess.AccessLevel)
 			}
 			if level > 0 && level < 30 {
 				writable = false
@@ -233,7 +233,7 @@ func (c *RESTClient) read(ctx context.Context, q forge.Request) (forge.Response,
 		var state struct {
 			Rules []struct {
 				Name     string    `json:"name"`
-				Required int       `json:"approvals_required"`
+				Required jsonInt   `json:"approvals_required"`
 				Approved bool      `json:"approved"`
 				Users    []rawUser `json:"approved_by"`
 			} `json:"rules"`
@@ -243,7 +243,7 @@ func (c *RESTClient) read(ctx context.Context, q forge.Request) (forge.Response,
 		}
 		out := Approvals{Rules: []ApprovalRule{}}
 		for _, rule := range state.Rules {
-			out.Rules = append(out.Rules, ApprovalRule{Name: rule.Name, Required: rule.Required, Approved: rule.Approved, ApprovedBy: users(rule.Users)})
+			out.Rules = append(out.Rules, ApprovalRule{Name: rule.Name, Required: int(rule.Required), Approved: rule.Approved, ApprovedBy: users(rule.Users)})
 		}
 		response.Data = out
 	case "users":

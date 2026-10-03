@@ -88,3 +88,17 @@ state.acceptEvent(event('done', null, 'completed'))
 assert.ok(trace.every(item => !item.running), 'конец хода закрывает все строки следа')
 
 console.log('Master live trace: mind deltas, tool outcome, collapsed by default: PASS')
+
+// Measurement events must preserve the visible stream and terminal state.
+const metricsState = createMasterChatState()
+for (const status of ['waiting', 'tools', 'streaming', 'completed']) {
+  metricsState.acceptTurn({ id: 't1', conversationId: 'c1', status, reply: 'visible', progress: 'current' })
+  const before = JSON.stringify(metricsState.turns.c1)
+  for (const type of ['turn_started', 'model_call', 'read_tool', 'turn_timing']) {
+    metricsState.acceptEvent(event(type, { durationMs: 15 }))
+    assert.equal(metricsState.turns.c1.status, status)
+    assert.equal(metricsState.turns.c1.progress, 'current')
+    assert.equal(metricsState.turns.c1.reply, 'visible')
+  }
+  assert.equal(JSON.stringify({ ...metricsState.turns.c1, trace: undefined }), JSON.stringify({ ...JSON.parse(before), trace: undefined }))
+}

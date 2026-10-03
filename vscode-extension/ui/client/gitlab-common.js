@@ -28,6 +28,7 @@ const GL_ICONS = {
   clone: 'M8 2.5v8m0 0L5 7.5m3 3 3-3M3 12.5h10',
   commit: 'M5.5 8a2.5 2.5 0 1 0 5 0 2.5 2.5 0 0 0-5 0Zm0 0H1.5m9 0h4',
   search: 'M7 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10Zm3.6-1.4L14 14',
+  play: 'M5.5 4v8l6-4z', slash: 'M5 11 11 5', tab: 'M2.5 3.5h11v9h-11zM2.5 6h11',
 }
 
 export function glIcon(name, size = 13) {
@@ -50,7 +51,7 @@ export function pipelineStatus(status) {
 
 export function statusMark(status) {
   const { tone, label } = pipelineStatus(status)
-  const glyph = tone === 'ok' ? glIcon('check', 11) : tone === 'bad' ? glIcon('x', 11) : ''
+  const glyph = { ok: glIcon('check', 9), bad: glIcon('x', 9), wait: glIcon('play', 8), mute: glIcon('slash', 9) }[tone] || ''
   return `<i class="gl-mark is-${tone}" title="${esc(label)}" aria-label="${esc(label)}">${glyph}</i>`
 }
 
@@ -156,7 +157,16 @@ export function verdictHtml({ tone = 'mute', title = '', reasons = [], actions =
   </section>`
 }
 
+// Загрузка — строки-заготовки на месте будущего списка, подпись — тихая.
 export function loadingHtml(text) {
-  return `<div class="gl-loading"><span class="spinner"></span>${esc(text)}</div>`
+  return `<div class="gl-loading" role="status"><i></i><i></i><i></i><span>${esc(text)}</span></div>`
+}
+
+// Строка состояния вместо вердикта на карточках: вывод, причины-ссылки на
+// свою вкладку и действия одним рядом; тон несёт кромка и точка.
+export function statusLine({ tone = 'mute', title = '', reasons = [], actions = '' }) {
+  const reason = item => typeof item === 'string' ? `<span>${esc(item)}</span>`
+    : item?.action ? `<button type="button" class="gl-link" data-action="${esc(item.action)}"${Object.entries(item.data || {}).map(([key, value]) => ` data-${key}="${esc(value)}"`).join('')}>${esc(item.text || '')}</button>` : `<span>${esc(item?.text || '')}</span>`
+  return `<section class="gl-line is-${esc(tone)}"><div><i class="gl-dot is-${esc(tone)}"></i><strong>${esc(title)}</strong>${reasons.filter(Boolean).map(reason).join('')}</div>${actions ? `<div class="gl-line-acts">${actions}</div>` : ''}</section>`
 }
 

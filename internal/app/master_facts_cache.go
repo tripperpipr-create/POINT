@@ -2,64 +2,137 @@ package app
 
 import (
 	"context"
-	"fmt"
+	"path/filepath"
+	"runtime"
+	"strings"
 	"sync"
 	"time"
 
 	"local-agent-workbench/internal/orchestrator"
-	"local-agent-workbench/internal/workspace"
 )
 
-// Факты проекта для Мастера кэшируются ненадолго.
-//
-// Их сборка — это карта индекса, обход дерева на три уровня и чтение
-// манифестов сборки, и шла она синхронно в каждом старте хода и в каждом
-// открытии истории разговора: человек ждал её раньше, чем модель получала
-// вопрос. Ключ — состояние индекса: перестроенный индекс сбрасывает кэш сразу,
-// а срок жизни ловит то, чего индекс не видит, — новые манифесты и каталоги.
 const masterFactsTTL = 30 * time.Second
+const masterFactsCapacity = 16
 
-type masterFactsCache struct {
-	mu    sync.Mutex
-	fs    *workspace.FS
-	key   string
+type masterFactsKey struct {
+	workspaceID, root, name string
+	generation              uint64
+}
+type masterFactsEntry struct {
 	at    time.Time
+	used  uint64
 	facts orchestrator.ProjectFacts
+}
+type masterFactsFlight struct {
+	done    chan struct{}
+	cancel  context.CancelFunc
+	waiters int
+	facts   orchestrator.ProjectFacts
+}
+type masterFactsCache struct {
+	mu      sync.Mutex
+	entries map[masterFactsKey]masterFactsEntry
+	flights map[masterFactsKey]*masterFactsFlight
+	used    uint64
 }
 
 func (a *App) masterProjectFacts(ctx context.Context) orchestrator.ProjectFacts {
-	if _, ok := ctx.Value(masterScopeKey{}).(masterScope); ok {
+	scope, pinned := ctx.Value(masterScopeKey{}).(masterScope)
+	if !pinned {
+		a.mu.RLock()
+		scope.FS = a.currentFS
+		if a.currentWorkspace != nil {
+			scope.Workspace = *a.currentWorkspace
+		}
+		a.mu.RUnlock()
+		// Pin the legacy snapshot too: switching projects during preparation must
+		// never publish the new project's facts under the old project's key.
+		ctx = context.WithValue(ctx, masterScopeKey{}, scope)
+	}
+	if scope.FS == nil {
 		return a.computeMasterProjectFacts(ctx)
 	}
-	a.mu.RLock()
-	fs := a.currentFS
-	name := ""
-	if a.currentWorkspace != nil {
-		name = a.currentWorkspace.Name
+	root := filepath.Clean(scope.FS.Root())
+	if runtime.GOOS == "windows" {
+		root = strings.ToLower(root)
 	}
-	a.mu.RUnlock()
-	if fs == nil {
-		return a.computeMasterProjectFacts(ctx)
-	}
-	status := fs.IndexStatus()
-	key := fmt.Sprintf("%s|%s|%s|%d|%d", name, status.State, status.BuiltAt.UTC().Format(time.RFC3339Nano), status.Files, status.Symbols)
-	cache := &a.masterFacts
-	cache.mu.Lock()
-	if cache.fs == fs && cache.key == key && time.Since(cache.at) < masterFactsTTL {
-		facts := cloneMasterFacts(cache.facts)
-		cache.mu.Unlock()
-		return facts
-	}
-	cache.mu.Unlock()
-	facts := a.computeMasterProjectFacts(ctx)
-	cache.mu.Lock()
-	cache.fs, cache.key, cache.at, cache.facts = fs, key, time.Now(), cloneMasterFacts(facts)
-	cache.mu.Unlock()
-	return facts
+	key := masterFactsKey{scope.Workspace.ID, root, scope.Workspace.Name, scope.FS.IndexGeneration()}
+	return a.masterFacts.get(ctx, key, scope.FS.IndexGeneration, a.computeMasterProjectFacts)
 }
 
-// Кэш отдаёт копию: срезы фактов общие, и дописанный кем-то источник уехал бы
-// в чужой ход.
+// get coalesces preparation per key. Each waiter owns one reference; only the
+// departure of the last waiter cancels shared work. Unrelated keys never wait
+// on filesystem work under the cache lock.
+func (c *masterFactsCache) get(ctx context.Context, key masterFactsKey, generation func() uint64, compute func(context.Context) orchestrator.ProjectFacts) orchestrator.ProjectFacts {
+	if ctx.Err() != nil {
+		return orchestrator.ProjectFacts{}
+	}
+	c.mu.Lock()
+	if c.entries == nil {
+		c.entries = make(map[masterFactsKey]masterFactsEntry)
+	}
+	if c.flights == nil {
+		c.flights = make(map[masterFactsKey]*masterFactsFlight)
+	}
+	c.used++
+	if entry, ok := c.entries[key]; ok && time.Since(entry.at) < masterFactsTTL {
+		entry.used = c.used
+		c.entries[key] = entry
+		facts := cloneMasterFacts(entry.facts)
+		c.mu.Unlock()
+		return facts
+	}
+	delete(c.entries, key)
+	flight := c.flights[key]
+	if flight == nil {
+		workCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
+		flight = &masterFactsFlight{done: make(chan struct{}), cancel: cancel}
+		c.flights[key] = flight
+		go func() {
+			facts := compute(workCtx)
+			c.mu.Lock()
+			flight.facts = cloneMasterFacts(facts)
+			if workCtx.Err() == nil && generation() == key.generation {
+				c.used++
+				c.entries[key] = masterFactsEntry{time.Now(), c.used, cloneMasterFacts(facts)}
+				if len(c.entries) > masterFactsCapacity {
+					var oldest masterFactsKey
+					used := ^uint64(0)
+					for k, entry := range c.entries {
+						if entry.used < used {
+							oldest, used = k, entry.used
+						}
+					}
+					delete(c.entries, oldest)
+				}
+			}
+			if c.flights[key] == flight {
+				delete(c.flights, key)
+			}
+			close(flight.done)
+			c.mu.Unlock()
+			cancel()
+		}()
+	}
+	flight.waiters++
+	c.mu.Unlock()
+	select {
+	case <-ctx.Done():
+		c.mu.Lock()
+		flight.waiters--
+		if flight.waiters == 0 {
+			flight.cancel()
+			if c.flights[key] == flight {
+				delete(c.flights, key)
+			}
+		}
+		c.mu.Unlock()
+		return orchestrator.ProjectFacts{}
+	case <-flight.done:
+		return cloneMasterFacts(flight.facts)
+	}
+}
+
 func cloneMasterFacts(facts orchestrator.ProjectFacts) orchestrator.ProjectFacts {
 	clone := func(values []string) []string { return append([]string(nil), values...) }
 	facts.Languages, facts.Modules, facts.Entrypoints = clone(facts.Languages), clone(facts.Modules), clone(facts.Entrypoints)

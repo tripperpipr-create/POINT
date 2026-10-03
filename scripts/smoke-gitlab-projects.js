@@ -57,6 +57,40 @@ check('«Свои» — отдельный список', tool.take().some(m => 
 tool.click({ action: 'gitlab-open-project', project: 'billing/payments', name: 'payments' })
 check('проект открывается карточкой', tool.take().some(m => m.action === 'openProject' && m.project === 'billing/payments'))
 
+// ── Окно без папки: каталог первым, избранное и фильтр групп ───────────────
+const all = bootWebview({ layout: 'tool-gitlab' })
+all.state()
+all.take()
+all.send({ type: 'gitlabStatus', response: ok({ configured: true, url: 'https://gitlab.example.test', linked: true, binding: { mode: 'all' } }) })
+sent = all.take()
+html = all.root.innerHTML
+check('без папки окно открывает каталог', sent.some(m => m.action === 'projects') && !sent.some(m => m.action === 'mergeRequests'), JSON.stringify(sent))
+check('без папки вкладки «Пайплайны» нет', !html.includes('data-section="pipelines"') && html.includes('data-section="mrs"'))
+check('избранное спрашивается по серверу', sent.some(m => m.action === 'prefs' && m.server === 'https://gitlab.example.test'))
+const invoices = { ...project, id: 51, path: 'billing/invoices', name: 'invoices', namespace: 'billing' }
+const bot = { ...project, id: 64, path: 'platform/tools/deploy-bot', name: 'deploy-bot', namespace: 'platform/tools', description: '' }
+all.send({ type: 'gitlabProjects', scope: 'member', search: '', local: { 'billing/invoices': 'D:/work/invoices' }, response: ok({ scope: 'member', current: '', items: [project, invoices, bot] }) })
+all.send({ type: 'gitlabPrefs', server: 'https://gitlab.example.test', prefs: { favorites: ['platform/tools/deploy-bot'], groups: [], groupBy: 'ns' } })
+html = all.root.innerHTML
+check('избранное — своей группой сверху', html.indexOf('Избранное') > -1 && html.indexOf('Избранное') < html.indexOf('data-project="billing/payments"'), html.slice(0, 600))
+check('проекты разложены по группам', html.includes('<span>billing</span>'))
+check('склонированный проект отмечен', html.includes('локально'))
+all.click({ action: 'gitlab-favorite', project: 'billing/invoices' })
+let saved = all.take().find(m => m.action === 'savePrefs')
+check('звезда сохраняет избранное', saved?.prefs?.favorites?.includes('billing/invoices') && saved.server === 'https://gitlab.example.test', JSON.stringify(saved))
+all.click({ action: 'gitlab-filters-toggle' })
+check('фильтр показывает дерево групп', all.root.innerHTML.includes('data-group="platform/tools"'))
+all.click({ action: 'gitlab-group', group: 'platform' })
+html = all.root.innerHTML
+saved = all.take().find(m => m.action === 'savePrefs')
+check('группа фильтрует список и сохраняется', saved?.prefs?.groups?.includes('platform') && !html.includes('data-project="billing/payments"'), JSON.stringify(saved))
+check('выбранная группа стоит чипом', html.includes('class="gl-chip"'))
+all.click({ action: 'gitlab-filters-clear' })
+check('сброс снимает фильтр', all.take().some(m => m.action === 'savePrefs' && m.prefs.groups.length === 0))
+all.click({ action: 'gitlab-section', section: 'mrs' })
+all.click({ action: 'gitlab-mr-favorites' })
+check('у MR без папки есть «только избранные»', all.take().some(m => m.action === 'savePrefs' && m.prefs.mrFav === true))
+
 // ── Карточка проекта ───────────────────────────────────────────────────────
 const card = bootWebview({ layout: 'gitlab-project', dataset: { gitlabProject: 'billing/payments' } })
 const surface = 'project:billing/payments'

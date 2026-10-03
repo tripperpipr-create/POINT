@@ -144,6 +144,7 @@ func (f *FS) ensureFreshIndex(ctx context.Context) (*projectIndex, error) {
 			}
 			next.status.Languages = cloneLanguageCounts(slot.index.status.Languages)
 			slot.index = &next
+			slot.generation++
 		}
 		slot.mu.Unlock()
 	}

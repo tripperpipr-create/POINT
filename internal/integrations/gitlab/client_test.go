@@ -581,3 +581,40 @@ func TestRecipe(t *testing.T) {
 		t.Fatal("unknown tool got a preset risk")
 	}
 }
+
+// Сервер MCP присылал id строкой, и весь список MR падал с «cannot unmarshal
+// string into Go struct field rawMergeRequest.id of type int». Числа сырых
+// форм принимают и число, и десятичную строку, и null.
+func TestNumbersAsStrings(t *testing.T) {
+	client, caller := newFixtureClient(t, fixtureTools(t))
+	caller.override["list_merge_requests"] = mcpclient.CallResult{Content: []mcpclient.Content{{Type: "text", Text: `[
+		{"id": "9001", "iid": "12", "project_id": "42", "title": "Идемпотентность", "state": "opened",
+		 "author": {"id": "7", "username": "anna", "name": "Анна"}, "references": {"full": "billing/payments!12"}},
+		{"id": 9002, "iid": 13, "project_id": null, "title": "Ретраи", "state": "opened", "author": {"id": 7, "username": "anna"}}
+	]`}}}
+	list, err := client.MergeRequests(context.Background(), "billing/payments", ScopeProject, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 2 || list[0].IID != 12 || list[0].ProjectID != 42 || list[0].Author.ID != 7 || list[1].IID != 13 || list[1].ProjectID != 0 {
+		t.Fatalf("list = %+v", list)
+	}
+
+	var pipeline rawPipeline
+	var job rawJob
+	var project rawProject
+	if err := json.Unmarshal([]byte(`{"id": "3301", "status": "failed"}`), &pipeline); err != nil || pipeline.ID != 3301 {
+		t.Fatalf("pipeline = %+v, %v", pipeline, err)
+	}
+	if err := json.Unmarshal([]byte(`{"id": "77002", "name": "go-test"}`), &job); err != nil || job.ID != 77002 {
+		t.Fatalf("job = %+v, %v", job, err)
+	}
+	if err := json.Unmarshal([]byte(`{"id": "42", "star_count": "3", "permissions": {"project_access": {"access_level": "30"}}}`), &project); err != nil ||
+		client.project(project).AccessLevel != 30 || client.project(project).Stars != 3 {
+		t.Fatalf("project = %+v, %v", project, err)
+	}
+	var broken jsonInt
+	if err := json.Unmarshal([]byte(`"двенадцать"`), &broken); err == nil {
+		t.Fatal("non-decimal string must not parse")
+	}
+}

@@ -694,7 +694,9 @@ func (s ChatService) discussWithModel(ctx context.Context, req ChatRequest, worl
 		for _, job := range reads {
 			trace.toolStart(job.call)
 		}
-		for position, result := range executeMasterReadCalls(ctx, s.ReadTools, reads, longestRound) {
+		for position, timed := range executeMasterReadCalls(ctx, s.ReadTools, reads, longestRound) {
+			result := timed.result
+			trace.readTiming(reads[position].call, timed)
 			results[reads[position].index] = result
 			if result.OK {
 				seenTools[masterToolCallKey(reads[position].call.Name, reads[position].call.Arguments)] = struct{}{}

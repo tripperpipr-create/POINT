@@ -1,5 +1,6 @@
-// Карточка merge request — вкладка редактора. Шапка с состоянием и
-// действиями, ниже вкладки: обзор, обсуждение, изменения, пайплайн.
+// Карточка merge request — вкладка редактора или правая колонка широкого окна
+// GitLab. Шапка, строка состояния с действиями, ниже вкладки: обзор,
+// обсуждение, изменения, пайплайн.
 //
 // Описание и заметки — markdown GitLab, недоверенный: он проходит тот же
 // разборщик, что реплики Мастера (companion-markdown.js), — он экранирует всё,
@@ -7,7 +8,7 @@
 // не рисует: строка файла открывает штатное сравнение IDE.
 
 import { esc } from './html-escape.js'
-import { cleanTitle, draftId, glAvatar, glIcon, mergeStatus, pipelineStatus, problemHtml, loadingHtml, shortSha, timeAgo, verdictHtml } from './gitlab-common.js'
+import { cleanTitle, draftId, glAvatar, glIcon, mergeStatus, pipelineStatus, problemHtml, loadingHtml, shortSha, statusLine, timeAgo } from './gitlab-common.js'
 
 const TABS = [['overview', 'Обзор'], ['discussion', 'Обсуждение'], ['changes', 'Изменения'], ['pipeline', 'Пайплайн']]
 
@@ -48,25 +49,25 @@ export function createGitLabMergeRequestView({ getState, markdown, pipelineRows 
     return { tone: 'bad', title: `Слить нельзя: ${status.label}`, reasons }
   }
 
-  function header(state, view) {
+  function header(state, view, inWindow) {
     const mr = view.mergeRequest || {}
     const busy = Boolean(state.busy)
     const sha = mr.diffRefs?.headSha || mr.sha || ''
     const open = mr.state === 'opened'
     const said = verdict(state, view)
     const actions = open ? `
-      <button type="button" class="gl-btn" data-action="gitlab-approve" data-approve="${view.approvedByMe ? '0' : '1'}" data-sha="${esc(sha)}"${busy ? ' disabled' : ''} title="${esc(view.approvedByMe ? 'Снять ваше одобрение' : 'Одобрить текущую голову MR — можно ли одобрять свой MR, решают настройки проекта в GitLab')}">${glIcon('check', 13)}<span>${view.approvedByMe ? 'Снять одобрение' : 'Одобрить'}</span></button>
+      <button type="button" class="gl-btn is-quiet" data-action="gitlab-approve" data-approve="${view.approvedByMe ? '0' : '1'}" data-sha="${esc(sha)}"${busy ? ' disabled' : ''} title="${esc(view.approvedByMe ? 'Снять ваше одобрение' : 'Одобрить текущую голову MR — можно ли одобрять свой MR, решают настройки проекта в GitLab')}">${glIcon('check', 13)}<span>${view.approvedByMe ? 'Снять одобрение' : 'Одобрить'}</span></button>
       <label class="gl-check" title="Удалить исходную ветку после слияния"><input type="checkbox" id="${draftId('removeSource')}" data-draft="removeSource"${state.drafts.removeSource ?? mr.removeSourceBranch ? ' checked' : ''}><span>удалить ветку</span></label>
-      <button type="button" class="gl-btn is-primary${said.tone === 'ok' ? '' : ' is-soft'}" data-action="gitlab-merge" data-sha="${esc(sha)}"${busy || mr.draft || mr.hasConflicts ? ' disabled' : ''} title="${esc(mr.draft ? 'Черновик не сливается' : mr.hasConflicts ? 'Сначала разрешите конфликт' : 'Слить после подтверждения')}">${glIcon('mr', 13)}<span>Merge</span></button>` : ''
+      <button type="button" class="gl-btn${said.tone === 'ok' ? ' is-primary' : ''}" data-action="gitlab-merge" data-sha="${esc(sha)}"${busy || mr.draft || mr.hasConflicts ? ' disabled' : ''} title="${esc(mr.draft ? 'Черновик не сливается' : mr.hasConflicts ? 'Сначала разрешите конфликт' : 'Слить после подтверждения')}">${glIcon('mr', 13)}<span>Merge</span></button>` : ''
     return `<header class="gl-mr-head">
       <div class="gl-mr-title">
         <h1><em>!${Number(mr.iid) || 0}</em> ${esc(cleanTitle(mr.title) || '')}</h1>
+        ${inWindow ? `<button type="button" class="nc-icon-btn" data-action="gitlab-open-mr" data-tab-open="1" data-project="${esc(mr.projectPath || state.project)}" data-iid="${Number(mr.iid) || 0}" data-title="${esc(mr.title || '')}" title="Открыть вкладкой редактора" aria-label="Открыть вкладкой редактора">${glIcon('tab', 14)}</button>` : ''}
         ${mr.webUrl ? `<button type="button" class="nc-icon-btn" data-action="gitlab-open-browser" data-url="${esc(mr.webUrl)}" title="Открыть в GitLab" aria-label="Открыть в GitLab">${glIcon('external', 14)}</button>` : ''}
       </div>
       <p class="gl-mr-sub"><span class="gl-who">${glAvatar(mr.author)}${esc(mr.author?.name || mr.author?.username || '')}</span><span class="gl-branch">${glIcon('branch', 12)}${esc(mr.sourceBranch || '')} → ${esc(mr.targetBranch || '')}</span><span>обновлён ${esc(timeAgo(mr.updatedAt))}</span><span class="nc-hash">${esc(shortSha(sha))}</span></p>
-      ${verdictHtml({ tone: said.tone, title: said.title, reasons: said.reasons.map(reason => reason.tab ? { text: reason.text, action: 'gitlab-mr-tab', data: { tab: reason.tab } } : reason.text), actions })}
       ${mr.mergeError ? `<p class="gl-mr-error">${esc(mr.mergeError)}</p>` : ''}
-    </header>`
+    </header>${statusLine({ tone: said.tone, title: said.title, reasons: said.reasons.map(reason => reason.tab ? { text: reason.text, action: 'gitlab-mr-tab', data: { tab: reason.tab } } : reason.text), actions })}`
   }
 
   function people(label, list) {
@@ -142,11 +143,12 @@ export function createGitLabMergeRequestView({ getState, markdown, pipelineRows 
     return `<section class="gl-pane is-single">${items.length ? pipelineRows(state, fake) : '<p class="gl-muted">У этого MR пайплайнов нет.</p>'}</section>`
   }
 
-  function mrView() {
+  // Тело карточки — общее для вкладки редактора и правой колонки окна.
+  function mrBody(inWindow = false) {
     const state = getState()
     const response = state.mr
-    if (!response) return `<main class="nc-app gl-app gl-mr">${loadingHtml('Загружаем merge request…')}</main>`
-    if (response.state !== 'ok') return `<main class="nc-app gl-app gl-mr"><div class="gl-scroll">${problemHtml(response, { retry: 'gitlab-mr-reload' })}</div></main>`
+    if (!response) return loadingHtml('Загружаем merge request…')
+    if (response.state !== 'ok') return `<div class="gl-scroll">${problemHtml(response, { retry: 'gitlab-mr-reload' })}</div>`
     const view = response.data || {}
     const counts = {
       discussion: (state.discussions?.data?.discussions || []).filter(thread => !(thread.individual && thread.notes?.[0]?.system)).length,
@@ -161,8 +163,10 @@ export function createGitLabMergeRequestView({ getState, markdown, pipelineRows 
       : state.mrTab === 'changes' ? changes(state, view)
         : state.mrTab === 'pipeline' ? pipelines(state, view)
           : overview(view)
-    return `<main class="nc-app gl-app gl-mr">${header(state, view)}${tabs}${notice}<div class="gl-scroll">${body}</div></main>`
+    return `${header(state, view, inWindow)}${tabs}${inWindow ? '' : notice}<div class="gl-scroll">${body}</div>`
   }
 
-  return { mrView }
+  const mrView = () => `<main class="nc-app gl-app gl-mr">${mrBody()}</main>`
+
+  return { mrView, mrBody }
 }

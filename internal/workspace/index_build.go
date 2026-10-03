@@ -189,6 +189,7 @@ func (f *FS) buildIndex(ctx context.Context, limits indexLimits) (IndexStatus, e
 	slot := f.indexSlot()
 	slot.mu.Lock()
 	slot.index = index
+	slot.generation++
 	status := index.status
 	slot.mu.Unlock()
 	slog.Info("index build done", "root", f.root, "files", status.Files, "chunks", status.Chunks, "symbols", status.Symbols, "partial", status.Partial, "limit_reason", status.LimitReason, "duration_ms", status.DurationMs)
@@ -281,6 +282,7 @@ func (f *FS) UpdateIndex(ctx context.Context, changed, deleted []string) (IndexS
 			next.status.Mode = "incremental"
 			next.status.Languages = cloneLanguageCounts(slot.index.status.Languages)
 			slot.index = &next
+			slot.generation++
 			status := next.status
 			slot.mu.Unlock()
 			return status, nil
@@ -323,6 +325,7 @@ func (f *FS) UpdateIndex(ctx context.Context, changed, deleted []string) (IndexS
 	index.status.BuiltAt = time.Now().UTC()
 	index.status.DurationMs = time.Since(started).Milliseconds()
 	slot.index = index
+	slot.generation++
 	status := index.status
 	slot.mu.Unlock()
 	return status, nil

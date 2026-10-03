@@ -17,6 +17,8 @@
 
 ## Действующие справочники
 
+- [master-performance.md](master-performance.md) — кеш структурных фактов, Git-ревизии и измерения отдельных ходов Мастера.
+
 - [agent-hub-mvp.md](agent-hub-mvp.md) — модель Hub и совместимые поверхности. Для новой работы приоритет у целевого документа и контракта v2.
 - [sandbox.md](sandbox.md), [security.md](security.md), [threat-model.md](threat-model.md) — границы изоляции, доступы, сеть и угрозы.
 - [agent-evaluation.md](agent-evaluation.md) — benchmark, attribution и canary для Skills.

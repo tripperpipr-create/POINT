@@ -1690,7 +1690,7 @@ class AgentViewProvider {
       if (!view || (!force && view.visible === false)) continue
       if (!force && this.toolWindowStateSignatures.get(kind) === signature) continue
       this.toolWindowStateSignatures.set(kind, signature)
-      void view.webview.postMessage({ ...message, selectedTab: kind === 'gitlab-panel' ? 'tool-gitlab' : `tool-${kind}` })
+      void view.webview.postMessage({ ...message, selectedTab: ['gitlab-panel', 'gitlab-global'].includes(kind) ? 'tool-gitlab' : `tool-${kind}` })
     }
     this.onCompanionState(this.boot)
   }

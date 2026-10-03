@@ -42,18 +42,25 @@ type Position = forge.LinePosition
 
 // Сырые формы ответа сервера — поля REST API GitLab.
 type rawUser struct {
-	ID       userID `json:"id"`
-	Username string `json:"username"`
-	Name     string `json:"name"`
+	ID       jsonInt `json:"id"`
+	Username string  `json:"username"`
+	Name     string  `json:"name"`
 }
 
-// GitLab-инстансы отдают id как JSON-число или десятичную строку.
-type userID int
+// Число из ответа GitLab. Инстансы и сервер MCP отдают id, iid и счётчики
+// то JSON-числом, то десятичной строкой («"42"»): list_merge_requests
+// сервера @zereight/mcp-gitlab прислал id строкой, и весь список MR не
+// разобрался. Поэтому числа сырых форм принимают обе записи, а null — ноль.
+type jsonInt int
 
-func (id *userID) UnmarshalJSON(data []byte) error {
+func (id *jsonInt) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" {
+		*id = 0
+		return nil
+	}
 	var number int
 	if err := json.Unmarshal(data, &number); err == nil {
-		*id = userID(number)
+		*id = jsonInt(number)
 		return nil
 	}
 	var decimal string
@@ -64,7 +71,7 @@ func (id *userID) UnmarshalJSON(data []byte) error {
 	if err != nil {
 		return err
 	}
-	*id = userID(parsed)
+	*id = jsonInt(parsed)
 	return nil
 }
 
@@ -84,9 +91,9 @@ func users(list []rawUser) []User {
 }
 
 type rawMergeRequest struct {
-	ID                          int       `json:"id"`
-	IID                         int       `json:"iid"`
-	ProjectID                   int       `json:"project_id"`
+	ID                          jsonInt   `json:"id"`
+	IID                         jsonInt   `json:"iid"`
+	ProjectID                   jsonInt   `json:"project_id"`
 	Title                       string    `json:"title"`
 	Description                 string    `json:"description"`
 	State                       string    `json:"state"`
@@ -126,7 +133,7 @@ func (c *Client) mergeRequest(raw rawMergeRequest) MergeRequest {
 		status = raw.MergeStatus
 	}
 	view := MergeRequest{
-		ProjectID: raw.ProjectID, IID: raw.IID, Title: clip(raw.Title, maxTitle), State: raw.State,
+		ProjectID: int(raw.ProjectID), IID: int(raw.IID), Title: clip(raw.Title, maxTitle), State: raw.State,
 		Draft: raw.Draft || raw.WorkInProgress, SourceBranch: clip(raw.SourceBranch, 255), TargetBranch: clip(raw.TargetBranch, 255),
 		Author: raw.Author.view(), Assignees: users(raw.Assignees), Reviewers: users(raw.Reviewers), MergeStatus: status,
 		SHA: raw.SHA, WebURL: c.sameOrigin(raw.WebURL), CreatedAt: raw.CreatedAt, UpdatedAt: raw.UpdatedAt,
@@ -160,7 +167,7 @@ func (c *Client) mergeRequestDetail(raw rawMergeRequest) MergeRequestDetail {
 }
 
 type rawNote struct {
-	ID         int       `json:"id"`
+	ID         jsonInt   `json:"id"`
 	Body       string    `json:"body"`
 	Author     rawUser   `json:"author"`
 	System     bool      `json:"system"`
@@ -168,23 +175,23 @@ type rawNote struct {
 	Resolved   bool      `json:"resolved"`
 	CreatedAt  time.Time `json:"created_at"`
 	Position   *struct {
-		OldPath string `json:"old_path"`
-		NewPath string `json:"new_path"`
-		OldLine *int   `json:"old_line"`
-		NewLine *int   `json:"new_line"`
+		OldPath string   `json:"old_path"`
+		NewPath string   `json:"new_path"`
+		OldLine *jsonInt `json:"old_line"`
+		NewLine *jsonInt `json:"new_line"`
 	} `json:"position"`
 }
 
 func noteView(raw rawNote) Note {
-	note := Note{ID: raw.ID, Author: raw.Author.view(), Body: clip(raw.Body, maxNoteBody), System: raw.System,
+	note := Note{ID: int(raw.ID), Author: raw.Author.view(), Body: clip(raw.Body, maxNoteBody), System: raw.System,
 		Resolvable: raw.Resolvable, Resolved: raw.Resolved, CreatedAt: raw.CreatedAt}
 	if raw.Position != nil {
 		position := Position{OldPath: clip(raw.Position.OldPath, 1000), NewPath: clip(raw.Position.NewPath, 1000)}
 		if raw.Position.OldLine != nil {
-			position.OldLine = *raw.Position.OldLine
+			position.OldLine = int(*raw.Position.OldLine)
 		}
 		if raw.Position.NewLine != nil {
-			position.NewLine = *raw.Position.NewLine
+			position.NewLine = int(*raw.Position.NewLine)
 		}
 		note.Position = &position
 	}
@@ -192,7 +199,7 @@ func noteView(raw rawNote) Note {
 }
 
 type rawPipeline struct {
-	ID        int       `json:"id"`
+	ID        jsonInt   `json:"id"`
 	Status    string    `json:"status"`
 	Ref       string    `json:"ref"`
 	SHA       string    `json:"sha"`
@@ -205,7 +212,7 @@ type rawPipeline struct {
 }
 
 func (c *Client) pipeline(raw rawPipeline) Pipeline {
-	view := Pipeline{ID: raw.ID, Status: raw.Status, Ref: clip(raw.Ref, 255), SHA: raw.SHA, Source: raw.Source,
+	view := Pipeline{ID: int(raw.ID), Status: raw.Status, Ref: clip(raw.Ref, 255), SHA: raw.SHA, Source: raw.Source,
 		WebURL: c.sameOrigin(raw.WebURL), CreatedAt: raw.CreatedAt, UpdatedAt: raw.UpdatedAt}
 	if raw.Duration != nil {
 		view.Duration = *raw.Duration
@@ -218,7 +225,7 @@ func (c *Client) pipeline(raw rawPipeline) Pipeline {
 }
 
 type rawJob struct {
-	ID            int       `json:"id"`
+	ID            jsonInt   `json:"id"`
 	Name          string    `json:"name"`
 	Stage         string    `json:"stage"`
 	Status        string    `json:"status"`
@@ -230,7 +237,7 @@ type rawJob struct {
 }
 
 func (c *Client) job(raw rawJob) Job {
-	view := Job{ID: raw.ID, Name: clip(raw.Name, 255), Stage: clip(raw.Stage, 255), Status: raw.Status,
+	view := Job{ID: int(raw.ID), Name: clip(raw.Name, 255), Stage: clip(raw.Stage, 255), Status: raw.Status,
 		FailureReason: clip(raw.FailureReason, 255), AllowFailure: raw.AllowFailure, WebURL: c.sameOrigin(raw.WebURL), StartedAt: raw.StartedAt}
 	if raw.Duration != nil {
 		view.Duration = *raw.Duration

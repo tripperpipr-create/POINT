@@ -101,6 +101,11 @@ func (s *Server) saveGitLabBinding(w http.ResponseWriter, r *http.Request) {
 func (s *Server) gitlabMergeRequests(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := gitlabContext(r)
 	defer cancel()
+	// all=1 — общее окно из общих настроек: MR во всех проектах, не по папке.
+	if r.URL.Query().Get("all") == "1" {
+		s.gitlabWrite(w, s.app.GitLabAllMergeRequests(ctx, r.URL.Query().Get("scope")))
+		return
+	}
 	s.gitlabWrite(w, s.app.GitLabMergeRequests(ctx, r.URL.Query().Get("scope")))
 }
 

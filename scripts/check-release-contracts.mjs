@@ -891,6 +891,9 @@ for (const [file, maximum] of Object.entries({
   // Проекты: состояние и нажатия, список в окне, карточка проекта.
   'vscode-extension/ui/client/gitlab-project-actions.js': 210,
   'vscode-extension/ui/client/gitlab-projects-list.js': 90,
+  // Окно GitLab: правая колонка широкого окна и избранное с фильтром групп.
+  'vscode-extension/ui/client/gitlab-window.js': 110,
+  'vscode-extension/ui/client/gitlab-project-filters.js': 110,
   'vscode-extension/ui/client/gitlab-project-card.js': 240,
 })) {
   const actual = lineCount(read(file))

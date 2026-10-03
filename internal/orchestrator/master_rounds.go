@@ -51,10 +51,10 @@ type masterReadJob struct {
 
 // executeMasterReadCalls исполняет чтения одного круга разом. У каждого свой
 // срок (masterReadToolContext), результаты стоят в порядке вызовов.
-func executeMasterReadCalls(ctx context.Context, tools TaskReadTools, jobs []masterReadJob, longestRound time.Duration) []domain.ToolResult {
-	results := make([]domain.ToolResult, len(jobs))
+func executeMasterReadCalls(ctx context.Context, tools TaskReadTools, jobs []masterReadJob, longestRound time.Duration) []masterReadResult {
+	results := make([]masterReadResult, len(jobs))
 	if len(jobs) == 1 {
-		results[0] = executeMasterReadTool(ctx, tools, jobs[0].call, longestRound)
+		results[0] = timedMasterReadTool(ctx, tools, jobs[0].call, longestRound)
 		return results
 	}
 	var wg sync.WaitGroup
@@ -62,7 +62,7 @@ func executeMasterReadCalls(ctx context.Context, tools TaskReadTools, jobs []mas
 		wg.Add(1)
 		go func(position int, call providers.ToolCall) {
 			defer wg.Done()
-			results[position] = executeMasterReadTool(ctx, tools, call, longestRound)
+			results[position] = timedMasterReadTool(ctx, tools, call, longestRound)
 		}(position, job.call)
 	}
 	wg.Wait()
@@ -82,5 +82,27 @@ func (t *masterTrace) roundReport(started time.Time, outputTokens int64, thinkin
 	t.send("round", "", map[string]any{
 		"round": t.round, "durationMs": time.Since(started).Milliseconds(), "outputTokens": outputTokens,
 		"thinking": mode, "calls": calls, "readCalls": readCalls, "rerun": rerun,
+	})
+}
+
+type masterReadResult struct {
+	result         domain.ToolResult
+	started, ended time.Time
+}
+
+func timedMasterReadTool(ctx context.Context, tools TaskReadTools, call providers.ToolCall, longestRound time.Duration) masterReadResult {
+	started := time.Now()
+	result := executeMasterReadTool(ctx, tools, call, longestRound)
+	return masterReadResult{result, started, time.Now()}
+}
+
+func (t *masterTrace) readTiming(call providers.ToolCall, result masterReadResult) {
+	if t == nil {
+		return
+	}
+	t.send("read_tool", "", map[string]any{
+		"round": t.round, "callId": call.ID, "tool": call.Name,
+		"startedAt": result.started.UTC(), "endedAt": result.ended.UTC(),
+		"durationMs": result.ended.Sub(result.started).Milliseconds(), "failed": !result.result.OK,
 	})
 }

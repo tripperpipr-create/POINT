@@ -1,15 +1,16 @@
-// Карточка проекта GitLab — вкладка редактора. Сверху — вердикт о локальной
-// копии: эта папка, уже склонирован или «копии нет — клонировать». Ниже
-// вкладки: обзор с README, файлы ветки, коммиты и ветки.
+// Карточка проекта GitLab — вкладка редактора или правая колонка широкого
+// окна GitLab. Сверху — строка о локальной копии: эта папка, уже склонирован
+// или «копии нет — клонировать». Ниже вкладки: обзор с README, файлы ветки,
+// коммиты, ветки и пайплайны.
 //
 // README — markdown GitLab, недоверенный: он проходит тот же разборщик, что
 // описание MR. Файл и diff коммита карточка не рисует: их открывает IDE
 // документами только для чтения.
 
 import { esc } from './html-escape.js'
-import { glAvatar, glIcon, loadingHtml, problemHtml, shortSha, timeAgo, timeShort, verdictHtml } from './gitlab-common.js'
+import { glAvatar, glIcon, loadingHtml, problemHtml, shortSha, statusLine, timeAgo, timeShort } from './gitlab-common.js'
 
-const TABS = [['overview', 'Обзор'], ['files', 'Файлы'], ['commits', 'Коммиты'], ['branches', 'Ветки']]
+const TABS = [['overview', 'Обзор'], ['files', 'Файлы'], ['commits', 'Коммиты'], ['branches', 'Ветки'], ['pipelines', 'Пайплайны']]
 const VISIBILITY = { public: 'публичный', internal: 'внутренний', private: 'закрытый' }
 const ACCESS = { 10: 'гость', 15: 'планировщик', 20: 'репортёр', 30: 'разработчик', 40: 'сопровождающий', 50: 'владелец' }
 
@@ -32,30 +33,31 @@ function dayLabel(value) {
   return at.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: at.getFullYear() === today.getFullYear() ? undefined : 'numeric' })
 }
 
-export function createGitLabProjectCard({ getState, markdown }) {
-  function verdict(view, project) {
-    const button = (action, label, extra = '', primary = false) => `<button type="button" class="gl-btn${primary ? ' is-primary' : ''}" data-action="${action}"${extra}>${esc(label)}</button>`
+export function createGitLabProjectCard({ getState, markdown, pipelineRows }) {
+  // Локальная копия — главное, что решают в карточке: открыть или клонировать.
+  function verdict(view, project, inWindow) {
+    const button = (action, label, extra = '', tone = '') => `<button type="button" class="gl-btn${tone ? ` is-${tone}` : ''}" data-action="${action}"${extra}>${label}</button>`
     const archived = project.archived ? 'проект в архиве — пушить нельзя' : ''
     if (view.cloning === 'running' || view.cloning === 'asking') {
-      return verdictHtml({ tone: 'wait', glyph: 'clone', title: view.cloning === 'asking' ? 'Выберите папку для клона' : 'Клонируем…',
-        reasons: ['git clone идёт в выводе Git', 'когда он закончит, IDE предложит открыть папку'] })
+      return statusLine({ tone: 'wait', title: view.cloning === 'asking' ? 'Выберите папку для клона' : 'Клонируем…',
+        reasons: ['git clone идёт в выводе Git; когда он закончит, IDE предложит открыть папку'] })
     }
     if (view.detail?.data?.current) {
-      return verdictHtml({ tone: 'ok', title: 'Эта папка — рабочая копия проекта', reasons: ['MR и пайплайны — в окне GitLab', archived],
-        actions: button('gitlab-open-window', 'Окно GitLab', '', true) })
+      return statusLine({ tone: 'ok', title: 'Эта папка — рабочая копия проекта', reasons: [archived],
+        actions: inWindow ? button('gitlab-section', 'MR проекта', ' data-section="mrs"') : button('gitlab-open-window', 'Окно GitLab') })
     }
     if (view.clone?.exists) {
-      return verdictHtml({ tone: 'ok', title: 'Проект уже склонирован', reasons: [view.clone.path, archived],
-        actions: button('gitlab-open-clone', 'Открыть', '', true) + button('gitlab-open-clone', 'В новом окне', ' data-new-window="1"') })
+      return statusLine({ tone: 'ok', title: 'Проект уже склонирован', reasons: [view.clone.path, archived],
+        actions: button('gitlab-open-clone', 'В новом окне', ' data-new-window="1"', 'quiet') + button('gitlab-open-clone', 'Открыть', '', 'primary') })
     }
-    const ssh = project.sshUrl ? button('gitlab-clone', 'Клонировать по SSH', ' data-kind="ssh"', true) : ''
-    const https = project.httpUrl ? button('gitlab-clone', project.sshUrl ? 'по HTTPS' : 'Клонировать по HTTPS', ' data-kind="https"', !project.sshUrl) : ''
-    return verdictHtml({ tone: project.archived ? 'warn' : 'mute', glyph: 'clone', title: 'Локальной копии нет',
-      reasons: [ssh || https ? 'клонирует git этой машины — ваши ключи SSH и учётные данные' : 'у проекта нет адреса клона на этом GitLab', archived],
-      actions: ssh + https })
+    const ssh = project.sshUrl ? button('gitlab-clone', `${glIcon('clone', 13)}<span>Клонировать по SSH</span>`, ' data-kind="ssh"', 'primary') : ''
+    const https = project.httpUrl ? button('gitlab-clone', project.sshUrl ? 'по HTTPS' : `${glIcon('clone', 13)}<span>Клонировать по HTTPS</span>`, ' data-kind="https"', project.sshUrl ? 'quiet' : 'primary') : ''
+    return statusLine({ tone: project.archived ? 'warn' : 'mute', title: 'Локальной копии нет',
+      reasons: [ssh || https ? 'клонирует git этой машины с вашими ключами SSH' : 'у проекта нет адреса клона на этом GitLab', archived],
+      actions: https + ssh })
   }
 
-  function header(view, project) {
+  function header(view, project, inWindow) {
     const facts = [
       VISIBILITY[project.visibility] || project.visibility,
       ACCESS[project.accessLevel] ? `вы ${ACCESS[project.accessLevel]}` : '',
@@ -64,15 +66,14 @@ export function createGitLabProjectCard({ getState, markdown }) {
     ].filter(Boolean)
     return `<header class="gl-mr-head gl-proj-head">
       <div class="gl-mr-title">
-        ${glAvatar({ name: project.name, username: project.path }, { size: 'lg', title: false }).replace('gl-ava', 'gl-ava is-square is-xl')}
+        <i class="gl-square is-xl" aria-hidden="true">${esc(String(project.name || '?').slice(0, 1).toUpperCase())}</i>
         <h1><em>${esc(project.namespace ? `${project.namespace}/` : '')}</em>${esc(project.name || '')}</h1>
-        <span class="gl-proj-counts">${project.stars ? `<span title="Звёзды">${glIcon('star', 12)}${Number(project.stars)}</span>` : ''}${project.forks ? `<span title="Форки">${glIcon('branch', 12)}${Number(project.forks)}</span>` : ''}</span>
+        ${inWindow ? `<button type="button" class="nc-icon-btn" data-action="gitlab-open-project" data-tab-open="1" data-project="${esc(project.path || '')}" data-name="${esc(project.name || '')}" title="Открыть вкладкой редактора" aria-label="Открыть вкладкой редактора">${glIcon('tab', 14)}</button>` : ''}
         ${project.webUrl ? `<button type="button" class="nc-icon-btn" data-action="gitlab-open-browser" data-url="${esc(project.webUrl)}" title="Открыть в GitLab" aria-label="Открыть в GitLab">${glIcon('external', 14)}</button>` : ''}
       </div>
       ${project.description ? `<p class="gl-proj-desc">${esc(project.description)}</p>` : ''}
-      <p class="gl-mr-sub">${facts.map(fact => `<span>${esc(fact)}</span>`).join('')}${(project.topics || []).map(topic => `<span class="gl-topic">${esc(topic)}</span>`).join('')}</p>
-      ${verdict(view, project)}
-    </header>`
+      <p class="gl-mr-sub">${facts.map(fact => `<span>${esc(fact)}</span>`).join('')}${project.stars ? `<span title="Звёзды в GitLab">${glIcon('star', 12)}${Number(project.stars)}</span>` : ''}${(project.topics || []).map(topic => `<span class="gl-topic">${esc(topic)}</span>`).join('')}</p>
+    </header>${verdict(view, project, inWindow)}`
   }
 
   const refChip = view => `<button type="button" class="gl-ref" data-action="gitlab-project-tab" data-tab="branches" title="Сменить ветку">${glIcon('branch', 12)}<span>${esc(view.ref || '—')}</span></button>`
@@ -194,21 +195,29 @@ export function createGitLabProjectCard({ getState, markdown }) {
     </li>`).join('')}</ul>` : '<p class="gl-muted">Веток нет — репозиторий пуст.</p>'}</section>`
   }
 
-  function projectView() {
+  function pipelines(state, view) {
+    return `<section class="gl-pane is-single is-flush"><header class="gl-files-head"><span class="gl-muted">Пайплайны ветки</span>${refChip(view)}</header>${pipelineRows(state, view.pipelines)}</section>`
+  }
+
+  // Тело карточки — общее для вкладки редактора и правой колонки окна.
+  function projectBody(inWindow = false) {
     const state = getState()
     const view = state.card
     const response = view?.detail
-    if (!response) return `<main class="nc-app gl-app gl-mr gl-proj">${loadingHtml('Загружаем проект…')}</main>`
-    if (response.state !== 'ok') return `<main class="nc-app gl-app gl-mr gl-proj"><div class="gl-scroll gl-pad">${problemHtml(response, { retry: 'gitlab-project-reload' })}</div></main>`
+    if (!response) return loadingHtml('Загружаем проект…')
+    if (response.state !== 'ok') return `<div class="gl-scroll gl-pad">${problemHtml(response, { retry: 'gitlab-project-reload' })}</div>`
     const project = response.data?.project || {}
     const count = { branches: view.branches?.state === 'ok' ? (view.branches.data?.items || []).length : 0 }
     const tabs = `<nav class="nc-tabs gl-mr-tabs" role="tablist" data-keynav="row">${TABS.map(([id, label]) => `<button type="button" role="tab" class="nc-tab${view.tab === id ? ' is-active' : ''}" aria-selected="${view.tab === id ? 'true' : 'false'}" tabindex="${view.tab === id ? '0' : '-1'}" data-action="gitlab-project-tab" data-tab="${id}"><span>${esc(label)}</span>${count[id] ? `<b>${count[id]}</b>` : ''}</button>`).join('')}</nav>`
     const notice = state.notice
       ? `<div class="nc-notice ${state.notice.tone === 'error' ? 'is-error' : 'is-ok'}">${glIcon(state.notice.tone === 'error' ? 'warning' : 'check', 14)}<p>${esc(state.notice.text)}</p><button type="button" class="nc-icon-btn" data-action="gitlab-dismiss-notice" aria-label="Скрыть">${glIcon('x', 12)}</button></div>`
       : ''
-    const body = view.tab === 'files' ? files(view) : view.tab === 'commits' ? commits(view) : view.tab === 'branches' ? branches(view) : overview(view, project)
-    return `<main class="nc-app gl-app gl-mr gl-proj">${header(view, project)}${tabs}${notice}<div class="gl-scroll">${body}</div></main>`
+    const body = view.tab === 'files' ? files(view) : view.tab === 'commits' ? commits(view) : view.tab === 'branches' ? branches(view)
+      : view.tab === 'pipelines' ? pipelines(state, view) : overview(view, project)
+    return `${header(view, project, inWindow)}${tabs}${inWindow ? '' : notice}<div class="gl-scroll">${body}</div>`
   }
 
-  return { projectView }
+  const projectView = () => `<main class="nc-app gl-app gl-mr gl-proj">${projectBody()}</main>`
+
+  return { projectView, projectBody }
 }

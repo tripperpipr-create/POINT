@@ -18,6 +18,7 @@ import { createGitLabProjectView } from './gitlab-project-view.js'
 import { createMcpServerActions } from './mcp-server-actions.js'
 import { createGitLabProjectActions } from './gitlab-project-actions.js'
 import { createGitLabProjectCard } from './gitlab-project-card.js'
+import { createGitLabWindow } from './gitlab-window.js'
 
 const SCROLLERS = ['.gl-scroll', '.hall-body']
 
@@ -37,7 +38,7 @@ export function createIntegrationsUi({ root, vscode, render, shell, toolPageHead
     busy: '', drafts: {},
   }
   const requested = new Set()
-  const surface = () => layout === 'gitlab-mr' ? `mr:${state.project}!${state.iid}` : layout === 'gitlab-project' ? `project:${state.project}` : layout === 'tool-gitlab' ? 'tool' : 'hub'
+  const surface = () => layout === 'gitlab-mr' ? `mr:${state.project}!${state.iid}` : layout === 'gitlab-project' ? `project:${state.project}` : layout === 'tool-gitlab' ? (dataset.gitlabScope === 'all' ? 'tool-all' : 'tool') : 'hub'
   const mcp = (action, extra = {}) => vscode.postMessage({ type: 'mcpAction', action, ...extra })
   const gitlab = (action, extra = {}) => vscode.postMessage({ type: 'gitlabAction', action, surface: surface(), ...extra })
   // Запрос из отрисовки уходит после кадра и один раз: ответ сам вызовет
@@ -52,13 +53,14 @@ export function createIntegrationsUi({ root, vscode, render, shell, toolPageHead
   const notice = (tone, text) => { state.notice = text ? { tone, text } : null }
   const mrTarget = () => ({ project: state.project, iid: state.iid })
 
-  const tool = createGitLabToolView({ getState: () => state, shell })
+  const tool = createGitLabToolView({ getState: () => state, shell, window: () => gitlabWindow })
   const card = createGitLabMergeRequestView({ getState: () => state, markdown, pipelineRows: tool.pipelineRows })
   const guild = createIntegrationsViews({ getState: () => state, shell, toolPageHeading })
   const project = createGitLabProjectView({ getState: () => state, shell, toolPageHeading, bindingEditor: tool.bindingEditor })
   const servers = createMcpServerActions({ state, mcp, render })
   const projects = createGitLabProjectActions({ state, gitlab, once, notice, layout, forgetMatching: pattern => [...requested].filter(key => pattern.test(key)).forEach(key => requested.delete(key)) })
-  const projectCard = createGitLabProjectCard({ getState: () => state, markdown })
+  const projectCard = createGitLabProjectCard({ getState: () => state, markdown, pipelineRows: tool.pipelineRows })
+  const gitlabWindow = createGitLabWindow({ state, gitlab, once, forget, layout, render, card, projectCard, projects })
   // Мир и ядро, чей статус лежит в state: смена проекта в Чертоге и перезапуск
   // ядра не пересоздают вебвью, и без этих меток окно показывало бы связь
   // прошлого мира или ответ ядра, которого больше нет.
@@ -125,7 +127,7 @@ export function createIntegrationsUi({ root, vscode, render, shell, toolPageHead
       coreRunning = running
       return false
     }
-    if (projects.message(msg)) { render(); return true }
+    if (gitlabWindow.before(msg) || projects.message(msg)) { render(); return true }
     switch (msg?.type) {
       case 'mcpServers':
         state.servers = Array.isArray(msg.servers) ? msg.servers : []
@@ -231,7 +233,7 @@ export function createIntegrationsUi({ root, vscode, render, shell, toolPageHead
   // ── Нажатия ─────────────────────────────────────────────────────────────
   function click(action, target) {
     if (servers.click(action, target)) return true
-    const handled = projects.click(action, target)
+    const handled = gitlabWindow.click(action, target) || projects.click(action, target)
     if (handled) { if (handled !== 'sent') render(); return true }
     const data = target?.dataset || {}
     switch (action) {
@@ -254,7 +256,7 @@ export function createIntegrationsUi({ root, vscode, render, shell, toolPageHead
         break
       }
       case 'gitlab-plugin-check': state.busy = 'probe'; mcp('probe', { id: 'mcp-gitlab' }); break
-      case 'gitlab-open-window': gitlab('openWindow'); return true
+      case 'gitlab-open-window': gitlab('openWindow', { scope: data.scope === 'all' ? 'all' : '' }); return true
       case 'gitlab-open-integrations': vscode.postMessage({ type: 'toolCommand', command: 'localAgent.openIntegrations' }); return true
       // Окно GitLab
       case 'gitlab-reload':
